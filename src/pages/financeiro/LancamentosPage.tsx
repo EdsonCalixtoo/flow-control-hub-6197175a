@@ -13,28 +13,29 @@ const LancamentosPage: React.FC = () => {
           <h1 className="page-header">Lançamentos</h1>
           <p className="page-subtitle">Receitas e despesas</p>
         </div>
-        <button className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
+        <button className="btn-primary">
           <Plus className="w-4 h-4" /> Novo Lançamento
         </button>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-3 stagger-children">
         {financialEntries.map(entry => (
-          <div key={entry.id} className="bg-card border border-border rounded-xl px-5 py-3 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${entry.type === 'receita' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
+          <div key={entry.id} className="card-section px-6 py-4 flex items-center justify-between hover:shadow-lg hover:shadow-primary/[0.04] transition-all duration-300">
+            <div className="flex items-center gap-4">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${entry.type === 'receita' ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
                 {entry.type === 'receita' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
               </div>
               <div>
-                <p className="text-sm font-medium text-foreground">{entry.description}</p>
-                <p className="text-xs text-muted-foreground">{entry.category} • {new Date(entry.date).toLocaleDateString('pt-BR')}</p>
+                <p className="text-sm font-semibold text-foreground">{entry.description}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{entry.category} • {new Date(entry.date).toLocaleDateString('pt-BR')}</p>
               </div>
             </div>
             <div className="text-right">
-              <span className={`text-sm font-semibold ${entry.type === 'receita' ? 'text-success' : 'text-destructive'}`}>
+              <span className={`text-sm font-bold ${entry.type === 'receita' ? 'text-success' : 'text-destructive'}`}>
                 {entry.type === 'receita' ? '+' : '-'}{formatCurrency(entry.amount)}
               </span>
-              <span className={`block text-xs mt-0.5 status-badge ${entry.status === 'pago' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
+              <span className={`block mt-1 status-badge text-[10px] ${entry.status === 'pago' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
+                <span className="w-1.5 h-1.5 rounded-full bg-current mr-1" />
                 {entry.status === 'pago' ? 'Pago' : 'Pendente'}
               </span>
             </div>

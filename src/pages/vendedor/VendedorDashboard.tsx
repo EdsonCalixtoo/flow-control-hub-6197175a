@@ -12,40 +12,41 @@ const VendedorDashboard: React.FC = () => {
   const aguardandoPgto = orders.filter(o => o.status === 'aguardando_financeiro').length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
         <h1 className="page-header">Dashboard do Vendedor</h1>
         <p className="page-subtitle">Acompanhe suas vendas e orçamentos</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Total de Vendas" value={formatCurrency(totalVendas)} icon={ShoppingCart} color="text-vendedor" />
-        <StatCard title="Orçamentos Pendentes" value={pendentes} icon={FileText} color="text-warning" />
-        <StatCard title="Vendas Aprovadas" value={aprovadas} icon={CheckCircle} color="text-success" />
-        <StatCard title="Aguardando Pagamento" value={aguardandoPgto} icon={Clock} color="text-muted-foreground" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 stagger-children">
+        <StatCard title="Total de Vendas" value={formatCurrency(totalVendas)} icon={ShoppingCart} color="text-vendedor" trend="+12%" />
+        <StatCard title="Pendentes" value={pendentes} icon={FileText} color="text-warning" />
+        <StatCard title="Aprovadas" value={aprovadas} icon={CheckCircle} color="text-success" />
+        <StatCard title="Aguard. Pagamento" value={aguardandoPgto} icon={Clock} color="text-muted-foreground" />
       </div>
 
-      <div className="bg-card rounded-xl border border-border">
-        <div className="px-5 py-4 border-b border-border">
-          <h2 className="font-semibold text-foreground">Últimos Pedidos</h2>
+      <div className="card-section">
+        <div className="card-section-header">
+          <h2 className="card-section-title">Últimos Pedidos</h2>
+          <span className="text-xs font-medium text-muted-foreground bg-muted px-3 py-1 rounded-full">{orders.length} pedidos</span>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="modern-table">
             <thead>
-              <tr className="border-b border-border">
-                <th className="text-left px-5 py-3 text-muted-foreground font-medium">Pedido</th>
-                <th className="text-left px-5 py-3 text-muted-foreground font-medium">Cliente</th>
-                <th className="text-left px-5 py-3 text-muted-foreground font-medium hidden md:table-cell">Valor</th>
-                <th className="text-left px-5 py-3 text-muted-foreground font-medium">Status</th>
+              <tr>
+                <th>Pedido</th>
+                <th>Cliente</th>
+                <th className="hidden md:table-cell">Valor</th>
+                <th>Status</th>
               </tr>
             </thead>
             <tbody>
               {orders.map(order => (
-                <tr key={order.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                  <td className="px-5 py-3 font-medium text-foreground">{order.number}</td>
-                  <td className="px-5 py-3 text-foreground">{order.clientName}</td>
-                  <td className="px-5 py-3 text-foreground hidden md:table-cell">{formatCurrency(order.total)}</td>
-                  <td className="px-5 py-3"><StatusBadge status={order.status} /></td>
+                <tr key={order.id}>
+                  <td className="font-semibold text-foreground">{order.number}</td>
+                  <td className="text-foreground">{order.clientName}</td>
+                  <td className="text-foreground font-medium hidden md:table-cell">{formatCurrency(order.total)}</td>
+                  <td><StatusBadge status={order.status} /></td>
                 </tr>
               ))}
             </tbody>

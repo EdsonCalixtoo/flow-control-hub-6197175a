@@ -1,14 +1,12 @@
 import React, { useState } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
-import { FileText, Plus, Send, Eye } from 'lucide-react';
+import { FileText, Plus, Send, Eye, ArrowLeft } from 'lucide-react';
 import type { Order } from '@/types/erp';
 
 const OrcamentosPage: React.FC = () => {
   const { orders, updateOrderStatus } = useERP();
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-
-  const myOrders = orders;
 
   const enviarFinanceiro = (orderId: string) => {
     updateOrderStatus(orderId, 'aguardando_financeiro');
@@ -21,82 +19,84 @@ const OrcamentosPage: React.FC = () => {
           <h1 className="page-header">Orçamentos</h1>
           <p className="page-subtitle">Gerencie seus orçamentos e vendas</p>
         </div>
-        <button className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
+        <button className="btn-primary">
           <Plus className="w-4 h-4" /> Novo Orçamento
         </button>
       </div>
 
       {selectedOrder ? (
-        <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+        <div className="card-section p-6 space-y-5 animate-scale-in">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-foreground text-lg">{selectedOrder.number}</h2>
-            <button onClick={() => setSelectedOrder(null)} className="text-sm text-muted-foreground hover:text-foreground">Voltar</button>
+            <h2 className="font-bold text-foreground text-lg">{selectedOrder.number}</h2>
+            <button onClick={() => setSelectedOrder(null)} className="btn-modern bg-muted text-foreground shadow-none text-xs px-3 py-1.5">
+              <ArrowLeft className="w-3.5 h-3.5" /> Voltar
+            </button>
           </div>
           <div className="grid grid-cols-2 gap-4 text-sm">
-            <div><span className="text-muted-foreground">Cliente:</span> <span className="font-medium text-foreground">{selectedOrder.clientName}</span></div>
-            <div><span className="text-muted-foreground">Status:</span> <StatusBadge status={selectedOrder.status} /></div>
-            <div><span className="text-muted-foreground">Data:</span> <span className="text-foreground">{new Date(selectedOrder.createdAt).toLocaleDateString('pt-BR')}</span></div>
-            <div><span className="text-muted-foreground">Total:</span> <span className="font-bold text-foreground">{formatCurrency(selectedOrder.total)}</span></div>
+            <div className="p-3 rounded-xl bg-muted/30"><span className="text-xs text-muted-foreground block mb-1">Cliente</span><span className="font-semibold text-foreground">{selectedOrder.clientName}</span></div>
+            <div className="p-3 rounded-xl bg-muted/30"><span className="text-xs text-muted-foreground block mb-1">Status</span><StatusBadge status={selectedOrder.status} /></div>
+            <div className="p-3 rounded-xl bg-muted/30"><span className="text-xs text-muted-foreground block mb-1">Data</span><span className="text-foreground">{new Date(selectedOrder.createdAt).toLocaleDateString('pt-BR')}</span></div>
+            <div className="p-3 rounded-xl bg-muted/30"><span className="text-xs text-muted-foreground block mb-1">Total</span><span className="font-extrabold text-foreground text-lg">{formatCurrency(selectedOrder.total)}</span></div>
           </div>
-          <div className="border border-border rounded-lg overflow-hidden">
-            <table className="w-full text-sm">
+          <div className="rounded-xl border border-border/60 overflow-hidden">
+            <table className="modern-table">
               <thead>
-                <tr className="bg-muted/50">
-                  <th className="text-left px-4 py-2 text-muted-foreground font-medium">Produto</th>
-                  <th className="text-right px-4 py-2 text-muted-foreground font-medium">Qtd</th>
-                  <th className="text-right px-4 py-2 text-muted-foreground font-medium hidden sm:table-cell">Unit.</th>
-                  <th className="text-right px-4 py-2 text-muted-foreground font-medium">Total</th>
+                <tr>
+                  <th>Produto</th>
+                  <th className="text-right">Qtd</th>
+                  <th className="text-right hidden sm:table-cell">Unit.</th>
+                  <th className="text-right">Total</th>
                 </tr>
               </thead>
               <tbody>
                 {selectedOrder.items.map(item => (
-                  <tr key={item.id} className="border-t border-border/50">
-                    <td className="px-4 py-2 text-foreground">{item.product}</td>
-                    <td className="px-4 py-2 text-right text-foreground">{item.quantity}</td>
-                    <td className="px-4 py-2 text-right text-foreground hidden sm:table-cell">{formatCurrency(item.unitPrice)}</td>
-                    <td className="px-4 py-2 text-right font-medium text-foreground">{formatCurrency(item.total)}</td>
+                  <tr key={item.id}>
+                    <td className="text-foreground font-medium">{item.product}</td>
+                    <td className="text-right text-foreground">{item.quantity}</td>
+                    <td className="text-right text-foreground hidden sm:table-cell">{formatCurrency(item.unitPrice)}</td>
+                    <td className="text-right font-semibold text-foreground">{formatCurrency(item.total)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <div className="flex items-center justify-between pt-2 border-t border-border">
+          <div className="flex items-center justify-between pt-3 border-t border-border/40">
             <div className="text-sm text-muted-foreground">
               Subtotal: {formatCurrency(selectedOrder.subtotal)} • Impostos: {formatCurrency(selectedOrder.taxes)}
             </div>
-            <div className="text-lg font-bold text-foreground">{formatCurrency(selectedOrder.total)}</div>
+            <div className="text-xl font-extrabold text-foreground">{formatCurrency(selectedOrder.total)}</div>
           </div>
           {(selectedOrder.status === 'rascunho' || selectedOrder.status === 'enviado' || selectedOrder.status === 'aprovado_cliente') && (
             <button
               onClick={() => { enviarFinanceiro(selectedOrder.id); setSelectedOrder(null); }}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-vendedor text-primary-foreground rounded-lg text-sm font-medium hover:bg-vendedor/90 transition-colors"
+              className="btn-modern bg-gradient-to-r from-vendedor to-vendedor/80 text-primary-foreground"
             >
               <Send className="w-4 h-4" /> Enviar para Financeiro
             </button>
           )}
         </div>
       ) : (
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="card-section">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="modern-table">
               <thead>
-                <tr className="border-b border-border">
-                  <th className="text-left px-5 py-3 text-muted-foreground font-medium">Pedido</th>
-                  <th className="text-left px-5 py-3 text-muted-foreground font-medium">Cliente</th>
-                  <th className="text-left px-5 py-3 text-muted-foreground font-medium hidden md:table-cell">Valor</th>
-                  <th className="text-left px-5 py-3 text-muted-foreground font-medium">Status</th>
-                  <th className="text-right px-5 py-3 text-muted-foreground font-medium">Ações</th>
+                <tr>
+                  <th>Pedido</th>
+                  <th>Cliente</th>
+                  <th className="hidden md:table-cell">Valor</th>
+                  <th>Status</th>
+                  <th className="text-right">Ações</th>
                 </tr>
               </thead>
               <tbody>
-                {myOrders.map(order => (
-                  <tr key={order.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                    <td className="px-5 py-3 font-medium text-foreground">{order.number}</td>
-                    <td className="px-5 py-3 text-foreground">{order.clientName}</td>
-                    <td className="px-5 py-3 text-foreground hidden md:table-cell">{formatCurrency(order.total)}</td>
-                    <td className="px-5 py-3"><StatusBadge status={order.status} /></td>
-                    <td className="px-5 py-3 text-right">
-                      <button onClick={() => setSelectedOrder(order)} className="text-primary hover:text-primary/80">
+                {orders.map(order => (
+                  <tr key={order.id}>
+                    <td className="font-semibold text-foreground">{order.number}</td>
+                    <td className="text-foreground">{order.clientName}</td>
+                    <td className="text-foreground font-medium hidden md:table-cell">{formatCurrency(order.total)}</td>
+                    <td><StatusBadge status={order.status} /></td>
+                    <td className="text-right">
+                      <button onClick={() => setSelectedOrder(order)} className="w-8 h-8 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center justify-center transition-colors">
                         <Eye className="w-4 h-4" />
                       </button>
                     </td>

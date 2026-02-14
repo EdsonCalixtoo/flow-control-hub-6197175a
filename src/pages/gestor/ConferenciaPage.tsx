@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
-import { CheckCircle, XCircle, Eye, Send, ArrowLeft, Inbox } from 'lucide-react';
+import { OrderPipeline, OrderHistory } from '@/components/shared/OrderTimeline';
+import { CheckCircle, XCircle, Eye, Send, ArrowLeft, Inbox, History } from 'lucide-react';
 import type { Order } from '@/types/erp';
 
 const ConferenciaPage: React.FC = () => {
@@ -14,19 +15,19 @@ const ConferenciaPage: React.FC = () => {
   const aprovados = orders.filter(o => o.status === 'aprovado_gestor');
 
   const aprovar = (orderId: string) => {
-    updateOrderStatus(orderId, 'aprovado_gestor');
+    updateOrderStatus(orderId, 'aprovado_gestor', undefined, 'Ricardo Souza', 'Pedido conferido e aprovado');
     setSelectedOrder(null);
   };
 
   const rejeitar = (orderId: string) => {
-    updateOrderStatus(orderId, 'rejeitado_gestor', { rejectionReason: rejectReason });
+    updateOrderStatus(orderId, 'rejeitado_gestor', { rejectionReason: rejectReason }, 'Ricardo Souza', `Rejeitado: ${rejectReason}`);
     setSelectedOrder(null);
     setShowReject(false);
     setRejectReason('');
   };
 
   const enviarProducao = (orderId: string) => {
-    updateOrderStatus(orderId, 'aguardando_producao');
+    updateOrderStatus(orderId, 'aguardando_producao', undefined, 'Ricardo Souza', 'Enviado para produção');
   };
 
   return (
@@ -43,6 +44,11 @@ const ConferenciaPage: React.FC = () => {
             <button onClick={() => { setSelectedOrder(null); setShowReject(false); }} className="btn-modern bg-muted text-foreground shadow-none text-xs px-3 py-1.5">
               <ArrowLeft className="w-3.5 h-3.5" /> Voltar
             </button>
+          </div>
+          {/* Pipeline */}
+          <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Progresso do Pedido</p>
+            <OrderPipeline order={selectedOrder} />
           </div>
           <div className="grid grid-cols-2 gap-3">
             {[
@@ -70,6 +76,13 @@ const ConferenciaPage: React.FC = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+          {/* Histórico */}
+          <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+              <History className="w-3 h-3" /> Histórico
+            </p>
+            <OrderHistory order={selectedOrder} />
           </div>
           {showReject ? (
             <div className="space-y-3">

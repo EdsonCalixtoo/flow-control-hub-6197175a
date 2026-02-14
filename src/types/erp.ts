@@ -47,6 +47,13 @@ export type OrderStatus =
   | 'producao_finalizada'
   | 'produto_liberado';
 
+export interface StatusHistoryEntry {
+  status: OrderStatus;
+  timestamp: string;
+  user: string;
+  note?: string;
+}
+
 export interface Order {
   id: string;
   number: string;
@@ -71,7 +78,20 @@ export interface Order {
   productionFinishedAt?: string;
   releasedAt?: string;
   releasedBy?: string;
+  statusHistory: StatusHistoryEntry[];
 }
+
+export const STATUS_FLOW: OrderStatus[] = [
+  'rascunho',
+  'aguardando_financeiro',
+  'aprovado_financeiro',
+  'aguardando_gestor',
+  'aprovado_gestor',
+  'aguardando_producao',
+  'em_producao',
+  'producao_finalizada',
+  'produto_liberado',
+];
 
 export interface FinancialEntry {
   id: string;

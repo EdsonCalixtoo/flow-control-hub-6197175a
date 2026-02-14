@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
-import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2 } from 'lucide-react';
+import { OrderPipeline, OrderHistory } from '@/components/shared/OrderTimeline';
+import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History } from 'lucide-react';
 import type { Order, QuoteItem } from '@/types/erp';
 
 const OrcamentosPage: React.FC = () => {
@@ -21,7 +22,7 @@ const OrcamentosPage: React.FC = () => {
   );
 
   const enviarFinanceiro = (orderId: string) => {
-    updateOrderStatus(orderId, 'aguardando_financeiro');
+    updateOrderStatus(orderId, 'aguardando_financeiro', undefined, 'Carlos Silva', 'Enviado para aprovação financeira');
     setSelectedOrder(null);
   };
 
@@ -39,6 +40,7 @@ const OrcamentosPage: React.FC = () => {
 
     const subtotal = calcTotal();
     const taxes = subtotal * 0.1;
+    const now = new Date().toISOString();
     const order: Order = {
       id: `o${Date.now()}`,
       number: `PED-${String(orders.length + 1).padStart(3, '0')}`,
@@ -60,8 +62,9 @@ const OrcamentosPage: React.FC = () => {
       total: subtotal + taxes,
       status: 'rascunho',
       notes: newNotes,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
+      statusHistory: [{ status: 'rascunho', timestamp: now, user: 'Carlos Silva', note: 'Orçamento criado' }],
     };
 
     addOrder(order);
@@ -161,6 +164,13 @@ const OrcamentosPage: React.FC = () => {
             <ArrowLeft className="w-3.5 h-3.5" /> Voltar
           </button>
         </div>
+
+        {/* Pipeline visual */}
+        <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Progresso do Pedido</p>
+          <OrderPipeline order={selectedOrder} />
+        </div>
+
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div className="p-3 rounded-xl bg-muted/30"><span className="text-xs text-muted-foreground block mb-1">Cliente</span><span className="font-semibold text-foreground">{selectedOrder.clientName}</span></div>
           <div className="p-3 rounded-xl bg-muted/30"><span className="text-xs text-muted-foreground block mb-1">Status</span><StatusBadge status={selectedOrder.status} /></div>
@@ -186,6 +196,15 @@ const OrcamentosPage: React.FC = () => {
           <div className="text-sm text-muted-foreground">Subtotal: {formatCurrency(selectedOrder.subtotal)} • Impostos: {formatCurrency(selectedOrder.taxes)}</div>
           <div className="text-xl font-extrabold text-foreground">{formatCurrency(selectedOrder.total)}</div>
         </div>
+
+        {/* Histórico de status */}
+        <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+            <History className="w-3 h-3" /> Histórico de Movimentações
+          </p>
+          <OrderHistory order={selectedOrder} />
+        </div>
+
         {(selectedOrder.status === 'rascunho' || selectedOrder.status === 'enviado' || selectedOrder.status === 'aprovado_cliente') && (
           <button onClick={() => enviarFinanceiro(selectedOrder.id)} className="btn-modern bg-gradient-to-r from-vendedor to-vendedor/80 text-primary-foreground">
             <Send className="w-4 h-4" /> Enviar para Financeiro
@@ -220,6 +239,7 @@ const OrcamentosPage: React.FC = () => {
                 <th>Pedido</th>
                 <th>Cliente</th>
                 <th className="hidden md:table-cell text-right">Valor</th>
+                <th className="hidden lg:table-cell">Progresso</th>
                 <th>Status</th>
                 <th className="text-right">Ações</th>
               </tr>
@@ -230,6 +250,7 @@ const OrcamentosPage: React.FC = () => {
                   <td className="font-bold text-foreground">{order.number}</td>
                   <td className="text-foreground">{order.clientName}</td>
                   <td className="text-right font-semibold text-foreground hidden md:table-cell">{formatCurrency(order.total)}</td>
+                  <td className="hidden lg:table-cell"><OrderPipeline order={order} compact /></td>
                   <td><StatusBadge status={order.status} /></td>
                   <td className="text-right">
                     <div className="flex items-center justify-end gap-1.5">

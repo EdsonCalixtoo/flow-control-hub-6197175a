@@ -1,6 +1,7 @@
 import React from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { StatCard, StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
+import { OrderPipeline } from '@/components/shared/OrderTimeline';
 import { ShoppingCart, FileText, Clock, Percent, Eye } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -63,33 +64,31 @@ const VendedorDashboard: React.FC = () => {
         </Link>
       </div>
 
-      {/* Últimos pedidos */}
+      {/* Últimos pedidos com pipeline */}
       <div className="card-section">
         <div className="card-section-header">
-          <h2 className="card-section-title">Últimos Pedidos</h2>
+          <h2 className="card-section-title">Acompanhamento em Tempo Real</h2>
           <Link to="/vendedor/orcamentos" className="text-xs font-semibold text-primary hover:underline">Ver todos →</Link>
         </div>
-        <div className="overflow-x-auto">
-          <table className="modern-table">
-            <thead>
-              <tr>
-                <th>Pedido</th>
-                <th>Cliente</th>
-                <th className="text-right hidden md:table-cell">Valor</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {orders.slice(0, 5).map(order => (
-                <tr key={order.id}>
-                  <td className="font-bold text-foreground">{order.number}</td>
-                  <td className="text-foreground">{order.clientName}</td>
-                  <td className="text-right font-semibold text-foreground hidden md:table-cell">{formatCurrency(order.total)}</td>
-                  <td><StatusBadge status={order.status} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="divide-y divide-border/40">
+          {orders.filter(o => o.status !== 'rascunho').slice(0, 6).map(order => (
+            <div key={order.id} className="p-4 md:p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="font-bold text-foreground text-sm">{order.number}</span>
+                  <span className="text-muted-foreground text-xs ml-2">{order.clientName}</span>
+                </div>
+                <span className="font-semibold text-foreground text-sm">{formatCurrency(order.total)}</span>
+              </div>
+              <OrderPipeline order={order} compact />
+              {order.statusHistory.length > 0 && (
+                <p className="text-[10px] text-muted-foreground">
+                  Última atualização: {new Date(order.statusHistory[order.statusHistory.length - 1].timestamp).toLocaleString('pt-BR')}
+                  {' • '}{order.statusHistory[order.statusHistory.length - 1].user}
+                </p>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     </div>

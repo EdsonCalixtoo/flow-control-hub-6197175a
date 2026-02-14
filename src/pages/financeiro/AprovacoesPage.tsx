@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
-import { CheckCircle, XCircle, Eye, Send, ArrowLeft, Inbox } from 'lucide-react';
+import { OrderPipeline, OrderHistory } from '@/components/shared/OrderTimeline';
+import { CheckCircle, XCircle, Eye, Send, ArrowLeft, Inbox, History } from 'lucide-react';
 import type { Order } from '@/types/erp';
 
 const AprovacoesPage: React.FC = () => {
@@ -13,19 +14,19 @@ const AprovacoesPage: React.FC = () => {
   const pendentes = orders.filter(o => o.status === 'aguardando_financeiro');
 
   const aprovar = (orderId: string) => {
-    updateOrderStatus(orderId, 'aprovado_financeiro', { paymentStatus: 'pago' });
+    updateOrderStatus(orderId, 'aprovado_financeiro', { paymentStatus: 'pago' }, 'Ana Costa', 'Pagamento aprovado');
     setSelectedOrder(null);
   };
 
   const rejeitar = (orderId: string) => {
-    updateOrderStatus(orderId, 'rejeitado_financeiro', { rejectionReason: rejectReason });
+    updateOrderStatus(orderId, 'rejeitado_financeiro', { rejectionReason: rejectReason }, 'Ana Costa', `Rejeitado: ${rejectReason}`);
     setSelectedOrder(null);
     setShowReject(false);
     setRejectReason('');
   };
 
   const enviarGestor = (orderId: string) => {
-    updateOrderStatus(orderId, 'aguardando_gestor');
+    updateOrderStatus(orderId, 'aguardando_gestor', undefined, 'Ana Costa', 'Enviado para conferência do gestor');
   };
 
   return (
@@ -43,6 +44,11 @@ const AprovacoesPage: React.FC = () => {
               <ArrowLeft className="w-3.5 h-3.5" /> Voltar
             </button>
           </div>
+          {/* Pipeline */}
+          <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3">Progresso do Pedido</p>
+            <OrderPipeline order={selectedOrder} />
+          </div>
           <div className="rounded-xl border border-border/60 overflow-hidden">
             <table className="modern-table">
               <thead><tr><th>Produto</th><th className="text-right">Total</th></tr></thead>
@@ -57,6 +63,13 @@ const AprovacoesPage: React.FC = () => {
             </table>
           </div>
           <div className="text-right text-xl font-extrabold text-foreground">Total: {formatCurrency(selectedOrder.total)}</div>
+          {/* Histórico */}
+          <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-3 flex items-center gap-1.5">
+              <History className="w-3 h-3" /> Histórico
+            </p>
+            <OrderHistory order={selectedOrder} />
+          </div>
           {showReject ? (
             <div className="space-y-3">
               <textarea

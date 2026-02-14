@@ -24,7 +24,7 @@ const PedidosProducaoPage: React.FC = () => {
   });
 
   const iniciarProducao = (orderId: string) => {
-    updateOrderStatus(orderId, 'em_producao', { productionStartedAt: new Date().toISOString() });
+    updateOrderStatus(orderId, 'em_producao', { productionStartedAt: new Date().toISOString() }, 'Equipe Produção', 'Produção iniciada');
   };
 
   const finalizarProducao = (orderId: string) => {
@@ -32,7 +32,7 @@ const PedidosProducaoPage: React.FC = () => {
     updateOrderStatus(orderId, 'producao_finalizada', {
       productionFinishedAt: new Date().toISOString(),
       qrCode,
-    });
+    }, 'Equipe Produção', 'Produção finalizada');
     setGuia(orderId);
   };
 
@@ -44,7 +44,7 @@ const PedidosProducaoPage: React.FC = () => {
         updateOrderStatus(order.id, 'produto_liberado', {
           releasedAt: new Date().toISOString(),
           releasedBy: 'Scanner',
-        });
+        }, 'Scanner', 'Produto liberado via leitura de código');
         setScanResult({ success: true, message: `Pedido ${order.number} liberado com sucesso!`, orderNumber: order.number });
       } else if (order.status === 'produto_liberado') {
         setScanResult({ success: true, message: `Pedido ${order.number} já foi liberado.`, orderNumber: order.number });

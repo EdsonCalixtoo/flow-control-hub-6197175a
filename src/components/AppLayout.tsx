@@ -15,7 +15,10 @@ import {
   Bell,
   Search,
   ChevronRight,
+  Sun,
+  Moon,
 } from 'lucide-react';
+import { useThemeContext } from '@/contexts/ThemeContext';
 import { Link, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 
@@ -53,6 +56,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { theme, toggleTheme } = useThemeContext();
 
   if (!user) return null;
 
@@ -147,6 +151,13 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <span className="text-xs text-muted-foreground hidden sm:block font-medium">
               {new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
             </span>
+            <button
+              onClick={toggleTheme}
+              className="w-10 h-10 rounded-xl bg-muted/50 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-200"
+              title={theme === 'light' ? 'Modo escuro' : 'Modo claro'}
+            >
+              {theme === 'light' ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+            </button>
             <button className="relative w-10 h-10 rounded-xl bg-muted/50 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-200">
               <Bell className="w-4 h-4" />
               <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-destructive" />

@@ -4,8 +4,16 @@ import { StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
 import { Play, CheckCircle, Printer, Package, ArrowLeft, Search, ScanLine, X } from 'lucide-react';
 import BarcodeComponent from 'react-barcode';
 
+const REMETENTE = {
+  name: 'Minha Empresa Ltda',
+  address: 'Rua Principal, 1000',
+  city: 'São Paulo',
+  state: 'SP',
+  cep: '01000-000',
+};
+
 const PedidosProducaoPage: React.FC = () => {
-  const { orders, updateOrderStatus } = useERP();
+  const { orders, clients, updateOrderStatus } = useERP();
   const [guia, setGuia] = useState<string | null>(null);
   const [showScanner, setShowScanner] = useState(false);
   const [scanInput, setScanInput] = useState('');
@@ -177,25 +185,100 @@ const PedidosProducaoPage: React.FC = () => {
             </table>
           </div>
 
-          {/* Código de barras + Etiqueta */}
+          {/* Etiqueta preview */}
           <div className="flex flex-col items-center py-8 border-t border-border/40 space-y-4">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Código de Barras do Pedido</p>
-            <div className="bg-white p-4 rounded-xl">
-              <BarcodeComponent value={guiaOrder.number} format="CODE128" width={2} height={80} displayValue={true} fontSize={14} margin={10} />
-            </div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pré-visualização da Etiqueta</p>
+            {(() => {
+              const client = clients.find(c => c.id === guiaOrder.clientId);
+              return (
+                <div className="border-2 border-dashed border-border rounded-xl p-6 bg-white text-black" style={{ width: '10cm', minHeight: '15cm' }}>
+                  <div className="flex flex-col justify-between h-full" style={{ minHeight: '13.5cm' }}>
+                    {/* Remetente */}
+                    <div className="border-b border-gray-300 pb-3 mb-3">
+                      <p className="text-[10px] font-bold uppercase text-gray-500 mb-1">Remetente</p>
+                      <p className="text-sm font-bold">{REMETENTE.name}</p>
+                      <p className="text-xs text-gray-600">{REMETENTE.address}</p>
+                      <p className="text-xs text-gray-600">{REMETENTE.city} - {REMETENTE.state} • CEP: {REMETENTE.cep}</p>
+                    </div>
+
+                    {/* Destinatário */}
+                    <div className="border-b border-gray-300 pb-3 mb-3 flex-1">
+                      <p className="text-[10px] font-bold uppercase text-gray-500 mb-1">Destinatário</p>
+                      <p className="text-base font-bold">{guiaOrder.clientName}</p>
+                      {client && (
+                        <>
+                          <p className="text-sm text-gray-600">{client.address}</p>
+                          <p className="text-sm text-gray-600">{client.city} - {client.state} • CEP: {client.cep}</p>
+                          {client.phone && <p className="text-xs text-gray-500 mt-1">Tel: {client.phone}</p>}
+                        </>
+                      )}
+                    </div>
+
+                    {/* Pedido + Código de barras */}
+                    <div className="text-center pt-2 space-y-2">
+                      <p className="text-xs font-semibold text-gray-500">Pedido: {guiaOrder.number}</p>
+                      <BarcodeComponent value={guiaOrder.number} format="CODE128" width={2} height={70} displayValue={true} fontSize={14} margin={4} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
             <button onClick={() => window.print()} className="btn-modern bg-producao/10 text-producao shadow-none text-xs hover:bg-producao/20">
-              <Printer className="w-3.5 h-3.5" /> Imprimir Etiqueta Térmica
+              <Printer className="w-3.5 h-3.5" /> Imprimir Etiqueta (10x15cm)
             </button>
           </div>
         </div>
 
-        {/* Etiqueta térmica (print only) */}
-        <div className="hidden print:block">
-          <div className="w-[300px] mx-auto p-4 border border-foreground text-center space-y-2">
-            <p className="font-bold text-sm">{guiaOrder.clientName}</p>
-            <p className="text-xs">{guiaOrder.number}</p>
-            <BarcodeComponent value={guiaOrder.number} format="CODE128" width={1.5} height={50} displayValue={true} fontSize={10} margin={4} />
-          </div>
+        {/* Etiqueta térmica (print only) — 10cm x 15cm */}
+        <style>{`
+          @media print {
+            body * { visibility: hidden !important; }
+            #etiqueta-print, #etiqueta-print * { visibility: visible !important; }
+            #etiqueta-print {
+              position: fixed; top: 0; left: 0;
+              width: 10cm; height: 15cm;
+              margin: 0; padding: 0.5cm;
+              box-sizing: border-box;
+            }
+            @page { size: 10cm 15cm; margin: 0; }
+          }
+        `}</style>
+        <div id="etiqueta-print" className="hidden print:block">
+          {(() => {
+            const client = clients.find(c => c.id === guiaOrder.clientId);
+            return (
+              <div style={{ width: '10cm', height: '15cm', fontFamily: 'Arial, sans-serif', padding: '0.5cm', boxSizing: 'border-box' }} className="text-black">
+                <div className="flex flex-col justify-between h-full">
+                  {/* Remetente */}
+                  <div style={{ borderBottom: '1px solid #000', paddingBottom: '8px', marginBottom: '8px' }}>
+                    <p style={{ fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', color: '#666', marginBottom: '2px' }}>Remetente</p>
+                    <p style={{ fontSize: '12px', fontWeight: 'bold' }}>{REMETENTE.name}</p>
+                    <p style={{ fontSize: '10px' }}>{REMETENTE.address}</p>
+                    <p style={{ fontSize: '10px' }}>{REMETENTE.city} - {REMETENTE.state} • CEP: {REMETENTE.cep}</p>
+                  </div>
+
+                  {/* Destinatário */}
+                  <div style={{ flex: 1, borderBottom: '1px solid #000', paddingBottom: '8px', marginBottom: '8px' }}>
+                    <p style={{ fontSize: '8px', fontWeight: 'bold', textTransform: 'uppercase', color: '#666', marginBottom: '2px' }}>Destinatário</p>
+                    <p style={{ fontSize: '14px', fontWeight: 'bold' }}>{guiaOrder.clientName}</p>
+                    {client && (
+                      <>
+                        <p style={{ fontSize: '11px' }}>{client.address}</p>
+                        <p style={{ fontSize: '11px' }}>{client.city} - {client.state} • CEP: {client.cep}</p>
+                        {client.phone && <p style={{ fontSize: '10px', color: '#444', marginTop: '4px' }}>Tel: {client.phone}</p>}
+                      </>
+                    )}
+                  </div>
+
+                  {/* Código de barras */}
+                  <div style={{ textAlign: 'center', paddingTop: '6px' }}>
+                    <p style={{ fontSize: '10px', fontWeight: 'bold', marginBottom: '4px' }}>Pedido: {guiaOrder.number}</p>
+                    <BarcodeComponent value={guiaOrder.number} format="CODE128" width={2} height={60} displayValue={true} fontSize={12} margin={4} />
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
     );

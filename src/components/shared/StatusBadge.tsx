@@ -40,3 +40,18 @@ export const StatCard: React.FC<{
 
 export const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+
+// Formata datas ISO corretamente no fuso horário local
+// new Date("2026-02-25") interpreta como UTC (meia-noite UTC = 21h do dia anterior no BR)
+// Esta função usa as partes da data para evitar o problema de timezone
+export const formatDate = (dateStr?: string | null): string => {
+  if (!dateStr) return '—';
+  // Se é uma data simples YYYY-MM-DD, parse como local
+  const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) {
+    const [, y, m, d] = match;
+    return `${d}/${m}/${y}`;
+  }
+  // Se tem hora (ISO completo), usa Date normal
+  return new Date(dateStr).toLocaleDateString('pt-BR');
+};

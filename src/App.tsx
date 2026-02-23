@@ -15,9 +15,11 @@ import FinanceiroDashboard from "@/pages/financeiro/FinanceiroDashboard";
 import AprovacoesPage from "@/pages/financeiro/AprovacoesPage";
 import PagamentosPage from "@/pages/financeiro/PagamentosPage";
 import LancamentosPage from "@/pages/financeiro/LancamentosPage";
+import FluxoCaixaPage from "@/pages/financeiro/FluxoCaixaPage";
 import GestorDashboard from "@/pages/gestor/GestorDashboard";
 import ConferenciaPage from "@/pages/gestor/ConferenciaPage";
 import RelatoriosPage from "@/pages/gestor/RelatoriosPage";
+import EstoquePage from "@/pages/gestor/EstoquePage";
 import ProducaoDashboard from "@/pages/producao/ProducaoDashboard";
 import PedidosProducaoPage from "@/pages/producao/PedidosProducaoPage";
 import QRCodePage from "@/pages/QRCodePage";
@@ -26,14 +28,24 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const ProtectedRoute: React.FC<{ role: string; children: React.ReactNode }> = ({ role, children }) => {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, authLoading } = useAuth();
+  if (authLoading) return (
+    <div className="min-h-screen flex items-center justify-center gradient-bg">
+      <div className="w-10 h-10 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+    </div>
+  );
   if (!isAuthenticated) return <Navigate to="/" replace />;
   if (user?.role !== role) return <Navigate to={`/${user?.role}`} replace />;
   return <AppLayout>{children}</AppLayout>;
 };
 
 const AuthGate: React.FC = () => {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, authLoading } = useAuth();
+  if (authLoading) return (
+    <div className="min-h-screen flex items-center justify-center gradient-bg">
+      <div className="w-10 h-10 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+    </div>
+  );
   if (isAuthenticated && user) return <Navigate to={`/${user.role}`} replace />;
   return <LoginPage />;
 };
@@ -41,44 +53,46 @@ const AuthGate: React.FC = () => {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <AuthProvider>
-        <ERPProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/" element={<AuthGate />} />
-              
-              {/* Vendedor */}
-              <Route path="/vendedor" element={<ProtectedRoute role="vendedor"><VendedorDashboard /></ProtectedRoute>} />
-              <Route path="/vendedor/clientes" element={<ProtectedRoute role="vendedor"><ClientesPage /></ProtectedRoute>} />
-              <Route path="/vendedor/orcamentos" element={<ProtectedRoute role="vendedor"><OrcamentosPage /></ProtectedRoute>} />
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <AuthProvider>
+          <ERPProvider>
+            <BrowserRouter>
+              <Routes>
+                <Route path="/" element={<AuthGate />} />
 
-              {/* Financeiro */}
-              <Route path="/financeiro" element={<ProtectedRoute role="financeiro"><FinanceiroDashboard /></ProtectedRoute>} />
-              <Route path="/financeiro/aprovacoes" element={<ProtectedRoute role="financeiro"><AprovacoesPage /></ProtectedRoute>} />
-              <Route path="/financeiro/pagamentos" element={<ProtectedRoute role="financeiro"><PagamentosPage /></ProtectedRoute>} />
-              <Route path="/financeiro/lancamentos" element={<ProtectedRoute role="financeiro"><LancamentosPage /></ProtectedRoute>} />
+                {/* Vendedor */}
+                <Route path="/vendedor" element={<ProtectedRoute role="vendedor"><VendedorDashboard /></ProtectedRoute>} />
+                <Route path="/vendedor/clientes" element={<ProtectedRoute role="vendedor"><ClientesPage /></ProtectedRoute>} />
+                <Route path="/vendedor/orcamentos" element={<ProtectedRoute role="vendedor"><OrcamentosPage /></ProtectedRoute>} />
 
-              {/* Gestor */}
-              <Route path="/gestor" element={<ProtectedRoute role="gestor"><GestorDashboard /></ProtectedRoute>} />
-              <Route path="/gestor/conferencia" element={<ProtectedRoute role="gestor"><ConferenciaPage /></ProtectedRoute>} />
-              <Route path="/gestor/relatorios" element={<ProtectedRoute role="gestor"><RelatoriosPage /></ProtectedRoute>} />
+                {/* Financeiro */}
+                <Route path="/financeiro" element={<ProtectedRoute role="financeiro"><FinanceiroDashboard /></ProtectedRoute>} />
+                <Route path="/financeiro/aprovacoes" element={<ProtectedRoute role="financeiro"><AprovacoesPage /></ProtectedRoute>} />
+                <Route path="/financeiro/pagamentos" element={<ProtectedRoute role="financeiro"><PagamentosPage /></ProtectedRoute>} />
+                <Route path="/financeiro/lancamentos" element={<ProtectedRoute role="financeiro"><LancamentosPage /></ProtectedRoute>} />
+                <Route path="/financeiro/fluxo" element={<ProtectedRoute role="financeiro"><FluxoCaixaPage /></ProtectedRoute>} />
 
-              {/* Produção */}
-              <Route path="/producao" element={<ProtectedRoute role="producao"><ProducaoDashboard /></ProtectedRoute>} />
-              <Route path="/producao/pedidos" element={<ProtectedRoute role="producao"><PedidosProducaoPage /></ProtectedRoute>} />
+                {/* Gestor */}
+                <Route path="/gestor" element={<ProtectedRoute role="gestor"><GestorDashboard /></ProtectedRoute>} />
+                <Route path="/gestor/conferencia" element={<ProtectedRoute role="gestor"><ConferenciaPage /></ProtectedRoute>} />
+                <Route path="/gestor/estoque" element={<ProtectedRoute role="gestor"><EstoquePage /></ProtectedRoute>} />
+                <Route path="/gestor/relatorios" element={<ProtectedRoute role="gestor"><RelatoriosPage /></ProtectedRoute>} />
 
-              {/* QR Code */}
-              <Route path="/qr/:orderId" element={<QRCodePage />} />
+                {/* Produção */}
+                <Route path="/producao" element={<ProtectedRoute role="producao"><ProducaoDashboard /></ProtectedRoute>} />
+                <Route path="/producao/pedidos" element={<ProtectedRoute role="producao"><PedidosProducaoPage /></ProtectedRoute>} />
 
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </BrowserRouter>
-        </ERPProvider>
-      </AuthProvider>
-    </TooltipProvider>
+                {/* QR Code */}
+                <Route path="/qr/:orderId" element={<QRCodePage />} />
+
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </ERPProvider>
+        </AuthProvider>
+      </TooltipProvider>
     </ThemeProvider>
   </QueryClientProvider>
 );

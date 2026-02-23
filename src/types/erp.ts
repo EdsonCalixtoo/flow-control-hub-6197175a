@@ -19,12 +19,14 @@ export interface Client {
   state: string;
   cep: string;
   notes: string;
+  consignado?: boolean;
   createdAt: string;
 }
 
 export interface QuoteItem {
   id: string;
   product: string;
+  description?: string;   // descrição completa do produto
   quantity: number;
   unitPrice: number;
   discount: number;
@@ -47,6 +49,8 @@ export type OrderStatus =
   | 'producao_finalizada'
   | 'produto_liberado';
 
+export type ProductionStatus = 'em_producao' | 'agendado' | 'atrasado' | 'finalizado';
+
 export interface StatusHistoryEntry {
   status: OrderStatus;
   timestamp: string;
@@ -67,6 +71,7 @@ export interface Order {
   total: number;
   status: OrderStatus;
   notes: string;
+  observation?: string;         // campo de observação do orçamento
   paymentMethod?: string;
   paymentStatus?: 'pago' | 'parcial' | 'pendente';
   installments?: number;
@@ -78,15 +83,54 @@ export interface Order {
   productionFinishedAt?: string;
   releasedAt?: string;
   releasedBy?: string;
+  receiptUrl?: string;
+  deliveryDate?: string;
+  scheduledDate?: string;        // data de agendamento da produção
+  orderType?: 'entrega' | 'instalacao';
+  productionStatus?: ProductionStatus;  // status detalhado de produção
   statusHistory: StatusHistoryEntry[];
+  // chat
+  chatMessages?: ChatMessage[];
+}
+
+export interface ChatMessage {
+  id: string;
+  orderId: string;
+  senderId?: string;
+  senderName: string;
+  senderRole: UserRole;
+  message: string;
+  createdAt: string;
+  readBy: string[];  // array de roles que já leram
+}
+
+export interface OrderReturn {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  clientName: string;
+  reason: string;
+  reportedBy: string;
+  createdAt: string;
+}
+
+export interface ProductionError {
+  id: string;
+  orderId?: string;
+  orderNumber?: string;
+  clientName?: string;
+  description: string;
+  reportedBy: string;
+  severity: 'baixa' | 'media' | 'alta' | 'critica';
+  resolved: boolean;
+  createdAt: string;
+  resolvedAt?: string;
 }
 
 export const STATUS_FLOW: OrderStatus[] = [
   'rascunho',
   'aguardando_financeiro',
   'aprovado_financeiro',
-  'aguardando_gestor',
-  'aprovado_gestor',
   'aguardando_producao',
   'em_producao',
   'producao_finalizada',
@@ -101,6 +145,23 @@ export interface FinancialEntry {
   category: string;
   date: string;
   status: 'pago' | 'pendente';
+}
+
+export interface Product {
+  id: string;
+  sku: string;
+  name: string;
+  description: string;
+  category: string;
+  unitPrice: number;
+  costPrice: number;
+  stockQuantity: number;
+  minStock: number;
+  unit: string;
+  supplier: string;
+  status: 'ativo' | 'inativo' | 'esgotado';
+  createdAt: string;
+  updatedAt: string;
 }
 
 export const STATUS_LABELS: Record<OrderStatus, string> = {
@@ -148,3 +209,32 @@ export const ROLE_COLORS: Record<UserRole, string> = {
   gestor: 'bg-gestor',
   producao: 'bg-producao',
 };
+
+export const PRODUCTION_STATUS_LABELS: Record<ProductionStatus, string> = {
+  em_producao: 'Em Produção',
+  agendado: 'Agendado',
+  atrasado: 'Atrasado',
+  finalizado: 'Finalizado',
+};
+
+export const PRODUCTION_STATUS_COLORS: Record<ProductionStatus, string> = {
+  em_producao: 'bg-producao/10 text-producao',
+  agendado: 'bg-primary/10 text-primary',
+  atrasado: 'bg-destructive/10 text-destructive',
+  finalizado: 'bg-success/10 text-success',
+};
+
+// Relatorio de atraso enviado da producao para o gestor
+export interface DelayReport {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  clientName: string;
+  orderType: 'entrega' | 'instalacao';
+  deliveryDate?: string;
+  orderTotal: number;
+  reason: string;
+  sentAt: string;
+  readAt?: string;
+  sentBy: string;
+}

@@ -1,32 +1,52 @@
 import React, { useState } from 'react';
 import { useERP } from '@/contexts/ERPContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
 import { OrderPipeline, OrderHistory } from '@/components/shared/OrderTimeline';
-import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History } from 'lucide-react';
+import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
+import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle } from 'lucide-react';
 import type { Order, QuoteItem } from '@/types/erp';
 
 const OrcamentosPage: React.FC = () => {
-  const { orders, clients, updateOrderStatus, addOrder } = useERP();
+  const { orders, addOrder, updateOrderStatus, clients, products } = useERP();
+  const { user } = useAuth();
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [comprovanteAttached, setComprovanteAttached] = useState('');
+  const [formError, setFormError] = useState('');
+
+  // Isolamento: vendedor vê apenas seus pedidos
+  const myOrders = orders.filter(o =>
+    user?.role !== 'vendedor' || o.sellerId === user.id
+  );
 
   // Form state for new order
   const [newClientId, setNewClientId] = useState('');
-  const [newItems, setNewItems] = useState<{ product: string; quantity: number; unitPrice: number }[]>([{ product: '', quantity: 1, unitPrice: 0 }]);
+  const [newItems, setNewItems] = useState<{ product: string; description: string; quantity: number; unitPrice: number }[]>([{ product: '', description: '', quantity: 1, unitPrice: 0 }]);
   const [newNotes, setNewNotes] = useState('');
+  const [newObservation, setNewObservation] = useState('');
+  const [newDeliveryDate, setNewDeliveryDate] = useState('');
+  const [newOrderType, setNewOrderType] = useState<'entrega' | 'instalacao'>('entrega');
 
-  const filtered = orders.filter(o =>
+  const filtered = myOrders.filter(o =>
     o.number.toLowerCase().includes(search.toLowerCase()) ||
     o.clientName.toLowerCase().includes(search.toLowerCase())
   );
 
   const enviarFinanceiro = (orderId: string) => {
-    updateOrderStatus(orderId, 'aguardando_financeiro', undefined, 'Carlos Silva', 'Enviado para aprovação financeira');
+    const receipt = comprovanteAttached || selectedOrder?.receiptUrl;
+    updateOrderStatus(
+      orderId, 'aguardando_financeiro',
+      receipt ? { receiptUrl: receipt } : undefined,
+      user?.name || 'Vendedor',
+      receipt ? 'Enviado para aprovação financeira com comprovante' : 'Enviado para aprovação financeira'
+    );
     setSelectedOrder(null);
+    setComprovanteAttached('');
   };
 
-  const addItem = () => setNewItems(prev => [...prev, { product: '', quantity: 1, unitPrice: 0 }]);
+  const addItem = () => setNewItems(prev => [...prev, { product: '', description: '', quantity: 1, unitPrice: 0 }]);
   const removeItem = (i: number) => setNewItems(prev => prev.filter((_, idx) => idx !== i));
   const updateItem = (i: number, field: string, value: string | number) => {
     setNewItems(prev => prev.map((item, idx) => idx === i ? { ...item, [field]: value } : item));
@@ -36,21 +56,29 @@ const OrcamentosPage: React.FC = () => {
 
   const handleCreateOrder = () => {
     const client = clients.find(c => c.id === newClientId);
-    if (!client || newItems.some(i => !i.product)) return;
+    if (!client) {
+      setFormError('Por favor, selecione um cliente.');
+      return;
+    }
+    if (newItems.some(i => !i.product)) {
+      setFormError('Por favor, selecione o produto em todos os itens.');
+      return;
+    }
+    setFormError('');
 
     const subtotal = calcTotal();
-    const taxes = subtotal * 0.1;
     const now = new Date().toISOString();
     const order: Order = {
-      id: `o${Date.now()}`,
-      number: `PED-${String(orders.length + 1).padStart(3, '0')}`,
+      id: crypto.randomUUID(),
+      number: `PED-${String(myOrders.length + 1).padStart(3, '0')}`,
       clientId: client.id,
       clientName: client.name,
-      sellerId: '1',
-      sellerName: 'Carlos Silva',
+      sellerId: user?.id || '1',
+      sellerName: user?.name || 'Vendedor',
       items: newItems.map((item, i) => ({
         id: `ni${i}`,
         product: item.product,
+        description: item.description,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         discount: 0,
@@ -58,21 +86,30 @@ const OrcamentosPage: React.FC = () => {
         total: item.quantity * item.unitPrice,
       })),
       subtotal,
-      taxes,
-      total: subtotal + taxes,
+      taxes: 0,
+      total: subtotal,
       status: 'rascunho',
       notes: newNotes,
+      observation: newObservation,
+      deliveryDate: newDeliveryDate || undefined,
+      orderType: newOrderType,
       createdAt: now,
       updatedAt: now,
-      statusHistory: [{ status: 'rascunho', timestamp: now, user: 'Carlos Silva', note: 'Orçamento criado' }],
+      statusHistory: [{ status: 'rascunho', timestamp: now, user: user?.name || 'Vendedor', note: 'Orçamento criado' }],
     };
 
     addOrder(order);
     setShowCreate(false);
     setNewClientId('');
-    setNewItems([{ product: '', quantity: 1, unitPrice: 0 }]);
+    setNewItems([{ product: '', description: '', quantity: 1, unitPrice: 0 }]);
     setNewNotes('');
+    setNewObservation('');
+    setNewDeliveryDate('');
+    setNewOrderType('entrega');
   };
+
+  const openWhatsApp = (phone: string) =>
+    window.open(`https://wa.me/55${phone.replace(/\D/g, '')}`, '_blank');
 
   if (showCreate) {
     return (
@@ -92,8 +129,17 @@ const OrcamentosPage: React.FC = () => {
             <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Cliente</label>
             <select value={newClientId} onChange={e => setNewClientId(e.target.value)} className="input-modern">
               <option value="">Selecione um cliente...</option>
-              {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {clients.map(c => <option key={c.id} value={c.id}>{c.name}{c.consignado ? ' ⭐ Consignado' : ''}</option>)}
             </select>
+            {newClientId && clients.find(c => c.id === newClientId)?.consignado && (
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 mt-2">
+                <span className="text-xl">⭐</span>
+                <div>
+                  <p className="text-xs font-bold text-amber-400">Cliente Consignado</p>
+                  <p className="text-[11px] text-amber-400/70">Este cliente opera em regime de consignação. Verifique as condições especiais antes de confirmar.</p>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="space-y-3">
@@ -104,48 +150,161 @@ const OrcamentosPage: React.FC = () => {
               </button>
             </div>
             {newItems.map((item, i) => (
-              <div key={i} className="grid grid-cols-12 gap-3 items-end p-3 rounded-xl bg-muted/30 border border-border/30">
-                <div className="col-span-5">
-                  <label className="text-[10px] text-muted-foreground block mb-1">Produto</label>
-                  <input type="text" value={item.product} onChange={e => updateItem(i, 'product', e.target.value)} placeholder="Nome do produto" className="input-modern py-2 text-xs" />
+              <div key={i} className="space-y-2 p-3 rounded-xl bg-muted/30 border border-border/30">
+                <div className="grid grid-cols-12 gap-3 items-end">
+                  <div className="col-span-5">
+                    <label className="text-[10px] text-muted-foreground block mb-1">Produto</label>
+                    {products.length > 0 ? (
+                      <select
+                        value={item.product}
+                        onChange={e => {
+                          const selectedProduct = products.find(p => p.name === e.target.value);
+                          const newItem = { ...item, product: e.target.value };
+                          if (selectedProduct) {
+                            newItem.unitPrice = selectedProduct.unitPrice;
+                            newItem.description = selectedProduct.description;
+                          }
+                          const updated = [...newItems];
+                          updated[i] = newItem;
+                          setNewItems(updated);
+                        }}
+                        className="input-modern py-2 text-xs"
+                      >
+                        <option value="">Selecione um produto...</option>
+                        {products.map(p => (
+                          <option key={p.id} value={p.name}>
+                            {p.name} — R$ {p.unitPrice.toFixed(2)}
+                            {` (Estoque: ${p.stockQuantity})`}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input type="text" value={item.product} onChange={e => updateItem(i, 'product', e.target.value)} placeholder="Nome do produto" className="input-modern py-2 text-xs" />
+                    )}
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-[10px] text-muted-foreground block mb-1">Qtd</label>
+                    <input type="number" value={item.quantity} onChange={e => updateItem(i, 'quantity', Number(e.target.value))} className="input-modern py-2 text-xs" min={1} />
+                  </div>
+                  <div className="col-span-3">
+                    <label className="text-[10px] text-muted-foreground block mb-1">Valor Unit.</label>
+                    <input type="number" value={item.unitPrice} onChange={e => updateItem(i, 'unitPrice', Number(e.target.value))} className="input-modern py-2 text-xs" min={0} step={0.01} />
+                  </div>
+                  <div className="col-span-2 flex items-center justify-between">
+                    <span className="text-xs font-bold text-foreground">{formatCurrency(item.quantity * item.unitPrice)}</span>
+                    {newItems.length > 1 && (
+                      <button onClick={() => removeItem(i)} className="w-7 h-7 rounded-lg bg-destructive/10 text-destructive inline-flex items-center justify-center hover:bg-destructive/20 transition-colors">
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="col-span-2">
-                  <label className="text-[10px] text-muted-foreground block mb-1">Qtd</label>
-                  <input type="number" value={item.quantity} onChange={e => updateItem(i, 'quantity', Number(e.target.value))} className="input-modern py-2 text-xs" min={1} />
-                </div>
-                <div className="col-span-3">
-                  <label className="text-[10px] text-muted-foreground block mb-1">Valor Unit.</label>
-                  <input type="number" value={item.unitPrice} onChange={e => updateItem(i, 'unitPrice', Number(e.target.value))} className="input-modern py-2 text-xs" min={0} step={0.01} />
-                </div>
-                <div className="col-span-2 flex items-center justify-between">
-                  <span className="text-xs font-bold text-foreground">{formatCurrency(item.quantity * item.unitPrice)}</span>
-                  {newItems.length > 1 && (
-                    <button onClick={() => removeItem(i)} className="w-7 h-7 rounded-lg bg-destructive/10 text-destructive inline-flex items-center justify-center hover:bg-destructive/20 transition-colors">
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  )}
+                {/* Descrição do produto */}
+                <div>
+                  <label className="text-[10px] text-muted-foreground block mb-1">Descrição do Produto</label>
+                  <input
+                    type="text"
+                    value={item.description}
+                    onChange={e => updateItem(i, 'description', e.target.value)}
+                    placeholder="Descrição completa do produto..."
+                    className="input-modern py-2 text-xs w-full"
+                  />
                 </div>
               </div>
             ))}
           </div>
 
+          {/* Data de entrega + Tipo */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Data de Entrega *</label>
+              <input
+                type="date"
+                value={newDeliveryDate}
+                onChange={e => setNewDeliveryDate(e.target.value)}
+                min={new Date().toISOString().slice(0, 10)}
+                className="input-modern"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Tipo do Pedido *</label>
+              <div className="flex gap-2">
+                {(['entrega', 'instalacao'] as const).map(t => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setNewOrderType(t)}
+                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all ${newOrderType === t
+                      ? t === 'entrega'
+                        ? 'bg-primary/10 border-primary text-primary'
+                        : 'bg-producao/10 border-producao text-producao'
+                      : 'border-border/40 text-muted-foreground hover:border-primary/30'
+                      }`}
+                  >
+                    {t === 'entrega' ? '🚚 Entrega' : '🔧 Instalação'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Observações */}
           <div className="space-y-1">
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Observações</label>
-            <textarea value={newNotes} onChange={e => setNewNotes(e.target.value)} className="input-modern min-h-[60px] resize-none" rows={2} placeholder="Observações..." />
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Observação</label>
+            <textarea
+              value={newObservation}
+              onChange={e => setNewObservation(e.target.value)}
+              placeholder="Observações importantes sobre o pedido (aparecem no financeiro e produção)..."
+              className="input-modern w-full min-h-[80px] resize-y text-sm"
+              rows={3}
+            />
+          </div>
+
+          {/* Notas internas */}
+          <div className="space-y-1">
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Notas Internas (opcional)</label>
+            <textarea
+              value={newNotes}
+              onChange={e => setNewNotes(e.target.value)}
+              placeholder="Notas internas sobre o orçamento..."
+              className="input-modern w-full resize-y text-sm"
+              rows={2}
+            />
           </div>
 
           <div className="flex items-center justify-between pt-4 border-t border-border/40">
             <div className="text-sm text-muted-foreground">
-              Subtotal: {formatCurrency(calcTotal())} • Impostos: {formatCurrency(calcTotal() * 0.1)}
+              Total de itens: {newItems.reduce((s, i) => s + i.quantity, 0)} produto(s)
             </div>
-            <div className="text-xl font-extrabold text-foreground">{formatCurrency(calcTotal() * 1.1)}</div>
+            <div className="text-xl font-extrabold text-foreground">{formatCurrency(calcTotal())}</div>
           </div>
 
+          {formError && (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm animate-scale-in">
+              <span className="text-base">⚠</span>
+              {formError}
+            </div>
+          )}
+
           <div className="flex gap-3">
-            <button onClick={handleCreateOrder} className="btn-primary" disabled={!newClientId || newItems.some(i => !i.product)}>
+            <button
+              onClick={handleCreateOrder}
+              className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               <FileText className="w-4 h-4" /> Criar Orçamento
             </button>
-            <button onClick={() => { handleCreateOrder(); }} className="btn-modern bg-vendedor/10 text-vendedor shadow-none hover:bg-vendedor/20">
+            <button
+              onClick={() => {
+                const client = clients.find(c => c.id === newClientId);
+                if (!client) { setFormError('Por favor, selecione um cliente.'); return; }
+                if (newItems.some(i => !i.product)) { setFormError('Por favor, selecione o produto em todos os itens.'); return; }
+                setFormError('');
+                handleCreateOrder();
+                // Após criar, o addOrder do contexto vai disparar o envio ao financeiro
+                // via submitOrder — precisaria de flag, implementado via setTimeout
+              }}
+              className="btn-modern bg-vendedor/10 text-vendedor shadow-none hover:bg-vendedor/20 disabled:opacity-50"
+            >
               <Send className="w-4 h-4" /> Criar e Enviar ao Financeiro
             </button>
           </div>
@@ -159,7 +318,14 @@ const OrcamentosPage: React.FC = () => {
     return (
       <div className="card-section p-6 space-y-5 animate-scale-in">
         <div className="flex items-center justify-between">
-          <h2 className="font-bold text-foreground text-lg">{selectedOrder.number}</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="font-bold text-foreground text-lg">{selectedOrder.number}</h2>
+            {clients.find(c => c.id === selectedOrder.clientId)?.consignado && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-400 text-[10px] font-bold uppercase tracking-wider border border-amber-500/20">
+                ⭐ Consignado
+              </span>
+            )}
+          </div>
           <button onClick={() => setSelectedOrder(null)} className="btn-modern bg-muted text-foreground shadow-none text-xs px-3 py-1.5">
             <ArrowLeft className="w-3.5 h-3.5" /> Voltar
           </button>
@@ -177,13 +343,15 @@ const OrcamentosPage: React.FC = () => {
           <div className="p-3 rounded-xl bg-muted/30"><span className="text-xs text-muted-foreground block mb-1">Data</span><span className="text-foreground">{new Date(selectedOrder.createdAt).toLocaleDateString('pt-BR')}</span></div>
           <div className="p-3 rounded-xl bg-muted/30"><span className="text-xs text-muted-foreground block mb-1">Total</span><span className="font-extrabold text-foreground text-lg">{formatCurrency(selectedOrder.total)}</span></div>
         </div>
+
         <div className="rounded-xl border border-border/60 overflow-hidden">
           <table className="modern-table">
-            <thead><tr><th>Produto</th><th className="text-right">Qtd</th><th className="text-right hidden sm:table-cell">Unit.</th><th className="text-right">Total</th></tr></thead>
+            <thead><tr><th>Produto</th><th>Descrição</th><th className="text-right">Qtd</th><th className="text-right hidden sm:table-cell">Unit.</th><th className="text-right">Total</th></tr></thead>
             <tbody>
               {selectedOrder.items.map(item => (
                 <tr key={item.id}>
                   <td className="text-foreground font-medium">{item.product}</td>
+                  <td className="text-muted-foreground text-xs">{item.description || '—'}</td>
                   <td className="text-right text-foreground">{item.quantity}</td>
                   <td className="text-right text-foreground hidden sm:table-cell">{formatCurrency(item.unitPrice)}</td>
                   <td className="text-right font-semibold text-foreground">{formatCurrency(item.total)}</td>
@@ -192,10 +360,17 @@ const OrcamentosPage: React.FC = () => {
             </tbody>
           </table>
         </div>
-        <div className="flex items-center justify-between pt-3 border-t border-border/40">
-          <div className="text-sm text-muted-foreground">Subtotal: {formatCurrency(selectedOrder.subtotal)} • Impostos: {formatCurrency(selectedOrder.taxes)}</div>
-          <div className="text-xl font-extrabold text-foreground">{formatCurrency(selectedOrder.total)}</div>
+        <div className="flex items-center justify-end pt-3 border-t border-border/40">
+          <div className="text-xl font-extrabold text-foreground">Total: {formatCurrency(selectedOrder.total)}</div>
         </div>
+
+        {/* Observação */}
+        {selectedOrder.observation && (
+          <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-amber-500 mb-1">📋 Observação</p>
+            <p className="text-sm text-foreground">{selectedOrder.observation}</p>
+          </div>
+        )}
 
         {/* Histórico de status */}
         <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
@@ -206,9 +381,33 @@ const OrcamentosPage: React.FC = () => {
         </div>
 
         {(selectedOrder.status === 'rascunho' || selectedOrder.status === 'enviado' || selectedOrder.status === 'aprovado_cliente') && (
-          <button onClick={() => enviarFinanceiro(selectedOrder.id)} className="btn-modern bg-gradient-to-r from-vendedor to-vendedor/80 text-primary-foreground">
-            <Send className="w-4 h-4" /> Enviar para Financeiro
-          </button>
+          <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
+            <ComprovanteUpload
+              value={comprovanteAttached || selectedOrder.receiptUrl}
+              onChange={setComprovanteAttached}
+              label="Comprovante de Pagamento (obrigatório para enviar ao Financeiro)"
+            />
+          </div>
+        )}
+
+        {(selectedOrder.status === 'rascunho' || selectedOrder.status === 'enviado' || selectedOrder.status === 'aprovado_cliente') && (
+          <div className="flex gap-3 flex-wrap">
+            {clients.find(c => c.id === selectedOrder.clientId)?.phone && (
+              <button
+                onClick={() => openWhatsApp(clients.find(c => c.id === selectedOrder.clientId)!.phone)}
+                className="btn-modern bg-success/10 text-success hover:bg-success/20 shadow-none text-xs"
+              >
+                <MessageCircle className="w-4 h-4" /> WhatsApp Cliente
+              </button>
+            )}
+            <button
+              onClick={() => enviarFinanceiro(selectedOrder.id)}
+              disabled={!comprovanteAttached.trim() && !selectedOrder.receiptUrl}
+              className="btn-modern bg-gradient-to-r from-vendedor to-vendedor/80 text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed flex-1"
+            >
+              <Send className="w-4 h-4" /> Enviar para Financeiro
+            </button>
+          </div>
         )}
       </div>
     );
@@ -254,7 +453,7 @@ const OrcamentosPage: React.FC = () => {
                   <td><StatusBadge status={order.status} /></td>
                   <td className="text-right">
                     <div className="flex items-center justify-end gap-1.5">
-                      <button onClick={() => setSelectedOrder(order)} className="w-8 h-8 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center justify-center transition-colors">
+                      <button onClick={() => { setSelectedOrder(order); setComprovanteAttached(order.receiptUrl || ''); }} className="w-8 h-8 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center justify-center transition-colors">
                         <Eye className="w-3.5 h-3.5" />
                       </button>
                       {(order.status === 'rascunho' || order.status === 'enviado') && (

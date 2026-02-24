@@ -1,10 +1,10 @@
-﻿import React, { useState, useRef } from 'react';
+﻿import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatusBadge, formatDate as fmtDate } from '@/components/shared/StatusBadge';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
 import OrderChat from '@/components/shared/OrderChat';
-import { Play, CheckCircle, Printer, Package, ArrowLeft, Search, ScanLine, X, Eye, Truck, Wrench, Calendar, Clock, AlertTriangle, CalendarClock, Send } from 'lucide-react';
+import { Play, CheckCircle, Printer, Package, ArrowLeft, Search, ScanLine, X, Eye, Truck, Wrench, Calendar, Clock, AlertTriangle, CalendarClock, Send, Camera, StopCircle, History } from 'lucide-react';
 import BarcodeComponent from 'react-barcode';
 import { useSearchParams } from 'react-router-dom';
 import type { ProductionStatus } from '@/types/erp';
@@ -26,7 +26,7 @@ const PRODUCTION_STATUS_OPTS: { value: ProductionStatus; label: string; cls: str
 ];
 
 const PedidosProducaoPage: React.FC = () => {
-  const { orders, clients, updateOrderStatus, updateOrder, addDelayReport } = useERP();
+  const { orders, clients, updateOrderStatus, updateOrder, addDelayReport, addBarcodeScan, barcodeScans } = useERP();
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const tipoFiltro = searchParams.get('tipo') || '';
@@ -45,6 +45,13 @@ const PedidosProducaoPage: React.FC = () => {
   const [scheduleDate, setScheduleDate] = useState('');
   const [manualLate, setManualLate] = useState<Set<string>>(new Set());
   const barcodeRef = useRef<HTMLDivElement>(null);
+
+  // Camera scanner state
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Helper: atrasado = data passada OU marcado manualmente OU productionStatus === 'atrasado'
   const isLate = (order: typeof orders[0]) =>
@@ -207,49 +214,174 @@ html, body { width: 100mm; height: 150mm; font-family: 'Segoe UI', Arial, sans-s
     setScheduleDate('');
   };
 
-  const handleScan = () => {
-    const code = scanInput.trim().toUpperCase();
+  // Cleanup camera on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      streamRef.current?.getTracks().forEach(t => t.stop());
+    };
+  }, []);
+
+  const startCamera = useCallback(async () => {
+    setCameraError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      setCameraActive(true);
+
+      // BarcodeDetector API (Chrome/Edge)
+      const BarcodeDetector = (window as any).BarcodeDetector;
+      if (BarcodeDetector) {
+        const detector = new BarcodeDetector({ formats: ['code_128', 'code_39', 'qr_code', 'ean_13'] });
+        intervalRef.current = setInterval(async () => {
+          if (!videoRef.current) return;
+          try {
+            const barcodes = await detector.detect(videoRef.current);
+            if (barcodes.length > 0) {
+              const code = barcodes[0].rawValue;
+              stopCamera();
+              setScanInput(code);
+              processCode(code);
+            }
+          } catch { /* ignore */ }
+        }, 500);
+      }
+    } catch {
+      setCameraError('Não foi possível acessar a câmera. Verifique as permissões do navegador.');
+    }
+  }, []);
+
+  const stopCamera = useCallback(() => {
+    if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+    setCameraActive(false);
+  }, []);
+
+  const processCode = useCallback((rawCode: string) => {
+    const code = rawCode.trim().toUpperCase();
+    if (!code) return;
     const order = orders.find(o => o.number === code);
+    const scannedBy = user?.name || 'Equipe Produção';
+    const now = new Date().toISOString();
+
     if (order) {
+      // Validate: must be 'producao_finalizada' (financeiro already approved earlier)
       if (order.status === 'producao_finalizada') {
         updateOrderStatus(order.id, 'produto_liberado', {
-          releasedAt: new Date().toISOString(),
-          releasedBy: 'Scanner',
-        }, 'Scanner', 'Produto liberado via leitura de codigo');
-        setScanResult({ success: true, message: `Pedido ${order.number} liberado com sucesso!`, orderNumber: order.number });
-      } else if (order.status === 'produto_liberado') {
-        setScanResult({ success: true, message: `Pedido ${order.number} ja foi liberado.`, orderNumber: order.number });
+          releasedAt: now,
+          releasedBy: scannedBy,
+        }, scannedBy, 'Produto liberado via leitura de código de barras');
+        // Register the scan in audit log
+        addBarcodeScan({
+          orderId: order.id,
+          orderNumber: order.number,
+          scannedBy,
+          success: true,
+          note: 'Produto liberado via scanner',
+        });
+        setScanResult({ success: true, message: `✅ Pedido ${order.number} liberado com sucesso!`, orderNumber: order.number });
+      } else if (order.status === 'produto_liberado' || order.status === 'retirado_entregador') {
+        addBarcodeScan({
+          orderId: order.id,
+          orderNumber: order.number,
+          scannedBy,
+          success: true,
+          note: 'Releitura — produto já estava liberado',
+        });
+        setScanResult({ success: true, message: `ℹ️ Pedido ${order.number} já foi liberado anteriormente.`, orderNumber: order.number });
+      } else if (!['aprovado_financeiro', 'aguardando_producao', 'em_producao', 'producao_finalizada'].includes(order.status)) {
+        addBarcodeScan({
+          orderId: order.id,
+          orderNumber: order.number,
+          scannedBy,
+          success: false,
+          note: `Pedido não aprovado pelo financeiro. Status: ${order.status}`,
+        });
+        setScanResult({ success: false, message: `❌ Pedido ${order.number} NÃO foi aprovado pelo financeiro.` });
       } else {
-        setScanResult({ success: false, message: `Pedido ${order.number} nao esta pronto para liberacao. Status atual: ${order.status}` });
+        addBarcodeScan({
+          orderId: order.id,
+          orderNumber: order.number,
+          scannedBy,
+          success: false,
+          note: `Produção não finalizada. Status atual: ${order.status}`,
+        });
+        setScanResult({ success: false, message: `⚠️ Pedido ${order.number} ainda não finalizou a produção. Status: ${order.status}` });
       }
     } else {
-      setScanResult({ success: false, message: 'Codigo nao encontrado. Verifique e tente novamente.' });
+      setScanResult({ success: false, message: '❌ Código não encontrado. Verifique e tente novamente.' });
     }
     setScanInput('');
-  };
+  }, [orders, addBarcodeScan, updateOrderStatus, user]);
+
+  const handleScan = () => processCode(scanInput);
 
   // Scanner screen
   if (showScanner) {
+    const recentScans = barcodeScans.slice(0, 5);
     return (
       <div className="space-y-6 animate-scale-in">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="page-header">Leitura de Codigo de Barras</h1>
-            <p className="page-subtitle">Escaneie ou digite o codigo do pedido</p>
+            <h1 className="page-header">Leitura de Código de Barras</h1>
+            <p className="page-subtitle">Escaneie via câmera ou leitor USB para liberar o pedido</p>
           </div>
-          <button onClick={() => { setShowScanner(false); setScanResult(null); }} className="btn-modern bg-muted text-foreground shadow-none text-xs">
+          <button onClick={() => { setShowScanner(false); setScanResult(null); stopCamera(); }} className="btn-modern bg-muted text-foreground shadow-none text-xs">
             <X className="w-4 h-4" /> Fechar
           </button>
         </div>
         <div className="max-w-lg mx-auto space-y-6">
-          <div className="card-section p-8 text-center space-y-6">
-            <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-producao/20 to-producao/5 flex items-center justify-center mx-auto">
-              <ScanLine className="w-10 h-10 text-producao" />
+          {/* Camera scanner */}
+          <div className="card-section p-6 space-y-4">
+            <div className="text-center">
+              <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-producao/20 to-producao/5 flex items-center justify-center mx-auto mb-3">
+                <ScanLine className="w-8 h-8 text-producao" />
+              </div>
+              <h2 className="text-base font-bold text-foreground">Câmera / Leitor USB</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Use a câmera do dispositivo ou o leitor USB</p>
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-foreground">Scanner de Codigo de Barras</h2>
-              <p className="text-sm text-muted-foreground mt-1">Escaneie ou digite o numero do pedido (ex: PED-001)</p>
+
+            {/* Camera view */}
+            {cameraActive && (
+              <div className="space-y-3">
+                <div className="relative rounded-xl overflow-hidden border-2 border-producao/40 bg-black">
+                  <video ref={videoRef} className="w-full h-48 object-cover" playsInline muted />
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-48 h-32 border-2 border-white/70 rounded-xl" />
+                  </div>
+                  <div className="absolute bottom-2 left-0 right-0 text-center">
+                    <span className="text-[10px] text-white/80 bg-black/50 px-2 py-0.5 rounded-full">Aponte para o código de barras</span>
+                  </div>
+                </div>
+                <button onClick={stopCamera} className="btn-modern bg-destructive/10 text-destructive shadow-none text-xs w-full justify-center">
+                  <StopCircle className="w-4 h-4" /> Parar Câmera
+                </button>
+              </div>
+            )}
+
+            {cameraError && (
+              <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-xs">{cameraError}</div>
+            )}
+
+            {!cameraActive && (
+              <button onClick={startCamera} className="btn-modern bg-producao/10 text-producao shadow-none w-full justify-center py-3 hover:bg-producao/20 border border-producao/20">
+                <Camera className="w-4 h-4" /> Ativar Câmera
+              </button>
+            )}
+
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-border/40" />
+              <span className="text-[10px] text-muted-foreground font-semibold">OU DIGITAR / LEITOR USB</span>
+              <div className="h-px flex-1 bg-border/40" />
             </div>
+
             <div className="flex gap-2">
               <input
                 type="text"
@@ -257,12 +389,14 @@ html, body { width: 100mm; height: 150mm; font-family: 'Segoe UI', Arial, sans-s
                 onChange={e => setScanInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleScan()}
                 placeholder="PED-001"
-                className="input-modern text-center text-lg font-mono font-bold tracking-widest"
-                autoFocus
+                className="input-modern text-center text-lg font-mono font-bold tracking-widest flex-1"
+                autoFocus={!cameraActive}
               />
               <button onClick={handleScan} className="btn-primary px-6" disabled={!scanInput.trim()}>Validar</button>
             </div>
           </div>
+
+          {/* Scan result */}
           {scanResult && (
             <div className={`card-section p-6 text-center animate-scale-in ${scanResult.success ? 'border-success/40' : 'border-destructive/40'}`}>
               <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 ${scanResult.success ? 'bg-success/10' : 'bg-destructive/10'}`}>
@@ -272,6 +406,32 @@ html, body { width: 100mm; height: 150mm; font-family: 'Segoe UI', Arial, sans-s
                 {scanResult.success ? 'Sucesso!' : 'Erro'}
               </p>
               <p className="text-sm text-foreground mt-1">{scanResult.message}</p>
+            </div>
+          )}
+
+          {/* Recent scans */}
+          {recentScans.length > 0 && (
+            <div className="card-section p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <History className="w-4 h-4 text-muted-foreground" />
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Últimas leituras</p>
+              </div>
+              {recentScans.map(scan => (
+                <div key={scan.id} className={`flex items-center justify-between gap-3 p-2.5 rounded-lg border ${scan.success ? 'bg-success/5 border-success/20' : 'bg-destructive/5 border-destructive/20'}`}>
+                  <div className="flex items-center gap-2">
+                    {scan.success
+                      ? <CheckCircle className="w-3.5 h-3.5 text-success shrink-0" />
+                      : <X className="w-3.5 h-3.5 text-destructive shrink-0" />}
+                    <div>
+                      <p className="text-xs font-bold text-foreground">{scan.orderNumber}</p>
+                      <p className="text-[10px] text-muted-foreground">{scan.scannedBy}</p>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    {new Date(scan.scannedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                  </p>
+                </div>
+              ))}
             </div>
           )}
         </div>

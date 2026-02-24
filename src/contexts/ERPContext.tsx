@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useCallback, useEffect, useRef } from 'react';
-import type { Order, Client, FinancialEntry, Product, OrderStatus, StatusHistoryEntry, DelayReport, ChatMessage, OrderReturn, ProductionError } from '@/types/erp';
+import type { Order, Client, FinancialEntry, Product, OrderStatus, StatusHistoryEntry, DelayReport, ChatMessage, OrderReturn, ProductionError, BarcodeScan, DeliveryPickup } from '@/types/erp';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import {
   fetchOrders, fetchClients, fetchProducts, fetchFinancialEntries,
@@ -33,6 +33,12 @@ interface ERPContextType {
   productionErrors: ProductionError[];
   addProductionError: (err: Omit<ProductionError, 'id' | 'createdAt'>) => Promise<void>;
   resolveError: (errorId: string) => Promise<void>;
+  // barcode scans
+  barcodeScans: BarcodeScan[];
+  addBarcodeScan: (scan: Omit<BarcodeScan, 'id' | 'scannedAt'>) => void;
+  // delivery pickups
+  deliveryPickups: DeliveryPickup[];
+  addDeliveryPickup: (pickup: Omit<DeliveryPickup, 'id' | 'pickedUpAt'>) => void;
   // order ops
   addOrder: (order: Order) => void;
   updateOrderStatus: (orderId: string, status: OrderStatus, extra?: Partial<Order>, userName?: string, note?: string) => void;
@@ -60,6 +66,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [delayReports, setDelayReports] = useLocalStorage<DelayReport[]>('erp_delay_reports', []);
   const [orderReturns, setOrderReturns] = useLocalStorage<OrderReturn[]>('erp_order_returns', []);
   const [productionErrors, setProductionErrors] = useLocalStorage<ProductionError[]>('erp_production_errors', []);
+  const [barcodeScans, setBarcodeScans] = useLocalStorage<BarcodeScan[]>('erp_barcode_scans', []);
+  const [deliveryPickups, setDeliveryPickups] = useLocalStorage<DeliveryPickup[]>('erp_delivery_pickups', []);
   const [chatMessages, setChatMessages] = React.useState<Record<string, ChatMessage[]>>({});
   const [loading, setLoading] = React.useState(false);
   const [supaLoaded, setSupaLoaded] = React.useState(false);
@@ -352,9 +360,31 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await resolveProductionError(errorId).catch(err => console.error('[ERP] Erro ao resolver erro:', err?.message ?? err));
   }, [setProductionErrors]);
 
+  // ── BARCODE SCANS ────────────────────────────────────────────
+  const addBarcodeScan = useCallback((scan: Omit<BarcodeScan, 'id' | 'scannedAt'>) => {
+    const newScan: BarcodeScan = {
+      ...scan,
+      id: crypto.randomUUID(),
+      scannedAt: new Date().toISOString(),
+    };
+    setBarcodeScans(prev => [newScan, ...prev]);
+    console.log('[ERP] Leitura de código de barras registrada:', newScan.orderNumber);
+  }, [setBarcodeScans]);
+
+  // ── DELIVERY PICKUPS ─────────────────────────────────────────
+  const addDeliveryPickup = useCallback((pickup: Omit<DeliveryPickup, 'id' | 'pickedUpAt'>) => {
+    const newPickup: DeliveryPickup = {
+      ...pickup,
+      id: crypto.randomUUID(),
+      pickedUpAt: new Date().toISOString(),
+    };
+    setDeliveryPickups(prev => [newPickup, ...prev]);
+    console.log('[ERP] Retirada de entregador registrada:', newPickup.orderNumber);
+  }, [setDeliveryPickups]);
+
   // ── CLEAR ALL ────────────────────────────────────────────────
   const clearAll = useCallback(async () => {
-    const keys = ['erp_orders', 'erp_clients', 'erp_financial', 'erp_products', 'erp_delay_reports', 'erp_order_returns', 'erp_production_errors'];
+    const keys = ['erp_orders', 'erp_clients', 'erp_financial', 'erp_products', 'erp_delay_reports', 'erp_order_returns', 'erp_production_errors', 'erp_barcode_scans', 'erp_delivery_pickups'];
     keys.forEach(k => localStorage.removeItem(k));
     setOrders([]);
     setClients([]);
@@ -363,6 +393,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setDelayReports([]);
     setOrderReturns([]);
     setProductionErrors([]);
+    setBarcodeScans([]);
+    setDeliveryPickups([]);
     setChatMessages({});
     try {
       await clearAllData();
@@ -370,7 +402,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (err) {
       console.error('[ERP] Erro ao limpar banco:', err);
     }
-  }, [setOrders, setClients, setFinancialEntries, setProducts, setDelayReports, setOrderReturns, setProductionErrors]);
+  }, [setOrders, setClients, setFinancialEntries, setProducts, setDelayReports, setOrderReturns, setProductionErrors, setBarcodeScans, setDeliveryPickups]);
 
   return (
     <ERPContext.Provider value={{
@@ -378,6 +410,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       chatMessages, sendMessage, loadChat, markChatAsRead, getUnreadCount,
       orderReturns, addOrderReturn,
       productionErrors, addProductionError, resolveError,
+      barcodeScans, addBarcodeScan,
+      deliveryPickups, addDeliveryPickup,
       addOrder, updateOrderStatus, updateOrder, editOrderFull,
       addClient, editClient, addFinancialEntry,
       addProduct, updateProduct, deleteProduct, addDelayReport, markDelayReportRead, clearAll,

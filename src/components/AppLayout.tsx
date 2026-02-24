@@ -22,6 +22,7 @@ import {
   Wrench,
   CalendarClock,
   AlertTriangle,
+  Users2,
 } from 'lucide-react';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -43,6 +44,7 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: 
   ],
   gestor: [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/gestor' },
+    { label: 'Entregadores', icon: Truck, path: '/gestor/entregadores' },
     { label: 'Problemas na Produção', icon: AlertTriangle, path: '/gestor?tab=problemas' },
     { label: 'Pedidos Devolvidos', icon: BarChart3, path: '/gestor?tab=devolvidos' },
     { label: 'Relatórios de Erros', icon: CheckSquare, path: '/gestor?tab=erros' },

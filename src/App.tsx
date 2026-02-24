@@ -20,6 +20,7 @@ import GestorDashboard from "@/pages/gestor/GestorDashboard";
 import ConferenciaPage from "@/pages/gestor/ConferenciaPage";
 import RelatoriosPage from "@/pages/gestor/RelatoriosPage";
 import EstoquePage from "@/pages/gestor/EstoquePage";
+import EntregadoresPage from "@/pages/gestor/EntregadoresPage";
 import ProducaoDashboard from "@/pages/producao/ProducaoDashboard";
 import PedidosProducaoPage from "@/pages/producao/PedidosProducaoPage";
 import QRCodePage from "@/pages/QRCodePage";
@@ -79,6 +80,7 @@ const App = () => (
                 <Route path="/gestor/conferencia" element={<ProtectedRoute role="gestor"><ConferenciaPage /></ProtectedRoute>} />
                 <Route path="/gestor/estoque" element={<ProtectedRoute role="gestor"><EstoquePage /></ProtectedRoute>} />
                 <Route path="/gestor/relatorios" element={<ProtectedRoute role="gestor"><RelatoriosPage /></ProtectedRoute>} />
+                <Route path="/gestor/entregadores" element={<ProtectedRoute role="gestor"><EntregadoresPage /></ProtectedRoute>} />
 
                 {/* Produção */}
                 <Route path="/producao" element={<ProtectedRoute role="producao"><ProducaoDashboard /></ProtectedRoute>} />

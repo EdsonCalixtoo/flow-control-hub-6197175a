@@ -50,7 +50,8 @@ export type OrderStatus =
   | 'aguardando_producao'
   | 'em_producao'
   | 'producao_finalizada'
-  | 'produto_liberado';
+  | 'produto_liberado'
+  | 'retirado_entregador';
 
 export type ProductionStatus = 'em_producao' | 'agendado' | 'atrasado' | 'finalizado';
 
@@ -117,6 +118,29 @@ export interface OrderReturn {
   createdAt: string;
 }
 
+// Leitura de código de barras pela produção
+export interface BarcodeScan {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  scannedBy: string;
+  scannedAt: string;
+  success: boolean;
+  note?: string;
+}
+
+// Retirada confirmada pelo entregador
+export interface DeliveryPickup {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  delivererName: string;
+  photoUrl: string;       // base64 da foto do rosto
+  signatureUrl: string;  // base64 da assinatura
+  pickedUpAt: string;
+  note?: string;
+}
+
 export interface ProductionError {
   id: string;
   orderId?: string;
@@ -181,6 +205,7 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
   em_producao: 'Em Produção',
   producao_finalizada: 'Produção Finalizada',
   produto_liberado: 'Produto Liberado',
+  retirado_entregador: 'Retirado pelo Entregador',
 };
 
 export const STATUS_COLORS: Record<OrderStatus, string> = {
@@ -197,6 +222,7 @@ export const STATUS_COLORS: Record<OrderStatus, string> = {
   em_producao: 'bg-producao/10 text-producao',
   producao_finalizada: 'bg-success/10 text-success',
   produto_liberado: 'bg-success/10 text-success',
+  retirado_entregador: 'bg-primary/10 text-primary',
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = {

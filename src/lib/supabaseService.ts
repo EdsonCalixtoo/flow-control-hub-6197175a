@@ -87,6 +87,7 @@ function mapClient(c: Record<string, unknown>): Client {
         cep: (c.cep as string) ?? '',
         notes: (c.notes as string) ?? '',
         consignado: (c.consignado as boolean) ?? false,
+        createdBy: (c.created_by as string) ?? undefined,   // ✅ quem criou o cliente
         createdAt: c.created_at as string,
     };
 }
@@ -400,6 +401,7 @@ export async function createClient(client: Client): Promise<void> {
         notes: client.notes ?? '',
         consignado: client.consignado ?? false,
         bairro: client.bairro ?? '',
+        created_by: (client as any).createdBy ?? null,   // ✅ salva o ID do vendedor
     };
     let { error } = await supabase.from('clients').insert(payload);
     // fallback sem bairro se coluna ainda não existe
@@ -428,6 +430,7 @@ export async function updateClient(client: Client): Promise<void> {
         notes: client.notes ?? '',
         consignado: client.consignado ?? false,
         bairro: client.bairro ?? '',
+        created_by: (client as any).createdBy ?? null,   // ✅ salva o ID do vendedor
     };
     let { error } = await supabase.from('clients').upsert(payload);
     if (error) {

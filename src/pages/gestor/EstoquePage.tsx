@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import type { Product } from '@/types/erp';
 
-const CATEGORIES = ['Geral', 'Outros'];
+const CATEGORIES = ['Geral', 'Eletrônico Vendedor', 'Outros'];
 const UNITS = ['un', 'cx', 'pc', 'kg', 'mt', 'lt', 'pct'];
 
 const emptyProduct: Omit<Product, 'id' | 'createdAt' | 'updatedAt'> = {
@@ -129,7 +129,8 @@ const EstoquePage: React.FC = () => {
         return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-success/10 text-success"><TrendingUp className="w-3 h-3" /> OK</span>;
     };
 
-    const usedCategories = [...new Set(products.map(p => p.category))];
+    const usedCategories = [...new Set([...CATEGORIES, ...products.map(p => p.category)])];
+
 
     return (
         <div className="space-y-6">
@@ -351,7 +352,7 @@ const EstoquePage: React.FC = () => {
                                         list="category-list"
                                     />
                                     <datalist id="category-list">
-                                        {[...new Set(['Geral', 'Outros', ...products.map(p => p.category)])].map(c => (
+                                        {[...new Set(['Geral', 'Eletrônico Vendedor', 'Outros', ...products.map(p => p.category)])].map(c => (
                                             <option key={c} value={c} />
                                         ))}
                                     </datalist>

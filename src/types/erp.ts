@@ -21,8 +21,10 @@ export interface Client {
   cep: string;
   notes: string;
   consignado?: boolean;
+  createdBy?: string;       // ID do vendedor que cadastrou o cliente
   createdAt: string;
 }
+
 
 export interface QuoteItem {
   id: string;

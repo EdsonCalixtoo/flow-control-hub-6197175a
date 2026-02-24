@@ -27,6 +27,11 @@ const OrcamentosPage: React.FC = () => {
     user?.role !== 'vendedor' || o.sellerId === user.id
   );
 
+  // ✅ Isolamento: vendedor vê apenas SEUS clientes no dropdown de orçamento
+  const myClients = clients.filter(c =>
+    user?.role !== 'vendedor' || (c as any).createdBy === user.id
+  );
+
   // Form state for new/edit order
   const [newClientId, setNewClientId] = useState('');
   const [newItems, setNewItems] = useState<{ product: string; description: string; quantity: number; unitPrice: number }[]>([{ product: '', description: '', quantity: 1, unitPrice: 0 }]);
@@ -198,7 +203,7 @@ const OrcamentosPage: React.FC = () => {
             <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Cliente</label>
             <select value={newClientId} onChange={e => setNewClientId(e.target.value)} className="input-modern">
               <option value="">Selecione um cliente...</option>
-              {clients.map(c => <option key={c.id} value={c.id}>{c.name}{c.consignado ? ' ⭐ Consignado' : ''}</option>)}
+              {myClients.map(c => <option key={c.id} value={c.id}>{c.name}{c.consignado ? ' ⭐ Consignado' : ''}</option>)}
             </select>
             {newClientId && clients.find(c => c.id === newClientId)?.consignado && (
               <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 mt-2">

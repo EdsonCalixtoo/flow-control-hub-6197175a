@@ -15,6 +15,7 @@ export interface Client {
   phone: string;
   email: string;
   address: string;
+  bairro?: string;          // campo bairro
   city: string;
   state: string;
   cep: string;

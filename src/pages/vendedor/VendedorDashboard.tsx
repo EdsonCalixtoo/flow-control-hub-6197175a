@@ -1,5 +1,6 @@
 import React from 'react';
 import { useERP } from '@/contexts/ERPContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { StatCard, StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
 import { OrderPipeline } from '@/components/shared/OrderTimeline';
 import { ShoppingCart, FileText, Clock, Percent, Eye } from 'lucide-react';
@@ -7,21 +8,45 @@ import { Link } from 'react-router-dom';
 
 const VendedorDashboard: React.FC = () => {
   const { orders } = useERP();
+  const { user } = useAuth();
 
-  const totalVendas = orders.reduce((s, o) => s + o.total, 0);
-  const pedidosEnviados = orders.filter(o => o.status !== 'rascunho').length;
-  const orcamentosPendentes = orders.filter(o => o.status === 'rascunho' || o.status === 'enviado').length;
+  // ✅ Filtra SOMENTE os pedidos do vendedor logado
+  const myOrders = orders.filter(o => o.sellerId === user?.id);
+
+  // Pedidos que foram enviados (não são rascunho)
+  const pedidosEnviados = myOrders.filter(o => o.status !== 'rascunho').length;
+
+  // Orçamentos pendentes: rascunho ou enviado ao cliente
+  const orcamentosPendentes = myOrders.filter(o =>
+    o.status === 'rascunho' || o.status === 'enviado'
+  ).length;
+
+  // Total vendido: apenas pedidos que passaram do rascunho (enviados ao financeiro ou além)
+  const statusesQueContam: string[] = [
+    'aguardando_financeiro', 'aprovado_financeiro', 'rejeitado_financeiro',
+    'aguardando_gestor', 'aprovado_gestor', 'rejeitado_gestor',
+    'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'
+  ];
+  const totalVendas = myOrders
+    .filter(o => statusesQueContam.includes(o.status))
+    .reduce((s, o) => s + o.total, 0);
+
   const comissaoEstimada = totalVendas * 0.05;
+
+  // Pedidos recentes para exibir no acompanhamento (não rascunho)
+  const pedidosRecentes = myOrders
+    .filter(o => o.status !== 'rascunho')
+    .slice(0, 6);
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="page-header">Dashboard do Vendedor</h1>
-        <p className="page-subtitle">Acompanhe suas vendas e metas</p>
+        <p className="page-subtitle">Acompanhe suas vendas e metas — {user?.name}</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 stagger-children">
-        <StatCard title="Vendido no Mês" value={formatCurrency(totalVendas)} icon={ShoppingCart} color="text-vendedor" trend="+12%" />
+        <StatCard title="Vendido no Mês" value={formatCurrency(totalVendas)} icon={ShoppingCart} color="text-vendedor" />
         <StatCard title="Pedidos Enviados" value={pedidosEnviados} icon={FileText} color="text-success" />
         <StatCard title="Orçam. Pendentes" value={orcamentosPendentes} icon={Clock} color="text-warning" />
         <StatCard title="Comissão Estimada" value={formatCurrency(comissaoEstimada)} icon={Percent} color="text-financeiro" />
@@ -71,24 +96,30 @@ const VendedorDashboard: React.FC = () => {
           <Link to="/vendedor/orcamentos" className="text-xs font-semibold text-primary hover:underline">Ver todos →</Link>
         </div>
         <div className="divide-y divide-border/40">
-          {orders.filter(o => o.status !== 'rascunho').slice(0, 6).map(order => (
-            <div key={order.id} className="p-4 md:p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <span className="font-bold text-foreground text-sm">{order.number}</span>
-                  <span className="text-muted-foreground text-xs ml-2">{order.clientName}</span>
-                </div>
-                <span className="font-semibold text-foreground text-sm">{formatCurrency(order.total)}</span>
-              </div>
-              <OrderPipeline order={order} compact />
-              {order.statusHistory.length > 0 && (
-                <p className="text-[10px] text-muted-foreground">
-                  Última atualização: {new Date(order.statusHistory[order.statusHistory.length - 1].timestamp).toLocaleString('pt-BR')}
-                  {' • '}{order.statusHistory[order.statusHistory.length - 1].user}
-                </p>
-              )}
+          {pedidosRecentes.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground text-sm">
+              Você ainda não possui pedidos enviados. <Link to="/vendedor/orcamentos" className="text-primary underline">Criar orçamento</Link>
             </div>
-          ))}
+          ) : (
+            pedidosRecentes.map(order => (
+              <div key={order.id} className="p-4 md:p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-bold text-foreground text-sm">{order.number}</span>
+                    <span className="text-muted-foreground text-xs ml-2">{order.clientName}</span>
+                  </div>
+                  <span className="font-semibold text-foreground text-sm">{formatCurrency(order.total)}</span>
+                </div>
+                <OrderPipeline order={order} compact />
+                {order.statusHistory.length > 0 && (
+                  <p className="text-[10px] text-muted-foreground">
+                    Última atualização: {new Date(order.statusHistory[order.statusHistory.length - 1].timestamp).toLocaleString('pt-BR')}
+                    {' • '}{order.statusHistory[order.statusHistory.length - 1].user}
+                  </p>
+                )}
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>

@@ -4,15 +4,21 @@ import { useAuth } from '@/contexts/AuthContext';
 import { StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
 import { OrderPipeline, OrderHistory } from '@/components/shared/OrderTimeline';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
-import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle } from 'lucide-react';
+import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check } from 'lucide-react';
 import type { Order, QuoteItem } from '@/types/erp';
 
+// Status que bloqueiam a edição do orçamento
+const STATUS_BLOQUEIAM_EDICAO = ['aguardando_financeiro', 'aprovado_financeiro', 'rejeitado_financeiro',
+  'aguardando_gestor', 'aprovado_gestor', 'rejeitado_gestor',
+  'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'];
+
 const OrcamentosPage: React.FC = () => {
-  const { orders, addOrder, updateOrderStatus, clients, products } = useERP();
+  const { orders, addOrder, updateOrderStatus, editOrderFull, clients, products } = useERP();
   const { user } = useAuth();
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [comprovanteAttached, setComprovanteAttached] = useState('');
   const [formError, setFormError] = useState('');
 
@@ -21,7 +27,7 @@ const OrcamentosPage: React.FC = () => {
     user?.role !== 'vendedor' || o.sellerId === user.id
   );
 
-  // Form state for new order
+  // Form state for new/edit order
   const [newClientId, setNewClientId] = useState('');
   const [newItems, setNewItems] = useState<{ product: string; description: string; quantity: number; unitPrice: number }[]>([{ product: '', description: '', quantity: 1, unitPrice: 0 }]);
   const [newNotes, setNewNotes] = useState('');
@@ -34,6 +40,7 @@ const OrcamentosPage: React.FC = () => {
     o.clientName.toLowerCase().includes(search.toLowerCase())
   );
 
+  // Envia para o financeiro — apenas via botão explícito
   const enviarFinanceiro = (orderId: string) => {
     const receipt = comprovanteAttached || selectedOrder?.receiptUrl;
     updateOrderStatus(
@@ -54,23 +61,87 @@ const OrcamentosPage: React.FC = () => {
 
   const calcTotal = () => newItems.reduce((s, item) => s + (item.quantity * item.unitPrice), 0);
 
+  // Abre o formulário de edição para um orçamento existente
+  const openEdit = (order: Order) => {
+    setEditingOrder(order);
+    setNewClientId(order.clientId);
+    setNewItems(order.items.map(i => ({
+      product: i.product,
+      description: i.description || '',
+      quantity: i.quantity,
+      unitPrice: i.unitPrice,
+    })));
+    setNewNotes(order.notes || '');
+    setNewObservation(order.observation || '');
+    setNewDeliveryDate(order.deliveryDate || '');
+    setNewOrderType(order.orderType || 'entrega');
+    setFormError('');
+  };
+
+  const resetForm = () => {
+    setEditingOrder(null);
+    setShowCreate(false);
+    setNewClientId('');
+    setNewItems([{ product: '', description: '', quantity: 1, unitPrice: 0 }]);
+    setNewNotes('');
+    setNewObservation('');
+    setNewDeliveryDate('');
+    setNewOrderType('entrega');
+    setFormError('');
+  };
+
   const handleCreateOrder = () => {
     const client = clients.find(c => c.id === newClientId);
-    if (!client) {
-      setFormError('Por favor, selecione um cliente.');
-      return;
-    }
-    if (newItems.some(i => !i.product)) {
-      setFormError('Por favor, selecione o produto em todos os itens.');
-      return;
-    }
+    if (!client) { setFormError('Por favor, selecione um cliente.'); return; }
+    if (newItems.some(i => !i.product)) { setFormError('Por favor, selecione o produto em todos os itens.'); return; }
     setFormError('');
 
     const subtotal = calcTotal();
     const now = new Date().toISOString();
+
+    if (editingOrder) {
+      // Modo edição
+      const updatedOrder: Order = {
+        ...editingOrder,
+        clientId: client.id,
+        clientName: client.name,
+        items: newItems.map((item, i) => ({
+          id: editingOrder.items[i]?.id || `ni${i}`,
+          product: item.product,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discount: editingOrder.items[i]?.discount || 0,
+          discountType: editingOrder.items[i]?.discountType || 'percent',
+          total: item.quantity * item.unitPrice,
+        })),
+        subtotal,
+        taxes: 0,
+        total: subtotal,
+        notes: newNotes,
+        observation: newObservation,
+        deliveryDate: newDeliveryDate || undefined,
+        orderType: newOrderType,
+        updatedAt: now,
+      };
+      editOrderFull(updatedOrder);
+      resetForm();
+      return;
+    }
+
+    // Modo criação — sempre cria como RASCUNHO
+    // ✅ Número GLOBAL único: pega o maior número de TODOS os pedidos do sistema
+    // e soma 1 — garante que dois vendedores nunca gerem o mesmo número
+    const maxNumber = orders.reduce((max, o) => {
+      const match = o.number.match(/PED-(\d+)/);
+      const n = match ? parseInt(match[1], 10) : 0;
+      return Math.max(max, n);
+    }, 0);
+    const nextNumber = `PED-${String(maxNumber + 1).padStart(3, '0')}`;
+
     const order: Order = {
       id: crypto.randomUUID(),
-      number: `PED-${String(myOrders.length + 1).padStart(3, '0')}`,
+      number: nextNumber,
       clientId: client.id,
       clientName: client.name,
       sellerId: user?.id || '1',
@@ -88,7 +159,7 @@ const OrcamentosPage: React.FC = () => {
       subtotal,
       taxes: 0,
       total: subtotal,
-      status: 'rascunho',
+      status: 'rascunho',    // ✅ SEMPRE começa como rascunho
       notes: newNotes,
       observation: newObservation,
       deliveryDate: newDeliveryDate || undefined,
@@ -99,27 +170,25 @@ const OrcamentosPage: React.FC = () => {
     };
 
     addOrder(order);
-    setShowCreate(false);
-    setNewClientId('');
-    setNewItems([{ product: '', description: '', quantity: 1, unitPrice: 0 }]);
-    setNewNotes('');
-    setNewObservation('');
-    setNewDeliveryDate('');
-    setNewOrderType('entrega');
+    resetForm();
   };
 
   const openWhatsApp = (phone: string) =>
     window.open(`https://wa.me/55${phone.replace(/\D/g, '')}`, '_blank');
 
-  if (showCreate) {
+  // ── Formulário de criação/edição ────────────────────────────
+  if (showCreate || editingOrder) {
+    const isEdit = !!editingOrder;
     return (
       <div className="space-y-6 animate-scale-in">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="page-header">Novo Orçamento</h1>
-            <p className="page-subtitle">Preencha os dados do orçamento</p>
+            <h1 className="page-header">{isEdit ? '✏️ Editar Orçamento' : 'Novo Orçamento'}</h1>
+            <p className="page-subtitle">
+              {isEdit ? `Editando ${editingOrder?.number} — Status: ${editingOrder?.status}` : 'Preencha os dados do orçamento'}
+            </p>
           </div>
-          <button onClick={() => setShowCreate(false)} className="btn-modern bg-muted text-foreground shadow-none text-xs">
+          <button onClick={resetForm} className="btn-modern bg-muted text-foreground shadow-none text-xs">
             <X className="w-4 h-4" /> Cancelar
           </button>
         </div>
@@ -136,7 +205,7 @@ const OrcamentosPage: React.FC = () => {
                 <span className="text-xl">⭐</span>
                 <div>
                   <p className="text-xs font-bold text-amber-400">Cliente Consignado</p>
-                  <p className="text-[11px] text-amber-400/70">Este cliente opera em regime de consignação. Verifique as condições especiais antes de confirmar.</p>
+                  <p className="text-[11px] text-amber-400/70">Este cliente opera em regime de consignação. Verifique as condições especiais.</p>
                 </div>
               </div>
             )}
@@ -199,7 +268,6 @@ const OrcamentosPage: React.FC = () => {
                     )}
                   </div>
                 </div>
-                {/* Descrição do produto */}
                 <div>
                   <label className="text-[10px] text-muted-foreground block mb-1">Descrição do Produto</label>
                   <input
@@ -217,7 +285,7 @@ const OrcamentosPage: React.FC = () => {
           {/* Data de entrega + Tipo */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Data de Entrega *</label>
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Data de Entrega</label>
               <input
                 type="date"
                 value={newDeliveryDate}
@@ -227,7 +295,7 @@ const OrcamentosPage: React.FC = () => {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Tipo do Pedido *</label>
+              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Tipo do Pedido</label>
               <div className="flex gap-2">
                 {(['entrega', 'instalacao'] as const).map(t => (
                   <button
@@ -291,21 +359,7 @@ const OrcamentosPage: React.FC = () => {
               onClick={handleCreateOrder}
               className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <FileText className="w-4 h-4" /> Criar Orçamento
-            </button>
-            <button
-              onClick={() => {
-                const client = clients.find(c => c.id === newClientId);
-                if (!client) { setFormError('Por favor, selecione um cliente.'); return; }
-                if (newItems.some(i => !i.product)) { setFormError('Por favor, selecione o produto em todos os itens.'); return; }
-                setFormError('');
-                handleCreateOrder();
-                // Após criar, o addOrder do contexto vai disparar o envio ao financeiro
-                // via submitOrder — precisaria de flag, implementado via setTimeout
-              }}
-              className="btn-modern bg-vendedor/10 text-vendedor shadow-none hover:bg-vendedor/20 disabled:opacity-50"
-            >
-              <Send className="w-4 h-4" /> Criar e Enviar ao Financeiro
+              {isEdit ? <><Check className="w-4 h-4" /> Salvar Alterações</> : <><FileText className="w-4 h-4" /> Criar Orçamento</>}
             </button>
           </div>
         </div>
@@ -313,8 +367,11 @@ const OrcamentosPage: React.FC = () => {
     );
   }
 
-  // selectedOrder detail view
+  // ── Detalhe do orçamento selecionado ────────────────────────
   if (selectedOrder) {
+    const podeEditar = !STATUS_BLOQUEIAM_EDICAO.includes(selectedOrder.status);
+    const podeEnviarFinanceiro = selectedOrder.status === 'rascunho' || selectedOrder.status === 'enviado' || selectedOrder.status === 'aprovado_cliente';
+
     return (
       <div className="card-section p-6 space-y-5 animate-scale-in">
         <div className="flex items-center justify-between">
@@ -326,9 +383,24 @@ const OrcamentosPage: React.FC = () => {
               </span>
             )}
           </div>
-          <button onClick={() => setSelectedOrder(null)} className="btn-modern bg-muted text-foreground shadow-none text-xs px-3 py-1.5">
-            <ArrowLeft className="w-3.5 h-3.5" /> Voltar
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Botão Editar — bloqueado se status avançado */}
+            {podeEditar ? (
+              <button
+                onClick={() => { openEdit(selectedOrder); setSelectedOrder(null); }}
+                className="btn-modern bg-primary/10 text-primary shadow-none text-xs px-3 py-1.5 hover:bg-primary/20"
+              >
+                <Edit2 className="w-3.5 h-3.5" /> Editar
+              </button>
+            ) : (
+              <span className="text-[10px] text-muted-foreground px-3 py-1.5 rounded-lg bg-muted/50 border border-border/30">
+                🔒 Edição bloqueada
+              </span>
+            )}
+            <button onClick={() => setSelectedOrder(null)} className="btn-modern bg-muted text-foreground shadow-none text-xs px-3 py-1.5">
+              <ArrowLeft className="w-3.5 h-3.5" /> Voltar
+            </button>
+          </div>
         </div>
 
         {/* Pipeline visual */}
@@ -380,39 +452,47 @@ const OrcamentosPage: React.FC = () => {
           <OrderHistory order={selectedOrder} />
         </div>
 
-        {(selectedOrder.status === 'rascunho' || selectedOrder.status === 'enviado' || selectedOrder.status === 'aprovado_cliente') && (
-          <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
-            <ComprovanteUpload
-              value={comprovanteAttached || selectedOrder.receiptUrl}
-              onChange={setComprovanteAttached}
-              label="Comprovante de Pagamento (obrigatório para enviar ao Financeiro)"
-            />
-          </div>
-        )}
+        {/* Botão "Enviar para Financeiro" — apenas para status corretos */}
+        {podeEnviarFinanceiro && (
+          <>
+            <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
+              <ComprovanteUpload
+                value={comprovanteAttached || selectedOrder.receiptUrl}
+                onChange={setComprovanteAttached}
+                label="Comprovante de Pagamento (obrigatório para enviar ao Financeiro)"
+              />
+            </div>
 
-        {(selectedOrder.status === 'rascunho' || selectedOrder.status === 'enviado' || selectedOrder.status === 'aprovado_cliente') && (
-          <div className="flex gap-3 flex-wrap">
-            {clients.find(c => c.id === selectedOrder.clientId)?.phone && (
+            <div className="flex gap-3 flex-wrap">
+              {clients.find(c => c.id === selectedOrder.clientId)?.phone && (
+                <button
+                  onClick={() => openWhatsApp(clients.find(c => c.id === selectedOrder.clientId)!.phone)}
+                  className="btn-modern bg-success/10 text-success hover:bg-success/20 shadow-none text-xs"
+                >
+                  <MessageCircle className="w-4 h-4" /> WhatsApp Cliente
+                </button>
+              )}
               <button
-                onClick={() => openWhatsApp(clients.find(c => c.id === selectedOrder.clientId)!.phone)}
-                className="btn-modern bg-success/10 text-success hover:bg-success/20 shadow-none text-xs"
+                onClick={() => enviarFinanceiro(selectedOrder.id)}
+                disabled={!comprovanteAttached.trim() && !selectedOrder.receiptUrl}
+                className="btn-modern bg-gradient-to-r from-vendedor to-vendedor/80 text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed flex-1"
               >
-                <MessageCircle className="w-4 h-4" /> WhatsApp Cliente
+                <Send className="w-4 h-4" /> 🟢 Enviar para Financeiro
               </button>
+            </div>
+
+            {(!comprovanteAttached && !selectedOrder.receiptUrl) && (
+              <p className="text-[10px] text-muted-foreground text-center">
+                ⚠️ Anexe o comprovante de pagamento para habilitar o envio ao financeiro
+              </p>
             )}
-            <button
-              onClick={() => enviarFinanceiro(selectedOrder.id)}
-              disabled={!comprovanteAttached.trim() && !selectedOrder.receiptUrl}
-              className="btn-modern bg-gradient-to-r from-vendedor to-vendedor/80 text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed flex-1"
-            >
-              <Send className="w-4 h-4" /> Enviar para Financeiro
-            </button>
-          </div>
+          </>
         )}
       </div>
     );
   }
 
+  // ── Lista de orçamentos ─────────────────────────────────────
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
@@ -444,27 +524,54 @@ const OrcamentosPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(order => (
-                <tr key={order.id}>
-                  <td className="font-bold text-foreground">{order.number}</td>
-                  <td className="text-foreground">{order.clientName}</td>
-                  <td className="text-right font-semibold text-foreground hidden md:table-cell">{formatCurrency(order.total)}</td>
-                  <td className="hidden lg:table-cell"><OrderPipeline order={order} compact /></td>
-                  <td><StatusBadge status={order.status} /></td>
-                  <td className="text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button onClick={() => { setSelectedOrder(order); setComprovanteAttached(order.receiptUrl || ''); }} className="w-8 h-8 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center justify-center transition-colors">
-                        <Eye className="w-3.5 h-3.5" />
-                      </button>
-                      {(order.status === 'rascunho' || order.status === 'enviado') && (
-                        <button onClick={() => enviarFinanceiro(order.id)} className="w-8 h-8 rounded-lg bg-vendedor/10 text-vendedor hover:bg-vendedor/20 inline-flex items-center justify-center transition-colors" title="Enviar ao Financeiro">
-                          <Send className="w-3.5 h-3.5" />
+              {filtered.map(order => {
+                const podeEditar = !STATUS_BLOQUEIAM_EDICAO.includes(order.status);
+                return (
+                  <tr key={order.id}>
+                    <td className="font-bold text-foreground">{order.number}</td>
+                    <td className="text-foreground">{order.clientName}</td>
+                    <td className="text-right font-semibold text-foreground hidden md:table-cell">{formatCurrency(order.total)}</td>
+                    <td className="hidden lg:table-cell"><OrderPipeline order={order} compact /></td>
+                    <td><StatusBadge status={order.status} /></td>
+                    <td className="text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => { setSelectedOrder(order); setComprovanteAttached(order.receiptUrl || ''); }}
+                          className="w-8 h-8 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center justify-center transition-colors"
+                          title="Ver detalhes"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
                         </button>
-                      )}
-                    </div>
+                        {podeEditar && (
+                          <button
+                            onClick={() => openEdit(order)}
+                            className="w-8 h-8 rounded-lg bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary inline-flex items-center justify-center transition-colors"
+                            title="Editar orçamento"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {(order.status === 'rascunho' || order.status === 'enviado' || order.status === 'aprovado_cliente') && (
+                          <button
+                            onClick={() => { setSelectedOrder(order); setComprovanteAttached(order.receiptUrl || ''); }}
+                            className="w-8 h-8 rounded-lg bg-vendedor/10 text-vendedor hover:bg-vendedor/20 inline-flex items-center justify-center transition-colors"
+                            title="Enviar ao Financeiro"
+                          >
+                            <Send className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="text-center py-10 text-muted-foreground">
+                    Nenhum orçamento encontrado
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>

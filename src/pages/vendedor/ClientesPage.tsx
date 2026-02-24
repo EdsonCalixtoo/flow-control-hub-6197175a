@@ -48,7 +48,7 @@ async function fetchViaCep(cep: string) {
   }
 }
 
-const EMPTY_FORM = { name: '', cpfCnpj: '', phone: '', email: '', logradouro: '', numero: '', complemento: '', city: '', state: '', cep: '', notes: '', consignado: false };
+const EMPTY_FORM = { name: '', cpfCnpj: '', phone: '', email: '', logradouro: '', numero: '', complemento: '', bairro: '', city: '', state: '', cep: '', notes: '', consignado: false };
 
 const ClientesPage: React.FC = () => {
   const { clients, orders, addClient } = useERP();
@@ -97,6 +97,7 @@ const ClientesPage: React.FC = () => {
         setForm(f => ({
           ...f,
           logradouro: data.logradouro || f.logradouro,
+          bairro: data.bairro || f.bairro,
           city: data.localidade,
           state: data.uf,
         }));
@@ -113,6 +114,7 @@ const ClientesPage: React.FC = () => {
       id: crypto.randomUUID(),
       ...rest,
       address: buildAddress(form),
+      bairro: form.bairro,
       consignado: form.consignado,
       createdBy: user?.id,
       createdAt: new Date().toISOString(),
@@ -156,7 +158,13 @@ const ClientesPage: React.FC = () => {
               {[
                 { icon: Phone, label: selectedClient.phone || '—' },
                 { icon: Mail, label: selectedClient.email || '—' },
-                { icon: MapPin, label: `${selectedClient.address}, ${selectedClient.city}/${selectedClient.state}` },
+                {
+                  icon: MapPin, label: [
+                    selectedClient.address,
+                    selectedClient.bairro,
+                    `${selectedClient.city}/${selectedClient.state}`
+                  ].filter(Boolean).join(' — ')
+                },
               ].map((item, i) => (
                 <div key={i} className="flex items-center gap-3 text-sm">
                   <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
@@ -310,6 +318,18 @@ const ClientesPage: React.FC = () => {
                 className="input-modern py-2.5"
               />
             </div>
+          </div>
+
+          {/* Bairro — campo novo */}
+          <div>
+            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground block mb-1">Bairro</label>
+            <input
+              type="text"
+              value={form.bairro}
+              onChange={e => setForm(f => ({ ...f, bairro: e.target.value }))}
+              placeholder="Nome do bairro"
+              className="input-modern py-2.5"
+            />
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">

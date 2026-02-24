@@ -1,8 +1,15 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { StatCard, StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
-import { DollarSign, TrendingUp, TrendingDown, Clock, AlertTriangle, Search, Filter, ChevronDown, ChevronLeft, ChevronRight, Eye, CheckCircle, XCircle, Send, ArrowLeft, Calendar, Users2, BarChart3 } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, Clock, AlertTriangle, Search, Filter, ChevronDown, ChevronLeft, ChevronRight, Eye, CheckCircle, XCircle, Send, ArrowLeft, Calendar, Users2, BarChart3, Radio } from 'lucide-react';
 import type { Order } from '@/types/erp';
+
+// Status que devem aparecer no financeiro (apenas quando o vendedor clicou em Enviar)
+const STATUS_VISIVEL_FINANCEIRO = [
+  'aguardando_financeiro', 'aprovado_financeiro', 'rejeitado_financeiro',
+  'aguardando_gestor', 'aprovado_gestor', 'rejeitado_gestor',
+  'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'
+];
 
 type PaymentFilter = 'todos' | 'pago' | 'pendente' | 'vencido' | 'cancelado';
 type PeriodFilter = 'hoje' | '7dias' | '30dias' | 'personalizado' | 'todos';
@@ -20,15 +27,32 @@ const FinanceiroDashboard: React.FC = () => {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showFilters, setShowFilters] = useState(false);
-  // Filtro de período para vendedores
   const [sellerPeriod, setSellerPeriod] = useState<PeriodFilter>('todos');
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const itemsPerPage = 5;
 
+  // ✅ Filtra APENAS pedidos que foram enviados ao financeiro
+  // Rascunhos e orçamentos não enviados NÃO aparecem aqui
+  const ordersVisiveisFinanceiro = useMemo(
+    () => orders.filter(o => STATUS_VISIVEL_FINANCEIRO.includes(o.status)),
+    [orders]
+  );
+
+  // Atualiza indicador de último refresh quando orders mudam
+  const prevOrdersLen = useRef(orders.length);
+  useEffect(() => {
+    if (orders.length !== prevOrdersLen.current) {
+      setLastUpdate(new Date());
+      prevOrdersLen.current = orders.length;
+    }
+  }, [orders]);
+
   const totalRecebido = financialEntries.filter(e => e.type === 'receita' && e.status === 'pago').reduce((s, e) => s + e.amount, 0);
-  const totalPendente = orders.filter(o => o.paymentStatus === 'pendente' || o.status === 'aguardando_financeiro').reduce((s, o) => s + o.total, 0);
+  const totalPendente = ordersVisiveisFinanceiro.filter(o => o.paymentStatus === 'pendente' || o.status === 'aguardando_financeiro').reduce((s, o) => s + o.total, 0);
   const totalVencido = financialEntries.filter(e => e.status === 'pendente' && new Date(e.date) < new Date()).reduce((s, e) => s + e.amount, 0);
-  const aguardandoLiberacao = orders.filter(o => o.status === 'aprovado_financeiro').length;
+  const aguardandoLiberacao = ordersVisiveisFinanceiro.filter(o => o.status === 'aprovado_financeiro').length;
   const pagamentosHoje = financialEntries.filter(e => e.date === new Date().toISOString().split('T')[0] && e.status === 'pago').length;
+  const aguardandoFinanceiro = ordersVisiveisFinanceiro.filter(o => o.status === 'aguardando_financeiro').length;
 
   // ── Filtro por período ─────────────────────────────────────
   const filterByPeriod = (date: string, period: PeriodFilter): boolean => {
@@ -52,8 +76,8 @@ const FinanceiroDashboard: React.FC = () => {
 
   // ── Controle de vendas por vendedor ───────────────────────
   const sellerStats = useMemo(() => {
-    const periodOrders = orders.filter(o =>
-      o.status !== 'rascunho' &&
+    // Para o financeiro, as vendas por vendedor mostram apenas pedidos enviados
+    const periodOrders = ordersVisiveisFinanceiro.filter(o =>
       filterByPeriod(o.createdAt, sellerPeriod)
     );
 
@@ -94,10 +118,11 @@ const FinanceiroDashboard: React.FC = () => {
     }
 
     return Object.values(stats).sort((a, b) => b.totalVendas - a.totalVendas);
-  }, [orders, sellerPeriod]);
+  }, [ordersVisiveisFinanceiro, sellerPeriod]);
 
   const filteredOrders = useMemo(() => {
-    let result = [...orders];
+    // ✅ Começa apenas com pedidos visíveis ao financeiro (não rascunhos)
+    let result = [...ordersVisiveisFinanceiro];
 
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -126,7 +151,7 @@ const FinanceiroDashboard: React.FC = () => {
     });
 
     return result;
-  }, [orders, searchQuery, statusFilter, paymentMethodFilter, sortBy, sortDir]);
+  }, [ordersVisiveisFinanceiro, searchQuery, statusFilter, paymentMethodFilter, sortBy, sortDir]);
 
   const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
   const paginatedOrders = filteredOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -286,17 +311,25 @@ const FinanceiroDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="page-header">Dashboard Financeiro</h1>
-        <p className="page-subtitle">Controle completo das finanças</p>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="page-header">Dashboard Financeiro</h1>
+          <p className="page-subtitle">Controle completo das finanças</p>
+        </div>
+        {/* Indicador de tempo real */}
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-success/10 border border-success/20 text-success text-[10px] font-semibold">
+          <Radio className="w-3 h-3 animate-pulse" />
+          Tempo Real — atualizado {lastUpdate.toLocaleTimeString('pt-BR')}
+        </div>
       </div>
 
       {/* Cards animados */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 stagger-children">
-        <StatCard title="A Receber" value={formatCurrency(totalPendente)} icon={Clock} color="text-warning" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 stagger-children">
+        <StatCard title="Aguard. Aprovação" value={aguardandoFinanceiro} icon={Clock} color="text-warning" />
+        <StatCard title="A Receber" value={formatCurrency(totalPendente)} icon={DollarSign} color="text-warning" />
         <StatCard title="Recebido" value={formatCurrency(totalRecebido)} icon={TrendingUp} color="text-success" trend="+8%" />
         <StatCard title="Vencido" value={formatCurrency(totalVencido)} icon={AlertTriangle} color="text-destructive" />
-        <StatCard title="Aguard. Produção" value={aguardandoLiberacao} icon={DollarSign} color="text-info" />
+        <StatCard title="Aguard. Produção" value={aguardandoLiberacao} icon={Send} color="text-info" />
         <StatCard title="Pgtos Hoje" value={pagamentosHoje} icon={Calendar} color="text-primary" />
       </div>
 

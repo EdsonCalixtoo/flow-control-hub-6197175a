@@ -1,14 +1,16 @@
-import React, { createContext, useContext, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useCallback, useEffect, useRef } from 'react';
 import type { Order, Client, FinancialEntry, Product, OrderStatus, StatusHistoryEntry, DelayReport, ChatMessage, OrderReturn, ProductionError } from '@/types/erp';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import {
   fetchOrders, fetchClients, fetchProducts, fetchFinancialEntries,
-  createOrder, updateOrderStatusDb, updateOrderFields, createClient, updateClient,
+  createOrder, updateOrderStatusDb, updateOrderFields, updateOrderFull as updateOrderFullDb,
+  createClient, updateClient,
   upsertProduct, deleteProductDb, createFinancialEntry, clearAllData,
   fetchOrderChat, sendChatMessage, markChatRead,
   fetchOrderReturns, createOrderReturn,
   fetchProductionErrors, createProductionError, resolveProductionError,
 } from '@/lib/supabaseService';
+import { supabase } from '@/lib/supabase';
 
 interface ERPContextType {
   orders: Order[];
@@ -35,6 +37,7 @@ interface ERPContextType {
   addOrder: (order: Order) => void;
   updateOrderStatus: (orderId: string, status: OrderStatus, extra?: Partial<Order>, userName?: string, note?: string) => void;
   updateOrder: (orderId: string, fields: Partial<Order>) => void;
+  editOrderFull: (order: Order) => Promise<void>;
   addClient: (client: Client) => void;
   editClient: (client: Client) => void;
   addFinancialEntry: (entry: FinancialEntry) => void;
@@ -60,6 +63,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [chatMessages, setChatMessages] = React.useState<Record<string, ChatMessage[]>>({});
   const [loading, setLoading] = React.useState(false);
   const [supaLoaded, setSupaLoaded] = React.useState(false);
+  const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
   // ── Sincroniza do Supabase uma vez ao iniciar ────────────────
   useEffect(() => {
@@ -90,6 +94,46 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
     sync();
+  }, [supaLoaded]);
+
+  // ── Realtime subscription para pedidos ────────────────────────
+  // Quando qualquer pedido mudar no banco, re-busca tudo para manter
+  // o financeiro, gestor e produção atualizados em tempo real
+  useEffect(() => {
+    if (!supaLoaded) return;
+    // Limpa canal anterior se existir
+    if (realtimeChannelRef.current) {
+      supabase.removeChannel(realtimeChannelRef.current);
+    }
+
+    const channel = supabase
+      .channel('erp-orders-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        async () => {
+          console.log('[ERP Realtime] Mudança detectada em orders — re-sincronizando...');
+          try {
+            const [dbOrders, dbEntries] = await Promise.all([
+              fetchOrders(),
+              fetchFinancialEntries(),
+            ]);
+            setOrders(dbOrders);
+            if (dbEntries.length > 0) setFinancialEntries(dbEntries);
+          } catch (err) {
+            console.warn('[ERP Realtime] Erro ao re-sincronizar:', err);
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('[ERP Realtime] Status da subscription:', status);
+      });
+
+    realtimeChannelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [supaLoaded]);
 
   // ── ORDERS ───────────────────────────────────────────────────
@@ -157,6 +201,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...fields, updatedAt: new Date().toISOString() } : o));
     updateOrderFields(orderId, fields).catch(err => {
       console.error('[ERP] Erro ao atualizar pedido no banco:', err?.message ?? err);
+    });
+  }, [setOrders]);
+
+  // Edição completa de orçamento (substitui itens, atualiza campos)
+  const editOrderFull = useCallback(async (order: Order) => {
+    setOrders(prev => prev.map(o => o.id === order.id ? { ...order, updatedAt: new Date().toISOString() } : o));
+    await updateOrderFullDb(order).catch(err => {
+      console.error('[ERP] Erro ao editar orçamento no banco:', err?.message ?? err);
     });
   }, [setOrders]);
 
@@ -326,7 +378,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       chatMessages, sendMessage, loadChat, markChatAsRead, getUnreadCount,
       orderReturns, addOrderReturn,
       productionErrors, addProductionError, resolveError,
-      addOrder, updateOrderStatus, updateOrder,
+      addOrder, updateOrderStatus, updateOrder, editOrderFull,
       addClient, editClient, addFinancialEntry,
       addProduct, updateProduct, deleteProduct, addDelayReport, markDelayReportRead, clearAll,
     }}>

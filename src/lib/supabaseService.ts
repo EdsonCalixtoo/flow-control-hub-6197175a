@@ -81,6 +81,7 @@ function mapClient(c: Record<string, unknown>): Client {
         phone: (c.phone as string) ?? '',
         email: (c.email as string) ?? '',
         address: (c.address as string) ?? '',
+        bairro: (c.bairro as string) ?? '',
         city: (c.city as string) ?? '',
         state: (c.state as string) ?? '',
         cep: (c.cep as string) ?? '',
@@ -341,6 +342,41 @@ export async function updateOrderFields(orderId: string, fields: Partial<Order>)
     }
 }
 
+// Atualiza TODOS os dados de um orçamento (edição completa)
+export async function updateOrderFull(order: Order): Promise<void> {
+    const patch: Record<string, unknown> = {
+        client_id: order.clientId,
+        client_name: order.clientName,
+        subtotal: order.subtotal,
+        taxes: order.taxes,
+        total: order.total,
+        notes: order.notes ?? '',
+        observation: order.observation ?? '',
+        delivery_date: order.deliveryDate ?? null,
+        order_type: order.orderType ?? null,
+        updated_at: new Date().toISOString(),
+    };
+    const { error: updErr } = await supabase.from('orders').update(patch).eq('id', order.id);
+    if (updErr) { logError('updateOrderFull/order', updErr); throw updErr; }
+
+    // Remove itens antigos e insere novos
+    await supabase.from('order_items').delete().eq('order_id', order.id);
+    if (order.items.length > 0) {
+        const newItems = order.items.map(i => ({
+            order_id: order.id,
+            product_name: i.product,
+            product_description: i.description ?? '',
+            quantity: i.quantity,
+            unit_price: i.unitPrice,
+            discount: i.discount ?? 0,
+            discount_type: i.discountType ?? 'percent',
+            total: i.total,
+        }));
+        const { error: itemErr } = await supabase.from('order_items').insert(newItems);
+        if (itemErr) { logError('updateOrderFull/items', itemErr); }
+    }
+}
+
 // ─────────────────────────────────────────────────────────────
 // CLIENTS
 // ─────────────────────────────────────────────────────────────
@@ -351,7 +387,7 @@ export async function fetchClients(): Promise<Client[]> {
 }
 
 export async function createClient(client: Client): Promise<void> {
-    const { error } = await supabase.from('clients').insert({
+    const payload: Record<string, unknown> = {
         id: client.id,
         name: client.name,
         cpf_cnpj: client.cpfCnpj,
@@ -363,12 +399,23 @@ export async function createClient(client: Client): Promise<void> {
         cep: client.cep ?? '',
         notes: client.notes ?? '',
         consignado: client.consignado ?? false,
-    });
+        bairro: client.bairro ?? '',
+    };
+    let { error } = await supabase.from('clients').insert(payload);
+    // fallback sem bairro se coluna ainda não existe
+    if (error) {
+        const msg = String((error as any).message ?? '').toLowerCase();
+        if ((error as any).code === '42703' || msg.includes('bairro')) {
+            const { bairro: _b, ...rest } = payload;
+            const result = await supabase.from('clients').insert(rest);
+            error = result.error;
+        }
+    }
     if (error) { logError('createClient', error); throw error; }
 }
 
 export async function updateClient(client: Client): Promise<void> {
-    const { error } = await supabase.from('clients').upsert({
+    const payload: Record<string, unknown> = {
         id: client.id,
         name: client.name,
         cpf_cnpj: client.cpfCnpj,
@@ -380,7 +427,17 @@ export async function updateClient(client: Client): Promise<void> {
         cep: client.cep ?? '',
         notes: client.notes ?? '',
         consignado: client.consignado ?? false,
-    });
+        bairro: client.bairro ?? '',
+    };
+    let { error } = await supabase.from('clients').upsert(payload);
+    if (error) {
+        const msg = String((error as any).message ?? '').toLowerCase();
+        if ((error as any).code === '42703' || msg.includes('bairro')) {
+            const { bairro: _b, ...rest } = payload;
+            const result = await supabase.from('clients').upsert(rest);
+            error = result.error;
+        }
+    }
     if (error) { logError('updateClient', error); throw error; }
 }
 

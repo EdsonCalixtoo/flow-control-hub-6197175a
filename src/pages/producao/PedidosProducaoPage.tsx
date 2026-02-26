@@ -49,6 +49,8 @@ const PedidosProducaoPage: React.FC = () => {
   // Camera scanner state
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [barcodeDetectorAvailable, setBarcodeDetectorAvailable] = useState(false);
+  const [barcodeScanMode, setBarcodeScanMode] = useState<'camera' | 'usb'>('usb');
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -297,21 +299,39 @@ html, body { width: 100mm; height: 150mm; font-family: 'Segoe UI', Arial, sans-s
     setCameraError(null);
     try {
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setCameraError('Câmera não suportada neste navegador. Use Chrome ou Safari atualizado.');
+        setCameraError(
+          'Câmera não suportada neste navegador. Use Chrome, Edge ou Safari 14+. ' +
+          'Alternativamente, conecte um leitor USB de código de barras ou digite manualmente.'
+        );
         return;
       }
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { 
+          facingMode: 'environment', 
+          width: { ideal: 1280 }, 
+          height: { ideal: 720 },
+          focusMode: { ideal: 'continuous' }
+        },
+        audio: false,
       });
       streamRef.current = stream;
       // Marca como ativo ANTES de tentar o play — o useEffect vai conectar o stream ao <video>
       setCameraActive(true);
     } catch (err: any) {
-      const msg = err?.name === 'NotAllowedError'
-        ? 'Permissão de câmera negada. Acesse as configurações do navegador e permita a câmera.'
-        : err?.name === 'NotFoundError'
-          ? 'Nenhuma câmera encontrada neste dispositivo.'
-          : 'Não foi possível acessar a câmera. Verifique as permissões.';
+      console.error('Camera error:', err);
+      let msg = 'Não foi possível acessar a câmera.';
+      
+      if (err?.name === 'NotAllowedError') {
+        msg = '🔒 Permissão negada. Acesse as configurações do navegador: ' +
+              'Configurações > Privacidade > Câmera > Permita este site. ' +
+              'Alternativamente, use leitor USB ou Digite manualmente.';
+      } else if (err?.name === 'NotFoundError') {
+        msg = '📱 Nenhuma câmera encontrada. Use um leitor USB de código de barras ou digite o número do pedido manualmente.';
+      } else if (err?.name === 'NotReadableError') {
+        msg = '⚠️ Câmera em uso por outro aplicativo. Feche outros apps e tente novamente.';
+      } else {
+        msg += ' Verifique as permissões ou use leitor USB/entrada manual.';
+      }
       setCameraError(msg);
     }
   }, []);
@@ -324,6 +344,16 @@ html, body { width: 100mm; height: 150mm; font-family: 'Segoe UI', Arial, sans-s
     };
   }, []);
 
+  // Detecta disponibilidade do BarcodeDetector na montagem
+  useEffect(() => {
+    const hasDetector = !!(window as any).BarcodeDetector;
+    setBarcodeDetectorAvailable(hasDetector);
+    // Se não houver BarcodeDetector, força modo USB
+    if (!hasDetector) {
+      setBarcodeScanMode('usb');
+    }
+  }, []);
+
   // Conecta o stream ao <video> assim que cameraActive=true e o ref estiver pronto no DOM
   useEffect(() => {
     if (!cameraActive || !streamRef.current) return;
@@ -333,8 +363,13 @@ html, body { width: 100mm; height: 150mm; font-family: 'Segoe UI', Arial, sans-s
     video.play().catch(() => { });
 
     const BarcodeDetector = (window as any).BarcodeDetector;
-    if (BarcodeDetector) {
-      const detector = new BarcodeDetector({ formats: ['code_128', 'code_39', 'qr_code', 'ean_13'] });
+    if (!BarcodeDetector) {
+      setCameraError('Seu navegador não suporta detecção automática de código de barras. Use o leitor USB ou digitar manualmente.');
+      return;
+    }
+
+    try {
+      const detector = new BarcodeDetector({ formats: ['code_128', 'code_39', 'qr_code', 'ean_13', 'ean_8'] });
       intervalRef.current = setInterval(async () => {
         if (!videoRef.current) return;
         try {
@@ -345,8 +380,11 @@ html, body { width: 100mm; height: 150mm; font-family: 'Segoe UI', Arial, sans-s
             setScanInput(code);
             processCode(code);
           }
-        } catch { /* ignore */ }
-      }, 500);
+        } catch { /* ignore detection errors */ }
+      }, 300); // Mais rápido para melhor responsividade
+    } catch (err) {
+      setCameraError('Erro ao inicializar detecção de código de barras. Use o leitor USB ou digitar manualmente.');
+      console.warn('BarcodeDetector init error:', err);
     }
   }, [cameraActive, processCode, stopCamera]);
 
@@ -360,7 +398,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Segoe UI', Arial, sans-s
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="page-header">Leitura de Código de Barras</h1>
-            <p className="page-subtitle">Escaneie via câmera ou leitor USB para liberar o pedido</p>
+            <p className="page-subtitle">Escaneie via câmera {barcodeDetectorAvailable ? '(se disponível)' : ''}, leitor USB ou digite manualmente</p>
           </div>
           <button onClick={() => { setShowScanner(false); setScanResult(null); stopCamera(); }} className="btn-modern bg-muted text-foreground shadow-none text-xs">
             <X className="w-4 h-4" /> Fechar
@@ -373,38 +411,58 @@ html, body { width: 100mm; height: 150mm; font-family: 'Segoe UI', Arial, sans-s
               <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-producao/20 to-producao/5 flex items-center justify-center mx-auto mb-3">
                 <ScanLine className="w-8 h-8 text-producao" />
               </div>
-              <h2 className="text-base font-bold text-foreground">Câmera / Leitor USB</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">Use a câmera do dispositivo ou o leitor USB</p>
+              <h2 className="text-base font-bold text-foreground">Leitura de Código</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {barcodeDetectorAvailable ? 'Use câmera, leitor USB ou digite' : 'Usa leitor USB ou digite manualmente'}
+              </p>
             </div>
 
-            {/* Video — sempre no DOM para que videoRef.current esteja sempre válido */}
-            <div className={`space-y-3 ${!cameraActive ? 'hidden' : ''}`}>
-              <div className="relative rounded-xl overflow-hidden border-2 border-producao/40 bg-black">
-                <video
-                  ref={videoRef}
-                  className="w-full h-48 object-cover"
-                  playsInline
-                  autoPlay
-                  muted
-                  onCanPlay={() => { videoRef.current?.play().catch(() => { }); }}
-                />
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="w-48 h-32 border-2 border-white/70 rounded-xl" />
-                </div>
-                <div className="absolute bottom-2 left-0 right-0 text-center">
-                  <span className="text-[10px] text-white/80 bg-black/50 px-2 py-0.5 rounded-full">Aponte para o código de barras</span>
-                </div>
+            {/* Aviso se BarcodeDetector não disponível */}
+            {!barcodeDetectorAvailable && (
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 text-xs space-y-1">
+                <p className="font-semibold">⚠️ Detecção automática indisponível neste navegador</p>
+                <p>Use um dos métodos abaixo:</p>
+                <ul className="ml-3 mt-1 space-y-0.5">
+                  <li>• 📱 <strong>Leitor USB</strong>: Conecte um scanner de código de barras</li>
+                  <li>• ⌨️ <strong>Digitar</strong>: Digite o número do pedido manualmente</li>
+                  <li>• 🌐 <strong>Navegador</strong>: Use Chrome/Edge/Safari 14+ para câmera</li>
+                </ul>
               </div>
-              <button onClick={stopCamera} className="btn-modern bg-destructive/10 text-destructive shadow-none text-xs w-full justify-center">
-                <StopCircle className="w-4 h-4" /> Parar Câmera
-              </button>
-            </div>
-
-            {cameraError && (
-              <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-xs">{cameraError}</div>
             )}
 
-            {!cameraActive && (
+            {/* Video — sempre no DOM para que videoRef.current esteja sempre válido */}
+            {barcodeDetectorAvailable && (
+              <div className={`space-y-3 ${!cameraActive ? 'hidden' : ''}`}>
+                <div className="relative rounded-xl overflow-hidden border-2 border-producao/40 bg-black">
+                  <video
+                    ref={videoRef}
+                    className="w-full h-48 object-cover"
+                    playsInline
+                    autoPlay
+                    muted
+                    onCanPlay={() => { videoRef.current?.play().catch(() => { }); }}
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-48 h-32 border-2 border-white/70 rounded-xl" />
+                  </div>
+                  <div className="absolute bottom-2 left-0 right-0 text-center">
+                    <span className="text-[10px] text-white/80 bg-black/50 px-2 py-0.5 rounded-full">Aponte para o código de barras</span>
+                  </div>
+                </div>
+                <button onClick={stopCamera} className="btn-modern bg-destructive/10 text-destructive shadow-none text-xs w-full justify-center">
+                  <StopCircle className="w-4 h-4" /> Parar Câmera
+                </button>
+              </div>
+            )}
+
+            {cameraError && (
+              <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-xs space-y-2">
+                <p className="font-semibold">Erro na câmera:</p>
+                <p>{cameraError}</p>
+              </div>
+            )}
+
+            {barcodeDetectorAvailable && !cameraActive && (
               <button onClick={startCamera} className="btn-modern bg-producao/10 text-producao shadow-none w-full justify-center py-3 hover:bg-producao/20 border border-producao/20">
                 <Camera className="w-4 h-4" /> Ativar Câmera
               </button>
@@ -412,7 +470,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Segoe UI', Arial, sans-s
 
             <div className="flex items-center gap-3">
               <div className="h-px flex-1 bg-border/40" />
-              <span className="text-[10px] text-muted-foreground font-semibold">OU DIGITAR / LEITOR USB</span>
+              <span className="text-[10px] text-muted-foreground font-semibold">DIGITAR / LEITOR USB</span>
               <div className="h-px flex-1 bg-border/40" />
             </div>
 
@@ -422,9 +480,9 @@ html, body { width: 100mm; height: 150mm; font-family: 'Segoe UI', Arial, sans-s
                 value={scanInput}
                 onChange={e => setScanInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleScan()}
-                placeholder="PED-001"
+                placeholder="PED-001234 ou código de barras"
                 className="input-modern text-center text-lg font-mono font-bold tracking-widest flex-1"
-                autoFocus={!cameraActive}
+                autoFocus={!cameraActive || !barcodeDetectorAvailable}
               />
               <button onClick={handleScan} className="btn-primary px-6" disabled={!scanInput.trim()}>Validar</button>
             </div>
@@ -437,9 +495,21 @@ html, body { width: 100mm; height: 150mm; font-family: 'Segoe UI', Arial, sans-s
                 {scanResult.success ? <CheckCircle className="w-8 h-8 text-success" /> : <X className="w-8 h-8 text-destructive" />}
               </div>
               <p className={`font-bold text-sm ${scanResult.success ? 'text-success' : 'text-destructive'}`}>
-                {scanResult.success ? 'Sucesso!' : 'Erro'}
+                {scanResult.success ? '✅ Sucesso!' : '❌ Erro'}
               </p>
               <p className="text-sm text-foreground mt-1">{scanResult.message}</p>
+              
+              {!scanResult.success && (
+                <div className="mt-4 p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground text-left space-y-1">
+                  <p className="font-semibold">💡 Dicas de solução:</p>
+                  <ul className="ml-3 space-y-1">
+                    <li>• Verifique se o número do pedido está correto</li>
+                    <li>• Confirme que o código de barras corresponde ao número do pedido</li>
+                    <li>• Se usar leitor USB, certifique-se que está configurado como teclado</li>
+                    <li>• Limpe a câmera se usar modo câmera</li>
+                  </ul>
+                </div>
+              )}
             </div>
           )}
 

@@ -230,14 +230,6 @@ html, body { width: 100mm; height: 150mm; font-family: 'Segoe UI', Arial, sans-s
     setScheduleDate('');
   };
 
-  // Cleanup camera on unmount
-  useEffect(() => {
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
-      streamRef.current?.getTracks().forEach(t => t.stop());
-    };
-  }, []);
-
 
   const stopCamera = useCallback(() => {
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
@@ -312,34 +304,8 @@ html, body { width: 100mm; height: 150mm; font-family: 'Segoe UI', Arial, sans-s
         video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        try {
-          await videoRef.current.play();
-        } catch (playErr) {
-          console.warn('autoplay bloqueado, ignorando:', playErr);
-        }
-      }
+      // Marca como ativo ANTES de tentar o play — o useEffect vai conectar o stream ao <video>
       setCameraActive(true);
-
-      const BarcodeDetector = (window as any).BarcodeDetector;
-      if (BarcodeDetector) {
-        const detector = new BarcodeDetector({ formats: ['code_128', 'code_39', 'qr_code', 'ean_13'] });
-        intervalRef.current = setInterval(async () => {
-          if (!videoRef.current) return;
-          try {
-            const barcodes = await detector.detect(videoRef.current);
-            if (barcodes.length > 0) {
-              const code = barcodes[0].rawValue;
-              stopCamera();
-              setScanInput(code);
-              processCode(code);
-            }
-          } catch { /* ignore */ }
-        }, 500);
-      } else {
-        console.warn('[Scanner] BarcodeDetector não disponível. Use o campo de texto abaixo.');
-      }
     } catch (err: any) {
       const msg = err?.name === 'NotAllowedError'
         ? 'Permissão de câmera negada. Acesse as configurações do navegador e permita a câmera.'
@@ -348,8 +314,41 @@ html, body { width: 100mm; height: 150mm; font-family: 'Segoe UI', Arial, sans-s
           : 'Não foi possível acessar a câmera. Verifique as permissões.';
       setCameraError(msg);
     }
-  }, [processCode, stopCamera]);
+  }, []);
 
+  // Cleanup camera on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      streamRef.current?.getTracks().forEach(t => t.stop());
+    };
+  }, []);
+
+  // Conecta o stream ao <video> assim que cameraActive=true e o ref estiver pronto no DOM
+  useEffect(() => {
+    if (!cameraActive || !streamRef.current) return;
+    const video = videoRef.current;
+    if (!video) return;
+    video.srcObject = streamRef.current;
+    video.play().catch(() => { });
+
+    const BarcodeDetector = (window as any).BarcodeDetector;
+    if (BarcodeDetector) {
+      const detector = new BarcodeDetector({ formats: ['code_128', 'code_39', 'qr_code', 'ean_13'] });
+      intervalRef.current = setInterval(async () => {
+        if (!videoRef.current) return;
+        try {
+          const barcodes = await detector.detect(videoRef.current);
+          if (barcodes.length > 0) {
+            const code = barcodes[0].rawValue;
+            stopCamera();
+            setScanInput(code);
+            processCode(code);
+          }
+        } catch { /* ignore */ }
+      }, 500);
+    }
+  }, [cameraActive, processCode, stopCamera]);
 
   const handleScan = () => processCode(scanInput);
 
@@ -378,30 +377,28 @@ html, body { width: 100mm; height: 150mm; font-family: 'Segoe UI', Arial, sans-s
               <p className="text-xs text-muted-foreground mt-0.5">Use a câmera do dispositivo ou o leitor USB</p>
             </div>
 
-            {/* Camera view */}
-            {cameraActive && (
-              <div className="space-y-3">
-                <div className="relative rounded-xl overflow-hidden border-2 border-producao/40 bg-black">
-                  <video
-                    ref={videoRef}
-                    className="w-full h-48 object-cover"
-                    playsInline
-                    autoPlay
-                    muted
-                    onCanPlay={() => { videoRef.current?.play().catch(() => { }); }}
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="w-48 h-32 border-2 border-white/70 rounded-xl" />
-                  </div>
-                  <div className="absolute bottom-2 left-0 right-0 text-center">
-                    <span className="text-[10px] text-white/80 bg-black/50 px-2 py-0.5 rounded-full">Aponte para o código de barras</span>
-                  </div>
+            {/* Video — sempre no DOM para que videoRef.current esteja sempre válido */}
+            <div className={`space-y-3 ${!cameraActive ? 'hidden' : ''}`}>
+              <div className="relative rounded-xl overflow-hidden border-2 border-producao/40 bg-black">
+                <video
+                  ref={videoRef}
+                  className="w-full h-48 object-cover"
+                  playsInline
+                  autoPlay
+                  muted
+                  onCanPlay={() => { videoRef.current?.play().catch(() => { }); }}
+                />
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="w-48 h-32 border-2 border-white/70 rounded-xl" />
                 </div>
-                <button onClick={stopCamera} className="btn-modern bg-destructive/10 text-destructive shadow-none text-xs w-full justify-center">
-                  <StopCircle className="w-4 h-4" /> Parar Câmera
-                </button>
+                <div className="absolute bottom-2 left-0 right-0 text-center">
+                  <span className="text-[10px] text-white/80 bg-black/50 px-2 py-0.5 rounded-full">Aponte para o código de barras</span>
+                </div>
               </div>
-            )}
+              <button onClick={stopCamera} className="btn-modern bg-destructive/10 text-destructive shadow-none text-xs w-full justify-center">
+                <StopCircle className="w-4 h-4" /> Parar Câmera
+              </button>
+            </div>
 
             {cameraError && (
               <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-xs">{cameraError}</div>

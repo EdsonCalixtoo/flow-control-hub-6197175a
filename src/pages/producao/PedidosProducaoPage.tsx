@@ -90,7 +90,7 @@ const PedidosProducaoPage: React.FC = () => {
       const JsBarcode = (mod as any).default || mod;
       JsBarcode(barcodeCanvas, order.number, {
         format: 'CODE128', width: 2, height: 60, displayValue: true,
-        fontSize: 14, margin: 4, font: 'Arial',
+        fontSize: 16, margin: 4, font: 'Arial',
       });
       const barcodeDataUrl = barcodeCanvas.toDataURL('image/png');
       document.body.removeChild(tempDiv);
@@ -113,26 +113,31 @@ const PedidosProducaoPage: React.FC = () => {
 <html><head><meta charset="utf-8"><title>Etiqueta - ${order.number}</title>
 <style>
 @page { size: 100mm 150mm; margin: 0; }
-* { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-html, body { width: 100mm; height: 150mm; font-family: 'Segoe UI', Arial, sans-serif; color: #111; background: #fff; overflow: hidden; }
-.etiqueta { width: 100mm; height: 150mm; padding: 5mm; display: flex; flex-direction: column; justify-content: space-between; }
-.header { text-align: center; padding-bottom: 3mm; border-bottom: 0.8mm solid #222; margin-bottom: 3mm; display: flex; align-items: center; justify-content: center; gap: 3mm; }
-.header-logo { max-height: 18mm; max-width: 50mm; object-fit: contain; }
+@media print {
+  * { -webkit-print-color-adjust: exact !important; color-adjust: exact !important; print-color-adjust: exact !important; }
+  body { margin: 0; padding: 0; }
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', monospace; color: #000; background: #fff; overflow: hidden; }
+.etiqueta { width: 100mm; height: 150mm; padding: 4mm; display: flex; flex-direction: column; justify-content: space-between; }
+.header { text-align: center; padding-bottom: 2mm; border-bottom: 1.2mm solid #000; margin-bottom: 2mm; display: flex; align-items: center; justify-content: center; gap: 2mm; }
+.header-logo { max-height: 16mm; max-width: 45mm; object-fit: contain; }
 .header-info { text-align: left; }
-.header-title { font-size: 8pt; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #666; margin-bottom: 0.5mm; }
-.header-pedido { font-size: 14pt; font-weight: 900; color: #000; letter-spacing: 1px; }
-.section { margin-bottom: 3mm; }
-.section-label { font-size: 7pt; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: #888; margin-bottom: 1.5mm; }
-.remetente { padding: 2.5mm 3mm; background: #f5f5f5; border-radius: 2mm; border: 0.3mm solid #e0e0e0; }
-.remetente .name { font-size: 9pt; font-weight: 700; color: #222; margin-bottom: 0.5mm; }
-.remetente .address { font-size: 7.5pt; color: #555; line-height: 1.5; }
-.destinatario { flex: 1; padding: 3mm; border: 0.5mm solid #333; border-radius: 2mm; background: #fff; }
-.destinatario .name { font-size: 12pt; font-weight: 800; color: #000; margin-bottom: 1.5mm; }
-.destinatario .address { font-size: 8.5pt; color: #333; line-height: 1.6; }
-.destinatario .phone { font-size: 8pt; color: #555; margin-top: 2mm; }
-.barcode-section { text-align: center; padding-top: 3mm; border-top: 0.5mm dashed #ccc; margin-top: 2mm; }
-.barcode-section img { max-width: 80mm; height: auto; }
-.footer { text-align: center; font-size: 6pt; color: #aaa; margin-top: 1mm; }
+.header-title { font-size: 7.5pt; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase; color: #000; margin-bottom: 0.2mm; }
+.header-pedido { font-size: 16pt; font-weight: 900; font-family: 'Courier New', monospace; color: #000; letter-spacing: 2px; line-height: 1; }
+.section { margin-bottom: 2mm; }
+.section-label { font-size: 6.5pt; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; color: #000; margin-bottom: 1mm; }
+.remetente { padding: 2mm 2.5mm; border: 1mm solid #000; border-radius: 0.5mm; background: #fff; }
+.remetente .name { font-size: 8.5pt; font-weight: 900; color: #000; margin-bottom: 0.3mm; letter-spacing: 0.3px; }
+.remetente .address { font-size: 7pt; color: #000; line-height: 1.4; font-weight: 700; }
+.destinatario { flex: 1; padding: 3mm; border: 1.5mm solid #000; border-radius: 1mm; background: #fff; display: flex; flex-direction: column; }
+.destinatario .name { font-size: 13pt; font-weight: 900; color: #000; margin-bottom: 1.5mm; letter-spacing: 0.5px; }
+.destinatario .address { font-size: 8pt; color: #000; line-height: 1.5; font-weight: 700; }
+.destinatario .phone { font-size: 7.5pt; color: #000; margin-top: 1.5mm; font-weight: 700; }
+.barcode-section { text-align: center; padding-top: 2mm; border-top: 1mm dashed #000; margin-top: 1mm; }
+.barcode-section .barcode-label { font-size: 7pt; font-weight: 900; color: #000; margin-bottom: 1mm; letter-spacing: 1px; font-family: 'Courier New', monospace; }
+.barcode-section img { max-width: 75mm; height: auto; }
+.footer { text-align: center; font-size: 5.5pt; color: #000; margin-top: 0.5mm; font-weight: 700; }
 </style></head><body>
 <div class="etiqueta">
   <div class="header">
@@ -146,24 +151,24 @@ html, body { width: 100mm; height: 150mm; font-family: 'Segoe UI', Arial, sans-s
     <div class="section-label">Remetente</div>
     <div class="remetente">
       <div class="name">${REMETENTE.name}</div>
-      <div class="address">${REMETENTE.address}<br>${REMETENTE.neighborhood}<br>${REMETENTE.city} - ${REMETENTE.state} &bull; CEP: ${REMETENTE.cep}</div>
+      <div class="address">${REMETENTE.address}<br>${REMETENTE.neighborhood}<br>${REMETENTE.city} - ${REMETENTE.state} CEP: ${REMETENTE.cep}</div>
     </div>
   </div>
   <div class="section" style="flex:1;display:flex;flex-direction:column;">
     <div class="section-label">Destinatário</div>
     <div class="destinatario">
       <div class="name">${order.clientName}</div>
-      <div class="address">${client?.address || 'Endereço não cadastrado'}<br>${client ? `${client.city} - ${client.state} &bull; CEP: ${client.cep}` : ''}</div>
-      ${client?.phone ? `<div class="phone">📞 ${client.phone}</div>` : ''}
+      <div class="address">${client?.address || 'Endereço não cadastrado'}<br>${client ? `${client.city} - ${client.state} CEP: ${client.cep}` : ''}</div>
+      ${client?.phone ? `<div class="phone">Tel: ${client.phone}</div>` : ''}
     </div>
   </div>
   <div class="barcode-section">
-    <div style="font-size:8pt;font-weight:600;color:#666;margin-bottom:2mm;">Pedido: ${order.number}</div>
+    <div class="barcode-label">PEDIDO: ${order.number}</div>
     <img src="${barcodeDataUrl}" alt="Código de barras" />
   </div>
-  <div class="footer">Emitido em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} &bull; ${REMETENTE.name}</div>
+  <div class="footer">Emitido: ${new Date().toLocaleDateString('pt-BR')}</div>
 </div>
-<script>window.onload = function() { setTimeout(function() { window.print(); window.onafterprint = function() { window.close(); }; }, 300); };</script>
+<script>window.onload = function() { setTimeout(function() { window.print(); setTimeout(window.close, 500); }, 300); };</script>
 </body></html>`;
       printWindow.document.write(html);
       printWindow.document.close();

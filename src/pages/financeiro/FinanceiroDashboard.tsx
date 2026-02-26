@@ -16,7 +16,7 @@ type PeriodFilter = 'hoje' | '7dias' | '30dias' | 'personalizado' | 'todos';
 type Tab = 'pedidos' | 'vendedores';
 
 const FinanceiroDashboard: React.FC = () => {
-  const { orders, financialEntries, updateOrderStatus } = useERP();
+  const { orders, clients, financialEntries, updateOrderStatus } = useERP();
   const [activeTab, setActiveTab] = useState<Tab>('pedidos');
   const [statusFilter, setStatusFilter] = useState<PaymentFilter>('todos');
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('todos');
@@ -185,6 +185,21 @@ const FinanceiroDashboard: React.FC = () => {
           <div className="lg:col-span-2 space-y-6">
             <div className="card-section p-6">
               <h3 className="font-bold text-foreground mb-4 text-sm uppercase tracking-wider">Informações do Pedido</h3>
+
+              {/* Alerta Consignado */}
+              {(() => {
+                const client = clients.find(c => c.id === selectedOrder.clientId);
+                return client?.consignado ? (
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 mb-4">
+                    <span className="text-xl">⭐</span>
+                    <div>
+                      <p className="text-xs font-bold text-amber-400">Cliente Consignado</p>
+                      <p className="text-[11px] text-amber-400/70">Este cliente opera em regime de consignação — verifique as condições especiais antes de aprovar.</p>
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+
               <div className="grid grid-cols-2 gap-3">
                 {[
                   { label: 'Cliente', value: selectedOrder.clientName },
@@ -554,7 +569,16 @@ const FinanceiroDashboard: React.FC = () => {
                   {paginatedOrders.map(order => (
                     <tr key={order.id}>
                       <td className="font-bold text-foreground">{order.number}</td>
-                      <td className="text-foreground">{order.clientName}</td>
+                      <td className="text-foreground">
+                        <div className="flex items-center gap-1.5">
+                          {order.clientName}
+                          {clients.find(c => c.id === order.clientId)?.consignado && (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 text-[9px] font-bold border border-amber-500/20" title="Cliente Consignado">
+                              ⭐ CONSIG.
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="hidden md:table-cell text-foreground text-xs">{order.sellerName}</td>
                       <td className="hidden md:table-cell text-foreground">{order.paymentMethod || '—'}</td>
                       <td className="text-right font-semibold text-foreground">{formatCurrency(order.total)}</td>

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import type { UserRole } from '@/types/erp';
 import { ROLE_LABELS } from '@/types/erp';
-import { ShoppingCart, DollarSign, BarChart3, Factory, ArrowRight, ArrowLeft, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
+import { ShoppingCart, DollarSign, BarChart3, Factory, ArrowRight, ArrowLeft, Eye, EyeOff, Loader2, AlertCircle, Trash2 } from 'lucide-react';
 
 const roles: { role: UserRole; icon: React.ElementType; desc: string; gradient: string; iconBg: string }[] = [
   { role: 'vendedor', icon: ShoppingCart, desc: 'Orçamentos, clientes e vendas', gradient: 'from-vendedor/10 to-vendedor/5', iconBg: 'bg-vendedor' },
@@ -15,7 +15,7 @@ type Step = 'select' | 'auth';
 type Mode = 'login' | 'register';
 
 const LoginPage: React.FC = () => {
-  const { login, register } = useAuth();
+  const { login, register, clearSessionCompletely } = useAuth();
 
   const [step, setStep] = useState<Step>('select');
   const [mode, setMode] = useState<Mode>('login');
@@ -28,6 +28,7 @@ const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [showClearSessionOption, setShowClearSessionOption] = useState(false);
 
   const selectedRoleData = roles.find(r => r.role === selectedRole);
 
@@ -57,6 +58,10 @@ const LoginPage: React.FC = () => {
         const err = await login(email, password);
         if (err) {
           setError(err);
+          // Se for erro de token, oferece opção de limpar sessão
+          if (err.toLowerCase().includes('refresh') || err.toLowerCase().includes('invalid')) {
+            setShowClearSessionOption(true);
+          }
           setLoading(false);
         }
         // Se login ok: o onAuthStateChange vai redirecionar em até 3s.
@@ -98,6 +103,30 @@ const LoginPage: React.FC = () => {
           <div className="text-center mb-7">
             <img src="/Automatiza-logo-rgb-01.jpg" alt="Automatiza Vans" className="mx-auto max-w-[240px] w-full h-auto object-contain rounded-2xl" />
           </div>
+
+          {/* ── BANNER: Erro de token expirado ── */}
+          {showClearSessionOption && (
+            <div className="mb-5 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-3">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                <div className="text-xs text-amber-600 space-y-1">
+                  <p className="font-semibold">Token de sessão expirado</p>
+                  <p>Isso acontece quando você ficou muito tempo sem usar ou mudou de computador. Limpe a sessão e faça login novamente.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm('Isso vai limpar todos os dados de sessão e recarregar a página. Continuar?')) {
+                    clearSessionCompletely();
+                  }
+                }}
+                className="w-full py-2 px-3 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-600 text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Limpar sessão e fazer login novamente
+              </button>
+            </div>
+          )}
 
           {/* ════════ STEP 1: Seleção de perfil ════════ */}
           {step === 'select' && (

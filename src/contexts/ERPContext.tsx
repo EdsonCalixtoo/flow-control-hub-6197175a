@@ -92,7 +92,22 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setOrderReturns(dbReturns);
       setProductionErrors(dbErrors);
       console.log('[ERP] Sincronizado com Supabase ✓', { orders: dbOrders.length, clients: dbClients.length, products: dbProducts.length });
-    } catch (err) {
+    } catch (err: any) {
+      const errMsg = err?.message || JSON.stringify(err);
+      
+      // Se for erro de autenticação (token inválido), força logout
+      if (
+        errMsg?.includes('Refresh Token') ||
+        errMsg?.includes('Invalid Refresh Token') ||
+        errMsg?.includes('JWT') ||
+        errMsg?.includes('401') ||
+        errMsg?.includes('403')
+      ) {
+        console.error('[ERP] Erro de autenticação detectado — fazendo logout...', err);
+        await supabase.auth.signOut().catch(e => console.warn('Erro ao fazer logout:', e));
+        return; // Não tenta usar localStorage, sai completamente
+      }
+
       console.warn('[ERP] Supabase indisponível, usando localStorage:', err);
     } finally {
       setLoading(false);
@@ -104,13 +119,34 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (supaLoaded) return;
 
     const trySync = async () => {
-      // Verifica se há sessão ativa
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        await syncFromSupabase();
+      try {
+        // Verifica se há sessão ativa
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.warn('[ERP] Erro ao obter sessão:', sessionError);
+          // Se houver erro de token, força logout limpo
+          await supabase.auth.signOut();
+          setOrders([]);
+          setClients([]);
+          setProducts([]);
+          setFinancialEntries([]);
+          setSupaLoaded(true);
+          return;
+        }
+
+        if (session?.user) {
+          console.log('[ERP] Sessão validada — sincronizando com Supabase...');
+          await syncFromSupabase();
+        } else {
+          console.log('[ERP] Sem sessão ativa — aguardando login...');
+        }
+      } catch (err) {
+        console.error('[ERP] Erro ao sincronizar na inicialização:', err);
+      } finally {
+        // Marca como carregado mesmo sem sessão (interface fica pronta, mas vazia)
+        setSupaLoaded(true);
       }
-      // Mesmo sem sessão, marca como carregado (usa localStorage temporariamente)
-      setSupaLoaded(true);
     };
 
     trySync();
@@ -119,21 +155,28 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
         console.log('[ERP] Auth detectada — sincronizando com Supabase...');
-        await syncFromSupabase();
+        try {
+          await syncFromSupabase();
+        } catch (err) {
+          console.error('[ERP] Erro ao sincronizar após login:', err);
+        }
         setSupaLoaded(true);
       }
       if (event === 'SIGNED_OUT') {
+        console.log('[ERP] Logout detectado — limpando dados...');
         // Limpa estado local ao fazer logout
         setOrders([]);
         setClients([]);
         setProducts([]);
         setFinancialEntries([]);
+        setOrderReturns([]);
+        setProductionErrors([]);
         setSupaLoaded(false);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [supaLoaded, syncFromSupabase, setOrders, setClients, setProducts, setFinancialEntries]);
+  }, [supaLoaded, syncFromSupabase, setOrders, setClients, setProducts, setFinancialEntries, setOrderReturns, setProductionErrors]);
 
   // ── Realtime subscription para pedidos, produtos e clientes ─────────────
   // Quando qualquer dado mudar no banco, TODOS os dispositivos são notificados

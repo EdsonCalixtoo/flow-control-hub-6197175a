@@ -7,6 +7,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<string | null>;
   register: (name: string, email: string, password: string, role: UserRole) => Promise<string | null>;
   logout: () => void;
+  clearSessionCompletely: () => void;
   isAuthenticated: boolean;
   authLoading: boolean;
 }
@@ -130,8 +131,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
   }, []);
 
+  // ── CLEAR SESSION COMPLETELY ──────────────────────────────
+  // Limpa tudo: localStorage, sessionStorage, cookies, sessão Supabase
+  const clearSessionCompletely = useCallback(() => {
+    try {
+      // Limpar localStorage
+      localStorage.clear();
+      // Limpar sessionStorage
+      sessionStorage.clear();
+      // Limpar IndexedDB do Supabase
+      if (indexedDB) {
+        const dbs = ['supabase'];
+        dbs.forEach(dbName => {
+          try {
+            const req = indexedDB.deleteDatabase(dbName);
+            req.onsuccess = () => console.log(`[Auth] Limpou DB: ${dbName}`);
+          } catch (e) { console.warn(`[Auth] Erro ao limpar ${dbName}:`, e); }
+        });
+      }
+      // Logout do Supabase
+      supabase.auth.signOut().catch(err => console.warn('[Auth] Erro logout:', err));
+      setUser(null);
+      // Recarregar página para limpar cache
+      window.location.href = '/';
+    } catch (e) {
+      console.error('[Auth] Erro ao limpar sessão:', e);
+    }
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, isAuthenticated: !!user, authLoading }}>
+    <AuthContext.Provider value={{ user, login, register, logout, clearSessionCompletely, isAuthenticated: !!user, authLoading }}>
       {children}
     </AuthContext.Provider>
   );

@@ -195,12 +195,28 @@ html, body { width: 100mm; height: 150mm; font-family: 'Segoe UI', Arial, sans-s
   };
 
   const finalizarProducao = (orderId: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
     const qrCode = `${window.location.origin}/qr/${orderId}`;
+    const finishedBy = user?.name || 'Equipe Producao';
+    const now = new Date().toISOString();
+
     updateOrderStatus(orderId, 'producao_finalizada', {
-      productionFinishedAt: new Date().toISOString(),
+      productionFinishedAt: now,
       qrCode,
       productionStatus: 'finalizado',
-    }, 'Equipe Producao', 'Producao finalizada');
+    }, finishedBy, 'Producao finalizada');
+
+    // ✅ Registra barcode scan automático para o pedido aparecer nos ENTREGADORES
+    // (equivale à leitura do código de barras na saída da produção)
+    addBarcodeScan({
+      orderId: order.id,
+      orderNumber: order.number,
+      scannedBy: finishedBy,
+      success: true,
+      note: 'Produto liberado automaticamente ao finalizar produção',
+    });
+
     setGuia(orderId);
   };
 
@@ -222,40 +238,6 @@ html, body { width: 100mm; height: 150mm; font-family: 'Segoe UI', Arial, sans-s
     };
   }, []);
 
-  const startCamera = useCallback(async () => {
-    setCameraError(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      setCameraActive(true);
-
-      // BarcodeDetector API (Chrome/Edge)
-      const BarcodeDetector = (window as any).BarcodeDetector;
-      if (BarcodeDetector) {
-        const detector = new BarcodeDetector({ formats: ['code_128', 'code_39', 'qr_code', 'ean_13'] });
-        intervalRef.current = setInterval(async () => {
-          if (!videoRef.current) return;
-          try {
-            const barcodes = await detector.detect(videoRef.current);
-            if (barcodes.length > 0) {
-              const code = barcodes[0].rawValue;
-              stopCamera();
-              setScanInput(code);
-              processCode(code);
-            }
-          } catch { /* ignore */ }
-        }, 500);
-      }
-    } catch {
-      setCameraError('Não foi possível acessar a câmera. Verifique as permissões do navegador.');
-    }
-  }, []);
 
   const stopCamera = useCallback(() => {
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
@@ -272,13 +254,11 @@ html, body { width: 100mm; height: 150mm; font-family: 'Segoe UI', Arial, sans-s
     const now = new Date().toISOString();
 
     if (order) {
-      // Validate: must be 'producao_finalizada' (financeiro already approved earlier)
       if (order.status === 'producao_finalizada') {
         updateOrderStatus(order.id, 'produto_liberado', {
           releasedAt: now,
           releasedBy: scannedBy,
         }, scannedBy, 'Produto liberado via leitura de código de barras');
-        // Register the scan in audit log
         addBarcodeScan({
           orderId: order.id,
           orderNumber: order.number,
@@ -320,6 +300,56 @@ html, body { width: 100mm; height: 150mm; font-family: 'Segoe UI', Arial, sans-s
     }
     setScanInput('');
   }, [orders, addBarcodeScan, updateOrderStatus, user]);
+
+  const startCamera = useCallback(async () => {
+    setCameraError(null);
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setCameraError('Câmera não suportada neste navegador. Use Chrome ou Safari atualizado.');
+        return;
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        try {
+          await videoRef.current.play();
+        } catch (playErr) {
+          console.warn('autoplay bloqueado, ignorando:', playErr);
+        }
+      }
+      setCameraActive(true);
+
+      const BarcodeDetector = (window as any).BarcodeDetector;
+      if (BarcodeDetector) {
+        const detector = new BarcodeDetector({ formats: ['code_128', 'code_39', 'qr_code', 'ean_13'] });
+        intervalRef.current = setInterval(async () => {
+          if (!videoRef.current) return;
+          try {
+            const barcodes = await detector.detect(videoRef.current);
+            if (barcodes.length > 0) {
+              const code = barcodes[0].rawValue;
+              stopCamera();
+              setScanInput(code);
+              processCode(code);
+            }
+          } catch { /* ignore */ }
+        }, 500);
+      } else {
+        console.warn('[Scanner] BarcodeDetector não disponível. Use o campo de texto abaixo.');
+      }
+    } catch (err: any) {
+      const msg = err?.name === 'NotAllowedError'
+        ? 'Permissão de câmera negada. Acesse as configurações do navegador e permita a câmera.'
+        : err?.name === 'NotFoundError'
+          ? 'Nenhuma câmera encontrada neste dispositivo.'
+          : 'Não foi possível acessar a câmera. Verifique as permissões.';
+      setCameraError(msg);
+    }
+  }, [processCode, stopCamera]);
+
 
   const handleScan = () => processCode(scanInput);
 

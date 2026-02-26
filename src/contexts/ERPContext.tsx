@@ -73,68 +73,92 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [supaLoaded, setSupaLoaded] = React.useState(false);
   const realtimeChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
-  // ── Sincroniza do Supabase uma vez ao iniciar ────────────────
+  // Função central de sync — sempre busca do banco e sobrescreve local
+  const syncFromSupabase = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [dbOrders, dbClients, dbProducts, dbEntries, dbReturns, dbErrors] = await Promise.all([
+        fetchOrders(),
+        fetchClients(),
+        fetchProducts(),
+        fetchFinancialEntries(),
+        fetchOrderReturns(),
+        fetchProductionErrors(),
+      ]);
+      setOrders(dbOrders);
+      setClients(dbClients);
+      setProducts(dbProducts);
+      setFinancialEntries(dbEntries);
+      setOrderReturns(dbReturns);
+      setProductionErrors(dbErrors);
+      console.log('[ERP] Sincronizado com Supabase ✓', { orders: dbOrders.length, clients: dbClients.length, products: dbProducts.length });
+    } catch (err) {
+      console.warn('[ERP] Supabase indisponível, usando localStorage:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [setOrders, setClients, setProducts, setFinancialEntries, setOrderReturns, setProductionErrors]);
+
+  // ── Sincroniza ao iniciar — aguarda sessão de auth (RLS requer autenticação) ──
   useEffect(() => {
     if (supaLoaded) return;
-    const sync = async () => {
-      setLoading(true);
-      try {
-        const [dbOrders, dbClients, dbProducts, dbEntries, dbReturns, dbErrors] = await Promise.all([
-          fetchOrders(),
-          fetchClients(),
-          fetchProducts(),
-          fetchFinancialEntries(),
-          fetchOrderReturns(),
-          fetchProductionErrors(),
-        ]);
-        if (dbOrders.length > 0) setOrders(dbOrders);
-        if (dbClients.length > 0) setClients(dbClients);
-        if (dbProducts.length > 0) setProducts(dbProducts);
-        if (dbEntries.length > 0) setFinancialEntries(dbEntries);
-        if (dbReturns.length > 0) setOrderReturns(dbReturns);
-        if (dbErrors.length > 0) setProductionErrors(dbErrors);
-        console.log('[ERP] Sincronizado com Supabase ✓', { orders: dbOrders.length, clients: dbClients.length, products: dbProducts.length });
-      } catch (err) {
-        console.warn('[ERP] Supabase indisponível, usando localStorage:', err);
-      } finally {
-        setLoading(false);
+
+    const trySync = async () => {
+      // Verifica se há sessão ativa
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        await syncFromSupabase();
+      }
+      // Mesmo sem sessão, marca como carregado (usa localStorage temporariamente)
+      setSupaLoaded(true);
+    };
+
+    trySync();
+
+    // Re-sincroniza quando o usuário faz login (qualquer dispositivo)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.user) {
+        console.log('[ERP] Auth detectada — sincronizando com Supabase...');
+        await syncFromSupabase();
         setSupaLoaded(true);
       }
-    };
-    sync();
-  }, [supaLoaded]);
+      if (event === 'SIGNED_OUT') {
+        // Limpa estado local ao fazer logout
+        setOrders([]);
+        setClients([]);
+        setProducts([]);
+        setFinancialEntries([]);
+        setSupaLoaded(false);
+      }
+    });
 
-  // ── Realtime subscription para pedidos ────────────────────────
-  // Quando qualquer pedido mudar no banco, re-busca tudo para manter
-  // o financeiro, gestor e produção atualizados em tempo real
+    return () => subscription.unsubscribe();
+  }, [supaLoaded, syncFromSupabase, setOrders, setClients, setProducts, setFinancialEntries]);
+
+  // ── Realtime subscription para pedidos, produtos e clientes ─────────────
+  // Quando qualquer dado mudar no banco, TODOS os dispositivos são notificados
   useEffect(() => {
     if (!supaLoaded) return;
-    // Limpa canal anterior se existir
     if (realtimeChannelRef.current) {
       supabase.removeChannel(realtimeChannelRef.current);
     }
 
     const channel = supabase
-      .channel('erp-orders-realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders' },
-        async () => {
-          console.log('[ERP Realtime] Mudança detectada em orders — re-sincronizando...');
-          try {
-            const [dbOrders, dbEntries] = await Promise.all([
-              fetchOrders(),
-              fetchFinancialEntries(),
-            ]);
-            setOrders(dbOrders);
-            if (dbEntries.length > 0) setFinancialEntries(dbEntries);
-          } catch (err) {
-            console.warn('[ERP Realtime] Erro ao re-sincronizar:', err);
-          }
-        }
-      )
+      .channel('erp-realtime-all')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
+        console.log('[ERP Realtime] Mudança em orders — re-sincronizando...');
+        syncFromSupabase();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
+        console.log('[ERP Realtime] Mudança em products — re-sincronizando...');
+        syncFromSupabase();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, () => {
+        console.log('[ERP Realtime] Mudança em clients — re-sincronizando...');
+        syncFromSupabase();
+      })
       .subscribe((status) => {
-        console.log('[ERP Realtime] Status da subscription:', status);
+        console.log('[ERP Realtime] Status:', status);
       });
 
     realtimeChannelRef.current = channel;
@@ -142,13 +166,19 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supaLoaded]);
+  }, [supaLoaded, syncFromSupabase]);
 
   // ── ORDERS ───────────────────────────────────────────────────
   const addOrder = useCallback((order: Order) => {
+    // Optimistic: insere imediatamente no estado local
     setOrders(prev => [order, ...prev]);
-    createOrder(order).then(() => {
+    createOrder(order).then(async () => {
       console.log('[ERP] Pedido salvo no banco:', order.number);
+      // Re-busca do banco para garantir consistência (ex: outros campos gerados pelo DB)
+      try {
+        const dbOrders = await fetchOrders();
+        setOrders(dbOrders);
+      } catch { }
     }).catch(err => {
       console.error('[ERP] Erro ao salvar pedido no banco:', err?.message ?? err);
     });

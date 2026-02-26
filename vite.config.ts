@@ -11,6 +11,8 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
+    // Redireciona rotas SPA para index.html (corrige erro 404 no F5)
+    historyApiFallback: true,
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {

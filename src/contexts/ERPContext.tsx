@@ -41,7 +41,7 @@ interface ERPContextType {
   addDeliveryPickup: (pickup: Omit<DeliveryPickup, 'id' | 'pickedUpAt'>) => void;
   // order ops
   addOrder: (order: Order) => void;
-  updateOrderStatus: (orderId: string, status: OrderStatus, extra?: Partial<Order>, userName?: string, note?: string) => void;
+  updateOrderStatus: (orderId: string, status: OrderStatus, extra?: Partial<Order>, userName?: string, note?: string) => Promise<void>;
   updateOrder: (orderId: string, fields: Partial<Order>) => void;
   editOrderFull: (order: Order) => Promise<void>;
   addClient: (client: Client) => void;
@@ -184,7 +184,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, [setOrders]);
 
-  const updateOrderStatus = useCallback((
+  const updateOrderStatus = useCallback(async (
     orderId: string,
     status: OrderStatus,
     extra?: Partial<Order>,
@@ -196,44 +196,36 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       status, timestamp: now, user: userName || 'Sistema', note,
     };
 
-    setOrders(prev => prev.map(o => {
-      if (o.id !== orderId) return o;
-      return { ...o, status, updatedAt: now, statusHistory: [...o.statusHistory, historyEntry], ...extra };
-    }));
-
-    // Auto-lançamento financeiro ao aprovar
-    if (status === 'aprovado_financeiro') {
-      setOrders(prev => {
-        const order = prev.find(o => o.id === orderId);
-        if (order) {
-          const newEntry: FinancialEntry = {
-            id: crypto.randomUUID(),
-            type: 'receita',
-            description: `Pagamento ${order.number} - ${order.clientName}`,
-            amount: order.total,
-            category: 'Vendas',
-            date: now.slice(0, 10),
-            status: 'pago',
-          };
-          setFinancialEntries(entries => {
-            if (entries.some(e => e.id.startsWith(`auto-${orderId}`))) return entries;
-            const updated = [newEntry, ...entries];
-            createFinancialEntry(newEntry, orderId).catch(err =>
-              console.error('[ERP] Erro ao criar lançamento financeiro:', err?.message ?? err)
-            );
-            return updated;
-          });
-        }
-        return prev;
+    // Salva o estado anterior para rollback em caso de erro
+    let previousOrders: Order[] = [];
+    setOrders(prev => {
+      previousOrders = prev;
+      return prev.map(o => {
+        if (o.id !== orderId) return o;
+        return { ...o, status, updatedAt: now, statusHistory: [...o.statusHistory, historyEntry], ...extra };
       });
-    }
-
-    updateOrderStatusDb(orderId, status, extra, userName, note).then(() => {
-      console.log('[ERP] Status atualizado no banco:', status);
-    }).catch(err => {
-      console.error('[ERP] Erro ao atualizar status no banco:', err?.message ?? err);
     });
-  }, [setOrders, setFinancialEntries]);
+
+    try {
+      await updateOrderStatusDb(orderId, status, extra, userName, note);
+      console.log('[ERP] Status atualizado no banco:', status);
+      // Re-busca do banco para garantir consistência em todos os dispositivos
+      try {
+        const dbOrders = await fetchOrders();
+        setOrders(dbOrders);
+      } catch { /* não crítico, estado já foi atualizado */ }
+    } catch (err) {
+      console.error('[ERP] Erro ao atualizar status no banco — revertendo:', err);
+      // Rollback: restaura o estado anterior
+      setOrders(previousOrders);
+      // Tenta re-sincronizar do banco para garantir estado correto
+      try {
+        const dbOrders = await fetchOrders();
+        setOrders(dbOrders);
+      } catch { /* usa o rollback local */ }
+      throw err;
+    }
+  }, [setOrders]);
 
   const updateOrder = useCallback((orderId: string, fields: Partial<Order>) => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...fields, updatedAt: new Date().toISOString() } : o));

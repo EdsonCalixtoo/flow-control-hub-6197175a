@@ -620,6 +620,70 @@ export async function resolveProductionError(errorId: string): Promise<void> {
 }
 
 // ─────────────────────────────────────────────────────────────
+// BARCODE SCANS
+// ─────────────────────────────────────────────────────────────
+export async function fetchBarcodeScans(): Promise<BarcodeScan[]> {
+    const { data, error } = await supabase
+        .from('barcode_scans')
+        .select('*')
+        .order('scanned_at', { ascending: false })
+        .limit(1000);
+    if (error) { logError('fetchBarcodeScans', error); throw error; }
+    return (data ?? []).map(row => ({
+        id: row.id,
+        orderId: row.order_id,
+        orderNumber: row.order_number,
+        scannedBy: row.scanned_by,
+        success: row.success,
+        note: row.note,
+        scannedAt: row.scanned_at,
+    }));
+}
+
+export async function createBarcodeScan(scan: { orderId: string; orderNumber: string; scannedBy: string; success: boolean; note?: string }): Promise<void> {
+    const { error } = await supabase.from('barcode_scans').insert({
+        order_id: scan.orderId,
+        order_number: scan.orderNumber,
+        scanned_by: scan.scannedBy,
+        success: scan.success,
+        note: scan.note ?? null,
+    });
+    if (error) { logError('createBarcodeScan', error); throw error; }
+}
+
+// ─────────────────────────────────────────────────────────────
+// DELIVERY PICKUPS
+// ─────────────────────────────────────────────────────────────
+export async function fetchDeliveryPickups(): Promise<any[]> {
+    const { data, error } = await supabase
+        .from('delivery_pickups')
+        .select('*')
+        .order('picked_up_at', { ascending: false })
+        .limit(1000);
+    if (error) { logError('fetchDeliveryPickups', error); throw error; }
+    return (data ?? []).map(row => ({
+        id: row.id,
+        orderId: row.order_id,
+        orderNumber: row.order_number,
+        deliveryPersonId: row.delivery_person_id,
+        deliveryPersonName: row.delivery_person_name,
+        pickedUpAt: row.picked_up_at,
+        notes: row.notes,
+    }));
+}
+
+export async function createDeliveryPickup(pickup: { orderId: string; orderNumber: string; deliveryPersonId: string; deliveryPersonName: string; notes?: string }): Promise<void> {
+    const { error } = await supabase.from('delivery_pickups').insert({
+        order_id: pickup.orderId,
+        order_number: pickup.orderNumber,
+        delivery_person_id: pickup.deliveryPersonId,
+        delivery_person_name: pickup.deliveryPersonName,
+        notes: pickup.notes ?? null,
+    });
+    if (error) { logError('createDeliveryPickup', error); throw error; }
+}
+
+// ─────────────────────────────────────────────────────────────
 // RESET — Remove todos os dados (apenas Gestor)
 // ─────────────────────────────────────────────────────────────
 export async function clearAllData(): Promise<void> {

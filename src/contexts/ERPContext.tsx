@@ -9,6 +9,7 @@ import {
   fetchOrderChat, sendChatMessage, markChatRead,
   fetchOrderReturns, createOrderReturn,
   fetchProductionErrors, createProductionError, resolveProductionError,
+  fetchBarcodeScans, createBarcodeScan, fetchDeliveryPickups, createDeliveryPickup,
 } from '@/lib/supabaseService';
 import { supabase } from '@/lib/supabase';
 
@@ -66,8 +67,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [delayReports, setDelayReports] = useLocalStorage<DelayReport[]>('erp_delay_reports', []);
   const [orderReturns, setOrderReturns] = useLocalStorage<OrderReturn[]>('erp_order_returns', []);
   const [productionErrors, setProductionErrors] = useLocalStorage<ProductionError[]>('erp_production_errors', []);
-  const [barcodeScans, setBarcodeScans] = useLocalStorage<BarcodeScan[]>('erp_barcode_scans', []);
-  const [deliveryPickups, setDeliveryPickups] = useLocalStorage<DeliveryPickup[]>('erp_delivery_pickups', []);
+  
+  // ── Dados em tempo real do Supabase (sem localStorage) ──────
+  const [barcodeScans, setBarcodeScans] = React.useState<BarcodeScan[]>([]);
+  const [deliveryPickups, setDeliveryPickups] = React.useState<DeliveryPickup[]>([]);
   const [chatMessages, setChatMessages] = React.useState<Record<string, ChatMessage[]>>({});
   const [loading, setLoading] = React.useState(false);
   const [supaLoaded, setSupaLoaded] = React.useState(false);
@@ -77,13 +80,15 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const syncFromSupabase = useCallback(async () => {
     setLoading(true);
     try {
-      const [dbOrders, dbClients, dbProducts, dbEntries, dbReturns, dbErrors] = await Promise.all([
+      const [dbOrders, dbClients, dbProducts, dbEntries, dbReturns, dbErrors, dbBarcodeScan, dbPickups] = await Promise.all([
         fetchOrders(),
         fetchClients(),
         fetchProducts(),
         fetchFinancialEntries(),
         fetchOrderReturns(),
         fetchProductionErrors(),
+        fetchBarcodeScans(),
+        fetchDeliveryPickups(),
       ]);
       setOrders(dbOrders);
       setClients(dbClients);
@@ -91,7 +96,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setFinancialEntries(dbEntries);
       setOrderReturns(dbReturns);
       setProductionErrors(dbErrors);
-      console.log('[ERP] Sincronizado com Supabase ✓', { orders: dbOrders.length, clients: dbClients.length, products: dbProducts.length });
+      setBarcodeScans(dbBarcodeScan);
+      setDeliveryPickups(dbPickups);
+      console.log('[ERP] Sincronizado com Supabase ✓', { orders: dbOrders.length, clients: dbClients.length, products: dbProducts.length, scans: dbBarcodeScan.length, pickups: dbPickups.length });
     } catch (err: any) {
       const errMsg = err?.message || JSON.stringify(err);
       
@@ -199,6 +206,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, () => {
         console.log('[ERP Realtime] Mudança em clients — re-sincronizando...');
         syncFromSupabase();
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'barcode_scans' }, () => {
+        console.log('[ERP Realtime] Novo barcode scan — carregando...');
+        fetchBarcodeScans().then(scans => setBarcodeScans(scans)).catch(err => console.error('[ERP Realtime] Erro ao carregar barcode_scans:', err));
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'delivery_pickups' }, () => {
+        console.log('[ERP Realtime] Nova retirada de entregador — carregando...');
+        fetchDeliveryPickups().then(pickups => setDeliveryPickups(pickups)).catch(err => console.error('[ERP Realtime] Erro ao carregar delivery_pickups:', err));
       })
       .subscribe((status) => {
         console.log('[ERP Realtime] Status:', status);
@@ -434,6 +449,15 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setBarcodeScans(prev => [newScan, ...prev]);
     console.log('[ERP] Leitura de código de barras registrada:', newScan.orderNumber);
+    
+    // Salva no banco de dados em background
+    createBarcodeScan({
+      orderId: scan.orderId,
+      orderNumber: scan.orderNumber,
+      scannedBy: scan.scannedBy,
+      success: scan.success,
+      note: scan.note,
+    }).catch(err => console.error('[ERP] Erro ao salvar barcode scan no banco:', err?.message ?? err));
   }, [setBarcodeScans]);
 
   // ── DELIVERY PICKUPS ─────────────────────────────────────────
@@ -445,6 +469,15 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setDeliveryPickups(prev => [newPickup, ...prev]);
     console.log('[ERP] Retirada de entregador registrada:', newPickup.orderNumber);
+    
+    // Salva no banco de dados em background
+    createDeliveryPickup({
+      orderId: pickup.orderId,
+      orderNumber: pickup.orderNumber,
+      deliveryPersonId: pickup.deliveryPersonId,
+      deliveryPersonName: pickup.deliveryPersonName,
+      notes: pickup.notes,
+    }).catch(err => console.error('[ERP] Erro ao salvar pickup no banco:', err?.message ?? err));
   }, [setDeliveryPickups]);
 
   // ── CLEAR ALL ────────────────────────────────────────────────

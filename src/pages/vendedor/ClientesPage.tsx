@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency } from '@/components/shared/StatusBadge';
-import { Users, Phone, Mail, MessageCircle, Search, Plus, MapPin, X, Eye, ShoppingCart, Loader2 } from 'lucide-react';
+import { Users, Phone, Mail, MessageCircle, Search, Plus, MapPin, X, Eye, ShoppingCart, Loader2, FileText } from 'lucide-react';
 import type { Client } from '@/types/erp';
+import { useNavigate } from 'react-router-dom';
 
 // ─── Máscaras ────────────────────────────────────────────────
 function maskCpfCnpj(raw: string): string {
@@ -53,6 +54,7 @@ const EMPTY_FORM = { name: '', cpfCnpj: '', phone: '', email: '', logradouro: ''
 const ClientesPage: React.FC = () => {
   const { clients, orders, addClient } = useERP();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
@@ -135,6 +137,12 @@ const ClientesPage: React.FC = () => {
             <p className="page-subtitle font-mono">{selectedClient.cpfCnpj}</p>
           </div>
           <div className="flex gap-2">
+            <button
+              onClick={() => navigate('/vendedor/orcamentos', { state: { clientId: selectedClient.id } })}
+              className="btn-modern bg-primary/10 text-primary shadow-none text-xs hover:bg-primary/20"
+            >
+              <FileText className="w-4 h-4" /> Novo Orçamento
+            </button>
             <button onClick={() => openWhatsApp(selectedClient.phone)} className="btn-modern bg-success/10 text-success shadow-none text-xs hover:bg-success/20">
               <MessageCircle className="w-4 h-4" /> WhatsApp
             </button>

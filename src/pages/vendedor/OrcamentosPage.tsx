@@ -6,6 +6,7 @@ import { OrderPipeline, OrderHistory } from '@/components/shared/OrderTimeline';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
 import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check } from 'lucide-react';
 import type { Order, QuoteItem } from '@/types/erp';
+import { useLocation } from 'react-router-dom';
 
 // Status que bloqueiam a edição do orçamento
 const STATUS_BLOQUEIAM_EDICAO = ['aguardando_financeiro', 'aprovado_financeiro', 'rejeitado_financeiro',
@@ -15,9 +16,14 @@ const STATUS_BLOQUEIAM_EDICAO = ['aguardando_financeiro', 'aprovado_financeiro',
 const OrcamentosPage: React.FC = () => {
   const { orders, addOrder, updateOrderStatus, editOrderFull, clients, products } = useERP();
   const { user } = useAuth();
+  const location = useLocation();
+
+  // Se navegado desde a ficha do cliente, abre o form já com cliente pré-selecionado
+  const preSelectedClientId: string = (location.state as any)?.clientId ?? '';
+
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [search, setSearch] = useState('');
-  const [showCreate, setShowCreate] = useState(false);
+  const [showCreate, setShowCreate] = useState(() => !!preSelectedClientId);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [comprovanteAttached, setComprovanteAttached] = useState('');
   const [formError, setFormError] = useState('');
@@ -33,7 +39,7 @@ const OrcamentosPage: React.FC = () => {
   );
 
   // Form state for new/edit order
-  const [newClientId, setNewClientId] = useState('');
+  const [newClientId, setNewClientId] = useState(preSelectedClientId);
   const [newItems, setNewItems] = useState<{ product: string; description: string; quantity: number; unitPrice: number }[]>([{ product: '', description: '', quantity: 1, unitPrice: 0 }]);
   const [newNotes, setNewNotes] = useState('');
   const [newObservation, setNewObservation] = useState('');

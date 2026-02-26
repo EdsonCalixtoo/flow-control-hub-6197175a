@@ -4,6 +4,7 @@
 ```
 supabase/
   schema.sql          ← SQL completo do banco (cole no Supabase)
+  update_schema_v5.sql ← Migração para sincronização em tempo real (⚡ EXECUTE AGORA!)
 src/lib/
   supabase.ts         ← Cliente Supabase + tipos TypeScript
   supabaseService.ts  ← Funções de CRUD para cada tabela
@@ -11,7 +12,29 @@ src/lib/
 
 ---
 
+## ⚡ Passo 0 — Migração Urgente (v5)
+
+Você **DEVE executar este script** para que barcode scans e delivery pickups funcionem:
+
+1. Acesse **[app.supabase.com](https://app.supabase.com)** → seu projeto
+2. Vá em **SQL Editor**
+3. Clique em **"New query"**
+4. Cole o conteúdo de **`supabase/update_schema_v5.sql`**
+5. Clique em **"Run"** (▶)
+
+✅ Pronto! As tabelas estarão prontas para sincronização em tempo real.
+
+**O que esta migração faz:**
+- ✅ Cria/atualiza `barcode_scans` (leitura de códigos)
+- ✅ Cria/atualiza `delivery_pickups` (retiradas de entregadores)
+- ✅ Configura Realtime Subscriptions
+- ✅ Ativa Row Level Security (RLS)
+
+---
+
 ## 🚀 Passo 1 — Criar as tabelas no Supabase
+
+Se você **NÃO executou a v5** acima, execute antes! Caso contrário:
 
 1. Acesse **[app.supabase.com](https://app.supabase.com)** → seu projeto
 2. Vá em **SQL Editor** (ícone de banco de dados na barra lateral)
@@ -35,6 +58,8 @@ src/lib/
 | `order_items` | Itens de cada pedido |
 | `order_status_history` | Histórico de movimentações de cada pedido |
 | `financial_entries` | Lançamentos financeiros (receitas e despesas) |
+| `barcode_scans` | **Novo!** Leituras de código de barras pela produção |
+| `delivery_pickups` | **Novo!** Retiradas de pedidos pelos entregadores |
 
 ---
 
@@ -45,6 +70,22 @@ Quando um pedido muda para `aprovado_financeiro`, o banco **automaticamente cria
 
 ### ✅ updated_at automático
 Todas as tabelas têm `updated_at` atualizado automaticamente a cada UPDATE.
+
+---
+
+## 🔄 Sincronização em Tempo Real (v5)
+
+A partir da v5, **barcode_scans** e **delivery_pickups** funcionam em tempo real:
+
+✅ **Quando produção escaneia:**
+1. Scan salvo imediatamente em `barcode_scans`
+2. Realtime notifica TODOS os clientes conectados
+3. Entregadores veem pedido liberado **SEM precisar recarregar**
+
+✅ **Quando entregador retira:**
+1. Pickup salvo em `delivery_pickups`
+2. Realtime notifica gestor e produção
+3. Conferência atualiza **em tempo real**
 
 ---
 

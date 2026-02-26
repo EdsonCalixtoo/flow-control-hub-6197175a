@@ -382,7 +382,14 @@ html, body { width: 100mm; height: 150mm; font-family: 'Segoe UI', Arial, sans-s
             {cameraActive && (
               <div className="space-y-3">
                 <div className="relative rounded-xl overflow-hidden border-2 border-producao/40 bg-black">
-                  <video ref={videoRef} className="w-full h-48 object-cover" playsInline muted />
+                  <video
+                    ref={videoRef}
+                    className="w-full h-48 object-cover"
+                    playsInline
+                    autoPlay
+                    muted
+                    onCanPlay={() => { videoRef.current?.play().catch(() => { }); }}
+                  />
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <div className="w-48 h-32 border-2 border-white/70 rounded-xl" />
                   </div>

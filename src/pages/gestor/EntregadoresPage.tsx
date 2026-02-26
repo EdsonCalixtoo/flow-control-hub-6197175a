@@ -229,7 +229,14 @@ const CameraCapture: React.FC<{
             {streaming ? (
                 <>
                     <div className="rounded-xl overflow-hidden border-2 border-primary/40 bg-black relative">
-                        <video ref={videoRef} className="w-full h-40 object-cover" playsInline muted />
+                        <video
+                            ref={videoRef}
+                            className="w-full h-40 object-cover"
+                            playsInline
+                            autoPlay
+                            muted
+                            onCanPlay={() => { videoRef.current?.play().catch(() => { }); }}
+                        />
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                             <div className="w-24 h-24 border-2 border-white/60 rounded-full" />
                         </div>

@@ -190,46 +190,70 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (!supaLoaded) return;
     if (realtimeChannelRef.current) {
+      console.log('[ERP Realtime] Removendo subscription anterior...');
       supabase.removeChannel(realtimeChannelRef.current);
     }
 
+    console.log('[ERP Realtime] 🔌 Conectando ao Realtime...');
+    
     const channel = supabase
-      .channel('erp-realtime-all')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        console.log('[ERP Realtime] Mudança em orders — re-sincronizando...');
+      .channel('erp-realtime-all', { config: { broadcast: { self: true } } })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
+        console.log('[ERP Realtime] 📬 Mudança em orders:', payload);
         syncFromSupabase();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
-        console.log('[ERP Realtime] Mudança em products — re-sincronizando...');
+        console.log('[ERP Realtime] 📬 Mudança em products');
         syncFromSupabase();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'clients' }, () => {
-        console.log('[ERP Realtime] Mudança em clients — re-sincronizando...');
+        console.log('[ERP Realtime] 📬 Mudança em clients');
         syncFromSupabase();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'order_status_history' }, () => {
-        console.log('[ERP Realtime] Mudança em order_status_history — re-sincronizando pedidos...');
+        console.log('[ERP Realtime] 📬 Mudança em order_status_history');
         syncFromSupabase();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'financial_entries' }, () => {
-        console.log('[ERP Realtime] Mudança em financial_entries — re-sincronizando financeiro...');
+        console.log('[ERP Realtime] 📬 Mudança em financial_entries');
         syncFromSupabase();
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'barcode_scans' }, () => {
-        console.log('[ERP Realtime] Novo barcode scan — carregando...');
+        console.log('[ERP Realtime] 📬 Novo barcode scan');
         fetchBarcodeScans().then(scans => setBarcodeScans(scans)).catch(err => console.error('[ERP Realtime] Erro ao carregar barcode_scans:', err));
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'delivery_pickups' }, () => {
-        console.log('[ERP Realtime] Nova retirada de entregador — carregando...');
+        console.log('[ERP Realtime] 📬 Nova retirada de entregador');
         fetchDeliveryPickups().then(pickups => setDeliveryPickups(pickups)).catch(err => console.error('[ERP Realtime] Erro ao carregar delivery_pickups:', err));
       })
-      .subscribe((status) => {
-        console.log('[ERP Realtime] Status:', status);
+      .subscribe(async (status, err) => {
+        if (err) {
+          console.error('[ERP Realtime] ❌ ERRO ao conectar:', err);
+          return;
+        }
+        
+        if (status === 'SUBSCRIBED') {
+          console.log('[ERP Realtime] ✅ SUBSCRIBED! Pronto para receber atualizações em tempo real');
+        } else if (status === 'CLOSED') {
+          console.warn('[ERP Realtime] ⚠️ Conexão fechada. Reconectando em 3s...');
+          setTimeout(() => {
+            // Força reconexão removendo e recriando o channel
+            if (realtimeChannelRef.current) {
+              supabase.removeChannel(realtimeChannelRef.current);
+              realtimeChannelRef.current = null;
+            }
+          }, 3000);
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('[ERP Realtime] ❌ Erro no canal Realtime');
+        } else {
+          console.log('[ERP Realtime] Status:', status);
+        }
       });
 
     realtimeChannelRef.current = channel;
 
     return () => {
+      console.log('[ERP Realtime] 🔌 Desconectando Realtime (cleanup)');
       supabase.removeChannel(channel);
     };
   }, [supaLoaded, syncFromSupabase]);
@@ -238,24 +262,35 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addOrder = useCallback((order: Order) => {
     // Optimistic: insere imediatamente no estado local
     setOrders(prev => [order, ...prev]);
-    console.log('[ERP] Ordem criada no state local:', order.number);
+    console.log('[ERP] ✨ Ordem criada no state local:', order.number, order.id);
     
-    createOrder(order).then(async () => {
-      console.log('[ERP] ✅ Pedido salvo no banco com sucesso:', order.number);
-      // Re-busca do banco para garantir consistência (ex: outros campos gerados pelo DB)
+    // Tenta salvar no banco com até 3 tentativas
+    const saveToDb = async (attempts = 0) => {
       try {
-        const dbOrders = await fetchOrders();
-        console.log('[ERP] ✅ Pedidos re-sincronizados do banco:', dbOrders.length);
-        setOrders(dbOrders);
-      } catch (err) {
-        console.error('[ERP] ❌ Erro ao re-sincronizar do banco:', err);
+        await createOrder(order);
+        console.log('[ERP] ✅ Pedido salvo no banco com sucesso:', order.number);
+        // Re-busca do banco para garantir consistência
+        try {
+          const dbOrders = await fetchOrders();
+          console.log('[ERP] ✅ Pedidos re-sincronizados do banco:', dbOrders.length);
+          setOrders(dbOrders);
+        } catch (err) {
+          console.error('[ERP] ⚠️ Aviso: Pedido salvo mas não consegui re-sincronizar:', err);
+        }
+      } catch (err: any) {
+        console.error(`[ERP] ❌ Tentativa ${attempts + 1}/3 — ERRO ao salvar no banco:`, err?.message ?? err);
+        
+        if (attempts < 2) {
+          console.log(`[ERP] 🔄 Retrying em 2 segundos...`);
+          setTimeout(() => saveToDb(attempts + 1), 2000);
+        } else {
+          console.error('[ERP] ❌ Fallou após 3 tentativas. Pedido permanece em state local.');
+          // Não remove do state — usuário verá o pedido e pode tentar novamente
+        }
       }
-    }).catch(err => {
-      console.error('[ERP] ❌ ERRO ao salvar pedido no banco:', err?.message ?? err);
-      console.error('[ERP] Stack completo:', err);
-      // Reverte state local em caso de erro crítico
-      setOrders(prev => prev.filter(o => o.id !== order.id));
-    });
+    };
+    
+    saveToDb();
   }, [setOrders]);
 
   const updateOrderStatus = useCallback(async (

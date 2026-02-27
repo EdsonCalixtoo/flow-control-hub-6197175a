@@ -166,6 +166,7 @@ const CameraCapture: React.FC<{
     const startCamera = useCallback(async () => {
         setError(null);
         try {
+            console.log('[CameraCapture] 🎥 Solicitando acesso à câmera...');
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
             });
@@ -173,10 +174,25 @@ const CameraCapture: React.FC<{
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
                 await videoRef.current.play();
+                console.log('[CameraCapture] ✅ Câmera ativada com sucesso');
             }
             setStreaming(true);
-        } catch {
-            setError('Não foi possível acessar a câmera. Verifique as permissões.');
+        } catch (err: any) {
+            console.error('[CameraCapture] ❌ Erro ao acessar câmera:', err);
+            const code = err?.name || err?.code || 'UNKNOWN';
+            let message = 'Não foi possível acessar a câmera.';
+            
+            if (code === 'NotAllowedError') {
+                message = '❌ Permissão negada! Acesse Configurações → Câmera → Permitir acesso.';
+            } else if (code === 'NotFoundError') {
+                message = '❌ Câmera não encontrada. Verifique se o dispositivo possui câmera.';
+            } else if (code === 'NotReadableError') {
+                message = '❌ Câmera está em uso por outro app. Feche outros apps e tente novamente.';
+            } else if (code === 'timeout' || code === 'TimeoutError') {
+                message = '❌ Timeout ao acessar câmera. Tente novamente.';
+            }
+            
+            setError(message);
         }
     }, []);
 

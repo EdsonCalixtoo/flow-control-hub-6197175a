@@ -175,16 +175,50 @@ const CameraCapture: React.FC<{
                     aspectRatio: { ideal: 16 / 9 }
                 },
             });
+            
+            if (!videoRef.current) {
+                console.error('[CameraCapture] ❌ Video ref not available');
+                stream.getTracks().forEach(t => t.stop());
+                return;
+            }
+            
             streamRef.current = stream;
-            if (videoRef.current) {
-                videoRef.current.srcObject = stream;
-                // Aguarda metadados para uma reprodução melhor
-                await new Promise(resolve => {
-                    videoRef.current!.onloadedmetadata = resolve;
-                });
+            console.log('[CameraCapture] 📹 Stream obtido, renderizando...');
+            
+            // Atribui stream
+            videoRef.current.srcObject = stream;
+            
+            // Aguarda canplay (mais robusto que onloadedmetadata)
+            await new Promise<void>((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    console.error('[CameraCapture] ⏱️ Timeout aguardando canplay');
+                    reject(new Error('Timeout'));
+                }, 5000);
+                
+                const onCanPlay = () => {
+                    clearTimeout(timeout);
+                    videoRef.current?.removeEventListener('canplay', onCanPlay);
+                    resolve();
+                };
+                
+                if (videoRef.current!.readyState >= 2) {
+                    // Já tem dados suficientes
+                    clearTimeout(timeout);
+                    resolve();
+                } else {
+                    videoRef.current!.addEventListener('canplay', onCanPlay);
+                }
+            });
+            
+            // Play com retry
+            try {
                 await videoRef.current.play();
                 console.log('[CameraCapture] ✅ Câmera ativada com sucesso');
+            } catch (playErr) {
+                console.warn('[CameraCapture] ⚠️ Play exception (normal):', playErr);
+                // Em alguns navegadores play() throws mesmo com autoplay
             }
+            
             setStreaming(true);
         } catch (err: any) {
             console.error('[CameraCapture] ❌ Erro ao acessar câmera:', err);
@@ -204,6 +238,7 @@ const CameraCapture: React.FC<{
             }
             
             setError(message);
+            stopCamera();
         }
     }, []);
 
@@ -255,14 +290,13 @@ const CameraCapture: React.FC<{
             <canvas ref={canvasRef} className="hidden" />
             {streaming ? (
                 <>
-                    <div className="rounded-xl overflow-hidden border-2 border-primary/40 bg-black relative aspect-video">
+                    <div className="rounded-xl overflow-hidden border-2 border-primary/40 bg-black relative w-full" style={{ aspectRatio: '16 / 9' }}>
                         <video
                             ref={videoRef}
-                            className="w-full h-full object-cover"
+                            className="w-full h-full object-cover block"
                             playsInline
                             autoPlay
                             muted
-                            onCanPlay={() => { videoRef.current?.play().catch(() => { }); }}
                         />
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                             <div className="w-48 h-48 border-3 border-yellow-400/70 rounded-full shadow-lg" />
@@ -369,26 +403,37 @@ const EntregadoresPage: React.FC = () => {
         if (!canConfirm || submitting) return;
         setSubmitting(true);
         try {
-            addDeliveryPickup({
+            console.log(`[EntregadoresPage] 🔄 Confirmando pedido ${group.orderNumber}...`);
+            
+            // Aguarda o pickup ser salvo
+            await addDeliveryPickup({
                 orderId: group.orderId,
                 orderNumber: group.orderNumber,
                 delivererName: delivererName.trim(),
                 photoUrl: photo!,
                 signatureUrl: signature!,
             });
-            updateOrderStatus(
+            
+            // Aguarda status ser atualizado
+            await updateOrderStatus(
                 group.orderId,
                 'retirado_entregador',
                 {},
                 user?.name || 'Gestor',
                 `Retirado pelo entregador: ${delivererName.trim()}`
             );
+            
+            console.log(`[EntregadoresPage] ✅ ${group.orderNumber} confirmado com sucesso`);
+            
             setSuccess(group.orderNumber);
             setConfirmingId(null);
             setDelivererName('');
             setPhoto(null);
             setSignature(null);
             setTimeout(() => setSuccess(null), 4000);
+        } catch (err: any) {
+            console.error('[EntregadoresPage] ❌ Erro ao confirmar pedido:', err);
+            setSuccess(null);
         } finally {
             setSubmitting(false);
         }
@@ -402,23 +447,38 @@ const EntregadoresPage: React.FC = () => {
             const selectedGroups = filtered.filter(g => selectedGroupIds.has(g.orderId));
             const orderNumbers: string[] = [];
             
+            console.log(`[EntregadoresPage] 🔄 Confirmando lote de ${selectedGroups.length} pedidos...`);
+            
+            // Confirma cada pedido e aguarda
             for (const group of selectedGroups) {
-                addDeliveryPickup({
-                    orderId: group.orderId,
-                    orderNumber: group.orderNumber,
-                    delivererName: delivererName.trim(),
-                    photoUrl: photo!,
-                    signatureUrl: signature!,
-                });
-                updateOrderStatus(
-                    group.orderId,
-                    'retirado_entregador',
-                    {},
-                    user?.name || 'Gestor',
-                    `Retirado pelo entregador: ${delivererName.trim()}`
-                );
-                orderNumbers.push(group.orderNumber);
+                try {
+                    // Aguarda o pickup ser salvo
+                    await addDeliveryPickup({
+                        orderId: group.orderId,
+                        orderNumber: group.orderNumber,
+                        delivererName: delivererName.trim(),
+                        photoUrl: photo!,
+                        signatureUrl: signature!,
+                    });
+                    
+                    // Aguarda status ser atualizado
+                    await updateOrderStatus(
+                        group.orderId,
+                        'retirado_entregador',
+                        {},
+                        user?.name || 'Gestor',
+                        `Retirado pelo entregador: ${delivererName.trim()}`
+                    );
+                    
+                    orderNumbers.push(group.orderNumber);
+                    console.log(`[EntregadoresPage] ✅ ${group.orderNumber} confirmado`);
+                } catch (err) {
+                    console.error(`[EntregadoresPage] ❌ Erro ao confirmar ${group.orderNumber}:`, err);
+                    throw err;
+                }
             }
+            
+            console.log(`[EntregadoresPage] ✅ Lote completo! ${orderNumbers.length} pedidos confirmados`);
             
             setSuccess(`${orderNumbers.length} lote(s) - ${orderNumbers.join(', ')}`);
             setConfirmingBatchMode(false);
@@ -427,6 +487,9 @@ const EntregadoresPage: React.FC = () => {
             setPhoto(null);
             setSignature(null);
             setTimeout(() => setSuccess(null), 5000);
+        } catch (err: any) {
+            console.error('[EntregadoresPage] ❌ Erro ao confirmar lote:', err);
+            setSuccess(null);
         } finally {
             setSubmitting(false);
         }

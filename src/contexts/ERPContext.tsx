@@ -39,7 +39,7 @@ interface ERPContextType {
   addBarcodeScan: (scan: Omit<BarcodeScan, 'id' | 'scannedAt'>) => void;
   // delivery pickups
   deliveryPickups: DeliveryPickup[];
-  addDeliveryPickup: (pickup: Omit<DeliveryPickup, 'id' | 'pickedUpAt'>) => void;
+  addDeliveryPickup: (pickup: Omit<DeliveryPickup, 'id' | 'pickedUpAt'>) => Promise<void>;
   // order ops
   addOrder: (order: Order) => void;
   updateOrderStatus: (orderId: string, status: OrderStatus, extra?: Partial<Order>, userName?: string, note?: string) => Promise<void>;
@@ -512,7 +512,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [setBarcodeScans]);
 
   // ── DELIVERY PICKUPS ─────────────────────────────────────────
-  const addDeliveryPickup = useCallback((pickup: Omit<DeliveryPickup, 'id' | 'pickedUpAt'>) => {
+  const addDeliveryPickup = useCallback((pickup: Omit<DeliveryPickup, 'id' | 'pickedUpAt'>): Promise<void> => {
     const newPickup: DeliveryPickup = {
       ...pickup,
       id: crypto.randomUUID(),
@@ -521,14 +521,19 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setDeliveryPickups(prev => [newPickup, ...prev]);
     console.log('[ERP] Retirada de entregador registrada:', newPickup.orderNumber);
     
-    // Salva no banco de dados em background
-    createDeliveryPickup({
+    // Salva no banco de dados e retorna a promise
+    return createDeliveryPickup({
       orderId: pickup.orderId,
       orderNumber: pickup.orderNumber,
       deliveryPersonId: pickup.deliveryPersonId,
       deliveryPersonName: pickup.deliveryPersonName,
       notes: pickup.notes,
-    }).catch(err => console.error('[ERP] Erro ao salvar pickup no banco:', err?.message ?? err));
+    }).then(() => {
+      console.log('[ERP] ✅ Pickup salvo no Supabase');
+    }).catch(err => {
+      console.error('[ERP] ❌ Erro ao salvar pickup no banco:', err?.message ?? err);
+      throw err;
+    });
   }, [setDeliveryPickups]);
 
   // ── CLEAR ALL ────────────────────────────────────────────────

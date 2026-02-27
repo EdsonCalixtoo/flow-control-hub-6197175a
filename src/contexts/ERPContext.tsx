@@ -238,15 +238,23 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addOrder = useCallback((order: Order) => {
     // Optimistic: insere imediatamente no estado local
     setOrders(prev => [order, ...prev]);
+    console.log('[ERP] Ordem criada no state local:', order.number);
+    
     createOrder(order).then(async () => {
-      console.log('[ERP] Pedido salvo no banco:', order.number);
+      console.log('[ERP] ✅ Pedido salvo no banco com sucesso:', order.number);
       // Re-busca do banco para garantir consistência (ex: outros campos gerados pelo DB)
       try {
         const dbOrders = await fetchOrders();
+        console.log('[ERP] ✅ Pedidos re-sincronizados do banco:', dbOrders.length);
         setOrders(dbOrders);
-      } catch { }
+      } catch (err) {
+        console.error('[ERP] ❌ Erro ao re-sincronizar do banco:', err);
+      }
     }).catch(err => {
-      console.error('[ERP] Erro ao salvar pedido no banco:', err?.message ?? err);
+      console.error('[ERP] ❌ ERRO ao salvar pedido no banco:', err?.message ?? err);
+      console.error('[ERP] Stack completo:', err);
+      // Reverte state local em caso de erro crítico
+      setOrders(prev => prev.filter(o => o.id !== order.id));
     });
   }, [setOrders]);
 

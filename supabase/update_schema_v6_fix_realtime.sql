@@ -124,24 +124,19 @@ CREATE POLICY "authenticated users see products" ON products
 
 -- ─── 12. PUBLICAR TABELAS PARA REALTIME ────────────────────────
 -- Essencial: sem isso não há notificações em tempo real!
+-- Usa loop para adicionar tabelas, ignorando erros se já existem
 DO $$
+DECLARE
+  v_table TEXT;
 BEGIN
-  -- Remove de publicação anterior (se existir)
-  ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS orders CASCADE;
-  ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS order_items CASCADE;
-  ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS order_status_history CASCADE;
-  ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS financial_entries CASCADE;
-  ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS barcode_scans CASCADE;
-  ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS delivery_pickups CASCADE;
-  
-  -- Adiciona novamente em publicação
-  ALTER PUBLICATION supabase_realtime ADD TABLE orders;
-  ALTER PUBLICATION supabase_realtime ADD TABLE order_items;
-  ALTER PUBLICATION supabase_realtime ADD TABLE order_status_history;
-  ALTER PUBLICATION supabase_realtime ADD TABLE financial_entries;
-  ALTER PUBLICATION supabase_realtime ADD TABLE barcode_scans;
-  ALTER PUBLICATION supabase_realtime ADD TABLE delivery_pickups;
-  
+  FOREACH v_table IN ARRAY ARRAY['orders', 'order_items', 'order_status_history', 'financial_entries', 'barcode_scans', 'delivery_pickups'] LOOP
+    BEGIN
+      EXECUTE format('ALTER PUBLICATION supabase_realtime ADD TABLE %I', v_table);
+    EXCEPTION WHEN OTHERS THEN
+      -- Ignora erro se tabela já está na publicação
+      NULL;
+    END;
+  END LOOP;
   RAISE NOTICE 'Tabelas adicionadas à publicação Realtime ✓';
 END $$;
 

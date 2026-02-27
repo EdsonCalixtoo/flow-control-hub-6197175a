@@ -143,7 +143,9 @@ const OrcamentosPage: React.FC = () => {
 
     // Modo criação — pega número ÚNICO do servidor (evita race condition)
     try {
+      console.log('[OrcamentosPage] 🔄 Chamando getNextOrderNumber()...');
       const nextNumber = await getNextOrderNumber();
+      console.log('[OrcamentosPage] ✅ Número gerado:', nextNumber);
       
       const order: Order = {
         id: crypto.randomUUID(),
@@ -175,9 +177,11 @@ const OrcamentosPage: React.FC = () => {
         statusHistory: [{ status: 'rascunho', timestamp: now, user: user?.name || 'Vendedor', note: 'Orçamento criado' }],
       };
 
+      console.log('[OrcamentosPage] 📍 Chamando addOrder() com:', order.number, order.id);
       addOrder(order);
       resetForm();
     } catch (err: any) {
+      console.error('[OrcamentosPage] ❌ ERRO CRÍTICO:', err);
       setFormError(`❌ Erro ao gerar número: ${err?.message || 'Tente novamente'}`);
     }
   };

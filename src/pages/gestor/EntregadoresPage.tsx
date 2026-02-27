@@ -168,11 +168,20 @@ const CameraCapture: React.FC<{
         try {
             console.log('[CameraCapture] 🎥 Solicitando acesso à câmera...');
             const stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+                video: {
+                    facingMode: 'user',
+                    width: { ideal: 1280, min: 640 },
+                    height: { ideal: 720, min: 480 },
+                    aspectRatio: { ideal: 16 / 9 }
+                },
             });
             streamRef.current = stream;
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
+                // Aguarda metadados para uma reprodução melhor
+                await new Promise(resolve => {
+                    videoRef.current!.onloadedmetadata = resolve;
+                });
                 await videoRef.current.play();
                 console.log('[CameraCapture] ✅ Câmera ativada com sucesso');
             }
@@ -190,6 +199,8 @@ const CameraCapture: React.FC<{
                 message = '❌ Câmera está em uso por outro app. Feche outros apps e tente novamente.';
             } else if (code === 'timeout' || code === 'TimeoutError') {
                 message = '❌ Timeout ao acessar câmera. Tente novamente.';
+            } else if (code === 'AbortError') {
+                message = '❌ Abortado. Tente novamente.';
             }
             
             setError(message);
@@ -220,14 +231,14 @@ const CameraCapture: React.FC<{
 
     if (captured) {
         return (
-            <div className="space-y-2">
+            <div className="space-y-3">
                 <div className="relative rounded-xl overflow-hidden border-2 border-success/40">
-                    <img src={captured} alt="Foto do entregador" className="w-full h-40 object-cover" />
-                    <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-success flex items-center justify-center">
-                        <CheckCircle className="w-3.5 h-3.5 text-white" />
+                    <img src={captured} alt="Foto do entregador" className="w-full h-96 object-cover" />
+                    <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-success flex items-center justify-center">
+                        <CheckCircle className="w-5 h-5 text-white" />
                     </div>
                 </div>
-                <button onClick={() => { onClear(); }} className="btn-modern bg-muted text-foreground shadow-none text-xs w-full justify-center">
+                <button onClick={() => { onClear(); }} className="btn-modern bg-muted text-foreground shadow-none text-sm w-full justify-center">
                     <RefreshCw className="w-3.5 h-3.5" /> Tirar Outra Foto
                 </button>
             </div>
@@ -235,7 +246,7 @@ const CameraCapture: React.FC<{
     }
 
     return (
-        <div className="space-y-2">
+        <div className="space-y-3">
             {error && (
                 <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-xs">
                     {error}
@@ -244,25 +255,28 @@ const CameraCapture: React.FC<{
             <canvas ref={canvasRef} className="hidden" />
             {streaming ? (
                 <>
-                    <div className="rounded-xl overflow-hidden border-2 border-primary/40 bg-black relative">
+                    <div className="rounded-xl overflow-hidden border-2 border-primary/40 bg-black relative aspect-video">
                         <video
                             ref={videoRef}
-                            className="w-full h-40 object-cover"
+                            className="w-full h-full object-cover"
                             playsInline
                             autoPlay
                             muted
                             onCanPlay={() => { videoRef.current?.play().catch(() => { }); }}
                         />
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <div className="w-24 h-24 border-2 border-white/60 rounded-full" />
+                            <div className="w-48 h-48 border-3 border-yellow-400/70 rounded-full shadow-lg" />
+                            <p className="absolute bottom-4 left-0 right-0 text-center text-white text-xs font-semibold bg-black/50 py-2">
+                                Posicione seu rosto dentro do círculo
+                            </p>
                         </div>
                     </div>
                     <div className="flex gap-2">
-                        <button onClick={takePhoto} className="btn-primary flex-1 justify-center text-xs">
-                            <Camera className="w-3.5 h-3.5" /> Capturar Foto
+                        <button onClick={takePhoto} className="btn-primary flex-1 justify-center text-sm">
+                            <Camera className="w-4 h-4" /> Capturar Foto
                         </button>
-                        <button onClick={stopCamera} className="btn-modern bg-muted text-foreground shadow-none text-xs">
-                            <X className="w-3.5 h-3.5" />
+                        <button onClick={stopCamera} className="btn-modern bg-muted text-foreground shadow-none text-sm">
+                            <X className="w-4 h-4" />
                         </button>
                     </div>
                 </>
@@ -285,12 +299,21 @@ const EntregadoresPage: React.FC = () => {
 
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [confirmingId, setConfirmingId] = useState<string | null>(null);
+    const [confirmingBatchMode, setConfirmingBatchMode] = useState(false); // Novo: modo lote
+    const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set()); // Novo: grupos selecionados
     const [delivererName, setDelivererName] = useState('');
     const [photo, setPhoto] = useState<string | null>(null);
     const [signature, setSignature] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [success, setSuccess] = useState<string | null>(null);
     const [filterStatus, setFilterStatus] = useState<'pendente' | 'retirado' | 'todos'>('pendente');
+
+    // Sincroniza data ao montar - resolve "entregadores precisa atualizar página para ver pedidos"
+    useEffect(() => {
+        console.log('[EntregadoresPage] 🔄 Página carregada, aguardando Realtime subscription...');
+        // A sincronização automática acontece via Realtime subscription no ERPContext
+        // Os pedidos scaneados aparecerão assim que o componente montar
+    }, []);
 
     // Group barcode scans by order
     const groups: OrderGroup[] = React.useMemo(() => {
@@ -371,6 +394,44 @@ const EntregadoresPage: React.FC = () => {
         }
     };
 
+    // Novo: Confirma múltiplos grupos em lote
+    const handleBatchConfirm = async () => {
+        if (!canConfirm || submitting || selectedGroupIds.size === 0) return;
+        setSubmitting(true);
+        try {
+            const selectedGroups = filtered.filter(g => selectedGroupIds.has(g.orderId));
+            const orderNumbers: string[] = [];
+            
+            for (const group of selectedGroups) {
+                addDeliveryPickup({
+                    orderId: group.orderId,
+                    orderNumber: group.orderNumber,
+                    delivererName: delivererName.trim(),
+                    photoUrl: photo!,
+                    signatureUrl: signature!,
+                });
+                updateOrderStatus(
+                    group.orderId,
+                    'retirado_entregador',
+                    {},
+                    user?.name || 'Gestor',
+                    `Retirado pelo entregador: ${delivererName.trim()}`
+                );
+                orderNumbers.push(group.orderNumber);
+            }
+            
+            setSuccess(`${orderNumbers.length} lote(s) - ${orderNumbers.join(', ')}`);
+            setConfirmingBatchMode(false);
+            setSelectedGroupIds(new Set());
+            setDelivererName('');
+            setPhoto(null);
+            setSignature(null);
+            setTimeout(() => setSuccess(null), 5000);
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -408,22 +469,133 @@ const EntregadoresPage: React.FC = () => {
                 </div>
             )}
 
-            {/* Filter tabs */}
-            <div className="flex gap-2">
-                {([
-                    { key: 'pendente', label: `⏳ Aguardando (${pendingCount})` },
-                    { key: 'retirado', label: `✅ Retirados (${doneCount})` },
-                    { key: 'todos', label: `📦 Todos (${groups.length})` },
-                ] as { key: typeof filterStatus; label: string }[]).map(f => (
+            {/* Batch mode button + Filter tabs */}
+            <div className="flex gap-2 items-center flex-wrap">
+                {pendingCount > 1 && (
                     <button
-                        key={f.key}
-                        onClick={() => setFilterStatus(f.key)}
-                        className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${filterStatus === f.key ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}
+                        onClick={() => {
+                            setConfirmingBatchMode(!confirmingBatchMode);
+                            setSelectedGroupIds(new Set());
+                            setConfirmingId(null);
+                        }}
+                        className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 ${
+                            confirmingBatchMode
+                                ? 'bg-warning/20 text-warning border border-warning/40'
+                                : 'bg-gradient-to-r from-primary/20 to-primary/10 text-primary border border-primary/20 hover:border-primary/40'
+                        }`}
                     >
-                        {f.label}
+                        <ClipboardList className="w-4 h-4" />
+                        {confirmingBatchMode ? `Modo Lote Ativo (${selectedGroupIds.size} selecionados)` : 'Modo Lote (Confirmar Lotes)'}
                     </button>
-                ))}
+                )}
+
+                {/* Filter tabs */}
+                <div className="flex gap-2">
+                    {([
+                        { key: 'pendente', label: `⏳ Aguardando (${pendingCount})` },
+                        { key: 'retirado', label: `✅ Retirados (${doneCount})` },
+                        { key: 'todos', label: `📦 Todos (${groups.length})` },
+                    ] as { key: typeof filterStatus; label: string }[]).map(f => (
+                        <button
+                            key={f.key}
+                            onClick={() => setFilterStatus(f.key)}
+                            className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${filterStatus === f.key ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}
+                        >
+                            {f.label}
+                        </button>
+                    ))}
+                </div>
             </div>
+
+            {/* Batch confirmation panel */}
+            {confirmingBatchMode && selectedGroupIds.size > 0 && (
+                <div className="card-section p-6 border-primary/30 bg-primary/5 space-y-5 sticky top-4 z-20">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                                <ClipboardList className="w-5 h-5 text-primary" />
+                            </div>
+                            <div>
+                                <p className="font-bold text-foreground">Confirmar Lote</p>
+                                <p className="text-xs text-muted-foreground">{selectedGroupIds.size} pedido(s) selecionado(s)</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => { setConfirmingBatchMode(false); setSelectedGroupIds(new Set()); }}
+                            className="btn-modern bg-muted text-foreground shadow-none px-3"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+
+                    {/* Name */}
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                            <User className="w-3 h-3" /> Nome do Entregador *
+                        </label>
+                        <input
+                            type="text"
+                            value={delivererName}
+                            onChange={e => setDelivererName(e.target.value)}
+                            placeholder="Nome completo do entregador"
+                            className="input-modern w-full text-sm"
+                        />
+                    </div>
+
+                    {/* Camera */}
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                            <Camera className="w-3 h-3" /> Foto do Rosto *
+                        </label>
+                        <CameraCapture
+                            onCapture={setPhoto}
+                            captured={photo}
+                            onClear={() => setPhoto(null)}
+                        />
+                    </div>
+
+                    {/* Signature */}
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                            <PenLine className="w-3 h-3" /> Assinatura Digital *
+                        </label>
+                        <SignatureCanvas
+                            onCapture={setSignature}
+                            captured={signature}
+                            onClear={() => setSignature(null)}
+                        />
+                    </div>
+
+                    {/* Missing fields hint */}
+                    {!canConfirm && (
+                        <div className="p-3 rounded-xl bg-warning/10 border border-warning/20">
+                            <p className="text-[10px] font-semibold text-warning">
+                                {!delivererName.trim() && '• Informe o nome do entregador. '}
+                                {!photo && '• Tire uma foto do rosto. '}
+                                {!signature && '• Assine digitalmente.'}
+                            </p>
+                        </div>
+                    )}
+
+                    {/* Confirm button */}
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => handleBatchConfirm()}
+                            disabled={!canConfirm || submitting}
+                            className="btn-modern flex-1 justify-center py-3 text-sm font-bold bg-gradient-to-r from-success to-success/80 text-success-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            <CheckCircle className="w-5 h-5" />
+                            {submitting ? 'Confirmando Lote...' : `Confirmar ${selectedGroupIds.size} Pedido(s)`}
+                        </button>
+                        <button
+                            onClick={() => { setConfirmingBatchMode(false); setSelectedGroupIds(new Set()); setPhoto(null); setSignature(null); setDelivererName(''); }}
+                            className="btn-modern bg-muted text-foreground shadow-none px-4"
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* List */}
             {filtered.length === 0 ? (
@@ -503,18 +675,39 @@ const EntregadoresPage: React.FC = () => {
                                                 {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                                                 Detalhes
                                             </button>
-                                            {!group.alreadyPickedUp && (
-                                                <button
-                                                    onClick={() => {
-                                                        setConfirmingId(isConfirming ? null : group.orderId);
-                                                        setPhoto(null);
-                                                        setSignature(null);
-                                                        setDelivererName('');
-                                                    }}
-                                                    className="btn-modern bg-gradient-to-r from-primary to-primary/80 text-primary-foreground text-xs px-4 py-2"
-                                                >
-                                                    <Truck className="w-3.5 h-3.5" /> Confirmar Retirada
-                                                </button>
+                                            {!group.alreadyPickedUp && !confirmingBatchMode && (
+                                                <>
+                                                    <button
+                                                        onClick={() => {
+                                                            setConfirmingId(isConfirming ? null : group.orderId);
+                                                            setPhoto(null);
+                                                            setSignature(null);
+                                                            setDelivererName('');
+                                                        }}
+                                                        className="btn-modern bg-gradient-to-r from-primary to-primary/80 text-primary-foreground text-xs px-4 py-2"
+                                                    >
+                                                        <Truck className="w-3.5 h-3.5" /> Confirmar Retirada
+                                                    </button>
+                                                </>
+                                            )}
+                                            {!group.alreadyPickedUp && confirmingBatchMode && (
+                                                <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 cursor-pointer hover:bg-primary/20 transition-colors border border-primary/30">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedGroupIds.has(group.orderId)}
+                                                        onChange={(e) => {
+                                                            const newSet = new Set(selectedGroupIds);
+                                                            if (e.target.checked) {
+                                                                newSet.add(group.orderId);
+                                                            } else {
+                                                                newSet.delete(group.orderId);
+                                                            }
+                                                            setSelectedGroupIds(newSet);
+                                                        }}
+                                                        className="w-4 h-4 cursor-pointer"
+                                                    />
+                                                    <span className="text-xs font-semibold text-primary">Selecionar</span>
+                                                </label>
                                             )}
                                         </div>
                                     </div>

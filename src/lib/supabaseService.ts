@@ -169,6 +169,20 @@ export async function fetchOrders(): Promise<Order[]> {
     });
 }
 
+/**
+ * Gera o próximo número de pedido de forma ATÔMICA no servidor
+ * Evita race condition quando múltiplos vendedores criam pedidos simultaneamente
+ * @returns Próximo número no formato PED-001, PED-002, etc.
+ */
+export async function getNextOrderNumber(): Promise<string> {
+    const { data, error } = await supabase.rpc('fn_get_next_order_number');
+    if (error) {
+        logError('getNextOrderNumber', error);
+        throw error;
+    }
+    return data as string;
+}
+
 export async function createOrder(order: Order): Promise<void> {
     // 1. Inserir o pedido principal
     const basePayload = {

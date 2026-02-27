@@ -207,6 +207,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.log('[ERP Realtime] Mudança em clients — re-sincronizando...');
         syncFromSupabase();
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_status_history' }, () => {
+        console.log('[ERP Realtime] Mudança em order_status_history — re-sincronizando pedidos...');
+        syncFromSupabase();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'financial_entries' }, () => {
+        console.log('[ERP Realtime] Mudança em financial_entries — re-sincronizando financeiro...');
+        syncFromSupabase();
+      })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'barcode_scans' }, () => {
         console.log('[ERP Realtime] Novo barcode scan — carregando...');
         fetchBarcodeScans().then(scans => setBarcodeScans(scans)).catch(err => console.error('[ERP Realtime] Erro ao carregar barcode_scans:', err));

@@ -5,6 +5,7 @@ import { StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
 import { OrderPipeline, OrderHistory } from '@/components/shared/OrderTimeline';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
 import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check } from 'lucide-react';
+import { getNextOrderNumber } from '@/lib/supabaseService';
 import type { Order, QuoteItem } from '@/types/erp';
 import { useLocation } from 'react-router-dom';
 
@@ -101,7 +102,7 @@ const OrcamentosPage: React.FC = () => {
     setFormError('');
   };
 
-  const handleCreateOrder = () => {
+  const handleCreateOrder = async () => {
     const client = clients.find(c => c.id === newClientId);
     if (!client) { setFormError('Por favor, selecione um cliente.'); return; }
     if (newItems.some(i => !i.product)) { setFormError('Por favor, selecione o produto em todos os itens.'); return; }
@@ -140,48 +141,45 @@ const OrcamentosPage: React.FC = () => {
       return;
     }
 
-    // Modo criação — sempre cria como RASCUNHO
-    // ✅ Número GLOBAL único: pega o maior número de TODOS os pedidos do sistema
-    // e soma 1 — garante que dois vendedores nunca gerem o mesmo número
-    const maxNumber = orders.reduce((max, o) => {
-      const match = o.number.match(/PED-(\d+)/);
-      const n = match ? parseInt(match[1], 10) : 0;
-      return Math.max(max, n);
-    }, 0);
-    const nextNumber = `PED-${String(maxNumber + 1).padStart(3, '0')}`;
+    // Modo criação — pega número ÚNICO do servidor (evita race condition)
+    try {
+      const nextNumber = await getNextOrderNumber();
+      
+      const order: Order = {
+        id: crypto.randomUUID(),
+        number: nextNumber,
+        clientId: client.id,
+        clientName: client.name,
+        sellerId: user?.id || '1',
+        sellerName: user?.name || 'Vendedor',
+        items: newItems.map((item, i) => ({
+          id: `ni${i}`,
+          product: item.product,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discount: 0,
+          discountType: 'percent' as const,
+          total: item.quantity * item.unitPrice,
+        })),
+        subtotal,
+        taxes: 0,
+        total: subtotal,
+        status: 'rascunho',    // ✅ SEMPRE começa como rascunho
+        notes: newNotes,
+        observation: newObservation,
+        deliveryDate: newDeliveryDate || undefined,
+        orderType: newOrderType,
+        createdAt: now,
+        updatedAt: now,
+        statusHistory: [{ status: 'rascunho', timestamp: now, user: user?.name || 'Vendedor', note: 'Orçamento criado' }],
+      };
 
-    const order: Order = {
-      id: crypto.randomUUID(),
-      number: nextNumber,
-      clientId: client.id,
-      clientName: client.name,
-      sellerId: user?.id || '1',
-      sellerName: user?.name || 'Vendedor',
-      items: newItems.map((item, i) => ({
-        id: `ni${i}`,
-        product: item.product,
-        description: item.description,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        discount: 0,
-        discountType: 'percent' as const,
-        total: item.quantity * item.unitPrice,
-      })),
-      subtotal,
-      taxes: 0,
-      total: subtotal,
-      status: 'rascunho',    // ✅ SEMPRE começa como rascunho
-      notes: newNotes,
-      observation: newObservation,
-      deliveryDate: newDeliveryDate || undefined,
-      orderType: newOrderType,
-      createdAt: now,
-      updatedAt: now,
-      statusHistory: [{ status: 'rascunho', timestamp: now, user: user?.name || 'Vendedor', note: 'Orçamento criado' }],
-    };
-
-    addOrder(order);
-    resetForm();
+      addOrder(order);
+      resetForm();
+    } catch (err: any) {
+      setFormError(`❌ Erro ao gerar número: ${err?.message || 'Tente novamente'}`);
+    }
   };
 
   const openWhatsApp = (phone: string) =>

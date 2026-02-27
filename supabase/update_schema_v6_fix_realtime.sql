@@ -29,7 +29,10 @@ DELETE FROM orders o1 WHERE id NOT IN (
   SELECT DISTINCT ON (number) id FROM orders ORDER BY number, created_at ASC
 );
 
-RAISE NOTICE 'Removidas duplicatas da tabela orders ✓';
+DO $$
+BEGIN
+  RAISE NOTICE 'Removidas duplicatas da tabela orders ✓';
+END $$;
 
 -- ─── 2. ATIVAR REALTIME PARA orders ─────────────────────────
 -- (essencial para financeiro receber atualizações)
@@ -67,7 +70,10 @@ CREATE POLICY "authenticated users update orders" ON orders
   FOR UPDATE TO authenticated
   USING (true) WITH CHECK (true);
 
-RAISE NOTICE 'RLS configurado para orders ✓';
+DO $$
+BEGIN
+  RAISE NOTICE 'RLS configurado para orders ✓';
+END $$;
 
 -- ─── 7. RECONFIGURAR RLS PARA order_items ────────────────────
 DROP POLICY IF EXISTS "Users can see order items" ON order_items;
@@ -118,7 +124,8 @@ CREATE POLICY "authenticated users see products" ON products
 
 -- ─── 12. PUBLICAR TABELAS PARA REALTIME ────────────────────────
 -- Essencial: sem isso não há notificações em tempo real!
-BEGIN;
+DO $$
+BEGIN
   -- Remove de publicação anterior (se existir)
   ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS orders CASCADE;
   ALTER PUBLICATION supabase_realtime DROP TABLE IF EXISTS order_items CASCADE;
@@ -136,7 +143,7 @@ BEGIN;
   ALTER PUBLICATION supabase_realtime ADD TABLE delivery_pickups;
   
   RAISE NOTICE 'Tabelas adicionadas à publicação Realtime ✓';
-COMMIT;
+END $$;
 
 -- ─── 13. FUNÇÃO SQL PARA GERAR NÚMEROS DE PEDIDO ÚNICOS ───────
 -- Evita race condition quando múltiplos vendors criam pedidos simultaneamente
@@ -168,7 +175,10 @@ END $$;
 
 GRANT EXECUTE ON FUNCTION fn_get_next_order_number() TO authenticated;
 
-RAISE NOTICE 'Função fn_get_next_order_number() criada ✓';
+DO $$
+BEGIN
+  RAISE NOTICE 'Função fn_get_next_order_number() criada ✓';
+END $$;
 
 -- ─── CONFIRMAÇÃO ──────────────────────────────────────────────
 DO $$

@@ -183,43 +183,22 @@ const CameraCapture: React.FC<{
             }
             
             streamRef.current = stream;
-            console.log('[CameraCapture] 📹 Stream obtido, renderizando...');
+            console.log('[CameraCapture] 📹 Stream obtido com sucesso');
             
-            // Atribui stream
+            // Atribui stream direto (sem promises complexas)
             videoRef.current.srcObject = stream;
+            console.log('[CameraCapture] ▶️ Iniciando reprodução de vídeo...');
             
-            // Aguarda canplay (mais robusto que onloadedmetadata)
-            await new Promise<void>((resolve, reject) => {
-                const timeout = setTimeout(() => {
-                    console.error('[CameraCapture] ⏱️ Timeout aguardando canplay');
-                    reject(new Error('Timeout'));
-                }, 5000);
-                
-                const onCanPlay = () => {
-                    clearTimeout(timeout);
-                    videoRef.current?.removeEventListener('canplay', onCanPlay);
-                    resolve();
-                };
-                
-                if (videoRef.current!.readyState >= 2) {
-                    // Já tem dados suficientes
-                    clearTimeout(timeout);
-                    resolve();
-                } else {
-                    videoRef.current!.addEventListener('canplay', onCanPlay);
-                }
-            });
-            
-            // Play com retry
+            // Força play imediatamente
             try {
                 await videoRef.current.play();
-                console.log('[CameraCapture] ✅ Câmera ativada com sucesso');
-            } catch (playErr) {
-                console.warn('[CameraCapture] ⚠️ Play exception (normal):', playErr);
-                // Em alguns navegadores play() throws mesmo com autoplay
+                console.log('[CameraCapture] ✅ Câmera ativada com sucesso!');
+                setStreaming(true);
+            } catch (playErr: any) {
+                console.warn('[CameraCapture] ⚠️ Play falhou, tentando autoplay:', playErr?.message);
+                // Fallback: deixar autoplay e muted fazerem o trabalho
+                setStreaming(true);
             }
-            
-            setStreaming(true);
         } catch (err: any) {
             console.error('[CameraCapture] ❌ Erro ao acessar câmera:', err);
             const code = err?.name || err?.code || 'UNKNOWN';
@@ -255,13 +234,37 @@ const CameraCapture: React.FC<{
     const takePhoto = () => {
         const video = videoRef.current;
         const canvas = canvasRef.current;
-        if (!video || !canvas) return;
+        if (!video || !canvas) {
+            console.error('[CameraCapture] ❌ Video ou canvas não disponível');
+            return;
+        }
+        
+        console.log('[CameraCapture] 📸 Capturando foto... videoWidth:', video.videoWidth, 'videoHeight:', video.videoHeight);
+        
+        if (video.videoWidth === 0 || video.videoHeight === 0) {
+            console.error('[CameraCapture] ❌ Vídeo não tem dimensões ainda');
+            setError('Câmera ainda está carregando. Tente novamente em alguns segundos.');
+            return;
+        }
+        
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
-        canvas.getContext('2d')?.drawImage(video, 0, 0);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-        stopCamera();
-        onCapture(dataUrl);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+            console.error('[CameraCapture] ❌ Não conseguiu obter contexto 2D');
+            return;
+        }
+        
+        try {
+            ctx.drawImage(video, 0, 0);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            console.log('[CameraCapture] ✅ Foto capturada com sucesso');
+            stopCamera();
+            onCapture(dataUrl);
+        } catch (err) {
+            console.error('[CameraCapture] ❌ Erro ao capturar foto:', err);
+            setError('Erro ao capturar foto. Tente novamente.');
+        }
     };
 
     if (captured) {
@@ -290,7 +293,7 @@ const CameraCapture: React.FC<{
             <canvas ref={canvasRef} className="hidden" />
             {streaming ? (
                 <>
-                    <div className="rounded-xl overflow-hidden border-2 border-primary/40 bg-black relative w-full" style={{ aspectRatio: '16 / 9' }}>
+                    <div className="rounded-xl overflow-hidden border-2 border-primary/40 bg-black relative w-full min-h-80">
                         <video
                             ref={videoRef}
                             className="w-full h-full object-cover block"

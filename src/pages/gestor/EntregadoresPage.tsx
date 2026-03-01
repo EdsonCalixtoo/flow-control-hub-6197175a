@@ -167,91 +167,57 @@ const CameraCapture: React.FC<{
     const startCamera = useCallback(async () => {
         setError(null);
         setLoading(true);
+        console.log('[CameraCapture] 🎥 Iniciando câmera...');
         
         try {
-            console.log('[CameraCapture] 🎥 Solicitando acesso à câmera...');
+            // Constraint bem simples - funciona em tudo
+            console.log('[CameraCapture] 📋 Solicitando getUserMedia...');
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: 'user' }
+            });
             
-            // Tenta diferentes constraints para suportar diversos dispositivos
-            const constraintsList = [
-                // Desktop com HD
-                { video: { facingMode: 'user', width: { ideal: 1280, min: 640 }, height: { ideal: 720, min: 480 }, aspectRatio: { ideal: 16 / 9 } } },
-                // Mobile com resolução média
-                { video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } },
-                // Fallback mínimo
-                { video: { facingMode: 'user' } },
-            ];
-            
-            let stream: MediaStream | null = null;
-            let lastError: any = null;
-            
-            for (const constraint of constraintsList) {
-                try {
-                    console.log('[CameraCapture] 📋 Tentando constraint');
-                    stream = await navigator.mediaDevices.getUserMedia(constraint);
-                    console.log('[CameraCapture] ✅ Constraint funcionou!');
-                    break;
-                } catch (err) {
-                    lastError = err;
-                    console.warn('[CameraCapture] ⚠️ Constraint falhou, tentando próximo');
-                }
-            }
-            
-            if (!stream) {
-                throw lastError || new Error('Nenhum constraint funcionou');
-            }
+            console.log('[CameraCapture] ✅ Stream obtido! Tracks:', stream.getTracks().length);
             
             if (!videoRef.current) {
-                console.error('[CameraCapture] ❌ Video ref not available');
+                console.error('[CameraCapture] ❌ Sem videoRef');
                 stream.getTracks().forEach(t => t.stop());
                 setLoading(false);
+                setError('Erro interno: video ref não disponível');
                 return;
             }
             
             streamRef.current = stream;
-            console.log('[CameraCapture] 📹 Stream obtido com sucesso');
-            
+            console.log('[CameraCapture] 📹 Atribuindo stream ao video...');
             videoRef.current.srcObject = stream;
-            console.log('[CameraCapture] ▶️ Stream atribuído');
             
-            const playPromise = videoRef.current.play();
-            if (playPromise !== undefined) {
-                playPromise
-                    .then(() => {
-                        console.log('[CameraCapture] ✅ Play iniciado');
-                        setStreaming(true);
-                        setLoading(false);
-                    })
-                    .catch((err: any) => {
-                        console.warn('[CameraCapture] ⚠️ Play falhou:', err?.message);
-                        setStreaming(true);
-                        setLoading(false);
-                    });
-            } else {
-                setStreaming(true);
-                setLoading(false);
-            }
+            // Apenas marcar como streaming - deixar autoplay/muted do HTML fazer o trabalho
+            console.log('[CameraCapture] 🎬 Ativando streaming...');
+            setStreaming(true);
+            setLoading(false);
+            console.log('[CameraCapture] ✅ Câmera ativa com sucesso!');
+            
         } catch (err: any) {
-            console.error('[CameraCapture] ❌ Erro ao acessar câmera:', err);
-            const code = err?.name || err?.code || 'UNKNOWN';
+            console.error('[CameraCapture] ❌ Erro completo:', JSON.stringify(err));
+            console.error('[CameraCapture] Name:', err?.name);
+            console.error('[CameraCapture] Message:', err?.message);
+            console.error('[CameraCapture] Code:', err?.code);
+            
+            setLoading(false);
+            
+            const code = err?.name || err?.code || (err?.message?.includes('permission') ? 'NotAllowedError' : 'UNKNOWN');
             let message = 'Não foi possível acessar a câmera.';
             
-            if (code === 'NotAllowedError') {
+            if (code === 'NotAllowedError' || err?.message?.includes('permission')) {
                 message = '❌ Permissão negada! Acesse Configurações → Câmera → Permitir acesso.';
-            } else if (code === 'NotFoundError') {
-                message = '❌ Câmera não encontrada. Verifique se o dispositivo possui câmera.';
+            } else if (code === 'NotFoundError' || err?.message?.includes('no device')) {
+                message = '❌ Câmera não encontrada no dispositivo.';
             } else if (code === 'NotReadableError') {
-                message = '❌ Câmera está em uso por outro app. Feche outros apps e tente novamente.';
-            } else if (code === 'timeout' || code === 'TimeoutError') {
-                message = '❌ Timeout ao acessar câmera. Tente novamente.';
-            } else if (code === 'AbortError') {
-                message = '❌ Abortado. Tente novamente.';
+                message = '❌ Câmera em uso por outro app. Feche e tente novamente.';
             } else {
-                message = `❌ Erro: ${code}. Verifique permissões e tente novamente.`;
+                message = `❌ Erro: ${code}. Tente novamente.`;
             }
             
             setError(message);
-            setLoading(false);
-            stopCamera();
         }
     }, []);
 
@@ -268,36 +234,43 @@ const CameraCapture: React.FC<{
     const takePhoto = () => {
         const video = videoRef.current;
         const canvas = canvasRef.current;
+        
+        console.log('[CameraCapture] 📸 Tentando capturar foto...');
+        console.log('[CameraCapture] Video ref:', !!video);
+        console.log('[CameraCapture] Canvas ref:', !!canvas);
+        console.log('[CameraCapture] Video ready state:', video?.readyState);
+        console.log('[CameraCapture] Video dimensions:', video?.videoWidth, 'x', video?.videoHeight);
+        
         if (!video || !canvas) {
-            console.error('[CameraCapture] ❌ Video ou canvas não disponível');
-            return;
-        }
-        
-        console.log('[CameraCapture] 📸 Capturando foto... videoWidth:', video.videoWidth, 'videoHeight:', video.videoHeight);
-        
-        if (video.videoWidth === 0 || video.videoHeight === 0) {
-            console.error('[CameraCapture] ❌ Vídeo não tem dimensões ainda');
-            setError('Câmera ainda está carregando. Tente novamente em alguns segundos.');
-            return;
-        }
-        
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-            console.error('[CameraCapture] ❌ Não conseguiu obter contexto 2D');
+            console.error('[CameraCapture] ❌ Refs não disponíveis');
+            setError('Erro interno: refs não disponíveis');
             return;
         }
         
         try {
-            ctx.drawImage(video, 0, 0);
+            // Usar dimensões do video, ou fallback para 640x480
+            const w = video.videoWidth || 640;
+            const h = video.videoHeight || 480;
+            
+            console.log('[CameraCapture] Usando dimensões:', w, 'x', h);
+            
+            canvas.width = w;
+            canvas.height = h;
+            
+            const ctx = canvas.getContext('2d');
+            if (!ctx) {
+                throw new Error('Não conseguiu contexto 2D');
+            }
+            
+            ctx.drawImage(video, 0, 0, w, h);
             const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-            console.log('[CameraCapture] ✅ Foto capturada com sucesso');
+            
+            console.log('[CameraCapture] ✅ Foto capturada! Size:', dataUrl.length, 'bytes');
             stopCamera();
             onCapture(dataUrl);
-        } catch (err) {
-            console.error('[CameraCapture] ❌ Erro ao capturar foto:', err);
-            setError('Erro ao capturar foto. Tente novamente.');
+        } catch (err: any) {
+            console.error('[CameraCapture] ❌ Erro ao capturar:', err?.message);
+            setError(`Erro ao capturar: ${err?.message || 'desconhecido'}`);
         }
     };
 

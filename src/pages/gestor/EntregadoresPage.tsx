@@ -169,30 +169,60 @@ const CameraCapture: React.FC<{
         setLoading(true);
         console.log('[CameraCapture] 🎥 Iniciando câmera...');
         
+        // VERIFICAÇÃO: videoRef deve estar disponível ANTES
+        if (!videoRef.current) {
+            console.error('[CameraCapture] ❌ videoRef.current é null ANTES de getUserMedia!');
+            setLoading(false);
+            setError('Erro: video element não pronto');
+            return;
+        }
+        console.log('[CameraCapture] ✅ videoRef.current existe');
+        
         try {
-            // Constraint bem simples - funciona em tudo
             console.log('[CameraCapture] 📋 Solicitando getUserMedia...');
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: 'user' }
             });
             
-            console.log('[CameraCapture] ✅ Stream obtido! Tracks:', stream.getTracks().length);
+            const tracks = stream.getTracks();
+            console.log('[CameraCapture] ✅ Stream obtido! Tracks:', tracks.length);
+            if (tracks.length === 0) {
+                throw new Error('Stream obtido mas sem video tracks');
+            }
             
+            console.log('[CameraCapture] 🎬 Primeiro: setar streaming = true...');
+            setStreaming(true);
+            
+            // IMPORTANTE: Aguardar render do video no DOM
+            await new Promise(r => setTimeout(r, 100));
+            
+            console.log('[CameraCapture] 📹 Agora atribuindo stream ao video...');
+            
+            // VERIFICAÇÃO final
             if (!videoRef.current) {
-                console.error('[CameraCapture] ❌ Sem videoRef');
+                console.error('[CameraCapture] ❌ videoRef desapareceu após setStreaming!');
                 stream.getTracks().forEach(t => t.stop());
+                setError('Erro: video element desapareceu');
+                setStreaming(false);
                 setLoading(false);
-                setError('Erro interno: video ref não disponível');
                 return;
             }
             
             streamRef.current = stream;
-            console.log('[CameraCapture] 📹 Atribuindo stream ao video...');
             videoRef.current.srcObject = stream;
+            console.log('[CameraCapture] ✅ srcObject atribuído');
             
-            // Apenas marcar como streaming - deixar autoplay/muted do HTML fazer o trabalho
-            console.log('[CameraCapture] 🎬 Ativando streaming...');
-            setStreaming(true);
+            // Tentar play manualmente em casos especiais
+            try {
+                const playPromise = videoRef.current.play();
+                if (playPromise !== undefined) {
+                    await playPromise;
+                    console.log('[CameraCapture] ✅ play() sucesso');
+                }
+            } catch (playErr: any) {
+                console.warn('[CameraCapture] ⚠️ play() falhou mas continuando:', playErr?.message);
+            }
+            
             setLoading(false);
             console.log('[CameraCapture] ✅ Câmera ativa com sucesso!');
             
@@ -203,6 +233,7 @@ const CameraCapture: React.FC<{
             console.error('[CameraCapture] Code:', err?.code);
             
             setLoading(false);
+            setStreaming(false);
             
             const code = err?.name || err?.code || (err?.message?.includes('permission') ? 'NotAllowedError' : 'UNKNOWN');
             let message = 'Não foi possível acessar a câmera.';
@@ -299,33 +330,28 @@ const CameraCapture: React.FC<{
             )}
             <canvas ref={canvasRef} className="hidden" />
             
-            {/* Container com video e overlay - video sempre disponível para ref */}
-            {streaming ? (
-                <div className="relative w-full min-h-80 rounded-xl overflow-hidden border-2 border-primary/40 bg-black">
-                    <video
-                        ref={videoRef}
-                        className="w-full h-full object-cover block"
-                        playsInline
-                        autoPlay
-                        muted
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            {/* VIDEO SEMPRE NO DOM - nunca renderizado condicionalmente */}
+            <video
+                ref={videoRef}
+                className={`w-full rounded-xl block ${streaming ? 'min-h-80 border-2 border-primary/40' : 'h-0 hidden'}`}
+                playsInline
+                autoPlay
+                muted
+            />
+            
+            {/* Overlay apenas quando streaming ativo */}
+            {streaming && (
+                <div className="relative w-full -mt-80 min-h-80 rounded-xl overflow-hidden pointer-events-none">
+                    <div className="absolute inset-0 flex items-center justify-center">
                         <div className="w-48 h-48 border-3 border-yellow-400/70 rounded-full shadow-lg" />
                         <p className="absolute bottom-4 left-0 right-0 text-center text-white text-xs font-semibold bg-black/50 py-2">
                             Posicione seu rosto dentro do círculo
                         </p>
                     </div>
                 </div>
-            ) : (
-                <video
-                    ref={videoRef}
-                    className="hidden"
-                    playsInline
-                    autoPlay
-                    muted
-                />
             )}
             
+            {/* Botões quando streaming */}
             {streaming && (
                 <div className="flex gap-2">
                     <button onClick={takePhoto} className="btn-primary flex-1 justify-center text-sm">
@@ -337,6 +363,7 @@ const CameraCapture: React.FC<{
                 </div>
             )}
             
+            {/* Botão abrir câmera quando não streaming */}
             {!streaming && (
                 <div className="space-y-2">
                     {loading && (

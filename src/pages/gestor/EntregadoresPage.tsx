@@ -160,44 +160,75 @@ const CameraCapture: React.FC<{
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [streaming, setStreaming] = useState(false);
+    const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
 
     const startCamera = useCallback(async () => {
         setError(null);
+        setLoading(true);
+        
         try {
             console.log('[CameraCapture] 🎥 Solicitando acesso à câmera...');
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    facingMode: 'user',
-                    width: { ideal: 1280, min: 640 },
-                    height: { ideal: 720, min: 480 },
-                    aspectRatio: { ideal: 16 / 9 }
-                },
-            });
+            
+            // Tenta diferentes constraints para suportar diversos dispositivos
+            const constraintsList = [
+                // Desktop com HD
+                { video: { facingMode: 'user', width: { ideal: 1280, min: 640 }, height: { ideal: 720, min: 480 }, aspectRatio: { ideal: 16 / 9 } } },
+                // Mobile com resolução média
+                { video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } } },
+                // Fallback mínimo
+                { video: { facingMode: 'user' } },
+            ];
+            
+            let stream: MediaStream | null = null;
+            let lastError: any = null;
+            
+            for (const constraint of constraintsList) {
+                try {
+                    console.log('[CameraCapture] 📋 Tentando constraint');
+                    stream = await navigator.mediaDevices.getUserMedia(constraint);
+                    console.log('[CameraCapture] ✅ Constraint funcionou!');
+                    break;
+                } catch (err) {
+                    lastError = err;
+                    console.warn('[CameraCapture] ⚠️ Constraint falhou, tentando próximo');
+                }
+            }
+            
+            if (!stream) {
+                throw lastError || new Error('Nenhum constraint funcionou');
+            }
             
             if (!videoRef.current) {
                 console.error('[CameraCapture] ❌ Video ref not available');
                 stream.getTracks().forEach(t => t.stop());
+                setLoading(false);
                 return;
             }
             
             streamRef.current = stream;
             console.log('[CameraCapture] 📹 Stream obtido com sucesso');
             
-            // Atribui stream direto (sem promises complexas)
             videoRef.current.srcObject = stream;
-            console.log('[CameraCapture] ▶️ Iniciando reprodução de vídeo...');
+            console.log('[CameraCapture] ▶️ Stream atribuído');
             
-            // Força play imediatamente
-            try {
-                await videoRef.current.play();
-                console.log('[CameraCapture] ✅ Câmera ativada com sucesso!');
+            const playPromise = videoRef.current.play();
+            if (playPromise !== undefined) {
+                playPromise
+                    .then(() => {
+                        console.log('[CameraCapture] ✅ Play iniciado');
+                        setStreaming(true);
+                        setLoading(false);
+                    })
+                    .catch((err: any) => {
+                        console.warn('[CameraCapture] ⚠️ Play falhou:', err?.message);
+                        setStreaming(true);
+                        setLoading(false);
+                    });
+            } else {
                 setStreaming(true);
-            } catch (playErr: any) {
-                console.warn('[CameraCapture] ⚠️ Play falhou, tentando autoplay:', playErr?.message);
-                // Fallback: deixar autoplay e muted fazerem o trabalho
-                setStreaming(true);
+                setLoading(false);
             }
         } catch (err: any) {
             console.error('[CameraCapture] ❌ Erro ao acessar câmera:', err);
@@ -214,9 +245,12 @@ const CameraCapture: React.FC<{
                 message = '❌ Timeout ao acessar câmera. Tente novamente.';
             } else if (code === 'AbortError') {
                 message = '❌ Abortado. Tente novamente.';
+            } else {
+                message = `❌ Erro: ${code}. Verifique permissões e tente novamente.`;
             }
             
             setError(message);
+            setLoading(false);
             stopCamera();
         }
     }, []);
@@ -318,10 +352,27 @@ const CameraCapture: React.FC<{
                     </div>
                 </>
             ) : (
-                <button onClick={startCamera} className="btn-modern bg-primary/10 text-primary shadow-none w-full justify-center py-4 hover:bg-primary/20 border border-primary/30">
-                    <Camera className="w-5 h-5" />
-                    <span className="ml-2 font-semibold">Abrir Câmera e Tirar Foto</span>
-                </button>
+                <div className="space-y-2">
+                    {loading && (
+                        <div className="p-4 rounded-lg bg-primary/10 border border-primary/20 text-center">
+                            <p className="text-sm font-semibold text-primary">⏳ Aguarde... solicitando acesso à câmera</p>
+                            <p className="text-xs text-muted-foreground mt-1">Caso apareça permissão, clique em Permitir</p>
+                        </div>
+                    )}
+                    <button onClick={startCamera} disabled={loading} className="btn-modern bg-primary/10 text-primary shadow-none w-full justify-center py-4 hover:bg-primary/20 border border-primary/30 disabled:opacity-50 disabled:cursor-not-allowed">
+                        {loading ? (
+                            <>
+                                <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                                <span className="ml-2 font-semibold">Abrindo câmera...</span>
+                            </>
+                        ) : (
+                            <>
+                                <Camera className="w-5 h-5" />
+                                <span className="ml-2 font-semibold">Abrir Câmera e Tirar Foto</span>
+                            </>
+                        )}
+                    </button>
+                </div>
             )}
         </div>
     );
@@ -336,21 +387,30 @@ const EntregadoresPage: React.FC = () => {
 
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [confirmingId, setConfirmingId] = useState<string | null>(null);
-    const [confirmingBatchMode, setConfirmingBatchMode] = useState(false); // Novo: modo lote
-    const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set()); // Novo: grupos selecionados
+    const [confirmingBatchMode, setConfirmingBatchMode] = useState(false);
+    const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
     const [delivererName, setDelivererName] = useState('');
     const [photo, setPhoto] = useState<string | null>(null);
     const [signature, setSignature] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [success, setSuccess] = useState<string | null>(null);
     const [filterStatus, setFilterStatus] = useState<'pendente' | 'retirado' | 'todos'>('pendente');
+    const [loadingInitial, setLoadingInitial] = useState(true);
 
     // Sincroniza data ao montar - resolve "entregadores precisa atualizar página para ver pedidos"
     useEffect(() => {
-        console.log('[EntregadoresPage] 🔄 Página carregada, aguardando Realtime subscription...');
+        console.log('[EntregadoresPage] 🔄 Página carregada - iniciando sincronização Realtime');
+        console.log('[EntregadoresPage] 📦 Pedidos atuais:', barcodeScans.length);
+        
         // A sincronização automática acontece via Realtime subscription no ERPContext
-        // Os pedidos scaneados aparecerão assim que o componente montar
-    }, []);
+        // Marcar como carregado após 500ms (tempo para Realtime primário conectar)
+        const timer = setTimeout(() => {
+            console.log('[EntregadoresPage] ✅ Sincronização inicial completa');
+            setLoadingInitial(false);
+        }, 500);
+        
+        return () => clearTimeout(timer);
+    }, [barcodeScans.length]);
 
     // Group barcode scans by order
     const groups: OrderGroup[] = React.useMemo(() => {

@@ -298,33 +298,46 @@ const CameraCapture: React.FC<{
                 </div>
             )}
             <canvas ref={canvasRef} className="hidden" />
+            
+            {/* Container com video e overlay - video sempre disponível para ref */}
             {streaming ? (
-                <>
-                    <div className="rounded-xl overflow-hidden border-2 border-primary/40 bg-black relative w-full min-h-80">
-                        <video
-                            ref={videoRef}
-                            className="w-full h-full object-cover block"
-                            playsInline
-                            autoPlay
-                            muted
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <div className="w-48 h-48 border-3 border-yellow-400/70 rounded-full shadow-lg" />
-                            <p className="absolute bottom-4 left-0 right-0 text-center text-white text-xs font-semibold bg-black/50 py-2">
-                                Posicione seu rosto dentro do círculo
-                            </p>
-                        </div>
+                <div className="relative w-full min-h-80 rounded-xl overflow-hidden border-2 border-primary/40 bg-black">
+                    <video
+                        ref={videoRef}
+                        className="w-full h-full object-cover block"
+                        playsInline
+                        autoPlay
+                        muted
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="w-48 h-48 border-3 border-yellow-400/70 rounded-full shadow-lg" />
+                        <p className="absolute bottom-4 left-0 right-0 text-center text-white text-xs font-semibold bg-black/50 py-2">
+                            Posicione seu rosto dentro do círculo
+                        </p>
                     </div>
-                    <div className="flex gap-2">
-                        <button onClick={takePhoto} className="btn-primary flex-1 justify-center text-sm">
-                            <Camera className="w-4 h-4" /> Capturar Foto
-                        </button>
-                        <button onClick={stopCamera} className="btn-modern bg-muted text-foreground shadow-none text-sm">
-                            <X className="w-4 h-4" />
-                        </button>
-                    </div>
-                </>
+                </div>
             ) : (
+                <video
+                    ref={videoRef}
+                    className="hidden"
+                    playsInline
+                    autoPlay
+                    muted
+                />
+            )}
+            
+            {streaming && (
+                <div className="flex gap-2">
+                    <button onClick={takePhoto} className="btn-primary flex-1 justify-center text-sm">
+                        <Camera className="w-4 h-4" /> Capturar Foto
+                    </button>
+                    <button onClick={stopCamera} className="btn-modern bg-muted text-foreground shadow-none text-sm">
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+            )}
+            
+            {!streaming && (
                 <div className="space-y-2">
                     {loading && (
                         <div className="p-4 rounded-lg bg-primary/10 border border-primary/20 text-center">

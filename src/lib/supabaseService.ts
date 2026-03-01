@@ -686,15 +686,22 @@ export async function fetchDeliveryPickups(): Promise<any[]> {
     }));
 }
 
-export async function createDeliveryPickup(pickup: { orderId: string; orderNumber: string; deliveryPersonId: string; deliveryPersonName: string; notes?: string }): Promise<void> {
+export async function createDeliveryPickup(pickup: { orderId: string; orderNumber: string; delivererName: string; photoUrl: string; signatureUrl: string }): Promise<void> {
+    console.log('[supabaseService] 💾 Salvando delivery pickup com foto e assinatura...');
     const { error } = await supabase.from('delivery_pickups').insert({
         order_id: pickup.orderId,
         order_number: pickup.orderNumber,
-        delivery_person_id: pickup.deliveryPersonId,
-        delivery_person_name: pickup.deliveryPersonName,
-        notes: pickup.notes ?? null,
+        deliverer_name: pickup.delivererName,
+        photo_url: pickup.photoUrl,
+        signature_url: pickup.signatureUrl,
+        picked_up_at: new Date().toISOString(),
     });
-    if (error) { logError('createDeliveryPickup', error); throw error; }
+    if (error) { 
+        console.error('[supabaseService] ❌ Erro ao salvar pickup:', error);
+        logError('createDeliveryPickup', error); 
+        throw error; 
+    }
+    console.log('[supabaseService] ✅ Pickup salvo com sucesso no Supabase!');
 }
 
 // ─────────────────────────────────────────────────────────────

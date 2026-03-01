@@ -519,22 +519,24 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       pickedUpAt: new Date().toISOString(),
     };
     setDeliveryPickups(prev => [newPickup, ...prev]);
-    console.log('[ERP] Retirada de entregador registrada:', newPickup.orderNumber);
+    console.log('[ERP] 📦 Retirada de entregador registrada localmente:', newPickup.orderNumber);
     
-    // Salva no banco de dados e retorna a promise
+    // Salva no banco de dados com foto e assinatura
     return createDeliveryPickup({
       orderId: pickup.orderId,
       orderNumber: pickup.orderNumber,
-      deliveryPersonId: pickup.deliveryPersonId,
-      deliveryPersonName: pickup.deliveryPersonName,
-      notes: pickup.notes,
+      delivererName: pickup.delivererName,
+      photoUrl: pickup.photoUrl,
+      signatureUrl: pickup.signatureUrl,
     }).then(() => {
-      console.log('[ERP] ✅ Pickup salvo no Supabase');
+      console.log('[ERP] ✅ Pickup salvo com sucesso no Supabase');
     }).catch(err => {
       console.error('[ERP] ❌ Erro ao salvar pickup no banco:', err?.message ?? err);
+      // Remove do estado local se falhar
+      setDeliveryPickups(prev => prev.filter(p => p.id !== newPickup.id));
       throw err;
     });
-  }, [setDeliveryPickups]);
+  }, []);
 
   // ── CLEAR ALL ────────────────────────────────────────────────
   const clearAll = useCallback(async () => {

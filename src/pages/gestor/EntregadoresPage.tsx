@@ -330,25 +330,31 @@ const CameraCapture: React.FC<{
             )}
             <canvas ref={canvasRef} className="hidden" />
             
-            {/* VIDEO SEMPRE NO DOM - nunca renderizado condicionalmente */}
-            <video
-                ref={videoRef}
-                className={`w-full rounded-xl block ${streaming ? 'min-h-80 border-2 border-primary/40' : 'h-0 hidden'}`}
-                playsInline
-                autoPlay
-                muted
-            />
-            
-            {/* Overlay apenas quando streaming ativo */}
-            {streaming && (
-                <div className="relative w-full -mt-80 min-h-80 rounded-xl overflow-hidden pointer-events-none">
-                    <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-48 h-48 border-3 border-yellow-400/70 rounded-full shadow-lg" />
-                        <p className="absolute bottom-4 left-0 right-0 text-center text-white text-xs font-semibold bg-black/50 py-2">
+            {/* Container com video - sempre responsivo */}
+            {streaming ? (
+                <div className="relative w-full bg-black rounded-xl overflow-hidden border-2 border-primary/40 aspect-video flex items-stretch">
+                    <video
+                        ref={videoRef}
+                        className="w-full h-full object-cover"
+                        playsInline
+                        autoPlay
+                        muted
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 border-3 border-yellow-400/70 rounded-full shadow-lg" />
+                        <p className="absolute bottom-4 left-0 right-0 text-center text-white text-xs sm:text-sm font-semibold bg-black/50 py-2 px-2">
                             Posicione seu rosto dentro do círculo
                         </p>
                     </div>
                 </div>
+            ) : (
+                <video
+                    ref={videoRef}
+                    className="hidden"
+                    playsInline
+                    autoPlay
+                    muted
+                />
             )}
             
             {/* Botões quando streaming */}
@@ -401,7 +407,7 @@ const EntregadoresPage: React.FC = () => {
     const [expandedId, setExpandedId] = useState<string | null>(null);
     const [confirmingId, setConfirmingId] = useState<string | null>(null);
     const [confirmingBatchMode, setConfirmingBatchMode] = useState(false);
-    const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set());
+    const [selectedGroupIds, setSelectedGroupIds] = useState<Map<string, boolean>>(new Map());
     const [delivererName, setDelivererName] = useState('');
     const [photo, setPhoto] = useState<string | null>(null);
     const [signature, setSignature] = useState<string | null>(null);
@@ -480,8 +486,9 @@ const EntregadoresPage: React.FC = () => {
         setSubmitting(true);
         try {
             console.log(`[EntregadoresPage] 🔄 Confirmando pedido ${group.orderNumber}...`);
+            console.log(`[EntregadoresPage] 📸 Com foto (${photo!.length} bytes) e assinatura (${signature!.length} bytes)`);
             
-            // Aguarda o pickup ser salvo
+            // Aguarda o pickup ser salvo com foto e assinatura
             await addDeliveryPickup({
                 orderId: group.orderId,
                 orderNumber: group.orderNumber,
@@ -489,6 +496,8 @@ const EntregadoresPage: React.FC = () => {
                 photoUrl: photo!,
                 signatureUrl: signature!,
             });
+            
+            console.log(`[EntregadoresPage] ✅ Pickup salvo no banco`);
             
             // Aguarda status ser atualizado
             await updateOrderStatus(
@@ -499,7 +508,7 @@ const EntregadoresPage: React.FC = () => {
                 `Retirado pelo entregador: ${delivererName.trim()}`
             );
             
-            console.log(`[EntregadoresPage] ✅ ${group.orderNumber} confirmado com sucesso`);
+            console.log(`[EntregadoresPage] ✅ ${group.orderNumber} confirmado com sucesso!`);
             
             setSuccess(group.orderNumber);
             setConfirmingId(null);
@@ -508,7 +517,7 @@ const EntregadoresPage: React.FC = () => {
             setSignature(null);
             setTimeout(() => setSuccess(null), 4000);
         } catch (err: any) {
-            console.error('[EntregadoresPage] ❌ Erro ao confirmar pedido:', err);
+            console.error('[EntregadoresPage] ❌ Erro ao confirmar pedido:', err?.message ?? err);
             setSuccess(null);
         } finally {
             setSubmitting(false);
@@ -517,18 +526,21 @@ const EntregadoresPage: React.FC = () => {
 
     // Novo: Confirma múltiplos grupos em lote
     const handleBatchConfirm = async () => {
-        if (!canConfirm || submitting || selectedGroupIds.size === 0) return;
+        const selectedCount = Array.from(selectedGroupIds.values()).filter(v => v).length;
+        if (!canConfirm || submitting || selectedCount === 0) return;
         setSubmitting(true);
         try {
-            const selectedGroups = filtered.filter(g => selectedGroupIds.has(g.orderId));
+            const selectedGroups = filtered.filter(g => selectedGroupIds.get(g.orderId));
             const orderNumbers: string[] = [];
             
-            console.log(`[EntregadoresPage] 🔄 Confirmando lote de ${selectedGroups.length} pedidos...`);
+            console.log(`[EntregadoresPage] 🔄 Confirmando lote de ${selectedCount} pedidos...`);
             
             // Confirma cada pedido e aguarda
             for (const group of selectedGroups) {
                 try {
-                    // Aguarda o pickup ser salvo
+                    console.log(`[EntregadoresPage] 📦 Processando ${group.orderNumber}...`);
+                    
+                    // Aguarda o pickup ser salvo com foto e assinatura
                     await addDeliveryPickup({
                         orderId: group.orderId,
                         orderNumber: group.orderNumber,
@@ -558,7 +570,7 @@ const EntregadoresPage: React.FC = () => {
             
             setSuccess(`${orderNumbers.length} lote(s) - ${orderNumbers.join(', ')}`);
             setConfirmingBatchMode(false);
-            setSelectedGroupIds(new Set());
+            setSelectedGroupIds(new Map());
             setDelivererName('');
             setPhoto(null);
             setSignature(null);
@@ -614,7 +626,7 @@ const EntregadoresPage: React.FC = () => {
                     <button
                         onClick={() => {
                             setConfirmingBatchMode(!confirmingBatchMode);
-                            setSelectedGroupIds(new Set());
+                            setSelectedGroupIds(new Map());
                             setConfirmingId(null);
                         }}
                         className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 ${
@@ -624,7 +636,7 @@ const EntregadoresPage: React.FC = () => {
                         }`}
                     >
                         <ClipboardList className="w-4 h-4" />
-                        {confirmingBatchMode ? `Modo Lote Ativo (${selectedGroupIds.size} selecionados)` : 'Modo Lote (Confirmar Lotes)'}
+                        {confirmingBatchMode ? `Modo Lote Ativo (${Array.from(selectedGroupIds.values()).filter(v => v).length} selecionados)` : 'Modo Lote (Confirmar Lotes)'}
                     </button>
                 )}
 
@@ -647,7 +659,7 @@ const EntregadoresPage: React.FC = () => {
             </div>
 
             {/* Batch confirmation panel */}
-            {confirmingBatchMode && selectedGroupIds.size > 0 && (
+            {confirmingBatchMode && Array.from(selectedGroupIds.values()).filter(v => v).length > 0 && (
                 <div className="card-section p-6 border-primary/30 bg-primary/5 space-y-5 sticky top-4 z-20">
                     <div className="flex items-center justify-between gap-3 flex-wrap">
                         <div className="flex items-center gap-3">
@@ -656,11 +668,11 @@ const EntregadoresPage: React.FC = () => {
                             </div>
                             <div>
                                 <p className="font-bold text-foreground">Confirmar Lote</p>
-                                <p className="text-xs text-muted-foreground">{selectedGroupIds.size} pedido(s) selecionado(s)</p>
+                                <p className="text-xs text-muted-foreground">{Array.from(selectedGroupIds.values()).filter(v => v).length} pedido(s) selecionado(s)</p>
                             </div>
                         </div>
                         <button
-                            onClick={() => { setConfirmingBatchMode(false); setSelectedGroupIds(new Set()); }}
+                            onClick={() => { setConfirmingBatchMode(false); setSelectedGroupIds(new Map()); }}
                             className="btn-modern bg-muted text-foreground shadow-none px-3"
                         >
                             <X className="w-4 h-4" />
@@ -724,10 +736,10 @@ const EntregadoresPage: React.FC = () => {
                             className="btn-modern flex-1 justify-center py-3 text-sm font-bold bg-gradient-to-r from-success to-success/80 text-success-foreground disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                             <CheckCircle className="w-5 h-5" />
-                            {submitting ? 'Confirmando Lote...' : `Confirmar ${selectedGroupIds.size} Pedido(s)`}
+                            {submitting ? 'Confirmando Lote...' : `Confirmar ${Array.from(selectedGroupIds.values()).filter(v => v).length} Pedido(s)`}
                         </button>
                         <button
-                            onClick={() => { setConfirmingBatchMode(false); setSelectedGroupIds(new Set()); setPhoto(null); setSignature(null); setDelivererName(''); }}
+                            onClick={() => { setConfirmingBatchMode(false); setSelectedGroupIds(new Map()); setPhoto(null); setSignature(null); setDelivererName(''); }}
                             className="btn-modern bg-muted text-foreground shadow-none px-4"
                         >
                             <X className="w-4 h-4" />
@@ -833,15 +845,11 @@ const EntregadoresPage: React.FC = () => {
                                                 <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 cursor-pointer hover:bg-primary/20 transition-colors border border-primary/30">
                                                     <input
                                                         type="checkbox"
-                                                        checked={selectedGroupIds.has(group.orderId)}
+                                                        checked={selectedGroupIds.get(group.orderId) || false}
                                                         onChange={(e) => {
-                                                            const newSet = new Set(selectedGroupIds);
-                                                            if (e.target.checked) {
-                                                                newSet.add(group.orderId);
-                                                            } else {
-                                                                newSet.delete(group.orderId);
-                                                            }
-                                                            setSelectedGroupIds(newSet);
+                                                            const newMap = new Map(selectedGroupIds);
+                                                            newMap.set(group.orderId, e.target.checked);
+                                                            setSelectedGroupIds(newMap);
                                                         }}
                                                         className="w-4 h-4 cursor-pointer"
                                                     />

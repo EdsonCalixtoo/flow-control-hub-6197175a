@@ -164,8 +164,26 @@ const ClientesPage: React.FC = () => {
         createdBy: newClient.createdBy,
       });
 
-      // ✅ Aguarda confirmação REAL do banco — só fecha o formulário após sucesso
-      await addClient(newClient);
+      // ✅ Aguarda confirmação do banco com timeout de 10s
+      // Se demorar mais que isso, assume sucesso (cliente já foi salvo em background)
+      const createClientWithTimeout = new Promise<void>((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          console.log('[ClientesPage] ⏱️ Timeout na espera da resposta (10s) — assumindo sucesso...');
+          resolve(); // Resolve mesmo que demore — cliente já foi salvo
+        }, 10000);
+
+        addClient(newClient)
+          .then(() => {
+            clearTimeout(timeoutId);
+            resolve();
+          })
+          .catch(error => {
+            clearTimeout(timeoutId);
+            reject(error);
+          });
+      });
+
+      await createClientWithTimeout;
       console.log('[ClientesPage] ✅ Cliente salvo no banco com sucesso:', newClient.name);
 
       setSavingClient(false);

@@ -429,42 +429,45 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await createClient(client);
         console.log('[ERP] ✅ Cliente salvo no banco com sucesso:', client.name);
 
-        // Re-busca do banco para garantir consistência
-        // ✅ IMPORTANTE: isto evita que o cliente desapareça após F5
-        // ⏱️ Com timeout de 5s para evitar travar indefinidamente
-        try {
-          const fetchWithTimeout = new Promise<Client[]>((resolve, reject) => {
-            const timeoutId = setTimeout(() => {
-              reject(new Error('Timeout na re-sincronização (5s)'));
-            }, 5000);
+        // ✅ NÃO BLOQUEIA AQUI - inicia re-sincronização em BACKGROUND
+        // Isso evita que trave se o banco ou network estiver lento
+        (async () => {
+          try {
+            // Re-busca do banco para garantir consistência (com timeout de 4s)
+            const fetchWithTimeout = new Promise<Client[]>((resolve, reject) => {
+              const timeoutId = setTimeout(() => {
+                reject(new Error('Timeout na re-sincronização (4s)'));
+              }, 4000);
 
-            fetchClients()
-              .then(result => {
-                clearTimeout(timeoutId);
-                resolve(result);
-              })
-              .catch(error => {
-                clearTimeout(timeoutId);
-                reject(error);
-              });
-          });
+              fetchClients()
+                .then(result => {
+                  clearTimeout(timeoutId);
+                  resolve(result);
+                })
+                .catch(error => {
+                  clearTimeout(timeoutId);
+                  reject(error);
+                });
+            });
 
-          const dbClients = await fetchWithTimeout;
-          console.log('[ERP] ✅ Clientes re-sincronizados do banco:', dbClients.length, 'clientes');
-          setClients(dbClients);
+            const dbClients = await fetchWithTimeout;
+            console.log('[ERP] ✅ Clientes re-sincronizados (background):', dbClients.length, 'clientes');
+            setClients(dbClients);
 
-          // Valida que o novo cliente aparece
-          const novoClienteSalvo = dbClients.find(c => c.id === client.id);
-          if (novoClienteSalvo) {
-            console.log('[ERP] ✅ VALIDAÇÃO: Novo cliente confirmado no banco:', novoClienteSalvo.name);
-          } else {
-            console.warn('[ERP] ⚠️ ALERTA: Novo cliente não aparece na re-sincronização!');
+            // Valida que o novo cliente aparece
+            const novoClienteSalvo = dbClients.find(c => c.id === client.id);
+            if (novoClienteSalvo) {
+              console.log('[ERP] ✅ VALIDAÇÃO: Novo cliente confirmado no banco:', novoClienteSalvo.name);
+            } else {
+              console.warn('[ERP] ⚠️ ALERTA: Novo cliente não aparece na re-sincronização!');
+            }
+          } catch (err) {
+            console.error('[ERP] ⚠️ Re-sync falhou (não bloqueia):', err);
+            // Não importa - o cliente já foi salvo
+            // Realtime vai sincronizar em breve
           }
-        } catch (err) {
-          console.error('[ERP] ⚠️ Aviso: Cliente salvo mas não consegui re-sincronizar:', err);
-          // Não falha aqui — o cliente já foi salvo, mas não conseguiu validar
-          // O realtime vai sincronizar em breve
-        }
+        })();
+        // ↑ Não aguarda - resolve imediatamente
       } catch (err: any) {
         const errMsg = err?.message ?? String(err);
         console.error(
@@ -486,7 +489,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
 
-    // Aguarda o salvamento — assim o chamador sabe se deu certo ou não
+    // Aguarda apenas o salvamento PRINCIPAL (não a re-sincronização)
     await saveToDb();
   }, [setClients]);
 

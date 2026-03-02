@@ -77,6 +77,8 @@ END $$;
 
 -- ─── 7. RECONFIGURAR RLS PARA order_items ────────────────────
 DROP POLICY IF EXISTS "Users can see order items" ON order_items;
+DROP POLICY IF EXISTS "authenticated users see order items" ON order_items;
+DROP POLICY IF EXISTS "authenticated users manage order items" ON order_items;
 ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "authenticated users see order items" ON order_items
   FOR SELECT TO authenticated
@@ -86,8 +88,14 @@ CREATE POLICY "authenticated users manage order items" ON order_items
   FOR INSERT TO authenticated
   WITH CHECK (true);
 
+CREATE POLICY "authenticated users update order items" ON order_items
+  FOR UPDATE TO authenticated
+  USING (true) WITH CHECK (true);
+
 -- ─── 8. RECONFIGURAR RLS PARA order_status_history ────────────
 DROP POLICY IF EXISTS "Users can see order status history" ON order_status_history;
+DROP POLICY IF EXISTS "authenticated users see status history" ON order_status_history;
+DROP POLICY IF EXISTS "authenticated users add status history" ON order_status_history;
 ALTER TABLE order_status_history ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "authenticated users see status history" ON order_status_history
   FOR SELECT TO authenticated
@@ -99,6 +107,8 @@ CREATE POLICY "authenticated users add status history" ON order_status_history
 
 -- ─── 9. RECONFIGURAR RLS PARA financial_entries ────────────────
 DROP POLICY IF EXISTS "Users can see financial entries" ON financial_entries;
+DROP POLICY IF EXISTS "authenticated users see financial entries" ON financial_entries;
+DROP POLICY IF EXISTS "authenticated users create financial entries" ON financial_entries;
 ALTER TABLE financial_entries ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "authenticated users see financial entries" ON financial_entries
   FOR SELECT TO authenticated
@@ -108,19 +118,41 @@ CREATE POLICY "authenticated users create financial entries" ON financial_entrie
   FOR INSERT TO authenticated
   WITH CHECK (true);
 
+CREATE POLICY "authenticated users update financial entries" ON financial_entries
+  FOR UPDATE TO authenticated
+  USING (true) WITH CHECK (true);
+
 -- ─── 10. RECONFIGURAR RLS PARA clients ─────────────────────────
 DROP POLICY IF EXISTS "Users can see clients" ON clients;
+DROP POLICY IF EXISTS "authenticated users see clients" ON clients;
 ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "authenticated users see clients" ON clients
   FOR SELECT TO authenticated
   USING (true);
 
+CREATE POLICY "authenticated users manage clients" ON clients
+  FOR INSERT TO authenticated
+  WITH CHECK (true);
+
+CREATE POLICY "authenticated users update clients" ON clients
+  FOR UPDATE TO authenticated
+  USING (true) WITH CHECK (true);
+
 -- ─── 11. RECONFIGURAR RLS PARA products ────────────────────────
 DROP POLICY IF EXISTS "Users can see products" ON products;
+DROP POLICY IF EXISTS "authenticated users see products" ON products;
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "authenticated users see products" ON products
   FOR SELECT TO authenticated
   USING (true);
+
+CREATE POLICY "authenticated users manage products" ON products
+  FOR INSERT TO authenticated
+  WITH CHECK (true);
+
+CREATE POLICY "authenticated users update products" ON products
+  FOR UPDATE TO authenticated
+  USING (true) WITH CHECK (true);
 
 -- ─── 12. PUBLICAR TABELAS PARA REALTIME ────────────────────────
 -- Essencial: sem isso não há notificações em tempo real!

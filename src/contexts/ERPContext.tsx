@@ -265,10 +265,12 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     console.log('[ERP] ✨ Ordem criada no state local:', order.number, order.id);
     
     // Tenta salvar no banco com até 3 tentativas
-    const saveToDb = async (attempts = 0) => {
+    const saveToDb = async (attempts = 0): Promise<void> => {
       try {
+        console.log(`[ERP] 💾 Tentativa ${attempts + 1}/3 — Salvando no banco:`, order.number);
         await createOrder(order);
         console.log('[ERP] ✅ Pedido salvo no banco com sucesso:', order.number);
+        
         // Re-busca do banco para garantir consistência
         try {
           const dbOrders = await fetchOrders();
@@ -276,21 +278,52 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setOrders(dbOrders);
         } catch (err) {
           console.error('[ERP] ⚠️ Aviso: Pedido salvo mas não consegui re-sincronizar:', err);
+          // Não falha aqui — o pedido já foi salvo
         }
       } catch (err: any) {
-        console.error(`[ERP] ❌ Tentativa ${attempts + 1}/3 — ERRO ao salvar no banco:`, err?.message ?? err);
+        const errMsg = err?.message ?? String(err);
+        const errCode = err?.code ?? '';
         
-        if (attempts < 2) {
-          console.log(`[ERP] 🔄 Retrying em 2 segundos...`);
-          setTimeout(() => saveToDb(attempts + 1), 2000);
+        console.error(
+          `[ERP] ❌ Tentativa ${attempts + 1}/3 — ERRO ao salvar no banco:`,
+          `Código: ${errCode}`,
+          `Mensagem: ${errMsg}`
+        );
+        
+        const shouldRetry = attempts < 2 && (
+          errMsg.toLowerCase().includes('duplicate') ||
+          errMsg.toLowerCase().includes('unique') ||
+          errMsg.toLowerCase().includes('timeout') ||
+          errMsg.toLowerCase().includes('network') ||
+          errMsg.toLowerCase().includes('econnrefused')
+        );
+
+        if (shouldRetry) {
+          console.log(`[ERP] 🔄 Erro retentável — Retrying em 2 segundos...`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          return saveToDb(attempts + 1);
         } else {
-          console.error('[ERP] ❌ Fallou após 3 tentativas. Pedido permanece em state local.');
-          // Não remove do state — usuário verá o pedido e pode tentar novamente
+          // Erro não-retentável — remove do state e lança erro
+          console.error('[ERP] ❌ Erro não-retentável após tentativa', attempts + 1);
+          setOrders(prev => prev.filter(o => o.id !== order.id));
+          const error = new Error(`[ERP] Falha ao criar pedido: ${errMsg}`);
+          (error as any).originalError = err;
+          throw error;
         }
       }
     };
     
-    saveToDb();
+    // Executa save de forma assíncrona (sem await — permite que o frontend continuar)
+    saveToDb().catch(err => {
+      console.error('[ERP] 🚨 FALHA CRÍTICA ao salvar pedido:', err?.message ?? err);
+      // Notifica que houve erro (pode ser usado por toast/notificação futura)
+      setOrders(prev => {
+        const updated = prev.map(o => 
+          o.id === order.id ? { ...o, _saveError: err?.message } : o
+        );
+        return updated;
+      });
+    });
   }, [setOrders]);
 
   const updateOrderStatus = useCallback(async (

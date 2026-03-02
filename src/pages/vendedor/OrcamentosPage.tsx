@@ -31,6 +31,7 @@ const OrcamentosPage: React.FC = () => {
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [comprovanteAttached, setComprovanteAttached] = useState('');
   const [formError, setFormError] = useState('');
+  const [savingOrder, setSavingOrder] = useState(false);
 
   // Isolamento: vendedor vê apenas seus pedidos
   const myOrders = orders.filter(o =>
@@ -107,88 +108,181 @@ const OrcamentosPage: React.FC = () => {
   };
 
   const handleCreateOrder = async () => {
-    const client = clients.find(c => c.id === newClientId);
-    if (!client) { setFormError('Por favor, selecione um cliente.'); return; }
-    if (newItems.some(i => !i.product)) { setFormError('Por favor, selecione o produto em todos os itens.'); return; }
     setFormError('');
-
-    const subtotal = calcTotal();
-    const now = new Date().toISOString();
-
-    if (editingOrder) {
-      // Modo edição
-      const updatedOrder: Order = {
-        ...editingOrder,
-        clientId: client.id,
-        clientName: client.name,
-        items: newItems.map((item, i) => ({
-          id: editingOrder.items[i]?.id || `ni${i}`,
-          product: item.product,
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          discount: editingOrder.items[i]?.discount || 0,
-          discountType: editingOrder.items[i]?.discountType || 'percent',
-          total: item.quantity * item.unitPrice,
-          sensorType: item.sensorType,
-        })),
-        subtotal,
-        taxes: 0,
-        total: subtotal,
-        notes: newNotes,
-        observation: newObservation,
-        deliveryDate: newDeliveryDate || undefined,
-        orderType: newOrderType,
-        updatedAt: now,
-      };
-      editOrderFull(updatedOrder);
-      resetForm();
+    
+    // ────────────────────────────
+    // VALIDAÇÕES
+    // ────────────────────────────
+    const client = clients.find(c => c.id === newClientId);
+    if (!client) {
+      setFormError('⚠️ Por favor, selecione um cliente.');
       return;
     }
 
-    // Modo criação — pega número ÚNICO do servidor (evita race condition)
-    try {
-      console.log('[OrcamentosPage] 🔄 Chamando getNextOrderNumber()...');
-      const nextNumber = await getNextOrderNumber();
-      console.log('[OrcamentosPage] ✅ Número gerado:', nextNumber);
-      
-      const order: Order = {
-        id: crypto.randomUUID(),
-        number: nextNumber,
-        clientId: client.id,
-        clientName: client.name,
-        sellerId: user?.id || '1',
-        sellerName: user?.name || 'Vendedor',
-        items: newItems.map((item, i) => ({
-          id: `ni${i}`,
-          product: item.product,
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          discount: 0,
-          discountType: 'percent' as const,
-          total: item.quantity * item.unitPrice,
-          sensorType: item.sensorType,
-        })),
-        subtotal,
-        taxes: 0,
-        total: subtotal,
-        status: 'rascunho',    // ✅ SEMPRE começa como rascunho
-        notes: newNotes,
-        observation: newObservation,
-        deliveryDate: newDeliveryDate || undefined,
-        orderType: newOrderType,
-        createdAt: now,
-        updatedAt: now,
-        statusHistory: [{ status: 'rascunho', timestamp: now, user: user?.name || 'Vendedor', note: 'Orçamento criado' }],
-      };
+    if (newItems.some(i => !i.product)) {
+      setFormError('⚠️ Todos os itens devem ter um produto selecionado.');
+      return;
+    }
 
-      console.log('[OrcamentosPage] 📍 Chamando addOrder() com:', order.number, order.id);
-      addOrder(order);
-      resetForm();
+    if (newItems.some(i => !i.quantity || i.quantity <= 0)) {
+      setFormError('⚠️ Todos os itens devem ter quantidade maior que 0.');
+      return;
+    }
+
+    if (newItems.some(i => !i.unitPrice || i.unitPrice <= 0)) {
+      setFormError('⚠️ Todos os itens devem ter preço unitário maior que 0.');
+      return;
+    }
+
+    const subtotal = calcTotal();
+    if (subtotal <= 0) {
+      setFormError('⚠️ O valor total do orçamento deve ser maior que R$ 0,00.');
+      return;
+    }
+
+    const now = new Date().toISOString();
+
+    // ────────────────────────────
+    // MODO EDIÇÃO
+    // ────────────────────────────
+    if (editingOrder) {
+      try {
+        setSavingOrder(true);
+        const updatedOrder: Order = {
+          ...editingOrder,
+          clientId: client.id,
+          clientName: client.name,
+          items: newItems.map((item, i) => ({
+            id: editingOrder.items[i]?.id || `ni${i}`,
+            product: item.product,
+            description: item.description,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            discount: editingOrder.items[i]?.discount || 0,
+            discountType: editingOrder.items[i]?.discountType || 'percent',
+            total: item.quantity * item.unitPrice,
+            sensorType: item.sensorType,
+          })),
+          subtotal,
+          taxes: 0,
+          total: subtotal,
+          notes: newNotes,
+          observation: newObservation,
+          deliveryDate: newDeliveryDate || undefined,
+          orderType: newOrderType,
+          updatedAt: now,
+        };
+        
+        console.log('[OrcamentosPage] 📝 Editando orçamento:', updatedOrder.number);
+        await editOrderFull(updatedOrder);
+        setFormError('');
+        resetForm();
+      } catch (err: any) {
+        console.error('[OrcamentosPage] ❌ Erro ao editar orçamento:', err?.message ?? err);
+        setFormError(`❌ Erro ao editar orçamento: ${err?.message || 'Tente novamente'}`);
+      } finally {
+        setSavingOrder(false);
+      }
+      return;
+    }
+
+    // ────────────────────────────
+    // MODO CRIAÇÃO (com retry)
+    // ────────────────────────────
+    setSavingOrder(true);
+    const createOrderWithRetry = async (maxAttempts = 3) => {
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          console.log(`[OrcamentosPage] 🔄 TENTATIVA ${attempt}/${maxAttempts}: Gerando número do pedido...`);
+          const nextNumber = await getNextOrderNumber();
+          console.log(`[OrcamentosPage] ✅ Número gerado: ${nextNumber}`);
+
+          const order: Order = {
+            id: crypto.randomUUID(),
+            number: nextNumber,
+            clientId: client.id,
+            clientName: client.name,
+            sellerId: user?.id || '1',
+            sellerName: user?.name || 'Vendedor',
+            items: newItems.map((item, i) => ({
+              id: `ni${i}`,
+              product: item.product,
+              description: item.description,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              discount: 0,
+              discountType: 'percent' as const,
+              total: item.quantity * item.unitPrice,
+              sensorType: item.sensorType,
+            })),
+            subtotal,
+            taxes: 0,
+            total: subtotal,
+            status: 'rascunho',
+            notes: newNotes,
+            observation: newObservation,
+            deliveryDate: newDeliveryDate || undefined,
+            orderType: newOrderType,
+            createdAt: now,
+            updatedAt: now,
+            statusHistory: [{ 
+              status: 'rascunho', 
+              timestamp: now, 
+              user: user?.name || 'Vendedor', 
+              note: 'Orçamento criado' 
+            }],
+          };
+
+          console.log(`[OrcamentosPage] 📍 Salvando orçamento ${order.number} no banco...`);
+          addOrder(order);
+          
+          setFormError('');
+          resetForm();
+          console.log(`[OrcamentosPage] ✨ SUCESSO! Orçamento ${order.number} criado.`);
+          return;
+        } catch (err: any) {
+          const errMsg = err?.message ?? String(err);
+          console.error(`[OrcamentosPage] ❌ Tentativa ${attempt} falhou:`, errMsg);
+
+          const isDuplicate = errMsg.toLowerCase().includes('duplicate') || 
+                              errMsg.toLowerCase().includes('unique');
+          const shouldRetry = attempt < maxAttempts && (
+            isDuplicate ||
+            errMsg.toLowerCase().includes('timeout') ||
+            errMsg.toLowerCase().includes('network')
+          );
+
+          if (shouldRetry) {
+            console.log(`[OrcamentosPage] 🔄 Retentando em 2 segundos...`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          } else {
+            throw err;
+          }
+        }
+      }
+    };
+
+    try {
+      await createOrderWithRetry();
     } catch (err: any) {
-      console.error('[OrcamentosPage] ❌ ERRO CRÍTICO:', err);
-      setFormError(`❌ Erro ao gerar número: ${err?.message || 'Tente novamente'}`);
+      console.error('[OrcamentosPage] ❌ ERRO CRÍTICO (após retries):', err?.message ?? err);
+      const errMsg = err?.message ?? String(err);
+      
+      let userMessage = 'Erro ao criar orçamento. Tente novamente.';
+      
+      if (errMsg.toLowerCase().includes('duplicate') || errMsg.toLowerCase().includes('unique')) {
+        userMessage = '❌ Erro: Número de pedido duplicado. Tente novamente em alguns segundos.';
+      } else if (errMsg.toLowerCase().includes('permission') || errMsg.toLowerCase().includes('authenticated')) {
+        userMessage = '❌ Erro de permissão. Verifique se você está logado.';
+      } else if (errMsg.toLowerCase().includes('not found') || errMsg.toLowerCase().includes('function')) {
+        userMessage = '❌ Erro no servidor. A migração SQL pode não ter sido aplicada. Contacte suporte.';
+      } else if (errMsg.toLowerCase().includes('network') || errMsg.toLowerCase().includes('timeout')) {
+        userMessage = '❌ Erro de conexão. Verifique sua internet e tente novamente.';
+      }
+      
+      setFormError(userMessage);
+    } finally {
+      setSavingOrder(false);
     }
   };
 
@@ -583,9 +677,16 @@ const OrcamentosPage: React.FC = () => {
           <div className="flex gap-3">
             <button
               onClick={handleCreateOrder}
+              disabled={savingOrder}
               className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isEdit ? <><Check className="w-4 h-4" /> Salvar Alterações</> : <><FileText className="w-4 h-4" /> Criar Orçamento</>}
+              {savingOrder ? (
+                <><span className="animate-spin">⚙️</span> Processando...</>
+              ) : isEdit ? (
+                <><Check className="w-4 h-4" /> Salvar Alterações</>
+              ) : (
+                <><FileText className="w-4 h-4" /> Criar Orçamento</>
+              )}
             </button>
           </div>
         </div>

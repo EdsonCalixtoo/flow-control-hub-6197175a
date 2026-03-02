@@ -270,6 +270,17 @@ const ClientesPage: React.FC = () => {
             <button onClick={() => openWhatsApp(selectedClient.phone)} className="btn-modern bg-success/10 text-success shadow-none text-xs hover:bg-success/20">
               <MessageCircle className="w-4 h-4" /> WhatsApp
             </button>
+            <button
+              onClick={() => handleDeleteClient(selectedClient.id)}
+              disabled={deletingClientId === selectedClient.id}
+              className="btn-modern bg-destructive/10 text-destructive shadow-none text-xs hover:bg-destructive/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {deletingClientId === selectedClient.id ? (
+                <><span className="animate-spin">⚙️</span> Deletando...</>
+              ) : (
+                <><Trash2 className="w-4 h-4" /> Deletar</>
+              )}
+            </button>
             <button onClick={() => setSelectedClient(null)} className="btn-modern bg-muted text-foreground shadow-none text-xs">
               <X className="w-4 h-4" /> Fechar
             </button>
@@ -576,6 +587,17 @@ const ClientesPage: React.FC = () => {
                 </button>
                 <button onClick={() => openWhatsApp(client.phone)} className="btn-modern bg-success/10 text-success hover:bg-success/20 shadow-none text-xs px-3 py-2">
                   <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+                </button>
+                <button
+                  onClick={() => handleDeleteClient(client.id)}
+                  disabled={deletingClientId === client.id}
+                  className="btn-modern bg-destructive/10 text-destructive hover:bg-destructive/20 shadow-none text-xs px-3 py-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {deletingClientId === client.id ? (
+                    <span className="animate-spin">⚙️</span>
+                  ) : (
+                    <Trash2 className="w-3.5 h-3.5" />
+                  )}
                 </button>
               </div>
             </div>

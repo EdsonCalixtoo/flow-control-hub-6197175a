@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
 import { OrderPipeline, OrderHistory } from '@/components/shared/OrderTimeline';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
-import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check } from 'lucide-react';
+import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check, Download } from 'lucide-react';
 import { getNextOrderNumber } from '@/lib/supabaseService';
 import type { Order, QuoteItem } from '@/types/erp';
 import { useLocation } from 'react-router-dom';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 // Status que bloqueiam a edição do orçamento
 // Fluxo: Vendedor → Financeiro → Produção (sem etapa de Gestor)
@@ -18,6 +20,7 @@ const OrcamentosPage: React.FC = () => {
   const { orders, addOrder, updateOrderStatus, editOrderFull, clients, products } = useERP();
   const { user } = useAuth();
   const location = useLocation();
+  const detailRef = useRef<HTMLDivElement>(null);
 
   // Se navegado desde a ficha do cliente, abre o form já com cliente pré-selecionado
   const preSelectedClientId: string = (location.state as any)?.clientId ?? '';
@@ -188,6 +191,78 @@ const OrcamentosPage: React.FC = () => {
 
   const openWhatsApp = (phone: string) =>
     window.open(`https://wa.me/55${phone.replace(/\D/g, '')}`, '_blank');
+
+  // Função para baixar PDF do orçamento
+  const downloadPDF = async (order: Order) => {
+    try {
+      if (!detailRef.current) return;
+
+      const element = detailRef.current;
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+      });
+
+      const imgWidth = 210; // A4 width em mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      let height = pdf.internal.pageSize.getHeight();
+      let position = 0;
+
+      // Adiciona header
+      pdf.setFontSize(16);
+      pdf.text('ORÇAMENTO', 15, 15);
+      pdf.setFontSize(10);
+      pdf.text(`Número: ${order.number}`, 15, 25);
+      pdf.text(`Data: ${new Date(order.createdAt).toLocaleDateString('pt-BR')}`, 15, 32);
+      pdf.text(`Cliente: ${order.clientName}`, 15, 39);
+
+      position = 50;
+
+      // Se a imagem cabe na página
+      if (position + imgHeight < height) {
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 10, position, imgWidth - 20, imgHeight);
+      } else {
+        // Se não cabe, divide em múltiplas páginas
+        let remainingHeight = imgHeight;
+        let sourceY = 0;
+        let isFirstPage = true;
+
+        while (remainingHeight > 0) {
+          if (!isFirstPage) {
+            pdf.addPage();
+            position = 10;
+          } else {
+            isFirstPage = false;
+          }
+
+          const maxHeight = height - position - 10;
+          const canvasHeight = Math.min(remainingHeight, (maxHeight * imgWidth) / (imgWidth - 20));
+          const canvasWidth = (canvasHeight * canvas.width) / canvas.height;
+
+          const sourceHeight = (canvasHeight * canvas.height) / imgHeight;
+          const partCanvas = document.createElement('canvas');
+          partCanvas.width = canvas.width;
+          partCanvas.height = sourceHeight;
+
+          const ctx = partCanvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sourceHeight);
+            pdf.addImage(partCanvas.toDataURL('image/png'), 'PNG', 10, position, canvasWidth, canvasHeight);
+          }
+
+          sourceY += sourceHeight;
+          remainingHeight -= canvasHeight;
+        }
+      }
+
+      pdf.save(`Orcamento_${order.number}.pdf`);
+    } catch (err) {
+      console.error('Erro ao gerar PDF:', err);
+      alert('Erro ao gerar PDF. Tente novamente.');
+    }
+  };
 
   // ── Formulário de criação/edição ────────────────────────────
   if (showCreate || editingOrder) {
@@ -386,7 +461,7 @@ const OrcamentosPage: React.FC = () => {
     const podeEnviarFinanceiro = selectedOrder.status === 'rascunho' || selectedOrder.status === 'enviado' || selectedOrder.status === 'aprovado_cliente';
 
     return (
-      <div className="card-section p-6 space-y-5 animate-scale-in">
+      <div ref={detailRef} className="card-section p-6 space-y-5 animate-scale-in">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h2 className="font-bold text-foreground text-lg">{selectedOrder.number}</h2>
@@ -397,6 +472,13 @@ const OrcamentosPage: React.FC = () => {
             )}
           </div>
           <div className="flex items-center gap-2">
+            {/* Botão Download PDF */}
+            <button
+              onClick={() => downloadPDF(selectedOrder)}
+              className="btn-modern bg-blue-500/10 text-blue-500 shadow-none text-xs px-3 py-1.5 hover:bg-blue-500/20"
+            >
+              <Download className="w-3.5 h-3.5" /> PDF
+            </button>
             {/* Botão Editar — bloqueado se status avançado */}
             {podeEditar ? (
               <button

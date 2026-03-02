@@ -17,7 +17,7 @@ const STATUS_BLOQUEIAM_EDICAO = ['aguardando_financeiro', 'aprovado_financeiro',
   'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'];
 
 const OrcamentosPage: React.FC = () => {
-  const { orders, addOrder, updateOrderStatus, editOrderFull, clients, products } = useERP();
+  const { orders, addOrder, updateOrderStatus, editOrderFull, clients, products, deleteOrder } = useERP();
   const { user } = useAuth();
   const location = useLocation();
   const detailRef = useRef<HTMLDivElement>(null);
@@ -33,6 +33,7 @@ const OrcamentosPage: React.FC = () => {
   const [formError, setFormError] = useState('');
   const [savingOrder, setSavingOrder] = useState(false);
   const [sendingToFinance, setSendingToFinance] = useState(false);
+  const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
 
   // ✅ Isolamento: vendedor vê apenas seus pedidos
   const myOrders = orders.filter(o =>
@@ -78,6 +79,25 @@ const OrcamentosPage: React.FC = () => {
     }
   };
 
+  // Status que permitem excluir o orçamento
+  const podeExcluir = (status: string) =>
+    status === 'rascunho' || status === 'rejeitado_financeiro';
+
+  const handleDeleteOrder = async (orderId: string, orderNumber: string) => {
+    if (!confirm(`Tem certeza que deseja excluir o orçamento ${orderNumber}? Esta ação não pode ser desfeita.`)) return;
+    try {
+      setDeletingOrderId(orderId);
+      await deleteOrder(orderId);
+      setSelectedOrder(null);
+      console.log('[OrcamentosPage] ✅ Orçamento excluído:', orderNumber);
+    } catch (err: any) {
+      console.error('[OrcamentosPage] ❌ Erro ao excluir orçamento:', err?.message ?? err);
+      alert('❌ Erro ao excluir: ' + (err?.message || 'Tente novamente'));
+    } finally {
+      setDeletingOrderId(null);
+    }
+  };
+
   const addItem = () => setNewItems(prev => [...prev, { product: '', description: '', quantity: 1, unitPrice: 0 }]);
   const removeItem = (i: number) => setNewItems(prev => prev.filter((_, idx) => idx !== i));
   const updateItem = (i: number, field: string, value: string | number) => {
@@ -118,7 +138,7 @@ const OrcamentosPage: React.FC = () => {
 
   const handleCreateOrder = async () => {
     setFormError('');
-    
+
     // ────────────────────────────
     // VALIDAÇÕES
     // ────────────────────────────
@@ -181,7 +201,7 @@ const OrcamentosPage: React.FC = () => {
           orderType: newOrderType,
           updatedAt: now,
         };
-        
+
         console.log('[OrcamentosPage] 📝 Editando orçamento:', updatedOrder.number);
         await editOrderFull(updatedOrder);
         setFormError('');
@@ -234,17 +254,17 @@ const OrcamentosPage: React.FC = () => {
             orderType: newOrderType,
             createdAt: now,
             updatedAt: now,
-            statusHistory: [{ 
-              status: 'rascunho', 
-              timestamp: now, 
-              user: user?.name || 'Vendedor', 
-              note: 'Orçamento criado' 
+            statusHistory: [{
+              status: 'rascunho',
+              timestamp: now,
+              user: user?.name || 'Vendedor',
+              note: 'Orçamento criado'
             }],
           };
 
           console.log(`[OrcamentosPage] 📍 Salvando orçamento ${order.number} no banco...`);
           await addOrder(order);
-          
+
           setFormError('');
           resetForm();
           console.log(`[OrcamentosPage] ✨ SUCESSO! Orçamento ${order.number} criado.`);
@@ -253,8 +273,8 @@ const OrcamentosPage: React.FC = () => {
           const errMsg = err?.message ?? String(err);
           console.error(`[OrcamentosPage] ❌ Tentativa ${attempt} falhou:`, errMsg);
 
-          const isDuplicate = errMsg.toLowerCase().includes('duplicate') || 
-                              errMsg.toLowerCase().includes('unique');
+          const isDuplicate = errMsg.toLowerCase().includes('duplicate') ||
+            errMsg.toLowerCase().includes('unique');
           const shouldRetry = attempt < maxAttempts && (
             isDuplicate ||
             errMsg.toLowerCase().includes('timeout') ||
@@ -276,9 +296,9 @@ const OrcamentosPage: React.FC = () => {
     } catch (err: any) {
       console.error('[OrcamentosPage] ❌ ERRO CRÍTICO (após retries):', err?.message ?? err);
       const errMsg = err?.message ?? String(err);
-      
+
       let userMessage = 'Erro ao criar orçamento. Tente novamente.';
-      
+
       if (errMsg.toLowerCase().includes('duplicate') || errMsg.toLowerCase().includes('unique')) {
         userMessage = '❌ Erro: Número de pedido duplicado. Tente novamente em alguns segundos.';
       } else if (errMsg.toLowerCase().includes('permission') || errMsg.toLowerCase().includes('authenticated')) {
@@ -288,7 +308,7 @@ const OrcamentosPage: React.FC = () => {
       } else if (errMsg.toLowerCase().includes('network') || errMsg.toLowerCase().includes('timeout')) {
         userMessage = '❌ Erro de conexão. Verifique sua internet e tente novamente.';
       }
-      
+
       setFormError(userMessage);
     } finally {
       setSavingOrder(false);
@@ -309,7 +329,7 @@ const OrcamentosPage: React.FC = () => {
       pdf.setFontSize(24);
       pdf.setTextColor(0, 102, 204); // Azul
       pdf.text('ORÇAMENTO', 15, yPosition);
-      
+
       yPosition += 12;
       pdf.setFontSize(9);
       pdf.setTextColor(100, 100, 100);
@@ -338,13 +358,13 @@ const OrcamentosPage: React.FC = () => {
         pdf.setFontSize(9);
         pdf.setTextColor(80, 80, 80);
         pdf.text(`CPF/CNPJ: ${client.cpfCnpj || '—'}`, 15, yPosition);
-        
+
         yPosition += 4;
         pdf.text(`Telefone: ${client.phone || '—'}`, 15, yPosition);
-        
+
         yPosition += 4;
         pdf.text(`Email: ${client.email || '—'}`, 15, yPosition);
-        
+
         yPosition += 4;
         pdf.text(`Endereço: ${client.address} - ${client.city}/${client.state} - ${client.cep}`, 15, yPosition);
       }
@@ -370,7 +390,7 @@ const OrcamentosPage: React.FC = () => {
 
       // ═══ TABELA DE PRODUTOS ═══
       yPosition += 10;
-      
+
       // Headers da tabela
       pdf.setFillColor(0, 102, 204);
       pdf.setTextColor(255, 255, 255);
@@ -390,7 +410,7 @@ const OrcamentosPage: React.FC = () => {
         if (yPosition > pageHeight - 40) {
           pdf.addPage();
           yPosition = 15;
-          
+
           // Repetir headers em nova página
           pdf.setFillColor(0, 102, 204);
           pdf.setTextColor(255, 255, 255);
@@ -400,7 +420,7 @@ const OrcamentosPage: React.FC = () => {
           pdf.text('QTDE', 120, yPosition);
           pdf.text('VLR UNIT.', 145, yPosition);
           pdf.text('SUBTOTAL', 175, yPosition);
-          
+
           yPosition += 8;
           pdf.setTextColor(0, 0, 0);
         }
@@ -417,7 +437,7 @@ const OrcamentosPage: React.FC = () => {
         if (item.product.toUpperCase().includes('KIT') && item.sensorType) {
           productName += ` (${item.sensorType === 'com_sensor' ? 'COM SENSOR' : 'SEM SENSOR'})`;
         }
-        
+
         // Truncar texto longo
         const lines = pdf.splitTextToSize(productName, 95);
         lines.forEach((line, i) => {
@@ -456,13 +476,13 @@ const OrcamentosPage: React.FC = () => {
         yPosition += 12;
         pdf.setDrawColor(200, 200, 200);
         pdf.line(15, yPosition, 195, yPosition);
-        
+
         yPosition += 6;
         pdf.setFontSize(10);
         pdf.setTextColor(0, 51, 102);
         pdf.setFont(undefined, 'bold');
         pdf.text('OBSERVAÇÕES:', 15, yPosition);
-        
+
         yPosition += 5;
         pdf.setFontSize(9);
         pdf.setTextColor(0, 0, 0);
@@ -743,6 +763,19 @@ const OrcamentosPage: React.FC = () => {
                 🔒 Edição bloqueada
               </span>
             )}
+            {/* Botão Excluir — apenas para rascunho ou rejeitado */}
+            {podeExcluir(selectedOrder.status) && (
+              <button
+                onClick={() => handleDeleteOrder(selectedOrder.id, selectedOrder.number)}
+                disabled={deletingOrderId === selectedOrder.id}
+                className="btn-modern bg-destructive/10 text-destructive shadow-none text-xs px-3 py-1.5 hover:bg-destructive/20 disabled:opacity-50"
+                title="Excluir orçamento"
+              >
+                {deletingOrderId === selectedOrder.id
+                  ? <span className="animate-spin">⚙️</span>
+                  : <><Trash2 className="w-3.5 h-3.5" /> Excluir</>}
+              </button>
+            )}
             <button onClick={() => setSelectedOrder(null)} className="btn-modern bg-muted text-foreground shadow-none text-xs px-3 py-1.5">
               <ArrowLeft className="w-3.5 h-3.5" /> Voltar
             </button>
@@ -911,6 +944,18 @@ const OrcamentosPage: React.FC = () => {
                             title="Enviar ao Financeiro"
                           >
                             <Send className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {podeExcluir(order.status) && (
+                          <button
+                            onClick={() => handleDeleteOrder(order.id, order.number)}
+                            disabled={deletingOrderId === order.id}
+                            className="w-8 h-8 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 inline-flex items-center justify-center transition-colors disabled:opacity-50"
+                            title="Excluir orçamento"
+                          >
+                            {deletingOrderId === order.id
+                              ? <span className="text-[10px] animate-spin">⚙️</span>
+                              : <Trash2 className="w-3.5 h-3.5" />}
                           </button>
                         )}
                       </div>

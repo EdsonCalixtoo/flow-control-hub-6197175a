@@ -10,6 +10,7 @@ import {
   fetchOrderReturns, createOrderReturn,
   fetchProductionErrors, createProductionError, resolveProductionError,
   fetchBarcodeScans, createBarcodeScan, fetchDeliveryPickups, createDeliveryPickup,
+  deleteOrder as deleteOrderDb,
 } from '@/lib/supabaseService';
 import { supabase } from '@/lib/supabase';
 
@@ -42,6 +43,7 @@ interface ERPContextType {
   addDeliveryPickup: (pickup: Omit<DeliveryPickup, 'id' | 'pickedUpAt'>) => Promise<void>;
   // order ops
   addOrder: (order: Order) => void;
+  deleteOrder: (orderId: string) => Promise<void>;
   updateOrderStatus: (orderId: string, status: OrderStatus, extra?: Partial<Order>, userName?: string, note?: string) => Promise<void>;
   updateOrder: (orderId: string, fields: Partial<Order>) => void;
   editOrderFull: (order: Order) => Promise<void>;
@@ -399,6 +401,22 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, [setOrders]);
 
+  const deleteOrder = useCallback(async (orderId: string) => {
+    let removed: Order | undefined;
+    setOrders(prev => {
+      removed = prev.find(o => o.id === orderId);
+      return prev.filter(o => o.id !== orderId);
+    });
+    try {
+      await deleteOrderDb(orderId);
+      console.log('[ERP] ✅ Pedido deletado do banco:', orderId);
+    } catch (err: any) {
+      console.error('[ERP] ❌ Erro ao deletar pedido do banco:', err?.message ?? err);
+      if (removed) setOrders(prev => [removed!, ...prev]);
+      throw err;
+    }
+  }, [setOrders]);
+
   // ── CLIENTS ──────────────────────────────────────────────────
   const addClient = useCallback(async (client: Client): Promise<void> => {
     setClients(prev => [client, ...prev]);
@@ -685,7 +703,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       productionErrors, addProductionError, resolveError,
       barcodeScans, addBarcodeScan,
       deliveryPickups, addDeliveryPickup,
-      addOrder, updateOrderStatus, updateOrder, editOrderFull,
+      addOrder, deleteOrder, updateOrderStatus, updateOrder, editOrderFull,
       addClient, editClient, addFinancialEntry,
       addProduct, updateProduct, deleteProduct, deleteClient, addDelayReport, markDelayReportRead, clearAll,
     }}>

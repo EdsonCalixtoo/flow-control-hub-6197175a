@@ -6,7 +6,7 @@
 import { supabase } from './supabase';
 import type {
     Order, Client, Product, FinancialEntry, QuoteItem,
-    StatusHistoryEntry, OrderStatus, ChatMessage, OrderReturn, ProductionError
+    StatusHistoryEntry, OrderStatus, ChatMessage, OrderReturn, ProductionError, BarcodeScan
 } from '@/types/erp';
 
 // ─────────────────────────────────────────────────────────────
@@ -400,19 +400,19 @@ export async function updateOrderFull(order: Order): Promise<void> {
 export async function fetchClients(): Promise<Client[]> {
     console.log('[supabaseService] 🔄 Buscando clientes do banco...');
     const { data, error } = await supabase.from('clients').select('*').order('name');
-    
+
     if (error) {
         console.error('[supabaseService] ❌ Erro ao buscar clientes:', error);
         logError('fetchClients', error);
         throw error;
     }
-    
+
     const clients = (data ?? []).map(c => mapClient(c as Record<string, unknown>));
     console.log('[supabaseService] ✅ Clientes recuperados do banco:', {
         count: clients.length,
         clients: clients.map(c => ({ id: c.id, name: c.name, createdBy: c.createdBy })),
     });
-    
+
     return clients;
 }
 
@@ -432,38 +432,38 @@ export async function createClient(client: Client): Promise<void> {
         bairro: client.bairro ?? '',
         created_by: (client as any).createdBy ?? null,   // ✅ salva o ID do vendedor
     };
-    
+
     console.log('[supabaseService] 📝 Salvando cliente no banco:', {
         id: payload.id,
         name: payload.name,
         created_by: payload.created_by,
     });
-    
+
     let { error } = await supabase.from('clients').insert(payload);
-    
+
     // fallback sem bairro se coluna ainda não existe
     if (error) {
         const msg = String((error as any).message ?? '').toLowerCase();
         const code = String((error as any).code ?? '');
-        
+
         console.error('[supabaseService] ⚠️ Erro ao inserir cliente (tentando fallback):', {
             code,
             message: msg,
             payload,
         });
-        
+
         if (code === '42703' || msg.includes('bairro')) {
             console.log('[supabaseService] 🔄 Removendo campo "bairro" e retentando...');
             const { bairro: _b, ...rest } = payload;
             const result = await supabase.from('clients').insert(rest);
             error = result.error;
-            
+
             if (!error) {
                 console.log('[supabaseService] ✅ Cliente salvo com sucesso (sem bairro)');
             }
         }
     }
-    
+
     if (error) {
         const errMsg = String((error as any).message ?? '');
         const errCode = String((error as any).code ?? '');
@@ -475,7 +475,7 @@ export async function createClient(client: Client): Promise<void> {
         logError('createClient', error);
         throw error;
     }
-    
+
     console.log('[supabaseService] ✅ Cliente salvo com sucesso no banco!');
 }
 
@@ -505,6 +505,14 @@ export async function updateClient(client: Client): Promise<void> {
         }
     }
     if (error) { logError('updateClient', error); throw error; }
+}
+
+export async function deleteOrder(orderId: string): Promise<void> {
+    // Remove itens e histórico primeiro (FK)
+    await supabase.from('order_items').delete().eq('order_id', orderId);
+    await supabase.from('order_status_history').delete().eq('order_id', orderId);
+    const { error } = await supabase.from('orders').delete().eq('id', orderId);
+    if (error) { logError('deleteOrder', error); throw error; }
 }
 
 export async function deleteClientDb(clientId: string): Promise<void> {
@@ -755,10 +763,10 @@ export async function createDeliveryPickup(pickup: { orderId: string; orderNumbe
         signature_url: pickup.signatureUrl,
         picked_up_at: new Date().toISOString(),
     });
-    if (error) { 
+    if (error) {
         console.error('[supabaseService] ❌ Erro ao salvar pickup:', error);
-        logError('createDeliveryPickup', error); 
-        throw error; 
+        logError('createDeliveryPickup', error);
+        throw error;
     }
     console.log('[supabaseService] ✅ Pickup salvo com sucesso no Supabase!');
 }

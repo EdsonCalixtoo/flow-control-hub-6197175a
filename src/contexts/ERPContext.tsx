@@ -4,7 +4,7 @@ import { useLocalStorage } from '@/hooks/useLocalStorage';
 import {
   fetchOrders, fetchClients, fetchProducts, fetchFinancialEntries,
   createOrder, updateOrderStatusDb, updateOrderFields, updateOrderFull as updateOrderFullDb,
-  createClient, updateClient,
+  createClient, updateClient, deleteClientDb,
   upsertProduct, deleteProductDb, createFinancialEntry, clearAllData,
   fetchOrderChat, sendChatMessage, markChatRead,
   fetchOrderReturns, createOrderReturn,
@@ -47,6 +47,7 @@ interface ERPContextType {
   editOrderFull: (order: Order) => Promise<void>;
   addClient: (client: Client) => void;
   editClient: (client: Client) => void;
+  deleteClient: (clientId: string) => Promise<void>;
   addFinancialEntry: (entry: FinancialEntry) => void;
   addProduct: (product: Product) => void;
   updateProduct: (product: Product) => void;
@@ -497,6 +498,21 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   }, [setProducts]);
 
+  const deleteClient = useCallback(async (clientId: string) => {
+    setClients(prev => prev.filter(c => c.id !== clientId));
+    console.log('[ERP] 🗑️ Cliente deletado do state local:', clientId);
+    try {
+      await deleteClientDb(clientId);
+      console.log('[ERP] ✅ Cliente deletado do banco:', clientId);
+    } catch (err: any) {
+      console.error('[ERP] ❌ Erro ao deletar cliente do banco:', err?.message ?? err);
+      // Re-sincroniza para restaurar o cliente em caso de erro
+      const updated = await fetchClients();
+      setClients(updated);
+      throw err;
+    }
+  }, [setClients]);
+
   // ── DELAY REPORTS ────────────────────────────────────────────
   const addDelayReport = useCallback((report: Omit<DelayReport, 'id' | 'sentAt' | 'readAt'>) => {
     const newReport: DelayReport = {
@@ -656,7 +672,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       deliveryPickups, addDeliveryPickup,
       addOrder, updateOrderStatus, updateOrder, editOrderFull,
       addClient, editClient, addFinancialEntry,
-      addProduct, updateProduct, deleteProduct, addDelayReport, markDelayReportRead, clearAll,
+      addProduct, updateProduct, deleteProduct, deleteClient, addDelayReport, markDelayReportRead, clearAll,
     }}>
       {children}
     </ERPContext.Provider>

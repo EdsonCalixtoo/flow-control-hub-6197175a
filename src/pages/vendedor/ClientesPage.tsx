@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency } from '@/components/shared/StatusBadge';
-import { Users, Phone, Mail, MessageCircle, Search, Plus, MapPin, X, Eye, ShoppingCart, Loader2, FileText } from 'lucide-react';
+import { Users, Phone, Mail, MessageCircle, Search, Plus, MapPin, X, Eye, ShoppingCart, Loader2, FileText, Trash2 } from 'lucide-react';
 import type { Client } from '@/types/erp';
 import { useNavigate } from 'react-router-dom';
 
@@ -52,7 +52,7 @@ async function fetchViaCep(cep: string) {
 const EMPTY_FORM = { name: '', cpfCnpj: '', phone: '', email: '', logradouro: '', numero: '', complemento: '', bairro: '', city: '', state: '', cep: '', notes: '', consignado: false };
 
 const ClientesPage: React.FC = () => {
-  const { clients, orders, addClient } = useERP();
+  const { clients, orders, addClient, deleteClient } = useERP();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
@@ -61,6 +61,8 @@ const ClientesPage: React.FC = () => {
   const [form, setForm] = useState(EMPTY_FORM);
   const [savingClient, setSavingClient] = useState(false);
   const [formError, setFormError] = useState('');
+  const [deletingClientId, setDeletingClientId] = useState<string | null>(null);
+  const [deleteTimeoutId, setDeleteTimeoutId] = useState<NodeJS.Timeout | null>(null);
 
   // Combina logradouro + número + complemento em um único campo address
   const buildAddress = (f: typeof EMPTY_FORM) =>
@@ -160,6 +162,14 @@ const ClientesPage: React.FC = () => {
 
     try {
       setSavingClient(true);
+      
+      // Timeout de segurança — se não completar em 30s, desbloqueia
+      const timeout = setTimeout(() => {
+        console.error('[ClientesPage] ⚠️ Timeout ao criar cliente (>30s)');
+        setSavingClient(false);
+        setFormError('⚠️ Operação demorou demais. Tente novamente.');
+      }, 30000);
+      
       console.log('[ClientesPage] 📝 Criando cliente:', form.name);
       console.log('[ClientesPage] 🆔 User ID:', user?.id);
       console.log('[ClientesPage] 🔐 User Role:', user?.role);
@@ -188,14 +198,54 @@ const ClientesPage: React.FC = () => {
       addClient(newClient);
       console.log('[ClientesPage] ✅ Cliente criado:', newClient.name);
       
+      // Aguarda um pouco para garantir que foi persistido
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      clearTimeout(timeout);
+      setSavingClient(false);
       setShowCreate(false);
       setForm(EMPTY_FORM);
       setFormError('');
     } catch (err: any) {
       console.error('[ClientesPage] ❌ Erro ao criar cliente:', err?.message ?? err);
       setFormError(`❌ Erro ao cadastrar cliente: ${err?.message || 'Tente novamente'}`);
-    } finally {
       setSavingClient(false);
+    }
+  };
+
+  const handleDeleteClient = async (clientId: string) => {
+    if (!confirm('Tem certeza que deseja deletar este cliente? Esta ação não pode ser desfeita.')) {
+      return;
+    }
+
+    try {
+      setDeletingClientId(clientId);
+      
+      // Timeout de segurança
+      const timeout = setTimeout(() => {
+        console.error('[ClientesPage] ⚠️ Timeout ao deletar cliente (>30s)');
+        setDeletingClientId(null);
+        setFormError('⚠️ Operação demorou demais. Tente novamente.');
+      }, 30000);
+      
+      setDeleteTimeoutId(timeout);
+      
+      console.log('[ClientesPage] 🗑️ Deletando cliente:', clientId);
+      await deleteClient(clientId);
+      
+      clearTimeout(timeout);
+      setDeletingClientId(null);
+      setDeleteTimeoutId(null);
+      setSelectedClient(null);
+      console.log('[ClientesPage] ✅ Cliente deletado com sucesso');
+    } catch (err: any) {
+      console.error('[ClientesPage] ❌ Erro ao deletar cliente:', err?.message ?? err);
+      setFormError(`❌ Erro ao deletar cliente: ${err?.message || 'Tente novamente'}`);
+      setDeletingClientId(null);
+      if (deleteTimeoutId) {
+        clearTimeout(deleteTimeoutId);
+        setDeleteTimeoutId(null);
+      }
     }
   };
 

@@ -505,6 +505,11 @@ export async function updateClient(client: Client): Promise<void> {
     if (error) { logError('updateClient', error); throw error; }
 }
 
+export async function deleteClientDb(clientId: string): Promise<void> {
+    const { error } = await supabase.from('clients').delete().eq('id', clientId);
+    if (error) { logError('deleteClient', error); throw error; }
+}
+
 // ─────────────────────────────────────────────────────────────
 // PRODUCTS
 // ─────────────────────────────────────────────────────────────

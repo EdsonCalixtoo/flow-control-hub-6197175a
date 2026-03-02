@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { StatCard, StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
-import { DollarSign, TrendingUp, TrendingDown, Clock, AlertTriangle, Search, Filter, ChevronDown, ChevronLeft, ChevronRight, Eye, CheckCircle, XCircle, Send, ArrowLeft, Calendar, Users2, BarChart3, Radio } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, Clock, AlertTriangle, Search, Filter, ChevronDown, ChevronLeft, ChevronRight, Eye, CheckCircle, XCircle, Send, ArrowLeft, Calendar, Users2, BarChart3, Radio, Star } from 'lucide-react';
 import type { Order } from '@/types/erp';
 
 // Status que devem aparecer no financeiro (apenas quando o vendedor clicou em Enviar)
@@ -30,6 +30,7 @@ const FinanceiroDashboard: React.FC = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [sellerPeriod, setSellerPeriod] = useState<PeriodFilter>('todos');
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [showConsignados, setShowConsignados] = useState(false);
   const itemsPerPage = 5;
 
   // ✅ Filtra APENAS pedidos que foram enviados ao financeiro
@@ -54,6 +55,13 @@ const FinanceiroDashboard: React.FC = () => {
   const aguardandoLiberacao = ordersVisiveisFinanceiro.filter(o => o.status === 'aprovado_financeiro').length;
   const pagamentosHoje = financialEntries.filter(e => e.date === new Date().toISOString().split('T')[0] && e.status === 'pago').length;
   const aguardandoFinanceiro = ordersVisiveisFinanceiro.filter(o => o.status === 'aguardando_financeiro').length;
+
+  // Pedidos de clientes consignados
+  const consignadosOrders = ordersVisiveisFinanceiro.filter(o => {
+    const client = clients.find(c => c.id === o.clientId);
+    return client?.consignado === true;
+  });
+  const totalConsignado = consignadosOrders.reduce((s, o) => s + o.total, 0);
 
   // ── Filtro por período ─────────────────────────────────────
   const filterByPeriod = (date: string, period: PeriodFilter): boolean => {
@@ -343,10 +351,59 @@ const FinanceiroDashboard: React.FC = () => {
         <StatCard title="Recebido" value={formatCurrency(totalRecebido)} icon={TrendingUp} color="text-success" trend="+8%" />
         <StatCard title="Vencido" value={formatCurrency(totalVencido)} icon={AlertTriangle} color="text-destructive" />
         <StatCard title="Aguard. Produção" value={aguardandoLiberacao} icon={Send} color="text-info" />
-        <StatCard title="Pgtos Hoje" value={pagamentosHoje} icon={Calendar} color="text-primary" />
+        <div onClick={() => setShowConsignados(true)} className="cursor-pointer">
+          <StatCard title="Consignados" value={formatCurrency(totalConsignado)} icon={Star} color="text-amber-500" />
+        </div>
       </div>
 
-      {/* Tabs */}
+      {/* Modal de Consignados */}
+      {showConsignados && (
+        <div className="card-section p-6 space-y-5 animate-scale-in">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Star className="w-5 h-5 text-amber-500" />
+              <h2 className="font-bold text-foreground text-lg">Clientes Consignados</h2>
+              <span className="px-2 py-1 rounded-full bg-amber-500/20 text-amber-500 text-xs font-bold">{consignadosOrders.length}</span>
+            </div>
+            <button onClick={() => setShowConsignados(false)} className="btn-modern bg-muted text-foreground shadow-none text-xs">
+              <ArrowLeft className="w-3.5 h-3.5" /> Voltar
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {consignadosOrders.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground text-sm">
+                Nenhum pedido de cliente consignado
+              </div>
+            ) : (
+              <>
+                {consignadosOrders.map(order => (
+                  <div key={order.id} className="card-section p-4 flex items-center justify-between flex-wrap gap-3 bg-amber-500/5 border border-amber-500/20">
+                    <div>
+                      <p className="font-bold text-foreground text-sm">{order.number}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {order.clientName} • {new Date(order.createdAt).toLocaleDateString('pt-BR')}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-foreground text-sm">{formatCurrency(order.total)}</p>
+                      <StatusBadge status={order.status} />
+                    </div>
+                  </div>
+                ))}
+                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between">
+                  <span className="font-semibold text-foreground">Total em Consignação:</span>
+                  <span className="text-lg font-extrabold text-amber-500">{formatCurrency(totalConsignado)}</span>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Não mostrar Tabs se estiver vendo Consignados */}
+      {!showConsignados && (
+      <>
       <div className="flex gap-2 border-b border-border/40">
         <button
           onClick={() => setActiveTab('pedidos')}
@@ -650,6 +707,8 @@ const FinanceiroDashboard: React.FC = () => {
             )}
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );

@@ -178,26 +178,6 @@ const AprovacoesPage: React.FC = () => {
               ))}
             </div>
           )}
-
-          {orders.filter(o => o.status === 'aprovado_financeiro').length > 0 && (
-            <div className="space-y-3 mt-8">
-              <h2 className="font-bold text-foreground flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-financeiro" />
-                Aprovados - Enviar para Gestor
-              </h2>
-              {orders.filter(o => o.status === 'aprovado_financeiro').map(order => (
-                <div key={order.id} className="card-section p-5 flex items-center justify-between flex-wrap gap-3">
-                  <div>
-                    <p className="font-bold text-foreground text-sm">{order.number} - {order.clientName}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{formatCurrency(order.total)} • <StatusBadge status={order.status} /></p>
-                  </div>
-                  <button onClick={() => enviarGestor(order.id)} className="btn-modern bg-financeiro/10 text-financeiro shadow-none text-xs px-4 py-2 hover:bg-financeiro/20">
-                    <Send className="w-3.5 h-3.5" /> Enviar para Gestor
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
         </>
       )}
     </div>

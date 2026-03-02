@@ -121,6 +121,8 @@ function mapFinancialEntry(e: Record<string, unknown>): FinancialEntry {
         category: (e.category as string) ?? 'Outros',
         date: e.entry_date as string,
         status: e.status as 'pago' | 'pendente',
+        orderId: (e.order_id as string) ?? undefined,
+        receiptUrl: (e.receipt_url as string) ?? undefined,
     };
 }
 
@@ -570,7 +572,7 @@ export async function fetchFinancialEntries(): Promise<FinancialEntry[]> {
 }
 
 export async function createFinancialEntry(entry: FinancialEntry, orderId?: string): Promise<void> {
-    const { error } = await supabase.from('financial_entries').insert({
+    const payload: Record<string, unknown> = {
         id: entry.id,
         type: entry.type,
         description: entry.description,
@@ -578,8 +580,24 @@ export async function createFinancialEntry(entry: FinancialEntry, orderId?: stri
         category: entry.category ?? 'Outros',
         entry_date: entry.date,
         status: entry.status,
-        order_id: orderId ?? null,
+        order_id: orderId ?? entry.orderId ?? null,
+    };
+
+    // Tenta salvar com receipt_url, com fallback se a coluna não existir
+    let { error } = await supabase.from('financial_entries').insert({
+        ...payload,
+        receipt_url: entry.receiptUrl ?? null,
     });
+
+    if (error) {
+        const msg = String((error as any).message ?? '').toLowerCase();
+        const code = String((error as any).code ?? '');
+        if (code === '42703' || msg.includes('receipt_url')) {
+            // Coluna receipt_url não existe ainda — salva sem ela
+            const result = await supabase.from('financial_entries').insert(payload);
+            error = result.error;
+        }
+    }
     if (error) { logError('createFinancialEntry', error); throw error; }
 }
 

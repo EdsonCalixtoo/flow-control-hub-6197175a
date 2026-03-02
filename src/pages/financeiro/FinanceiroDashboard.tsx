@@ -2,8 +2,8 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { StatCard, StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
-import { DollarSign, TrendingUp, TrendingDown, Clock, AlertTriangle, Search, Filter, ChevronDown, ChevronLeft, ChevronRight, Eye, CheckCircle, XCircle, Send, ArrowLeft, Calendar, Users2, BarChart3, Radio, Star } from 'lucide-react';
-import type { Order } from '@/types/erp';
+import { DollarSign, TrendingUp, Clock, AlertTriangle, Search, Filter, ChevronDown, ChevronLeft, ChevronRight, Eye, CheckCircle, XCircle, Send, ArrowLeft, Users2, BarChart3, Radio, Star, Plus, Trash2 } from 'lucide-react';
+import type { Order, FinancialEntry } from '@/types/erp';
 
 // Status que devem aparecer no financeiro (apenas quando o vendedor clicou em Enviar)
 // Fluxo simplificado: Financeiro aprova e envia direto para Produção (sem Gestor)
@@ -17,7 +17,7 @@ type PeriodFilter = 'hoje' | '7dias' | '30dias' | 'personalizado' | 'todos';
 type Tab = 'pedidos' | 'vendedores';
 
 const FinanceiroDashboard: React.FC = () => {
-  const { orders, clients, financialEntries, updateOrderStatus } = useERP();
+  const { orders, clients, financialEntries, updateOrderStatus, addFinancialEntry } = useERP();
   const [activeTab, setActiveTab] = useState<Tab>('pedidos');
   const [statusFilter, setStatusFilter] = useState<PaymentFilter>('todos');
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('todos');
@@ -33,6 +33,11 @@ const FinanceiroDashboard: React.FC = () => {
   const [showConsignados, setShowConsignados] = useState(false);
   const [showReject, setShowReject] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  // Pagamentos parciais (consignado)
+  const [novoPagValor, setNovoPagValor] = useState('');
+  const [novoPagComprovante, setNovoPagComprovante] = useState('');
+  const [novoPagDescricao, setNovoPagDescricao] = useState('');
+  const [salvandoPag, setSalvandoPag] = useState(false);
   const itemsPerPage = 5;
 
   // ✅ Filtra APENAS pedidos que foram enviados ao financeiro
@@ -188,6 +193,50 @@ const FinanceiroDashboard: React.FC = () => {
     setRejectReason('');
   };
 
+  // ── Pagamentos Parciais (Consignado) ──────────────────────────
+  const getPagamentosDosPedido = (orderId: string): FinancialEntry[] =>
+    financialEntries.filter(e => e.orderId === orderId && e.type === 'receita');
+
+  const adicionarPagamentoParcial = async (order: Order) => {
+    const valor = parseFloat(novoPagValor.replace(',', '.'));
+    if (!valor || valor <= 0) { alert('Informe um valor válido.'); return; }
+    const pagamentos = getPagamentosDosPedido(order.id);
+    const totalPago = pagamentos.reduce((s, p) => s + p.amount, 0);
+    if (totalPago + valor > order.total) {
+      alert(`Valor excede o saldo devedor de ${formatCurrency(order.total - totalPago)}.`);
+      return;
+    }
+    try {
+      setSalvandoPag(true);
+      const entry: FinancialEntry = {
+        id: crypto.randomUUID(),
+        type: 'receita',
+        description: novoPagDescricao || `Pagamento parcial - ${order.number} - ${order.clientName}`,
+        amount: valor,
+        category: 'Pagamento Consignado',
+        date: new Date().toISOString().split('T')[0],
+        status: 'pago',
+        orderId: order.id,
+        receiptUrl: novoPagComprovante || undefined,
+      };
+      addFinancialEntry(entry);
+      setNovoPagValor('');
+      setNovoPagDescricao('');
+      setNovoPagComprovante('');
+
+      // Se pagou 100%, aprova e envia para produção
+      const novoTotal = totalPago + valor;
+      if (novoTotal >= order.total && order.status === 'aguardando_financeiro') {
+        await updateOrderStatus(order.id, 'aguardando_producao', { paymentStatus: 'pago' }, 'Financeiro', 'Valor total quitado — enviando para produção');
+        setSelectedOrder(null);
+      }
+    } catch (err: any) {
+      alert('Erro ao registrar pagamento: ' + (err?.message || 'Tente novamente'));
+    } finally {
+      setSalvandoPag(false);
+    }
+  };
+
   if (selectedOrder) {
     return (
       <div className="space-y-6 animate-scale-in">
@@ -243,6 +292,151 @@ const FinanceiroDashboard: React.FC = () => {
                 <p className="text-sm text-foreground">{selectedOrder.observation}</p>
               </div>
             )}
+
+            {/* ★ PAGAMENTOS PARCIAIS CONSIGNADO */}
+            {(() => {
+              const client = clients.find(c => c.id === selectedOrder.clientId);
+              if (!client?.consignado) return null;
+              const pagamentos = getPagamentosDosPedido(selectedOrder.id);
+              const totalPago = pagamentos.reduce((s, p) => s + p.amount, 0);
+              const saldoDevedor = selectedOrder.total - totalPago;
+              const percentPago = Math.min(100, (totalPago / selectedOrder.total) * 100);
+
+              return (
+                <div className="card-section overflow-hidden border border-amber-500/30">
+                  <div className="card-section-header bg-amber-500/5">
+                    <div className="flex items-center gap-2">
+                      <Star className="w-4 h-4 text-amber-500" />
+                      <h3 className="card-section-title text-amber-500">Pagamentos Parciais — Consignado</h3>
+                    </div>
+                  </div>
+
+                  <div className="p-4 space-y-4">
+                    {/* Resumo financeiro */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="p-3 rounded-xl bg-muted/30 border border-border/30 text-center">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1">Total do Pedido</p>
+                        <p className="text-sm font-extrabold text-foreground">{formatCurrency(selectedOrder.total)}</p>
+                      </div>
+                      <div className="p-3 rounded-xl bg-success/10 border border-success/20 text-center">
+                        <p className="text-[10px] text-success uppercase tracking-wider mb-1">Total Pago</p>
+                        <p className="text-sm font-extrabold text-success">{formatCurrency(totalPago)}</p>
+                      </div>
+                      <div className={`p-3 rounded-xl border text-center ${saldoDevedor <= 0 ? 'bg-success/10 border-success/20' : 'bg-destructive/10 border-destructive/20'}`}>
+                        <p className={`text-[10px] uppercase tracking-wider mb-1 ${saldoDevedor <= 0 ? 'text-success' : 'text-destructive'}`}>Saldo Devedor</p>
+                        <p className={`text-sm font-extrabold ${saldoDevedor <= 0 ? 'text-success' : 'text-destructive'}`}>
+                          {saldoDevedor <= 0 ? '✓ Quitado' : formatCurrency(saldoDevedor)}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Barra de progresso */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[10px] text-muted-foreground">
+                        <span>Progresso de Pagamento</span>
+                        <span className="font-bold">{percentPago.toFixed(0)}%</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-amber-500 to-success transition-all duration-500"
+                          style={{ width: `${percentPago}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Lista de pagamentos registrados */}
+                    {pagamentos.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                          {pagamentos.length} Pagamento(s) Registrado(s)
+                        </p>
+                        {pagamentos.map((pag, idx) => (
+                          <div key={pag.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted/20 border border-border/30">
+                            <div className="w-7 h-7 rounded-lg bg-success/15 flex items-center justify-center shrink-0">
+                              <span className="text-success text-xs font-bold">{idx + 1}</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-foreground truncate">{pag.description}</p>
+                              <p className="text-[10px] text-muted-foreground">
+                                {new Date(pag.date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                              </p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="text-sm font-extrabold text-success">{formatCurrency(pag.amount)}</p>
+                              {pag.receiptUrl && (
+                                <button
+                                  onClick={() => window.open(pag.receiptUrl, '_blank')}
+                                  className="text-[9px] text-primary underline"
+                                >
+                                  Ver comprovante
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Formulário novo pagamento */}
+                    {saldoDevedor > 0 && selectedOrder.status === 'aguardando_financeiro' && (
+                      <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-3">
+                        <p className="text-xs font-bold text-amber-500 uppercase tracking-wider flex items-center gap-1.5">
+                          <Plus className="w-3.5 h-3.5" /> Registrar Novo Pagamento
+                        </p>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[10px] text-muted-foreground block mb-1">Valor Recebido (R$) *</label>
+                            <input
+                              type="number"
+                              value={novoPagValor}
+                              onChange={e => setNovoPagValor(e.target.value)}
+                              placeholder={`Máx: ${formatCurrency(saldoDevedor)}`}
+                              className="input-modern py-2 text-sm"
+                              min={0.01}
+                              max={saldoDevedor}
+                              step={0.01}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] text-muted-foreground block mb-1">Descrição (opcional)</label>
+                            <input
+                              type="text"
+                              value={novoPagDescricao}
+                              onChange={e => setNovoPagDescricao(e.target.value)}
+                              placeholder="Ex: Pix recebido"
+                              className="input-modern py-2 text-sm"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-muted-foreground block mb-1">Comprovante (opcional)</label>
+                          <ComprovanteUpload
+                            value={novoPagComprovante}
+                            onChange={setNovoPagComprovante}
+                            label=""
+                          />
+                        </div>
+                        <button
+                          onClick={() => adicionarPagamentoParcial(selectedOrder)}
+                          disabled={salvandoPag || !novoPagValor}
+                          className="btn-modern bg-amber-500 text-white hover:bg-amber-600 w-full justify-center disabled:opacity-50"
+                        >
+                          {salvandoPag
+                            ? <><span className="animate-spin">⚙️</span> Salvando...</>
+                            : <><Plus className="w-4 h-4" /> Registrar Pagamento de {novoPagValor ? formatCurrency(parseFloat(novoPagValor.replace(',', '.'))) : 'R$ 0,00'}</>
+                          }
+                        </button>
+                        {parseFloat(novoPagValor.replace(',', '.') || '0') + totalPago >= selectedOrder.total && (
+                          <p className="text-[10px] text-success text-center font-semibold">
+                            ✅ Após este pagamento, o pedido será automaticamente aprovado e enviado para Produção!
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="card-section">
               <div className="card-section-header">

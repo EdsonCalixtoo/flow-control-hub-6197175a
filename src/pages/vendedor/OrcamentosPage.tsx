@@ -839,41 +839,55 @@ const OrcamentosPage: React.FC = () => {
         </div>
 
         {/* Botão "Enviar para Financeiro" — apenas para status corretos */}
-        {podeEnviarFinanceiro && (
-          <>
-            <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
-              <ComprovanteUpload
-                value={comprovanteAttached || selectedOrder.receiptUrl}
-                onChange={setComprovanteAttached}
-                label="Comprovante de Pagamento (obrigatório para enviar ao Financeiro)"
-              />
-            </div>
+        {podeEnviarFinanceiro && (() => {
+          const clienteConsignado = !!clients.find(c => c.id === selectedOrder.clientId)?.consignado;
+          const temComprovante = !!(comprovanteAttached.trim() || selectedOrder.receiptUrl);
+          // Consignado: pode enviar sem comprovante. Normal: precisa de comprovante.
+          const podeEnviar = clienteConsignado ? true : temComprovante;
 
-            <div className="flex gap-3 flex-wrap">
-              {clients.find(c => c.id === selectedOrder.clientId)?.phone && (
+          return (
+            <>
+              <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
+                <ComprovanteUpload
+                  value={comprovanteAttached || selectedOrder.receiptUrl}
+                  onChange={setComprovanteAttached}
+                  label={clienteConsignado
+                    ? "Comprovante de Pagamento (opcional para clientes consignados)"
+                    : "Comprovante de Pagamento (obrigatório para enviar ao Financeiro)"}
+                />
+                {clienteConsignado && !temComprovante && (
+                  <p className="text-[10px] text-amber-500 mt-2 flex items-center gap-1">
+                    ⭐ Cliente consignado — pode enviar sem comprovante. O financeiro registrará os pagamentos parciais.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-3 flex-wrap">
+                {clients.find(c => c.id === selectedOrder.clientId)?.phone && (
+                  <button
+                    onClick={() => openWhatsApp(clients.find(c => c.id === selectedOrder.clientId)!.phone)}
+                    className="btn-modern bg-success/10 text-success hover:bg-success/20 shadow-none text-xs"
+                  >
+                    <MessageCircle className="w-4 h-4" /> WhatsApp Cliente
+                  </button>
+                )}
                 <button
-                  onClick={() => openWhatsApp(clients.find(c => c.id === selectedOrder.clientId)!.phone)}
-                  className="btn-modern bg-success/10 text-success hover:bg-success/20 shadow-none text-xs"
+                  onClick={() => enviarFinanceiro(selectedOrder.id)}
+                  disabled={!podeEnviar || sendingToFinance}
+                  className="btn-modern bg-gradient-to-r from-vendedor to-vendedor/80 text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed flex-1"
                 >
-                  <MessageCircle className="w-4 h-4" /> WhatsApp Cliente
+                  <Send className="w-4 h-4" /> {sendingToFinance ? '⏳ Enviando...' : '🟢 Enviar para Financeiro'}
                 </button>
-              )}
-              <button
-                onClick={() => enviarFinanceiro(selectedOrder.id)}
-                disabled={(!comprovanteAttached.trim() && !selectedOrder.receiptUrl) || sendingToFinance}
-                className="btn-modern bg-gradient-to-r from-vendedor to-vendedor/80 text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed flex-1"
-              >
-                <Send className="w-4 h-4" /> {sendingToFinance ? '⏳ Enviando...' : '🟢 Enviar para Financeiro'}
-              </button>
-            </div>
+              </div>
 
-            {(!comprovanteAttached && !selectedOrder.receiptUrl) && (
-              <p className="text-[10px] text-muted-foreground text-center">
-                ⚠️ Anexe o comprovante de pagamento para habilitar o envio ao financeiro
-              </p>
-            )}
-          </>
-        )}
+              {!clienteConsignado && !temComprovante && (
+                <p className="text-[10px] text-muted-foreground text-center">
+                  ⚠️ Anexe o comprovante de pagamento para habilitar o envio ao financeiro
+                </p>
+              )}
+            </>
+          );
+        })()}
       </div>
     );
   }

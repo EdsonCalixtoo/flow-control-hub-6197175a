@@ -79,11 +79,13 @@ const ClientesPage: React.FC = () => {
   useEffect(() => {
     console.log('[ClientesPage] 📊 Estado dos clientes:', {
       totalCarregados: clients.length,
+      loadingGlobal: loading,
       userRole: user?.role,
       userId: user?.id,
+      userEmail: user?.email,
       clientes: clients.map(c => ({ id: c.id, name: c.name, createdBy: (c as any).createdBy })),
     });
-  }, [clients, user?.role, user?.id]);
+  }, [clients, user?.role, user?.id, user?.email, loading]);
 
   const filtered = myClients.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||

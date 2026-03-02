@@ -275,6 +275,32 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [supaLoaded, syncFromSupabase]);
 
+  // ── Polling de produtos (fallback se realtime falhar) ─────────────────────
+  // Sincroniza produtos a cada 30s para garantir que estoque está atualizado
+  useEffect(() => {
+    if (!supaLoaded) return;
+
+    const pollProducts = async () => {
+      try {
+        console.log('[ERP Polling] 🔄 Sincronizando estoque de produtos...');
+        const dbProducts = await fetchProducts();
+        setProducts(dbProducts);
+        console.log('[ERP Polling] ✅ Estoque sincronizado:', dbProducts.length, 'produtos');
+      } catch (err) {
+        console.error('[ERP Polling] ⚠️ Erro ao sincronizar estoque:', err?.message ?? err);
+        // Não interrompe — continua tentando a cada 30s
+      }
+    };
+
+    // Faz primeira sincronização imediatamente
+    pollProducts();
+
+    // Depois a cada 30 segundos (ajuste se necessário)
+    const intervalId = setInterval(pollProducts, 30000);
+
+    return () => clearInterval(intervalId);
+  }, [supaLoaded, setProducts]);
+
   // ── ORDERS ───────────────────────────────────────────────────
   const addOrder = useCallback((order: Order) => {
     // Optimistic: insere imediatamente no estado local
@@ -480,7 +506,11 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }).catch(err => {
       console.error('[ERP] ❌ Erro ao atualizar cliente no banco:', err?.message ?? err);
       // Tenta re-sincronizar para corrigir estado
-      fetchClients().then(dbClients => setClients(dbClients)).catch(() => { });
+      fetchClients()
+        .then(dbClients => setClients(dbClients))
+        .catch(resyncErr => {
+          console.error('[ERP] ❌ ERRO ao re-sincronizar clientes após falha:', resyncErr?.message ?? resyncErr);
+        });
     });
   }, [setClients]);
 

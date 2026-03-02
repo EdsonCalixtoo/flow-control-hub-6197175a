@@ -22,9 +22,9 @@ const VendedorDashboard: React.FC = () => {
   ).length;
 
   // Total vendido: apenas pedidos que passaram do rascunho (enviados ao financeiro ou além)
+  // Fluxo: Vendedor → Financeiro → Produção (sem etapa de Gestor)
   const statusesQueContam: string[] = [
     'aguardando_financeiro', 'aprovado_financeiro', 'rejeitado_financeiro',
-    'aguardando_gestor', 'aprovado_gestor', 'rejeitado_gestor',
     'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'
   ];
   const totalVendas = myOrders

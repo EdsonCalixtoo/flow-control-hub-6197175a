@@ -3,19 +3,9 @@ import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatCard, StatusBadge, formatCurrency, formatDate } from '@/components/shared/StatusBadge';
 import { ShoppingCart, Factory, CheckCircle, AlertTriangle, Package, Send, Truck, Wrench, Calendar, Bell, X, ExternalLink, RotateCcw, Bug, ClipboardList, Plus } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts';
 import type { OrderStatus, ProductionError } from '@/types/erp';
 import { STATUS_LABELS } from '@/types/erp';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-
-const PRODUCTION_DAILY = [
-  { dia: 'Seg', pedidos: 3, liberados: 2 },
-  { dia: 'Ter', pedidos: 5, liberados: 4 },
-  { dia: 'Qua', pedidos: 2, liberados: 3 },
-  { dia: 'Qui', pedidos: 6, liberados: 5 },
-  { dia: 'Sex', pedidos: 4, liberados: 6 },
-  { dia: 'Sáb', pedidos: 1, liberados: 2 },
-];
 
 type GestorTab = 'dashboard' | 'problemas' | 'devolvidos' | 'erros';
 
@@ -373,37 +363,6 @@ const GestorDashboard: React.FC = () => {
               </div>
             </div>
           )}
-
-          {/* Gráficos */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="card-section p-6">
-              <h2 className="card-section-title mb-5">Produção Diária</h2>
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={PRODUCTION_DAILY}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                  <XAxis dataKey="dia" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} axisLine={false} tickLine={false} />
-                  <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }} />
-                  <Bar dataKey="pedidos" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} name="Pedidos" />
-                  <Bar dataKey="liberados" fill="hsl(var(--success))" radius={[6, 6, 0, 0]} name="Liberados" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="card-section p-6">
-              <h2 className="card-section-title mb-5">Desempenho de Entregas</h2>
-              <ResponsiveContainer width="100%" height={260}>
-                <PieChart>
-                  <Pie data={deliveryData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={4} dataKey="value" strokeWidth={0}>
-                    <Cell fill="hsl(var(--success))" />
-                    <Cell fill="hsl(var(--destructive))" />
-                    <Cell fill="hsl(var(--primary))" />
-                  </Pie>
-                  <Tooltip contentStyle={{ borderRadius: '12px', border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }} />
-                  <Legend wrapperStyle={{ fontSize: '11px' }} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
 
           {/* Estoque */}
           <div className="card-section">

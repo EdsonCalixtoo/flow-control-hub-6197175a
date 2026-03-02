@@ -1,13 +1,14 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { StatCard, StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
+import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
 import { DollarSign, TrendingUp, TrendingDown, Clock, AlertTriangle, Search, Filter, ChevronDown, ChevronLeft, ChevronRight, Eye, CheckCircle, XCircle, Send, ArrowLeft, Calendar, Users2, BarChart3, Radio } from 'lucide-react';
 import type { Order } from '@/types/erp';
 
 // Status que devem aparecer no financeiro (apenas quando o vendedor clicou em Enviar)
+// Fluxo simplificado: Financeiro aprova e envia direto para Produção (sem Gestor)
 const STATUS_VISIVEL_FINANCEIRO = [
   'aguardando_financeiro', 'aprovado_financeiro', 'rejeitado_financeiro',
-  'aguardando_gestor', 'aprovado_gestor', 'rejeitado_gestor',
   'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'
 ];
 
@@ -161,9 +162,9 @@ const FinanceiroDashboard: React.FC = () => {
     else { setSortBy(col); setSortDir('asc'); }
   };
 
-  // Fluxo atualizado: Financeiro aprova → vai direto para Produção (sem gestor)
-  const enviarProducao = (orderId: string) => {
-    updateOrderStatus(orderId, 'aguardando_producao', undefined, 'Financeiro', 'Enviado diretamente para produção pelo financeiro');
+  // Fluxo: Financeiro aprova e envia direto para Produção (sem etapa intermediária do Gestor)
+  const aprovarEEnviarProducao = (orderId: string) => {
+    updateOrderStatus(orderId, 'aguardando_producao', { paymentStatus: 'pago' }, 'Financeiro', 'Pagamento aprovado - Enviando para produção');
     setSelectedOrder(null);
   };
 
@@ -299,23 +300,20 @@ const FinanceiroDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Aprovar e enviar direto para produção */}
-            {selectedOrder.status === 'aguardando_financeiro' && (
-              <div className="space-y-2">
-                <button
-                  onClick={() => {
-                    updateOrderStatus(selectedOrder.id, 'aprovado_financeiro', { paymentStatus: 'pago' }, 'Financeiro', 'Pagamento aprovado');
-                    setSelectedOrder(null);
-                  }}
-                  className="btn-primary w-full justify-center"
-                >
-                  <CheckCircle className="w-4 h-4" /> Aprovar Pagamento
-                </button>
+            {/* Comprovante de Pagamento */}
+            {selectedOrder.receiptUrl && (
+              <div className="card-section p-5">
+                <ComprovanteUpload value={selectedOrder.receiptUrl} onChange={() => { }} label="Comprovante de Pagamento" readOnly />
               </div>
             )}
-            {selectedOrder.status === 'aprovado_financeiro' && (
-              <button onClick={() => enviarProducao(selectedOrder.id)} className="btn-primary w-full justify-center">
-                <Send className="w-4 h-4" /> Liberar para Produção
+
+            {/* Aprovar e enviar direto para produção */}
+            {selectedOrder.status === 'aguardando_financeiro' && (
+              <button
+                onClick={() => aprovarEEnviarProducao(selectedOrder.id)}
+                className="btn-primary w-full justify-center"
+              >
+                <CheckCircle className="w-4 h-4" /> ✓ Aprovar e Enviar para Produção
               </button>
             )}
           </div>

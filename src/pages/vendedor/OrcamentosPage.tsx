@@ -10,8 +10,8 @@ import type { Order, QuoteItem } from '@/types/erp';
 import { useLocation } from 'react-router-dom';
 
 // Status que bloqueiam a edição do orçamento
+// Fluxo: Vendedor → Financeiro → Produção (sem etapa de Gestor)
 const STATUS_BLOQUEIAM_EDICAO = ['aguardando_financeiro', 'aprovado_financeiro', 'rejeitado_financeiro',
-  'aguardando_gestor', 'aprovado_gestor', 'rejeitado_gestor',
   'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'];
 
 const OrcamentosPage: React.FC = () => {

@@ -133,7 +133,8 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 .destinatario { flex: 1; padding: 3mm; border: 1.5mm solid #000; border-radius: 1mm; background: #fff; display: flex; flex-direction: column; }
 .destinatario .name { font-size: 13pt; font-weight: 900; color: #000; margin-bottom: 1.5mm; letter-spacing: 0.5px; }
 .destinatario .address { font-size: 8pt; color: #000; line-height: 1.5; font-weight: 700; }
-.destinatario .phone { font-size: 7.5pt; color: #000; margin-top: 1.5mm; font-weight: 700; }
+.destinatario .cpf { font-size: 7.5pt; color: #000; margin-top: 1mm; font-weight: 700; font-family: 'Courier New', monospace; }
+.destinatario .phone { font-size: 7.5pt; color: #000; margin-top: 0.5mm; font-weight: 700; }
 .barcode-section { text-align: center; padding-top: 2mm; border-top: 1mm dashed #000; margin-top: 1mm; }
 .barcode-section .barcode-label { font-size: 7pt; font-weight: 900; color: #000; margin-bottom: 1mm; letter-spacing: 1px; font-family: 'Courier New', monospace; }
 .barcode-section img { max-width: 75mm; height: auto; }
@@ -159,6 +160,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
     <div class="destinatario">
       <div class="name">${order.clientName}</div>
       <div class="address">${client?.address || 'Endereço não cadastrado'}<br>${client ? `${client.city} - ${client.state} CEP: ${client.cep}` : ''}</div>
+      ${client?.cpfCnpj ? `<div class="cpf">CPF: ${client.cpfCnpj}</div>` : ''}
       ${client?.phone ? `<div class="phone">Tel: ${client.phone}</div>` : ''}
     </div>
   </div>

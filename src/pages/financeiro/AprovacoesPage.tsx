@@ -18,17 +18,14 @@ const AprovacoesPage: React.FC = () => {
   const pendentes = orders.filter(o => o.status === 'aguardando_financeiro');
 
   const aprovar = (orderId: string) => {
-    updateOrderStatus(orderId, 'aprovado_financeiro', { paymentStatus: 'pago' }, userName, 'Pagamento aprovado');
+    // Fluxo: Financeiro aprova e envia direto para Produção (sem Gestor)
+    updateOrderStatus(orderId, 'aguardando_producao', { paymentStatus: 'pago' }, userName, 'Pagamento aprovado - Enviando para produção');
     setSelectedOrder(null);
   };
 
   const rejeitar = (orderId: string) => {
     updateOrderStatus(orderId, 'rejeitado_financeiro', { rejectionReason: rejectReason }, userName, `Rejeitado: ${rejectReason}`);
     setSelectedOrder(null); setShowReject(false); setRejectReason('');
-  };
-
-  const enviarGestor = (orderId: string) => {
-    updateOrderStatus(orderId, 'aguardando_gestor', undefined, userName, 'Enviado para conferência do gestor');
   };
 
   const formatDate = (d?: string) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';

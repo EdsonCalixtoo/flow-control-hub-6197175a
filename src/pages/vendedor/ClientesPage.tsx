@@ -71,43 +71,19 @@ const ClientesPage: React.FC = () => {
   const [cepLoading, setCepLoading] = useState(false);
   const [cepError, setCepError] = useState('');
 
-  // ✅ Isolamento: vendedor vê seus clientes + clientes sem proprietário
-  // Não-vendedor vê todos
-  const myClients = clients.filter(c => {
-    // Se não é vendedor (ex: financeiro, gestor), vê TUDO
-    if (user?.role !== 'vendedor') return true;
-    
-    // Se é vendedor: vê seus clientes OU clientes sem proprietário (para compatibilidade)
-    const createdByUserId = (c as any).createdBy === user?.id;
-    const hasNoCreator = !(c as any).createdBy;
-    
-    const include = createdByUserId || hasNoCreator;
-    
-    // Debug logging
-    if (!include) {
-      console.warn('[ClientesPage] ⚠️ Cliente BLOQUEADO pelo filtro:', {
-        clientId: c.id,
-        clientName: c.name,
-        clientCreatedBy: (c as any).createdBy,
-        userId: user?.id,
-        createdByUserId,
-        hasNoCreator,
-      });
-    }
-    
-    return include;
-  });
+  // ✅ TODOS OS VENDEDORES VÊM TODOS OS CLIENTES
+  // Isolamento é apenas para ORDERS (vendedor vê só seus pedidos)
+  // Clientes SÃO compartilhados entre vendedores
+  const myClients = clients;
 
-  // Após filtrado, log do resultado
   useEffect(() => {
     console.log('[ClientesPage] 📊 Estado dos clientes:', {
-      totalNoEstado: clients.length,
-      meuClientes: myClients.length,
+      totalCarregados: clients.length,
       userRole: user?.role,
       userId: user?.id,
-      clientes: myClients.map(c => ({ id: c.id, name: c.name, createdBy: (c as any).createdBy })),
+      clientes: clients.map(c => ({ id: c.id, name: c.name, createdBy: (c as any).createdBy })),
     });
-  }, [clients, myClients, user?.role, user?.id]);
+  }, [clients, user?.role, user?.id]);
 
   const filtered = myClients.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -198,14 +174,17 @@ const ClientesPage: React.FC = () => {
       addClient(newClient);
       console.log('[ClientesPage] ✅ Cliente criado:', newClient.name);
       
-      // Aguarda um pouco para garantir que foi persistido
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Aguarda 1s para garantir que o banco processou + realtime atualizou
+      // Isso evita que o cliente "desapareça"
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       clearTimeout(timeout);
       setSavingClient(false);
       setShowCreate(false);
       setForm(EMPTY_FORM);
       setFormError('');
+      
+      console.log('[ClientesPage] ✨ Sucesso! Cliente visível para todos os vendedores');
     } catch (err: any) {
       console.error('[ClientesPage] ❌ Erro ao criar cliente:', err?.message ?? err);
       setFormError(`❌ Erro ao cadastrar cliente: ${err?.message || 'Tente novamente'}`);

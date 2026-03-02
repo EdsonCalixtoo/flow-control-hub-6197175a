@@ -33,21 +33,14 @@ const OrcamentosPage: React.FC = () => {
   const [formError, setFormError] = useState('');
   const [savingOrder, setSavingOrder] = useState(false);
 
-  // Isolamento: vendedor vê apenas seus pedidos
+  // ✅ Isolamento: vendedor vê apenas seus pedidos
   const myOrders = orders.filter(o =>
     user?.role !== 'vendedor' || o.sellerId === user.id
   );
 
-  // ✅ Isolamento: vendedor vê seus clientes + clientes sem proprietário
-  const myClients = clients.filter(c => {
-    // Se não é vendedor (ex: financeiro, gestor), vê TUDO
-    if (user?.role !== 'vendedor') return true;
-    
-    // Se é vendedor: vê seus clientes OU clientes sem proprietário
-    const createdByUserId = (c as any).createdBy === user?.id;
-    const hasNoCreator = !(c as any).createdBy;
-    return createdByUserId || hasNoCreator;
-  });
+  // ✅ TODOS OS VENDEDORES VÊM TODOS OS CLIENTES (compartilhados)
+  // Isolamento de ORDERS já garante que cada vendedor só edita seus próprios
+  const myClients = clients;
 
   // Form state for new/edit order
   const [newClientId, setNewClientId] = useState(preSelectedClientId);
@@ -555,7 +548,10 @@ const OrcamentosPage: React.FC = () => {
                         ))}
                       </select>
                     ) : (
-                      <input type="text" value={item.product} onChange={e => updateItem(i, 'product', e.target.value)} placeholder="Nome do produto" className="input-modern py-2 text-xs" />
+                      <>
+                        <input type="text" value={item.product} onChange={e => updateItem(i, 'product', e.target.value)} placeholder="Nome do produto" className="input-modern py-2 text-xs" />
+                        <p className="text-[9px] text-orange-600 mt-1 font-medium">⚠️ Nenhum produto carregou. Verifique estoque ou recarregue a página.</p>
+                      </>
                     )}
                   </div>
                   <div className="col-span-2">

@@ -99,14 +99,21 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setProductionErrors(dbErrors);
       setBarcodeScans(dbBarcodeScan);
       setDeliveryPickups(dbPickups);
-      console.log('[ERP] Sincronizado com Supabase ✓', {
+      
+      console.log('[ERP] ✅ Sincronizado com Supabase:', {
         orders: dbOrders.length,
         clients: dbClients.length,
         products: dbProducts.length,
+        financialEntries: dbEntries.length,
         scans: dbBarcodeScan.length,
         pickups: dbPickups.length,
-        clientDetails: dbClients.map(c => ({ id: c.id, name: c.name, createdBy: c.createdBy })),
+        productsDetailed: dbProducts.slice(0, 3).map(p => ({ id: p.id, name: p.name, price: p.unitPrice })),
       });
+      
+      // ✅ ALERTA se produtos estão vazios
+      if (dbProducts.length === 0) {
+        console.warn('[ERP] ⚠️ AVISO: Nenhum produto retornado do banco! Verifique RLS e dados.');
+      }
     } catch (err: any) {
       const errMsg = err?.message || JSON.stringify(err);
       
@@ -405,10 +412,19 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.log('[ERP] ✅ Cliente salvo no banco com sucesso:', client.name);
         
         // Re-busca do banco para garantir consistência
+        // ✅ IMPORTANTE: isto evita que o cliente desapareça após F5
         try {
           const dbClients = await fetchClients();
-          console.log('[ERP] ✅ Clientes re-sincronizados do banco:', dbClients.length);
+          console.log('[ERP] ✅ Clientes re-sincronizados do banco:', dbClients.length, 'clientes');
           setClients(dbClients);
+          
+          // Valida que o novo cliente aparece
+          const novoClienteSalvo = dbClients.find(c => c.id === client.id);
+          if (novoClienteSalvo) {
+            console.log('[ERP] ✅ VALIDAÇÃO: Novo cliente confirmado no banco:', novoClienteSalvo.name);
+          } else {
+            console.warn('[ERP] ⚠️ ALERTA: Novo cliente não aparece na re-sincronização!');
+          }
         } catch (err) {
           console.error('[ERP] ⚠️ Aviso: Cliente salvo mas não consegui re-sincronizar:', err);
           // Não falha aqui — o cliente já foi salvo
@@ -422,14 +438,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         
         const shouldRetry = attempts < 2;
         if (shouldRetry) {
-          console.log(`[ERP] 🔄 Retrying em 1 segundo...`);
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          console.log(`[ERP] 🔄 Retrying em 2 segundos...`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
           return saveToDb(attempts + 1);
         } else {
           console.error('[ERP] ❌ Falha permanente ao salvar cliente');
           // Remove do state se falhar definitivamente
           setClients(prev => prev.filter(c => c.id !== client.id));
-          throw error;
+          throw err;
         }
       }
     };

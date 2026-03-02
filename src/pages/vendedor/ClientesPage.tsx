@@ -124,7 +124,7 @@ const ClientesPage: React.FC = () => {
 
   const handleCreate = async () => {
     setFormError('');
-    
+
     // Validações
     if (!form.name || form.name.trim() === '') {
       setFormError('⚠️ Nome é obrigatório.');
@@ -138,23 +138,16 @@ const ClientesPage: React.FC = () => {
 
     try {
       setSavingClient(true);
-      
-      // Timeout de segurança — se não completar em 30s, desbloqueia
-      const timeout = setTimeout(() => {
-        console.error('[ClientesPage] ⚠️ Timeout ao criar cliente (>30s)');
-        setSavingClient(false);
-        setFormError('⚠️ Operação demorou demais. Tente novamente.');
-      }, 30000);
-      
+
       console.log('[ClientesPage] 📝 Criando cliente:', form.name);
       console.log('[ClientesPage] 🆔 User ID:', user?.id);
       console.log('[ClientesPage] 🔐 User Role:', user?.role);
-      
+
       const { logradouro, numero, complemento, ...rest } = form;
-      
+
       // ✅ Garante que createdBy sempre tem um valor
       const createdById = user?.id || 'sistema';
-      
+
       const newClient: Client = {
         id: crypto.randomUUID(),
         ...rest,
@@ -164,26 +157,22 @@ const ClientesPage: React.FC = () => {
         createdBy: createdById,
         createdAt: new Date().toISOString(),
       } as Client;
-      
+
       console.log('[ClientesPage] 📦 Novo cliente:', {
         id: newClient.id,
         name: newClient.name,
         createdBy: newClient.createdBy,
       });
-      
-      addClient(newClient);
-      console.log('[ClientesPage] ✅ Cliente criado:', newClient.name);
-      
-      // Aguarda 1s para garantir que o banco processou + realtime atualizou
-      // Isso evita que o cliente "desapareça"
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      clearTimeout(timeout);
+
+      // ✅ Aguarda confirmação REAL do banco — só fecha o formulário após sucesso
+      await addClient(newClient);
+      console.log('[ClientesPage] ✅ Cliente salvo no banco com sucesso:', newClient.name);
+
       setSavingClient(false);
       setShowCreate(false);
       setForm(EMPTY_FORM);
       setFormError('');
-      
+
       console.log('[ClientesPage] ✨ Sucesso! Cliente visível para todos os vendedores');
     } catch (err: any) {
       console.error('[ClientesPage] ❌ Erro ao criar cliente:', err?.message ?? err);
@@ -199,19 +188,19 @@ const ClientesPage: React.FC = () => {
 
     try {
       setDeletingClientId(clientId);
-      
+
       // Timeout de segurança
       const timeout = setTimeout(() => {
         console.error('[ClientesPage] ⚠️ Timeout ao deletar cliente (>30s)');
         setDeletingClientId(null);
         setFormError('⚠️ Operação demorou demais. Tente novamente.');
       }, 30000);
-      
+
       setDeleteTimeoutId(timeout);
-      
+
       console.log('[ClientesPage] 🗑️ Deletando cliente:', clientId);
       await deleteClient(clientId);
-      
+
       clearTimeout(timeout);
       setDeletingClientId(null);
       setDeleteTimeoutId(null);

@@ -22,6 +22,7 @@ function mapItem(i: Record<string, unknown>): QuoteItem {
         discount: (i.discount as number) ?? 0,
         discountType: (i.discount_type as 'percent' | 'value') ?? 'percent',
         total: i.total as number,
+        sensorType: (i.sensor_type as 'com_sensor' | 'sem_sensor') ?? undefined,
     };
 }
 
@@ -253,6 +254,7 @@ export async function createOrder(order: Order): Promise<void> {
         const extendedItems = order.items.map((i, idx) => ({
             ...baseItems[idx],
             product_description: i.description ?? '',
+            sensor_type: i.sensorType ?? null,
         }));
 
         let { error: itemErr } = await supabase.from('order_items').insert(extendedItems);

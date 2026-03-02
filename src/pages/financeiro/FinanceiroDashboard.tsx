@@ -31,6 +31,8 @@ const FinanceiroDashboard: React.FC = () => {
   const [sellerPeriod, setSellerPeriod] = useState<PeriodFilter>('todos');
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [showConsignados, setShowConsignados] = useState(false);
+  const [showReject, setShowReject] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
   const itemsPerPage = 5;
 
   // ✅ Filtra APENAS pedidos que foram enviados ao financeiro
@@ -174,6 +176,16 @@ const FinanceiroDashboard: React.FC = () => {
   const aprovarEEnviarProducao = (orderId: string) => {
     updateOrderStatus(orderId, 'aguardando_producao', { paymentStatus: 'pago' }, 'Financeiro', 'Pagamento aprovado - Enviando para produção');
     setSelectedOrder(null);
+    setShowReject(false);
+    setRejectReason('');
+  };
+
+  const rejeitarPedido = (orderId: string) => {
+    if (!rejectReason.trim()) return;
+    updateOrderStatus(orderId, 'rejeitado_financeiro', { rejectionReason: rejectReason }, 'Financeiro', `Rejeitado: ${rejectReason}`);
+    setSelectedOrder(null);
+    setShowReject(false);
+    setRejectReason('');
   };
 
   if (selectedOrder) {
@@ -322,14 +334,54 @@ const FinanceiroDashboard: React.FC = () => {
               </div>
             )}
 
-            {/* Aprovar e enviar direto para produção */}
+            {/* Aprovar e rejeitar */}
             {selectedOrder.status === 'aguardando_financeiro' && (
-              <button
-                onClick={() => aprovarEEnviarProducao(selectedOrder.id)}
-                className="btn-primary w-full justify-center"
-              >
-                <CheckCircle className="w-4 h-4" /> ✓ Aprovar e Enviar para Produção
-              </button>
+              <div className="space-y-3">
+                {showReject ? (
+                  <div className="card-section p-4 space-y-3 border border-destructive/30 bg-destructive/5">
+                    <p className="text-xs font-bold text-destructive uppercase tracking-wider">Motivo da Rejeição</p>
+                    <textarea
+                      value={rejectReason}
+                      onChange={e => setRejectReason(e.target.value)}
+                      placeholder="Descreva o motivo da rejeição..."
+                      className="input-modern min-h-[80px] resize-none text-sm"
+                      rows={3}
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => rejeitarPedido(selectedOrder.id)}
+                        disabled={!rejectReason.trim()}
+                        className="btn-modern bg-destructive text-destructive-foreground text-xs flex-1 justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <XCircle className="w-4 h-4" /> Confirmar Rejeição
+                      </button>
+                      <button
+                        onClick={() => { setShowReject(false); setRejectReason(''); }}
+                        className="btn-modern bg-muted text-foreground shadow-none text-xs"
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => aprovarEEnviarProducao(selectedOrder.id)}
+                      className="btn-primary flex-1 justify-center"
+                    >
+                      <CheckCircle className="w-4 h-4" /> ✓ Aprovar e Enviar para Produção
+                    </button>
+                    <button
+                      onClick={() => setShowReject(true)}
+                      className="btn-modern bg-destructive/10 text-destructive hover:bg-destructive/20 shadow-none"
+                      title="Rejeitar pedido"
+                    >
+                      <XCircle className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -410,312 +462,312 @@ const FinanceiroDashboard: React.FC = () => {
 
       {/* Não mostrar Tabs se estiver vendo Consignados */}
       {!showConsignados && (
-      <>
-      <div className="flex gap-2 border-b border-border/40">
-        <button
-          onClick={() => setActiveTab('pedidos')}
-          className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${activeTab === 'pedidos' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-        >
-          <BarChart3 className="w-3.5 h-3.5 inline mr-1.5" />
-          Pedidos
-        </button>
-        <button
-          onClick={() => setActiveTab('vendedores')}
-          className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${activeTab === 'vendedores' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-        >
-          <Users2 className="w-3.5 h-3.5 inline mr-1.5" />
-          Controle por Vendedor
-        </button>
-      </div>
-
-      {/* Tab: Controle por Vendedor */}
-      {activeTab === 'vendedores' && (
-        <div className="space-y-4 animate-fade-in">
-          {/* Filtro de período */}
-          <div className="card-section p-4">
-            <div className="flex items-center gap-3 flex-wrap">
-              <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Período:</p>
-              {([
-                { value: 'todos', label: 'Todos' },
-                { value: 'hoje', label: 'Hoje' },
-                { value: '7dias', label: '7 Dias' },
-                { value: '30dias', label: '30 Dias' },
-              ] as { value: PeriodFilter; label: string }[]).map(p => (
-                <button
-                  key={p.value}
-                  onClick={() => setSellerPeriod(p.value)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${sellerPeriod === p.value ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
+        <>
+          <div className="flex gap-2 border-b border-border/40">
+            <button
+              onClick={() => setActiveTab('pedidos')}
+              className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${activeTab === 'pedidos' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            >
+              <BarChart3 className="w-3.5 h-3.5 inline mr-1.5" />
+              Pedidos
+            </button>
+            <button
+              onClick={() => setActiveTab('vendedores')}
+              className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${activeTab === 'vendedores' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            >
+              <Users2 className="w-3.5 h-3.5 inline mr-1.5" />
+              Controle por Vendedor
+            </button>
           </div>
 
-          {sellerStats.length === 0 ? (
-            <div className="card-section p-12 text-center">
-              <Users2 className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
-              <p className="text-foreground font-bold">Nenhuma venda no período selecionado</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {sellerStats.map(seller => (
-                <div key={seller.sellerId} className="card-section overflow-hidden">
-                  <div className="card-section-header bg-primary/5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-vendedor to-vendedor/70 flex items-center justify-center text-xs font-extrabold text-white shadow-sm">
-                        {seller.sellerName.split(' ').map(n => n[0]).join('').slice(0, 2)}
+          {/* Tab: Controle por Vendedor */}
+          {activeTab === 'vendedores' && (
+            <div className="space-y-4 animate-fade-in">
+              {/* Filtro de período */}
+              <div className="card-section p-4">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Período:</p>
+                  {([
+                    { value: 'todos', label: 'Todos' },
+                    { value: 'hoje', label: 'Hoje' },
+                    { value: '7dias', label: '7 Dias' },
+                    { value: '30dias', label: '30 Dias' },
+                  ] as { value: PeriodFilter; label: string }[]).map(p => (
+                    <button
+                      key={p.value}
+                      onClick={() => setSellerPeriod(p.value)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${sellerPeriod === p.value ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {sellerStats.length === 0 ? (
+                <div className="card-section p-12 text-center">
+                  <Users2 className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-foreground font-bold">Nenhuma venda no período selecionado</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {sellerStats.map(seller => (
+                    <div key={seller.sellerId} className="card-section overflow-hidden">
+                      <div className="card-section-header bg-primary/5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-vendedor to-vendedor/70 flex items-center justify-center text-xs font-extrabold text-white shadow-sm">
+                            {seller.sellerName.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-foreground text-sm">{seller.sellerName}</h3>
+                            <p className="text-[10px] text-muted-foreground">{seller.qtdPedidos} pedido(s)</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total de Vendas</p>
+                          <p className="text-lg font-extrabold text-success">{formatCurrency(seller.totalVendas)}</p>
+                        </div>
                       </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="modern-table">
+                          <thead>
+                            <tr>
+                              <th>Produto</th>
+                              <th className="text-center">Quantidade</th>
+                              <th className="text-right">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {seller.items.sort((a, b) => b.quantity - a.quantity).map((item, idx) => (
+                              <tr key={idx}>
+                                <td className="font-medium text-foreground">{item.product}</td>
+                                <td className="text-center">
+                                  <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary font-extrabold text-sm">
+                                    {item.quantity}
+                                  </span>
+                                </td>
+                                <td className="text-right font-semibold text-foreground">{formatCurrency(item.total)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                          <tfoot>
+                            <tr className="bg-muted/30">
+                              <td className="font-bold text-foreground text-xs uppercase tracking-wider">Total Geral</td>
+                              <td className="text-center font-bold text-foreground">{seller.items.reduce((s, i) => s + i.quantity, 0)}</td>
+                              <td className="text-right font-extrabold text-success">{formatCurrency(seller.totalVendas)}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Resumo geral */}
+                  <div className="card-section p-5 bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
+                    <div className="flex items-center justify-between flex-wrap gap-3">
                       <div>
-                        <h3 className="font-bold text-foreground text-sm">{seller.sellerName}</h3>
-                        <p className="text-[10px] text-muted-foreground">{seller.qtdPedidos} pedido(s)</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total Geral — {sellerStats.length} vendedor(es)</p>
+                        <p className="text-2xl font-extrabold text-foreground mt-1">
+                          {formatCurrency(sellerStats.reduce((s, v) => s + v.totalVendas, 0))}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] text-muted-foreground uppercase">Total de pedidos</p>
+                        <p className="text-xl font-black text-primary">{sellerStats.reduce((s, v) => s + v.qtdPedidos, 0)}</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Total de Vendas</p>
-                      <p className="text-lg font-extrabold text-success">{formatCurrency(seller.totalVendas)}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tab: Pedidos */}
+          {activeTab === 'pedidos' && (
+            <div className="space-y-4 animate-fade-in">
+              {/* Barra de busca + filtros */}
+              <div className="card-section p-4 space-y-4">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="relative flex-1 min-w-[200px]">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
+                    <input
+                      type="text"
+                      placeholder="Buscar por pedido ou cliente..."
+                      value={searchQuery}
+                      onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                      className="input-modern pl-10 py-2.5"
+                    />
+                  </div>
+                  <button
+                    onClick={() => setShowFilters(f => !f)}
+                    className={`btn-modern shadow-none text-xs px-4 py-2.5 ${showFilters ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}
+                  >
+                    <Filter className="w-3.5 h-3.5" /> Filtros
+                    <ChevronDown className={`w-3 h-3 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+                  </button>
+                </div>
+
+                {showFilters && (
+                  <div className="flex items-center gap-3 flex-wrap animate-fade-in">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Status</label>
+                      <select
+                        value={statusFilter}
+                        onChange={e => { setStatusFilter(e.target.value as PaymentFilter); setCurrentPage(1); }}
+                        className="input-modern py-2 text-xs"
+                      >
+                        <option value="todos">Todos</option>
+                        <option value="pago">Pago</option>
+                        <option value="pendente">Pendente</option>
+                        <option value="vencido">Vencido</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Período</label>
+                      <select
+                        value={periodFilter}
+                        onChange={e => { setPeriodFilter(e.target.value as PeriodFilter); setCurrentPage(1); }}
+                        className="input-modern py-2 text-xs"
+                      >
+                        <option value="todos">Todos</option>
+                        <option value="hoje">Hoje</option>
+                        <option value="7dias">7 dias</option>
+                        <option value="30dias">30 dias</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Forma Pgto</label>
+                      <select
+                        value={paymentMethodFilter}
+                        onChange={e => { setPaymentMethodFilter(e.target.value); setCurrentPage(1); }}
+                        className="input-modern py-2 text-xs"
+                      >
+                        <option value="todos">Todos</option>
+                        <option value="Pix">Pix</option>
+                        <option value="Boleto">Boleto</option>
+                        <option value="Cartão">Cartão</option>
+                        <option value="Transferência">Transferência</option>
+                      </select>
                     </div>
                   </div>
+                )}
+              </div>
 
-                  <div className="overflow-x-auto">
-                    <table className="modern-table">
-                      <thead>
-                        <tr>
-                          <th>Produto</th>
-                          <th className="text-center">Quantidade</th>
-                          <th className="text-right">Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {seller.items.sort((a, b) => b.quantity - a.quantity).map((item, idx) => (
-                          <tr key={idx}>
-                            <td className="font-medium text-foreground">{item.product}</td>
-                            <td className="text-center">
-                              <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary font-extrabold text-sm">
-                                {item.quantity}
-                              </span>
-                            </td>
-                            <td className="text-right font-semibold text-foreground">{formatCurrency(item.total)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      <tfoot>
-                        <tr className="bg-muted/30">
-                          <td className="font-bold text-foreground text-xs uppercase tracking-wider">Total Geral</td>
-                          <td className="text-center font-bold text-foreground">{seller.items.reduce((s, i) => s + i.quantity, 0)}</td>
-                          <td className="text-right font-extrabold text-success">{formatCurrency(seller.totalVendas)}</td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
+              {/* Tabela moderna */}
+              <div className="card-section">
+                <div className="card-section-header">
+                  <h2 className="card-section-title">Pedidos</h2>
+                  <span className="text-xs font-medium text-muted-foreground bg-muted px-3 py-1 rounded-full">{filteredOrders.length} resultado(s)</span>
                 </div>
-              ))}
+                <div className="overflow-x-auto">
+                  <table className="modern-table">
+                    <thead>
+                      <tr>
+                        <th className="cursor-pointer select-none" onClick={() => handleSort('number')}>
+                          Pedido {sortBy === 'number' && (sortDir === 'asc' ? '↑' : '↓')}
+                        </th>
+                        <th className="cursor-pointer select-none" onClick={() => handleSort('clientName')}>
+                          Cliente {sortBy === 'clientName' && (sortDir === 'asc' ? '↑' : '↓')}
+                        </th>
+                        <th className="hidden md:table-cell">Vendedor</th>
+                        <th className="hidden md:table-cell">Forma Pgto</th>
+                        <th className="cursor-pointer select-none text-right" onClick={() => handleSort('total')}>
+                          Valor {sortBy === 'total' && (sortDir === 'asc' ? '↑' : '↓')}
+                        </th>
+                        <th>Status</th>
+                        <th className="text-right">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedOrders.map(order => (
+                        <tr key={order.id}>
+                          <td className="font-bold text-foreground">{order.number}</td>
+                          <td className="text-foreground">
+                            <div className="flex items-center gap-1.5">
+                              {order.clientName}
+                              {clients.find(c => c.id === order.clientId)?.consignado && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 text-[9px] font-bold border border-amber-500/20" title="Cliente Consignado">
+                                  ⭐ CONSIG.
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="hidden md:table-cell text-foreground text-xs">{order.sellerName}</td>
+                          <td className="hidden md:table-cell text-foreground">{order.paymentMethod || '—'}</td>
+                          <td className="text-right font-semibold text-foreground">{formatCurrency(order.total)}</td>
+                          <td><StatusBadge status={order.status} /></td>
+                          <td className="text-right">
+                            <div className="flex items-center justify-end gap-1.5">
+                              <button onClick={() => setSelectedOrder(order)} className="w-8 h-8 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center justify-center transition-colors" title="Ver detalhes">
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                              {order.status === 'aguardando_financeiro' && (
+                                <button
+                                  onClick={() => updateOrderStatus(order.id, 'aprovado_financeiro', { paymentStatus: 'pago' }, 'Financeiro', 'Pagamento aprovado')}
+                                  className="w-8 h-8 rounded-lg bg-success/10 text-success hover:bg-success/20 inline-flex items-center justify-center transition-colors"
+                                  title="Dar baixa"
+                                >
+                                  <CheckCircle className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {order.status === 'aprovado_financeiro' && (
+                                <button
+                                  onClick={() => {
+                                    updateOrderStatus(order.id, 'aguardando_producao', undefined, 'Financeiro', 'Liberado para produção');
+                                  }}
+                                  className="w-8 h-8 rounded-lg bg-financeiro/10 text-financeiro hover:bg-financeiro/20 inline-flex items-center justify-center transition-colors"
+                                  title="Liberar produção"
+                                >
+                                  <Send className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
-              {/* Resumo geral */}
-              <div className="card-section p-5 bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total Geral — {sellerStats.length} vendedor(es)</p>
-                    <p className="text-2xl font-extrabold text-foreground mt-1">
-                      {formatCurrency(sellerStats.reduce((s, v) => s + v.totalVendas, 0))}
-                    </p>
+                {/* Paginação */}
+                {totalPages > 1 && (
+                  <div className="px-5 py-4 border-t border-border/40 flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">
+                      Página {currentPage} de {totalPages}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        disabled={currentPage === 1}
+                        onClick={() => setCurrentPage(p => p - 1)}
+                        className="w-8 h-8 rounded-lg bg-muted inline-flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </button>
+                      {Array.from({ length: totalPages }, (_, i) => (
+                        <button
+                          key={i}
+                          onClick={() => setCurrentPage(i + 1)}
+                          className={`w-8 h-8 rounded-lg inline-flex items-center justify-center text-xs font-semibold transition-colors ${currentPage === i + 1 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'
+                            }`}
+                        >
+                          {i + 1}
+                        </button>
+                      ))}
+                      <button
+                        disabled={currentPage === totalPages}
+                        onClick={() => setCurrentPage(p => p + 1)}
+                        className="w-8 h-8 rounded-lg bg-muted inline-flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-[10px] text-muted-foreground uppercase">Total de pedidos</p>
-                    <p className="text-xl font-black text-primary">{sellerStats.reduce((s, v) => s + v.qtdPedidos, 0)}</p>
-                  </div>
-                </div>
+                )}
               </div>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Tab: Pedidos */}
-      {activeTab === 'pedidos' && (
-        <div className="space-y-4 animate-fade-in">
-          {/* Barra de busca + filtros */}
-          <div className="card-section p-4 space-y-4">
-            <div className="flex items-center gap-3 flex-wrap">
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
-                <input
-                  type="text"
-                  placeholder="Buscar por pedido ou cliente..."
-                  value={searchQuery}
-                  onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-                  className="input-modern pl-10 py-2.5"
-                />
-              </div>
-              <button
-                onClick={() => setShowFilters(f => !f)}
-                className={`btn-modern shadow-none text-xs px-4 py-2.5 ${showFilters ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}
-              >
-                <Filter className="w-3.5 h-3.5" /> Filtros
-                <ChevronDown className={`w-3 h-3 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
-              </button>
-            </div>
-
-            {showFilters && (
-              <div className="flex items-center gap-3 flex-wrap animate-fade-in">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Status</label>
-                  <select
-                    value={statusFilter}
-                    onChange={e => { setStatusFilter(e.target.value as PaymentFilter); setCurrentPage(1); }}
-                    className="input-modern py-2 text-xs"
-                  >
-                    <option value="todos">Todos</option>
-                    <option value="pago">Pago</option>
-                    <option value="pendente">Pendente</option>
-                    <option value="vencido">Vencido</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Período</label>
-                  <select
-                    value={periodFilter}
-                    onChange={e => { setPeriodFilter(e.target.value as PeriodFilter); setCurrentPage(1); }}
-                    className="input-modern py-2 text-xs"
-                  >
-                    <option value="todos">Todos</option>
-                    <option value="hoje">Hoje</option>
-                    <option value="7dias">7 dias</option>
-                    <option value="30dias">30 dias</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Forma Pgto</label>
-                  <select
-                    value={paymentMethodFilter}
-                    onChange={e => { setPaymentMethodFilter(e.target.value); setCurrentPage(1); }}
-                    className="input-modern py-2 text-xs"
-                  >
-                    <option value="todos">Todos</option>
-                    <option value="Pix">Pix</option>
-                    <option value="Boleto">Boleto</option>
-                    <option value="Cartão">Cartão</option>
-                    <option value="Transferência">Transferência</option>
-                  </select>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Tabela moderna */}
-          <div className="card-section">
-            <div className="card-section-header">
-              <h2 className="card-section-title">Pedidos</h2>
-              <span className="text-xs font-medium text-muted-foreground bg-muted px-3 py-1 rounded-full">{filteredOrders.length} resultado(s)</span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="modern-table">
-                <thead>
-                  <tr>
-                    <th className="cursor-pointer select-none" onClick={() => handleSort('number')}>
-                      Pedido {sortBy === 'number' && (sortDir === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th className="cursor-pointer select-none" onClick={() => handleSort('clientName')}>
-                      Cliente {sortBy === 'clientName' && (sortDir === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th className="hidden md:table-cell">Vendedor</th>
-                    <th className="hidden md:table-cell">Forma Pgto</th>
-                    <th className="cursor-pointer select-none text-right" onClick={() => handleSort('total')}>
-                      Valor {sortBy === 'total' && (sortDir === 'asc' ? '↑' : '↓')}
-                    </th>
-                    <th>Status</th>
-                    <th className="text-right">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedOrders.map(order => (
-                    <tr key={order.id}>
-                      <td className="font-bold text-foreground">{order.number}</td>
-                      <td className="text-foreground">
-                        <div className="flex items-center gap-1.5">
-                          {order.clientName}
-                          {clients.find(c => c.id === order.clientId)?.consignado && (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 text-[9px] font-bold border border-amber-500/20" title="Cliente Consignado">
-                              ⭐ CONSIG.
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="hidden md:table-cell text-foreground text-xs">{order.sellerName}</td>
-                      <td className="hidden md:table-cell text-foreground">{order.paymentMethod || '—'}</td>
-                      <td className="text-right font-semibold text-foreground">{formatCurrency(order.total)}</td>
-                      <td><StatusBadge status={order.status} /></td>
-                      <td className="text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <button onClick={() => setSelectedOrder(order)} className="w-8 h-8 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center justify-center transition-colors" title="Ver detalhes">
-                            <Eye className="w-3.5 h-3.5" />
-                          </button>
-                          {order.status === 'aguardando_financeiro' && (
-                            <button
-                              onClick={() => updateOrderStatus(order.id, 'aprovado_financeiro', { paymentStatus: 'pago' }, 'Financeiro', 'Pagamento aprovado')}
-                              className="w-8 h-8 rounded-lg bg-success/10 text-success hover:bg-success/20 inline-flex items-center justify-center transition-colors"
-                              title="Dar baixa"
-                            >
-                              <CheckCircle className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          {order.status === 'aprovado_financeiro' && (
-                            <button
-                              onClick={() => {
-                                updateOrderStatus(order.id, 'aguardando_producao', undefined, 'Financeiro', 'Liberado para produção');
-                              }}
-                              className="w-8 h-8 rounded-lg bg-financeiro/10 text-financeiro hover:bg-financeiro/20 inline-flex items-center justify-center transition-colors"
-                              title="Liberar produção"
-                            >
-                              <Send className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Paginação */}
-            {totalPages > 1 && (
-              <div className="px-5 py-4 border-t border-border/40 flex items-center justify-between">
-                <span className="text-xs text-muted-foreground">
-                  Página {currentPage} de {totalPages}
-                </span>
-                <div className="flex items-center gap-1">
-                  <button
-                    disabled={currentPage === 1}
-                    onClick={() => setCurrentPage(p => p - 1)}
-                    className="w-8 h-8 rounded-lg bg-muted inline-flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </button>
-                  {Array.from({ length: totalPages }, (_, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setCurrentPage(i + 1)}
-                      className={`w-8 h-8 rounded-lg inline-flex items-center justify-center text-xs font-semibold transition-colors ${currentPage === i + 1 ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'
-                        }`}
-                    >
-                      {i + 1}
-                    </button>
-                  ))}
-                  <button
-                    disabled={currentPage === totalPages}
-                    onClick={() => setCurrentPage(p => p + 1)}
-                    className="w-8 h-8 rounded-lg bg-muted inline-flex items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-      </>
+        </>
       )}
     </div>
   );

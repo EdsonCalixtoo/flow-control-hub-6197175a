@@ -45,7 +45,7 @@ interface ERPContextType {
   updateOrderStatus: (orderId: string, status: OrderStatus, extra?: Partial<Order>, userName?: string, note?: string) => Promise<void>;
   updateOrder: (orderId: string, fields: Partial<Order>) => void;
   editOrderFull: (order: Order) => Promise<void>;
-  addClient: (client: Client) => void;
+  addClient: (client: Client) => Promise<void>;
   editClient: (client: Client) => void;
   deleteClient: (clientId: string) => Promise<void>;
   addFinancialEntry: (entry: FinancialEntry) => void;
@@ -68,7 +68,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [delayReports, setDelayReports] = useLocalStorage<DelayReport[]>('erp_delay_reports', []);
   const [orderReturns, setOrderReturns] = useLocalStorage<OrderReturn[]>('erp_order_returns', []);
   const [productionErrors, setProductionErrors] = useLocalStorage<ProductionError[]>('erp_production_errors', []);
-  
+
   // ── Dados em tempo real do Supabase (sem localStorage) ──────
   const [barcodeScans, setBarcodeScans] = React.useState<BarcodeScan[]>([]);
   const [deliveryPickups, setDeliveryPickups] = React.useState<DeliveryPickup[]>([]);
@@ -99,7 +99,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setProductionErrors(dbErrors);
       setBarcodeScans(dbBarcodeScan);
       setDeliveryPickups(dbPickups);
-      
+
       console.log('[ERP] ✅ Sincronizado com Supabase:', {
         orders: dbOrders.length,
         clients: dbClients.length,
@@ -109,14 +109,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         pickups: dbPickups.length,
         productsDetailed: dbProducts.slice(0, 3).map(p => ({ id: p.id, name: p.name, price: p.unitPrice })),
       });
-      
+
       // ✅ ALERTA se produtos estão vazios
       if (dbProducts.length === 0) {
         console.warn('[ERP] ⚠️ AVISO: Nenhum produto retornado do banco! Verifique RLS e dados.');
       }
     } catch (err: any) {
       const errMsg = err?.message || JSON.stringify(err);
-      
+
       // Se for erro de autenticação (token inválido), força logout
       if (
         errMsg?.includes('Refresh Token') ||
@@ -144,7 +144,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         // Verifica se há sessão ativa
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
+
         if (sessionError) {
           console.warn('[ERP] Erro ao obter sessão:', sessionError);
           // Se houver erro de token, força logout limpo
@@ -210,7 +210,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     console.log('[ERP Realtime] 🔌 Conectando ao Realtime...');
-    
+
     const channel = supabase
       .channel('erp-realtime-all', { config: { broadcast: { self: true } } })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
@@ -246,7 +246,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           console.error('[ERP Realtime] ❌ ERRO ao conectar:', err);
           return;
         }
-        
+
         if (status === 'SUBSCRIBED') {
           console.log('[ERP Realtime] ✅ SUBSCRIBED! Pronto para receber atualizações em tempo real');
         } else if (status === 'CLOSED') {
@@ -278,14 +278,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Optimistic: insere imediatamente no estado local
     setOrders(prev => [order, ...prev]);
     console.log('[ERP] ✨ Ordem criada no state local:', order.number, order.id);
-    
+
     // Tenta salvar no banco com até 3 tentativas
     const saveToDb = async (attempts = 0): Promise<void> => {
       try {
         console.log(`[ERP] 💾 Tentativa ${attempts + 1}/3 — Salvando no banco:`, order.number);
         await createOrder(order);
         console.log('[ERP] ✅ Pedido salvo no banco com sucesso:', order.number);
-        
+
         // Re-busca do banco para garantir consistência
         try {
           const dbOrders = await fetchOrders();
@@ -298,13 +298,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (err: any) {
         const errMsg = err?.message ?? String(err);
         const errCode = err?.code ?? '';
-        
+
         console.error(
           `[ERP] ❌ Tentativa ${attempts + 1}/3 — ERRO ao salvar no banco:`,
           `Código: ${errCode}`,
           `Mensagem: ${errMsg}`
         );
-        
+
         const shouldRetry = attempts < 2 && (
           errMsg.toLowerCase().includes('duplicate') ||
           errMsg.toLowerCase().includes('unique') ||
@@ -327,13 +327,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
     };
-    
+
     // Executa save de forma assíncrona (sem await — permite que o frontend continuar)
     saveToDb().catch(err => {
       console.error('[ERP] 🚨 FALHA CRÍTICA ao salvar pedido:', err?.message ?? err);
       // Notifica que houve erro (pode ser usado por toast/notificação futura)
       setOrders(prev => {
-        const updated = prev.map(o => 
+        const updated = prev.map(o =>
           o.id === order.id ? { ...o, _saveError: err?.message } : o
         );
         return updated;
@@ -400,24 +400,24 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [setOrders]);
 
   // ── CLIENTS ──────────────────────────────────────────────────
-  const addClient = useCallback((client: Client) => {
+  const addClient = useCallback(async (client: Client): Promise<void> => {
     setClients(prev => [client, ...prev]);
     console.log('[ERP] ✨ Cliente criado no state local:', client.name, client.id);
-    
+
     // Tenta salvar no banco com retry
     const saveToDb = async (attempts = 0): Promise<void> => {
       try {
         console.log(`[ERP] 💾 Tentativa ${attempts + 1}/3 — Salvando cliente no banco: ${client.name}`);
         await createClient(client);
         console.log('[ERP] ✅ Cliente salvo no banco com sucesso:', client.name);
-        
+
         // Re-busca do banco para garantir consistência
         // ✅ IMPORTANTE: isto evita que o cliente desapareça após F5
         try {
           const dbClients = await fetchClients();
           console.log('[ERP] ✅ Clientes re-sincronizados do banco:', dbClients.length, 'clientes');
           setClients(dbClients);
-          
+
           // Valida que o novo cliente aparece
           const novoClienteSalvo = dbClients.find(c => c.id === client.id);
           if (novoClienteSalvo) {
@@ -435,7 +435,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           `[ERP] ❌ Tentativa ${attempts + 1}/3 — ERRO ao salvar cliente:`,
           errMsg
         );
-        
+
         const shouldRetry = attempts < 2;
         if (shouldRetry) {
           console.log(`[ERP] 🔄 Retrying em 2 segundos...`);
@@ -450,15 +450,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     };
 
-    saveToDb().catch(err => {
-      console.error('[ERP] 🚨 FALHA ao salvar cliente:', err?.message ?? err);
-    });
+    // Aguarda o salvamento — assim o chamador sabe se deu certo ou não
+    await saveToDb();
   }, [setClients]);
 
   const editClient = useCallback((client: Client) => {
     setClients(prev => prev.map(c => c.id === client.id ? client : c));
     console.log('[ERP] 📝 Cliente editado no state local:', client.name);
-    
+
     updateClient(client).then(() => {
       console.log('[ERP] ✅ Cliente atualizado no banco:', client.name);
       // Re-sincroniza para garantir consistência
@@ -469,7 +468,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }).catch(err => {
       console.error('[ERP] ❌ Erro ao atualizar cliente no banco:', err?.message ?? err);
       // Tenta re-sincronizar para corrigir estado
-      fetchClients().then(dbClients => setClients(dbClients)).catch(() => {});
+      fetchClients().then(dbClients => setClients(dbClients)).catch(() => { });
     });
   }, [setClients]);
 
@@ -618,7 +617,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setBarcodeScans(prev => [newScan, ...prev]);
     console.log('[ERP] Leitura de código de barras registrada:', newScan.orderNumber);
-    
+
     // Salva no banco de dados em background
     createBarcodeScan({
       orderId: scan.orderId,
@@ -638,7 +637,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setDeliveryPickups(prev => [newPickup, ...prev]);
     console.log('[ERP] 📦 Retirada de entregador registrada localmente:', newPickup.orderNumber);
-    
+
     // Salva no banco de dados com foto e assinatura
     return createDeliveryPickup({
       orderId: pickup.orderId,

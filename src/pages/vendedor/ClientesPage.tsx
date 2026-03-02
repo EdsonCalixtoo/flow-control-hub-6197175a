@@ -200,6 +200,13 @@ const ClientesPage: React.FC = () => {
   };
 
   const handleDeleteClient = async (clientId: string) => {
+    // Verifica se cliente tem pedidos associados
+    const clientOrdersToDelete = orders.filter(o => o.clientId === clientId);
+    if (clientOrdersToDelete.length > 0) {
+      setFormError(`❌ Não é possível deletar este cliente. Existem ${clientOrdersToDelete.length} pedido(s)/orçamento(s) associado(s). Exclua-os primeiro.`);
+      return;
+    }
+
     if (!confirm('Tem certeza que deseja deletar este cliente? Esta ação não pode ser desfeita.')) {
       return;
     }

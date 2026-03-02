@@ -35,6 +35,8 @@ const EstoquePage: React.FC = () => {
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
     const [form, setForm] = useState(emptyProduct);
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+    const [saveError, setSaveError] = useState('');
+    const [savingProduct, setSavingProduct] = useState(false);
 
     // Stats
     const totalProducts = products.length;
@@ -92,30 +94,56 @@ const EstoquePage: React.FC = () => {
     };
 
     const handleSave = () => {
-        if (!form.name.trim() || !form.sku.trim()) return;
+        setSaveError('');
+        
+        // Validação
+        if (!form.name.trim()) {
+            setSaveError('Nome do produto é obrigatório');
+            return;
+        }
+        if (!form.sku.trim()) {
+            setSaveError('SKU é obrigatório');
+            return;
+        }
 
+        // Verificar se SKU já existe (apenas para novos produtos)
+        if (!editingProduct && products.some(p => p.sku.toUpperCase() === form.sku.toUpperCase())) {
+            setSaveError('SKU já existe na base de dados');
+            return;
+        }
+
+        setSavingProduct(true);
         const now = new Date().toISOString().slice(0, 10);
         const status: Product['status'] = form.stockQuantity === 0 ? 'esgotado' : form.status === 'inativo' ? 'inativo' : 'ativo';
 
-        if (editingProduct) {
-            updateProduct({
-                ...editingProduct,
-                ...form,
-                status,
-                updatedAt: now,
-            });
-        } else {
-            addProduct({
-                id: crypto.randomUUID(),
-                ...form,
-                status,
-                createdAt: now,
-                updatedAt: now,
-            });
+        try {
+            if (editingProduct) {
+                console.log('[EstoquePage] Atualizando produto:', editingProduct.id);
+                updateProduct({
+                    ...editingProduct,
+                    ...form,
+                    status,
+                    updatedAt: now,
+                });
+            } else {
+                console.log('[EstoquePage] Criando novo produto:', form.name);
+                addProduct({
+                    id: crypto.randomUUID(),
+                    ...form,
+                    status,
+                    createdAt: now,
+                    updatedAt: now,
+                });
+            }
+            setShowModal(false);
+            setForm(emptyProduct);
+            setEditingProduct(null);
+            setSavingProduct(false);
+        } catch (err: any) {
+            console.error('[EstoquePage] Erro ao salvar:', err);
+            setSaveError(err?.message || 'Erro ao salvar produto');
+            setSavingProduct(false);
         }
-        setShowModal(false);
-        setForm(emptyProduct);
-        setEditingProduct(null);
     };
 
     const handleDelete = (id: string) => {
@@ -419,12 +447,20 @@ const EstoquePage: React.FC = () => {
                             )}
                         </div>
 
+                        {saveError && (
+                            <div className="bg-destructive/5 border border-destructive/20 rounded-xl p-3 mx-6 mb-4">
+                                <p className="text-xs text-destructive font-semibold flex items-center gap-2">
+                                    <AlertTriangle className="w-4 h-4" /> {saveError}
+                                </p>
+                            </div>
+                        )}
+
                         <div className="sticky bottom-0 bg-card border-t border-border/40 px-6 py-4 flex justify-end gap-3 rounded-b-2xl">
-                            <button onClick={() => setShowModal(false)} className="btn-modern bg-muted text-foreground shadow-none text-sm">
+                            <button onClick={() => { setShowModal(false); setSaveError(''); }} className="btn-modern bg-muted text-foreground shadow-none text-sm">
                                 Cancelar
                             </button>
-                            <button onClick={handleSave} disabled={!form.name.trim() || !form.sku.trim()} className="btn-modern bg-gradient-to-r from-gestor to-gestor/80 text-primary-foreground text-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                                <Package className="w-4 h-4" /> {editingProduct ? 'Salvar Alterações' : 'Cadastrar Produto'}
+                            <button onClick={handleSave} disabled={!form.name.trim() || !form.sku.trim() || savingProduct} className="btn-modern bg-gradient-to-r from-gestor to-gestor/80 text-primary-foreground text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                                <Package className="w-4 h-4" /> {savingProduct ? 'Salvando...' : editingProduct ? 'Salvar Alterações' : 'Cadastrar Produto'}
                             </button>
                         </div>
                     </div>

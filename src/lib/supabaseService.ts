@@ -468,6 +468,7 @@ export async function fetchProducts(): Promise<Product[]> {
 }
 
 export async function upsertProduct(product: Product): Promise<void> {
+    const now = new Date().toISOString();
     const { error } = await supabase.from('products').upsert({
         id: product.id,
         sku: product.sku,
@@ -481,6 +482,10 @@ export async function upsertProduct(product: Product): Promise<void> {
         unit: product.unit ?? 'un',
         supplier: product.supplier ?? '',
         status: product.status ?? 'ativo',
+        created_at: product.createdAt ?? now,
+        updated_at: now,
+    }, {
+        onConflict: 'id'
     });
     if (error) { logError('upsertProduct', error); throw error; }
 }

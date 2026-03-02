@@ -92,8 +92,9 @@ ORDER BY name;
 
 -- 10. Verificar se há duplicatas ou registros corrompidos
 SELECT 
-  name,
-  COUNT(*) as duplicatas
+  LOWER(email) as email,
+  COUNT(*) as duplicatas,
+  STRING_AGG(name, ', ') as vendedores
 FROM profiles
 WHERE role = 'vendedor'
 GROUP BY LOWER(email)

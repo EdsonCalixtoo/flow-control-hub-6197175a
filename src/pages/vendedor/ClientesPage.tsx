@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency } from '@/components/shared/StatusBadge';
@@ -78,8 +78,34 @@ const ClientesPage: React.FC = () => {
     // Se é vendedor: vê seus clientes OU clientes sem proprietário (para compatibilidade)
     const createdByUserId = (c as any).createdBy === user?.id;
     const hasNoCreator = !(c as any).createdBy;
-    return createdByUserId || hasNoCreator;
+    
+    const include = createdByUserId || hasNoCreator;
+    
+    // Debug logging
+    if (!include) {
+      console.warn('[ClientesPage] ⚠️ Cliente BLOQUEADO pelo filtro:', {
+        clientId: c.id,
+        clientName: c.name,
+        clientCreatedBy: (c as any).createdBy,
+        userId: user?.id,
+        createdByUserId,
+        hasNoCreator,
+      });
+    }
+    
+    return include;
   });
+
+  // Após filtrado, log do resultado
+  useEffect(() => {
+    console.log('[ClientesPage] 📊 Estado dos clientes:', {
+      totalNoEstado: clients.length,
+      meuClientes: myClients.length,
+      userRole: user?.role,
+      userId: user?.id,
+      clientes: myClients.map(c => ({ id: c.id, name: c.name, createdBy: (c as any).createdBy })),
+    });
+  }, [clients, myClients, user?.role, user?.id]);
 
   const filtered = myClients.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||

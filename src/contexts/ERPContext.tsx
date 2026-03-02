@@ -98,7 +98,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setProductionErrors(dbErrors);
       setBarcodeScans(dbBarcodeScan);
       setDeliveryPickups(dbPickups);
-      console.log('[ERP] Sincronizado com Supabase ✓', { orders: dbOrders.length, clients: dbClients.length, products: dbProducts.length, scans: dbBarcodeScan.length, pickups: dbPickups.length });
+      console.log('[ERP] Sincronizado com Supabase ✓', {
+        orders: dbOrders.length,
+        clients: dbClients.length,
+        products: dbProducts.length,
+        scans: dbBarcodeScan.length,
+        pickups: dbPickups.length,
+        clientDetails: dbClients.map(c => ({ id: c.id, name: c.name, createdBy: c.createdBy })),
+      });
     } catch (err: any) {
       const errMsg = err?.message || JSON.stringify(err);
       

@@ -396,9 +396,22 @@ export async function updateOrderFull(order: Order): Promise<void> {
 // CLIENTS
 // ─────────────────────────────────────────────────────────────
 export async function fetchClients(): Promise<Client[]> {
+    console.log('[supabaseService] 🔄 Buscando clientes do banco...');
     const { data, error } = await supabase.from('clients').select('*').order('name');
-    if (error) { logError('fetchClients', error); throw error; }
-    return (data ?? []).map(c => mapClient(c as Record<string, unknown>));
+    
+    if (error) {
+        console.error('[supabaseService] ❌ Erro ao buscar clientes:', error);
+        logError('fetchClients', error);
+        throw error;
+    }
+    
+    const clients = (data ?? []).map(c => mapClient(c as Record<string, unknown>));
+    console.log('[supabaseService] ✅ Clientes recuperados do banco:', {
+        count: clients.length,
+        clients: clients.map(c => ({ id: c.id, name: c.name, createdBy: c.createdBy })),
+    });
+    
+    return clients;
 }
 
 export async function createClient(client: Client): Promise<void> {
@@ -417,17 +430,51 @@ export async function createClient(client: Client): Promise<void> {
         bairro: client.bairro ?? '',
         created_by: (client as any).createdBy ?? null,   // ✅ salva o ID do vendedor
     };
+    
+    console.log('[supabaseService] 📝 Salvando cliente no banco:', {
+        id: payload.id,
+        name: payload.name,
+        created_by: payload.created_by,
+    });
+    
     let { error } = await supabase.from('clients').insert(payload);
+    
     // fallback sem bairro se coluna ainda não existe
     if (error) {
         const msg = String((error as any).message ?? '').toLowerCase();
-        if ((error as any).code === '42703' || msg.includes('bairro')) {
+        const code = String((error as any).code ?? '');
+        
+        console.error('[supabaseService] ⚠️ Erro ao inserir cliente (tentando fallback):', {
+            code,
+            message: msg,
+            payload,
+        });
+        
+        if (code === '42703' || msg.includes('bairro')) {
+            console.log('[supabaseService] 🔄 Removendo campo "bairro" e retentando...');
             const { bairro: _b, ...rest } = payload;
             const result = await supabase.from('clients').insert(rest);
             error = result.error;
+            
+            if (!error) {
+                console.log('[supabaseService] ✅ Cliente salvo com sucesso (sem bairro)');
+            }
         }
     }
-    if (error) { logError('createClient', error); throw error; }
+    
+    if (error) {
+        const errMsg = String((error as any).message ?? '');
+        const errCode = String((error as any).code ?? '');
+        console.error('[supabaseService] ❌ ERRO FINAL ao salvar cliente:', {
+            code: errCode,
+            message: errMsg,
+            payload,
+        });
+        logError('createClient', error);
+        throw error;
+    }
+    
+    console.log('[supabaseService] ✅ Cliente salvo com sucesso no banco!');
 }
 
 export async function updateClient(client: Client): Promise<void> {

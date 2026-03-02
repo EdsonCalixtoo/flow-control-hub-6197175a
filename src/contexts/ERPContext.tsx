@@ -14,6 +14,11 @@ import {
 } from '@/lib/supabaseService';
 import { supabase } from '@/lib/supabase';
 
+// ✅ NOVOS SERVIÇOS COM REAL-TIME
+import * as quoteService from '@/services/quoteService';
+import * as clientService from '@/services/clientService';
+import * as messageService from '@/services/messageService';
+
 interface ERPContextType {
   orders: Order[];
   clients: Client[];

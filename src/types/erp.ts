@@ -35,6 +35,7 @@ export interface QuoteItem {
   discount: number;
   discountType: 'percent' | 'value';
   total: number;
+  sensorType?: 'com_sensor' | 'sem_sensor';  // para produtos KIT
 }
 
 export type OrderStatus =

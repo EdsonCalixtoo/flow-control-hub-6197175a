@@ -107,7 +107,14 @@ const ConferenciaPage: React.FC = () => {
             <tbody>
               {selectedOrder.items.map(item => (
                 <tr key={item.id}>
-                  <td className="text-foreground font-semibold">{item.product}</td>
+                  <td className="text-foreground font-semibold">
+                    {item.product}
+                    {item.product.toUpperCase().includes('KIT') && item.sensorType && (
+                      <span className="ml-2 text-xs font-semibold px-2 py-1 rounded-full bg-primary/20 text-primary">
+                        {item.sensorType === 'com_sensor' ? '✅ COM SENSOR' : '⚪ SEM SENSOR'}
+                      </span>
+                    )}
+                  </td>
                   <td className="text-center font-bold text-foreground text-lg">{item.quantity}</td>
                   <td className="text-right">
                     <span className="status-badge bg-success/10 text-success text-[10px]">• Confirmado</span>

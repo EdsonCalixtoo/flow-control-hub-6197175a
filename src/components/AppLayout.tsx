@@ -37,6 +37,7 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: 
   ],
   financeiro: [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/financeiro' },
+    { label: 'Controle por Vendedor', icon: Users2, path: '/financeiro/vendedores' },
     { label: 'Aprovações', icon: CheckSquare, path: '/financeiro/aprovacoes' },
     { label: 'Pagamentos', icon: DollarSign, path: '/financeiro/pagamentos' },
     { label: 'Lançamentos', icon: BarChart3, path: '/financeiro/lancamentos' },

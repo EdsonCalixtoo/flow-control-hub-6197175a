@@ -879,7 +879,14 @@ const EntregadoresPage: React.FC = () => {
                                                         <tbody>
                                                             {order.items.map(item => (
                                                                 <tr key={item.id}>
-                                                                    <td className="font-semibold text-foreground">{item.product}</td>
+                                                                    <td className="font-semibold text-foreground">
+                                                                        {item.product}
+                                                                        {item.product.toUpperCase().includes('KIT') && item.sensorType && (
+                                                                            <span className="ml-2 text-xs font-semibold px-2 py-1 rounded-full bg-primary/20 text-primary">
+                                                                                {item.sensorType === 'com_sensor' ? '✅ COM SENSOR' : '⚪ SEM SENSOR'}
+                                                                            </span>
+                                                                        )}
+                                                                    </td>
                                                                     <td className="text-muted-foreground text-xs">{item.description || '—'}</td>
                                                                     <td className="text-right">
                                                                         <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary font-extrabold text-sm">
@@ -887,7 +894,7 @@ const EntregadoresPage: React.FC = () => {
                                                                         </span>
                                                                     </td>
                                                                 </tr>
-                                                            ))}
+                                                            ))}}
                                                         </tbody>
                                                     </table>
                                                 </div>

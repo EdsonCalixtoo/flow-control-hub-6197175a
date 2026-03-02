@@ -44,7 +44,7 @@ const OrcamentosPage: React.FC = () => {
 
   // Form state for new/edit order
   const [newClientId, setNewClientId] = useState(preSelectedClientId);
-  const [newItems, setNewItems] = useState<{ product: string; description: string; quantity: number; unitPrice: number }[]>([{ product: '', description: '', quantity: 1, unitPrice: 0 }]);
+  const [newItems, setNewItems] = useState<{ product: string; description: string; quantity: number; unitPrice: number; sensorType?: 'com_sensor' | 'sem_sensor' }[]>([{ product: '', description: '', quantity: 1, unitPrice: 0 }]);
   const [newNotes, setNewNotes] = useState('');
   const [newObservation, setNewObservation] = useState('');
   const [newDeliveryDate, setNewDeliveryDate] = useState('');
@@ -85,6 +85,7 @@ const OrcamentosPage: React.FC = () => {
       description: i.description || '',
       quantity: i.quantity,
       unitPrice: i.unitPrice,
+      sensorType: i.sensorType,
     })));
     setNewNotes(order.notes || '');
     setNewObservation(order.observation || '');
@@ -129,6 +130,7 @@ const OrcamentosPage: React.FC = () => {
           discount: editingOrder.items[i]?.discount || 0,
           discountType: editingOrder.items[i]?.discountType || 'percent',
           total: item.quantity * item.unitPrice,
+          sensorType: item.sensorType,
         })),
         subtotal,
         taxes: 0,
@@ -166,6 +168,7 @@ const OrcamentosPage: React.FC = () => {
           discount: 0,
           discountType: 'percent' as const,
           total: item.quantity * item.unitPrice,
+          sensorType: item.sensorType,
         })),
         subtotal,
         taxes: 0,
@@ -192,70 +195,186 @@ const OrcamentosPage: React.FC = () => {
   const openWhatsApp = (phone: string) =>
     window.open(`https://wa.me/55${phone.replace(/\D/g, '')}`, '_blank');
 
-  // Função para baixar PDF do orçamento
+  // Função para baixar PDF do orçamento - Profissional e bem formatado
   const downloadPDF = async (order: Order) => {
     try {
-      if (!detailRef.current) return;
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      let yPosition = 15;
 
-      const element = detailRef.current;
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
+      // ═══ HEADER ═══
+      pdf.setFontSize(24);
+      pdf.setTextColor(0, 102, 204); // Azul
+      pdf.text('ORÇAMENTO', 15, yPosition);
+      
+      yPosition += 12;
+      pdf.setFontSize(9);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text(`Data: ${new Date(order.createdAt).toLocaleDateString('pt-BR')}`, 15, yPosition);
+      pdf.text(`Validade: 30 dias`, 90, yPosition);
+      pdf.text(`Número: ${order.number}`, 150, yPosition);
+
+      yPosition += 10;
+      pdf.setDrawColor(200, 200, 200);
+      pdf.line(15, yPosition, 195, yPosition);
+
+      // ═══ INFORMAÇÕES DO CLIENTE ═══
+      yPosition += 8;
+      pdf.setFontSize(11);
+      pdf.setTextColor(0, 51, 102);
+      pdf.text('CLIENTE', 15, yPosition);
+
+      yPosition += 6;
+      pdf.setFontSize(10);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text(`${order.clientName}`, 15, yPosition);
+
+      const client = clients.find(c => c.id === order.clientId);
+      if (client) {
+        yPosition += 5;
+        pdf.setFontSize(9);
+        pdf.setTextColor(80, 80, 80);
+        pdf.text(`CPF/CNPJ: ${client.cpfCnpj || '—'}`, 15, yPosition);
+        
+        yPosition += 4;
+        pdf.text(`Telefone: ${client.phone || '—'}`, 15, yPosition);
+        
+        yPosition += 4;
+        pdf.text(`Email: ${client.email || '—'}`, 15, yPosition);
+        
+        yPosition += 4;
+        pdf.text(`Endereço: ${client.address} - ${client.city}/${client.state} - ${client.cep}`, 15, yPosition);
+      }
+
+      yPosition += 12;
+      pdf.setDrawColor(200, 200, 200);
+      pdf.line(15, yPosition, 195, yPosition);
+
+      // ═══ INFORMAÇÕES DO VENDEDOR ═══
+      yPosition += 8;
+      pdf.setFontSize(11);
+      pdf.setTextColor(0, 51, 102);
+      pdf.text('VENDEDOR RESPONSÁVEL', 15, yPosition);
+
+      yPosition += 6;
+      pdf.setFontSize(10);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text(`${order.sellerName}`, 15, yPosition);
+
+      yPosition += 12;
+      pdf.setDrawColor(200, 200, 200);
+      pdf.line(15, yPosition, 195, yPosition);
+
+      // ═══ TABELA DE PRODUTOS ═══
+      yPosition += 10;
+      
+      // Headers da tabela
+      pdf.setFillColor(0, 102, 204);
+      pdf.setTextColor(255, 255, 255);
+      pdf.setFontSize(10);
+      pdf.rect(15, yPosition - 5, 180, 6, 'F');
+      pdf.text('PRODUTO', 18, yPosition);
+      pdf.text('QTDE', 120, yPosition);
+      pdf.text('VLR UNIT.', 145, yPosition);
+      pdf.text('SUBTOTAL', 175, yPosition);
+
+      yPosition += 8;
+      pdf.setTextColor(0, 0, 0);
+
+      // Linhas de produtos
+      order.items.forEach((item, idx) => {
+        // Verificar se precisa de nova página
+        if (yPosition > pageHeight - 40) {
+          pdf.addPage();
+          yPosition = 15;
+          
+          // Repetir headers em nova página
+          pdf.setFillColor(0, 102, 204);
+          pdf.setTextColor(255, 255, 255);
+          pdf.setFontSize(10);
+          pdf.rect(15, yPosition - 5, 180, 6, 'F');
+          pdf.text('PRODUTO', 18, yPosition);
+          pdf.text('QTDE', 120, yPosition);
+          pdf.text('VLR UNIT.', 145, yPosition);
+          pdf.text('SUBTOTAL', 175, yPosition);
+          
+          yPosition += 8;
+          pdf.setTextColor(0, 0, 0);
+        }
+
+        // Fundo alternado para melhor legibilidade
+        if (idx % 2 === 0) {
+          pdf.setFillColor(245, 245, 245);
+          pdf.rect(15, yPosition - 4, 180, 6, 'F');
+        }
+
+        pdf.setFontSize(9);
+        // Produto com sensor destacado
+        let productName = item.product;
+        if (item.product.toUpperCase().includes('KIT') && item.sensorType) {
+          productName += ` (${item.sensorType === 'com_sensor' ? 'COM SENSOR' : 'SEM SENSOR'})`;
+        }
+        
+        // Truncar texto longo
+        const lines = pdf.splitTextToSize(productName, 95);
+        lines.forEach((line, i) => {
+          pdf.text(line, 18, yPosition + (i * 3));
+        });
+
+        pdf.text(item.quantity.toString(), 122, yPosition);
+        pdf.text(`R$ ${item.unitPrice.toFixed(2)}`, 147, yPosition);
+        pdf.text(`R$ ${item.total.toFixed(2)}`, 172, yPosition);
+
+        yPosition += 7;
       });
 
-      const imgWidth = 210; // A4 width em mm
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      let height = pdf.internal.pageSize.getHeight();
-      let position = 0;
+      // ═══ LINHAS DE TOTAIS ═══
+      yPosition += 3;
+      pdf.setDrawColor(200, 200, 200);
+      pdf.line(15, yPosition, 195, yPosition);
 
-      // Adiciona header
-      pdf.setFontSize(16);
-      pdf.text('ORÇAMENTO', 15, 15);
+      yPosition += 6;
       pdf.setFontSize(10);
-      pdf.text(`Número: ${order.number}`, 15, 25);
-      pdf.text(`Data: ${new Date(order.createdAt).toLocaleDateString('pt-BR')}`, 15, 32);
-      pdf.text(`Cliente: ${order.clientName}`, 15, 39);
+      pdf.setTextColor(100, 100, 100);
+      pdf.text('SUBTOTAL:', 140, yPosition);
+      pdf.setTextColor(0, 0, 0);
+      pdf.text(`R$ ${order.subtotal.toFixed(2)}`, 172, yPosition);
 
-      position = 50;
+      yPosition += 6;
+      pdf.setFontSize(11);
+      pdf.setTextColor(0, 102, 204);
+      pdf.setFont(undefined, 'bold');
+      pdf.text('TOTAL:', 140, yPosition);
+      pdf.setFontSize(14);
+      pdf.text(`R$ ${order.total.toFixed(2)}`, 165, yPosition);
 
-      // Se a imagem cabe na página
-      if (position + imgHeight < height) {
-        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 10, position, imgWidth - 20, imgHeight);
-      } else {
-        // Se não cabe, divide em múltiplas páginas
-        let remainingHeight = imgHeight;
-        let sourceY = 0;
-        let isFirstPage = true;
-
-        while (remainingHeight > 0) {
-          if (!isFirstPage) {
-            pdf.addPage();
-            position = 10;
-          } else {
-            isFirstPage = false;
-          }
-
-          const maxHeight = height - position - 10;
-          const canvasHeight = Math.min(remainingHeight, (maxHeight * imgWidth) / (imgWidth - 20));
-          const canvasWidth = (canvasHeight * canvas.width) / canvas.height;
-
-          const sourceHeight = (canvasHeight * canvas.height) / imgHeight;
-          const partCanvas = document.createElement('canvas');
-          partCanvas.width = canvas.width;
-          partCanvas.height = sourceHeight;
-
-          const ctx = partCanvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sourceHeight);
-            pdf.addImage(partCanvas.toDataURL('image/png'), 'PNG', 10, position, canvasWidth, canvasHeight);
-          }
-
-          sourceY += sourceHeight;
-          remainingHeight -= canvasHeight;
-        }
+      // ═══ OBSERVAÇÕES ═══
+      if (order.observation) {
+        yPosition += 12;
+        pdf.setDrawColor(200, 200, 200);
+        pdf.line(15, yPosition, 195, yPosition);
+        
+        yPosition += 6;
+        pdf.setFontSize(10);
+        pdf.setTextColor(0, 51, 102);
+        pdf.setFont(undefined, 'bold');
+        pdf.text('OBSERVAÇÕES:', 15, yPosition);
+        
+        yPosition += 5;
+        pdf.setFontSize(9);
+        pdf.setTextColor(0, 0, 0);
+        pdf.setFont(undefined, 'normal');
+        const obsLines = pdf.splitTextToSize(order.observation, 180);
+        obsLines.forEach((line, i) => {
+          pdf.text(line, 15, yPosition + (i * 4));
+        });
       }
+
+      // ═══ RODAPÉ ═══
+      pdf.setFontSize(8);
+      pdf.setTextColor(150, 150, 150);
+      pdf.text('Este orçamento é válido por 30 dias. Para confirmar seu pedido, favor retornar assinado ou via email.', 15, pageHeight - 10);
+      pdf.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 15, pageHeight - 6);
 
       pdf.save(`Orcamento_${order.number}.pdf`);
     } catch (err) {
@@ -356,6 +475,25 @@ const OrcamentosPage: React.FC = () => {
                     )}
                   </div>
                 </div>
+                {/* Campo para Sensor - aparece apenas se for KIT */}
+                {item.product && item.product.toUpperCase().includes('KIT') && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] text-muted-foreground block mb-1">Opção do KIT</label>
+                      <select
+                        value={item.sensorType || 'com_sensor'}
+                        onChange={e => updateItem(i, 'sensorType', e.target.value as 'com_sensor' | 'sem_sensor')}
+                        className="input-modern py-2 text-xs"
+                      >
+                        <option value="com_sensor">✅ COM SENSOR</option>
+                        <option value="sem_sensor">⚪ SEM SENSOR</option>
+                      </select>
+                    </div>
+                    <div className="pt-6 text-xs text-muted-foreground">
+                      Seu produto será: <strong className="text-foreground">{item.product} {item.sensorType === 'com_sensor' ? '✅ COM SENSOR' : '⚪ SEM SENSOR'}</strong>
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label className="text-[10px] text-muted-foreground block mb-1">Descrição do Produto</label>
                   <input
@@ -517,7 +655,14 @@ const OrcamentosPage: React.FC = () => {
             <tbody>
               {selectedOrder.items.map(item => (
                 <tr key={item.id}>
-                  <td className="text-foreground font-medium">{item.product}</td>
+                  <td className="text-foreground font-medium">
+                    {item.product}
+                    {item.product.toUpperCase().includes('KIT') && item.sensorType && (
+                      <span className="ml-2 text-xs font-semibold px-2 py-1 rounded-full bg-primary/20 text-primary">
+                        {item.sensorType === 'com_sensor' ? '✅ COM SENSOR' : '⚪ SEM SENSOR'}
+                      </span>
+                    )}
+                  </td>
                   <td className="text-muted-foreground text-xs">{item.description || '—'}</td>
                   <td className="text-right text-foreground">{item.quantity}</td>
                   <td className="text-right text-foreground hidden sm:table-cell">{formatCurrency(item.unitPrice)}</td>

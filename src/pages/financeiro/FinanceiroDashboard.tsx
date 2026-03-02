@@ -249,7 +249,14 @@ const FinanceiroDashboard: React.FC = () => {
                 <tbody>
                   {selectedOrder.items.map(item => (
                     <tr key={item.id}>
-                      <td className="text-foreground font-medium">{item.product}</td>
+                      <td className="text-foreground font-medium">
+                        {item.product}
+                        {item.product.toUpperCase().includes('KIT') && item.sensorType && (
+                          <span className="ml-2 text-xs font-semibold px-2 py-1 rounded-full bg-primary/20 text-primary">
+                            {item.sensorType === 'com_sensor' ? '✅ COM SENSOR' : '⚪ SEM SENSOR'}
+                          </span>
+                        )}
+                      </td>
                       <td className="text-muted-foreground text-xs">{item.description || '—'}</td>
                       <td className="text-right text-foreground">{item.quantity}</td>
                       <td className="text-right text-foreground hidden sm:table-cell">{formatCurrency(item.unitPrice)}</td>

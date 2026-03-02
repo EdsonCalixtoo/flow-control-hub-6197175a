@@ -32,6 +32,7 @@ const OrcamentosPage: React.FC = () => {
   const [comprovanteAttached, setComprovanteAttached] = useState('');
   const [formError, setFormError] = useState('');
   const [savingOrder, setSavingOrder] = useState(false);
+  const [sendingToFinance, setSendingToFinance] = useState(false);
 
   // ✅ Isolamento: vendedor vê apenas seus pedidos
   const myOrders = orders.filter(o =>
@@ -56,16 +57,25 @@ const OrcamentosPage: React.FC = () => {
   );
 
   // Envia para o financeiro — apenas via botão explícito
-  const enviarFinanceiro = (orderId: string) => {
-    const receipt = comprovanteAttached || selectedOrder?.receiptUrl;
-    updateOrderStatus(
-      orderId, 'aguardando_financeiro',
-      receipt ? { receiptUrl: receipt } : undefined,
-      user?.name || 'Vendedor',
-      receipt ? 'Enviado para aprovação financeira com comprovante' : 'Enviado para aprovação financeira'
-    );
-    setSelectedOrder(null);
-    setComprovanteAttached('');
+  const enviarFinanceiro = async (orderId: string) => {
+    try {
+      setSendingToFinance(true);
+      const receipt = comprovanteAttached || selectedOrder?.receiptUrl;
+      await updateOrderStatus(
+        orderId, 'aguardando_financeiro',
+        receipt ? { receiptUrl: receipt } : undefined,
+        user?.name || 'Vendedor',
+        receipt ? 'Enviado para aprovação financeira com comprovante' : 'Enviado para aprovação financeira'
+      );
+      console.log('[OrcamentosPage] ✅ Orçamento enviado para financeiro');
+      setSelectedOrder(null);
+      setComprovanteAttached('');
+    } catch (err: any) {
+      console.error('[OrcamentosPage] ❌ Erro ao enviar para financeiro:', err?.message ?? err);
+      alert('❌ Erro ao enviar: ' + (err?.message || 'Tente novamente'));
+    } finally {
+      setSendingToFinance(false);
+    }
   };
 
   const addItem = () => setNewItems(prev => [...prev, { product: '', description: '', quantity: 1, unitPrice: 0 }]);
@@ -233,7 +243,7 @@ const OrcamentosPage: React.FC = () => {
           };
 
           console.log(`[OrcamentosPage] 📍 Salvando orçamento ${order.number} no banco...`);
-          addOrder(order);
+          await addOrder(order);
           
           setFormError('');
           resetForm();
@@ -817,10 +827,10 @@ const OrcamentosPage: React.FC = () => {
               )}
               <button
                 onClick={() => enviarFinanceiro(selectedOrder.id)}
-                disabled={!comprovanteAttached.trim() && !selectedOrder.receiptUrl}
+                disabled={(!comprovanteAttached.trim() && !selectedOrder.receiptUrl) || sendingToFinance}
                 className="btn-modern bg-gradient-to-r from-vendedor to-vendedor/80 text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed flex-1"
               >
-                <Send className="w-4 h-4" /> 🟢 Enviar para Financeiro
+                <Send className="w-4 h-4" /> {sendingToFinance ? '⏳ Enviando...' : '🟢 Enviar para Financeiro'}
               </button>
             </div>
 

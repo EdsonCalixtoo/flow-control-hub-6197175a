@@ -76,7 +76,11 @@ const App = () => (
                 <Route path="/financeiro/lancamentos" element={<ProtectedRoute role="financeiro"><LancamentosPage /></ProtectedRoute>} />
                 <Route path="/financeiro/fluxo" element={<ProtectedRoute role="financeiro"><FluxoCaixaPage /></ProtectedRoute>} />
         <Route path="/financeiro/vendedores" element={<ProtectedRoute role="financeiro"><VendedoresControlPage /></ProtectedRoute>} />
-                <Route path="/gestor/relatorios" element={<ProtectedRoute role="gestor"><RelatoriosPage /></ProtectedRoute>} />
+
+                {/* Gestor */}
+                <Route path="/gestor" element={<ProtectedRoute role="gestor"><GestorDashboard /></ProtectedRoute>} />
+                <Route path="/gestor/conferencia" element={<ProtectedRoute role="gestor"><ConferenciaPage /></ProtectedRoute>} />
+                <Route path="/gestor/estoque" element={<ProtectedRoute role="gestor"><EstoquePage /></ProtectedRoute>} />
                 <Route path="/gestor/entregadores" element={<ProtectedRoute role="gestor"><EntregadoresPage /></ProtectedRoute>} />
 
                 {/* Produção */}

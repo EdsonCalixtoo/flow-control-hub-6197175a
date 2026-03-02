@@ -42,8 +42,8 @@ SELECT
   id,
   name,
   sku,
-  stock,
-  price,
+  stock_quantity,
+  unit_price as price,
   status,
   created_at,
   updated_at
@@ -54,7 +54,7 @@ ORDER BY name;
 SELECT 
   id,
   name,
-  stock,
+  stock_quantity,
   updated_at,
   status
 FROM products
@@ -83,8 +83,8 @@ SELECT
   id,
   name,
   sku,
-  stock as quantidade_estoque,
-  price as preco,
+  stock_quantity as quantidade_estoque,
+  unit_price as preco,
   status
 FROM products
 WHERE status = 'ativo'

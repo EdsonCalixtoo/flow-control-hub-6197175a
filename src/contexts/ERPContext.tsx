@@ -387,19 +387,65 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // ── CLIENTS ──────────────────────────────────────────────────
   const addClient = useCallback((client: Client) => {
     setClients(prev => [client, ...prev]);
-    createClient(client).then(() => {
-      console.log('[ERP] Cliente salvo no banco:', client.name);
-    }).catch(err => {
-      console.error('[ERP] Erro ao salvar cliente no banco:', err?.message ?? err);
+    console.log('[ERP] ✨ Cliente criado no state local:', client.name, client.id);
+    
+    // Tenta salvar no banco com retry
+    const saveToDb = async (attempts = 0): Promise<void> => {
+      try {
+        console.log(`[ERP] 💾 Tentativa ${attempts + 1}/3 — Salvando cliente no banco: ${client.name}`);
+        await createClient(client);
+        console.log('[ERP] ✅ Cliente salvo no banco com sucesso:', client.name);
+        
+        // Re-busca do banco para garantir consistência
+        try {
+          const dbClients = await fetchClients();
+          console.log('[ERP] ✅ Clientes re-sincronizados do banco:', dbClients.length);
+          setClients(dbClients);
+        } catch (err) {
+          console.error('[ERP] ⚠️ Aviso: Cliente salvo mas não consegui re-sincronizar:', err);
+          // Não falha aqui — o cliente já foi salvo
+        }
+      } catch (err: any) {
+        const errMsg = err?.message ?? String(err);
+        console.error(
+          `[ERP] ❌ Tentativa ${attempts + 1}/3 — ERRO ao salvar cliente:`,
+          errMsg
+        );
+        
+        const shouldRetry = attempts < 2;
+        if (shouldRetry) {
+          console.log(`[ERP] 🔄 Retrying em 1 segundo...`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return saveToDb(attempts + 1);
+        } else {
+          console.error('[ERP] ❌ Falha permanente ao salvar cliente');
+          // Remove do state se falhar definitivamente
+          setClients(prev => prev.filter(c => c.id !== client.id));
+          throw error;
+        }
+      }
+    };
+
+    saveToDb().catch(err => {
+      console.error('[ERP] 🚨 FALHA ao salvar cliente:', err?.message ?? err);
     });
   }, [setClients]);
 
   const editClient = useCallback((client: Client) => {
     setClients(prev => prev.map(c => c.id === client.id ? client : c));
+    console.log('[ERP] 📝 Cliente editado no state local:', client.name);
+    
     updateClient(client).then(() => {
-      console.log('[ERP] Cliente atualizado no banco:', client.name);
+      console.log('[ERP] ✅ Cliente atualizado no banco:', client.name);
+      // Re-sincroniza para garantir consistência
+      return fetchClients().then(dbClients => {
+        setClients(dbClients);
+        console.log('[ERP] ✅ Clientes re-sincronizados após edição');
+      });
     }).catch(err => {
-      console.error('[ERP] Erro ao atualizar cliente no banco:', err?.message ?? err);
+      console.error('[ERP] ❌ Erro ao atualizar cliente no banco:', err?.message ?? err);
+      // Tenta re-sincronizar para corrigir estado
+      fetchClients().then(dbClients => setClients(dbClients)).catch(() => {});
     });
   }, [setClients]);
 

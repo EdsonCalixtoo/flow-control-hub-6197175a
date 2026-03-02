@@ -59,6 +59,8 @@ const ClientesPage: React.FC = () => {
   const [showCreate, setShowCreate] = useState(false);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [savingClient, setSavingClient] = useState(false);
+  const [formError, setFormError] = useState('');
 
   // Combina logradouro + número + complemento em um único campo address
   const buildAddress = (f: typeof EMPTY_FORM) =>
@@ -109,20 +111,48 @@ const ClientesPage: React.FC = () => {
     }
   };
 
-  const handleCreate = () => {
-    if (!form.name || !form.cpfCnpj) return;
-    const { logradouro, numero, complemento, ...rest } = form;
-    addClient({
-      id: crypto.randomUUID(),
-      ...rest,
-      address: buildAddress(form),
-      bairro: form.bairro,
-      consignado: form.consignado,
-      createdBy: user?.id,
-      createdAt: new Date().toISOString(),
-    } as Client);
-    setShowCreate(false);
-    setForm(EMPTY_FORM);
+  const handleCreate = async () => {
+    setFormError('');
+    
+    // Validações
+    if (!form.name || form.name.trim() === '') {
+      setFormError('⚠️ Nome é obrigatório.');
+      return;
+    }
+
+    if (!form.cpfCnpj || form.cpfCnpj.replace(/\D/g, '').length < 11) {
+      setFormError('⚠️ CPF/CNPJ inválido.');
+      return;
+    }
+
+    try {
+      setSavingClient(true);
+      console.log('[ClientesPage] 📝 Criando cliente:', form.name);
+      
+      const { logradouro, numero, complemento, ...rest } = form;
+      
+      const newClient: Client = {
+        id: crypto.randomUUID(),
+        ...rest,
+        address: buildAddress(form),
+        bairro: form.bairro,
+        consignado: form.consignado,
+        createdBy: user?.id,
+        createdAt: new Date().toISOString(),
+      } as Client;
+      
+      addClient(newClient);
+      console.log('[ClientesPage] ✅ Cliente criado:', newClient.name);
+      
+      setShowCreate(false);
+      setForm(EMPTY_FORM);
+      setFormError('');
+    } catch (err: any) {
+      console.error('[ClientesPage] ❌ Erro ao criar cliente:', err?.message ?? err);
+      setFormError(`❌ Erro ao cadastrar cliente: ${err?.message || 'Tente novamente'}`);
+    } finally {
+      setSavingClient(false);
+    }
   };
 
   const clientOrders = selectedClient ? orders.filter(o => o.clientId === selectedClient.id) : [];
@@ -380,9 +410,21 @@ const ClientesPage: React.FC = () => {
             </div>
           </div>
 
-          <button onClick={handleCreate} className="btn-primary" disabled={!form.name || !form.cpfCnpj}>
-            <Plus className="w-4 h-4" /> Cadastrar Cliente
+          <button onClick={handleCreate} disabled={savingClient || !form.name || !form.cpfCnpj} className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed">
+            {savingClient ? (
+              <><span className="animate-spin">⚙️</span> Salvando...</>
+            ) : (
+              <><Plus className="w-4 h-4" /> Cadastrar Cliente</>
+            )}
           </button>
+
+          {/* Mensagem de erro */}
+          {formError && (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm animate-scale-in">
+              <span className="text-base">⚠</span>
+              {formError}
+            </div>
+          )}
         </div>
       </div>
     );

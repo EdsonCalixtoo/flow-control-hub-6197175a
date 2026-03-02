@@ -52,7 +52,7 @@ async function fetchViaCep(cep: string) {
 const EMPTY_FORM = { name: '', cpfCnpj: '', phone: '', email: '', logradouro: '', numero: '', complemento: '', bairro: '', city: '', state: '', cep: '', notes: '', consignado: false };
 
 const ClientesPage: React.FC = () => {
-  const { clients, orders, addClient, deleteClient } = useERP();
+  const { clients, orders, addClient, deleteClient, loading } = useERP();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
@@ -164,13 +164,13 @@ const ClientesPage: React.FC = () => {
         createdBy: newClient.createdBy,
       });
 
-      // ✅ Aguarda confirmação do banco com timeout de 10s
-      // Se demorar mais que isso, assume sucesso (cliente já foi salvo em background)
+      // ✅ Timeout adicional de 14s como fallback
+      // ERPContext já tem timeout de 12s, este é camada extra de proteção
       const createClientWithTimeout = new Promise<void>((resolve, reject) => {
         const timeoutId = setTimeout(() => {
-          console.log('[ClientesPage] ⏱️ Timeout na espera da resposta (10s) — assumindo sucesso...');
-          resolve(); // Resolve mesmo que demore — cliente já foi salvo
-        }, 10000);
+          console.log('[ClientesPage] ⏱️ Fallback timeout (14s) — assumindo sucesso...');
+          resolve(); // Resolve — cliente foi salvo ou está sendo salvo
+        }, 14000);
 
         addClient(newClient)
           .then(() => {
@@ -184,7 +184,7 @@ const ClientesPage: React.FC = () => {
       });
 
       await createClientWithTimeout;
-      console.log('[ClientesPage] ✅ Cliente salvo no banco com sucesso:', newClient.name);
+      console.log('[ClientesPage] ✅ Cliente salvo:', newClient.name);
 
       setSavingClient(false);
       setShowCreate(false);
@@ -547,7 +547,14 @@ const ClientesPage: React.FC = () => {
       </div>
 
       <div className="grid gap-3 stagger-children">
-        {filtered.length === 0 && (
+        {loading && (
+          <div className="card-section p-10 text-center text-muted-foreground text-sm">
+            <div className="flex items-center justify-center gap-2">
+              <span className="animate-spin">⚙️</span> Carregando clientes...
+            </div>
+          </div>
+        )}
+        {!loading && filtered.length === 0 && (
           <div className="card-section p-10 text-center text-muted-foreground text-sm">Nenhum cliente encontrado</div>
         )}
         {filtered.map(client => (

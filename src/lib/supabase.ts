@@ -9,15 +9,14 @@ const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string)
 
 console.info('[Supabase] Inicializando cliente:', supabaseUrl ? '✓ URL ok' : '✗ URL FALTANDO');
 
-// Fix: desabilita o LockManager do Supabase que causa timeout em múltiplas abas
-// O erro "Navigator LockManager lock timed out" ocorre quando o Web Locks API
-// fica bloqueado. Usamos um lock fake que resolve imediatamente.
+// ✅ FIX: Usar config padrão de sessão e refresh de tokens
+// ANTES: Lock customizado desabilitava refresh, vendedores perdiam sessão silenciosamente
+// DEPOIS: persistSession e autoRefreshToken habilitados garantem tokens válidos
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        lock: async <R>(_name: string, _acquireTimeout: number, fn: () => Promise<R>): Promise<R> => {
-            return await fn();
-        }
+        persistSession: true,
+        autoRefreshToken: true,
+        storageKey: 'supabase.auth.token'
     }
 });
 

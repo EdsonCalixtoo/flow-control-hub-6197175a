@@ -69,10 +69,17 @@ const ClientesPage: React.FC = () => {
   const [cepLoading, setCepLoading] = useState(false);
   const [cepError, setCepError] = useState('');
 
-  // Isolamento de dados: vendedor vê apenas seus clientes
-  const myClients = clients.filter(c =>
-    user?.role !== 'vendedor' || (c as any).createdBy === user.id
-  );
+  // ✅ Isolamento: vendedor vê seus clientes + clientes sem proprietário
+  // Não-vendedor vê todos
+  const myClients = clients.filter(c => {
+    // Se não é vendedor (ex: financeiro, gestor), vê TUDO
+    if (user?.role !== 'vendedor') return true;
+    
+    // Se é vendedor: vê seus clientes OU clientes sem proprietário (para compatibilidade)
+    const createdByUserId = (c as any).createdBy === user?.id;
+    const hasNoCreator = !(c as any).createdBy;
+    return createdByUserId || hasNoCreator;
+  });
 
   const filtered = myClients.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -128,8 +135,13 @@ const ClientesPage: React.FC = () => {
     try {
       setSavingClient(true);
       console.log('[ClientesPage] 📝 Criando cliente:', form.name);
+      console.log('[ClientesPage] 🆔 User ID:', user?.id);
+      console.log('[ClientesPage] 🔐 User Role:', user?.role);
       
       const { logradouro, numero, complemento, ...rest } = form;
+      
+      // ✅ Garante que createdBy sempre tem um valor
+      const createdById = user?.id || 'sistema';
       
       const newClient: Client = {
         id: crypto.randomUUID(),
@@ -137,9 +149,15 @@ const ClientesPage: React.FC = () => {
         address: buildAddress(form),
         bairro: form.bairro,
         consignado: form.consignado,
-        createdBy: user?.id,
+        createdBy: createdById,
         createdAt: new Date().toISOString(),
       } as Client;
+      
+      console.log('[ClientesPage] 📦 Novo cliente:', {
+        id: newClient.id,
+        name: newClient.name,
+        createdBy: newClient.createdBy,
+      });
       
       addClient(newClient);
       console.log('[ClientesPage] ✅ Cliente criado:', newClient.name);

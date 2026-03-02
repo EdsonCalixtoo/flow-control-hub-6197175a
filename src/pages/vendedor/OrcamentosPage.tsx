@@ -38,10 +38,16 @@ const OrcamentosPage: React.FC = () => {
     user?.role !== 'vendedor' || o.sellerId === user.id
   );
 
-  // ✅ Isolamento: vendedor vê apenas SEUS clientes no dropdown de orçamento
-  const myClients = clients.filter(c =>
-    user?.role !== 'vendedor' || (c as any).createdBy === user.id
-  );
+  // ✅ Isolamento: vendedor vê seus clientes + clientes sem proprietário
+  const myClients = clients.filter(c => {
+    // Se não é vendedor (ex: financeiro, gestor), vê TUDO
+    if (user?.role !== 'vendedor') return true;
+    
+    // Se é vendedor: vê seus clientes OU clientes sem proprietário
+    const createdByUserId = (c as any).createdBy === user?.id;
+    const hasNoCreator = !(c as any).createdBy;
+    return createdByUserId || hasNoCreator;
+  });
 
   // Form state for new/edit order
   const [newClientId, setNewClientId] = useState(preSelectedClientId);

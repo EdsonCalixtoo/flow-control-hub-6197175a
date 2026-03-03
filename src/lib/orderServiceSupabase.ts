@@ -69,6 +69,18 @@ export const fetchOrders = async (role?: string, userId?: string): Promise<Order
     }
 };
 
+export const fetchOrderById = async (orderId: string): Promise<Order | null> => {
+    try {
+        const { data, error } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
+        if (error) throw error;
+        if (!data) return null;
+        return supabaseToOrder(data);
+    } catch (err: any) {
+        console.error('[Orders] Erro ao buscar pedido por ID:', err.message);
+        return null;
+    }
+};
+
 export const createOrderSupabase = async (order: Order): Promise<Order | null> => {
     try {
         const payload = orderToSupabase(order);

@@ -27,6 +27,7 @@ import ProdutosPage from "@/pages/gestor/ProdutosPage";
 import EntregadoresPage from "@/pages/gestor/EntregadoresPage";
 import ProducaoDashboard from "@/pages/producao/ProducaoDashboard";
 import PedidosProducaoPage from "@/pages/producao/PedidosProducaoPage";
+import TrackingPage from "@/pages/TrackingPage";
 import QRCodePage from "@/pages/QRCodePage";
 import NotFound from "./pages/NotFound";
 
@@ -94,8 +95,9 @@ const App = () => (
                 <Route path="/producao" element={<ProtectedRoute role="producao"><ProducaoDashboard /></ProtectedRoute>} />
                 <Route path="/producao/pedidos" element={<ProtectedRoute role="producao"><PedidosProducaoPage /></ProtectedRoute>} />
 
-                {/* QR Code */}
+                {/* QR Code & Tracking */}
                 <Route path="/qr/:orderId" element={<QRCodePage />} />
+                <Route path="/rastreio/:orderId" element={<TrackingPage />} />
 
                 <Route path="*" element={<NotFound />} />
               </Routes>

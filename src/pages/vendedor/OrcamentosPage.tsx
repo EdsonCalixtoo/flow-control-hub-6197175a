@@ -4,11 +4,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
 import { OrderPipeline, OrderHistory } from '@/components/shared/OrderTimeline';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
-import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check, Download } from 'lucide-react';
+import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check, Download, Link2 } from 'lucide-react';
 import type { Order, QuoteItem } from '@/types/erp';
 import { useLocation, useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { toast } from 'sonner';
 
 // Função local para gerar próximo número de ordem
 const getNextOrderNumber = (existingOrders: Order[]): number => {
@@ -161,6 +162,14 @@ const OrcamentosPage: React.FC = () => {
     setNewDeliveryDate('');
     setNewOrderType('entrega');
     setFormError('');
+  };
+
+  const handleCopyTracking = (orderId: string) => {
+    const url = `${window.location.origin}/rastreio/${orderId}`;
+    navigator.clipboard.writeText(url);
+    toast.success('Link de rastreio copiado!', {
+      description: 'Envie para o cliente acompanhar o pedido.'
+    });
   };
 
   const handleCreateOrder = async () => {
@@ -780,6 +789,14 @@ const OrcamentosPage: React.FC = () => {
             )}
           </div>
           <div className="flex items-center gap-2">
+            {/* Botão Copiar Link de Rastreio */}
+            <button
+              onClick={() => handleCopyTracking(selectedOrder.id)}
+              className="btn-modern bg-primary/10 text-primary shadow-none text-xs px-3 py-1.5 hover:bg-primary/20"
+              title="Copiar link de rastreio para o cliente"
+            >
+              <Link2 className="w-3.5 h-3.5" /> Rastreio
+            </button>
             {/* Botão Download PDF */}
             <button
               onClick={() => downloadPDF(selectedOrder)}

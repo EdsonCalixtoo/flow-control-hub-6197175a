@@ -78,7 +78,22 @@ const PedidosProducaoPage: React.FC = () => {
   const formatDate = (d?: string) => fmtDate(d);
 
   const printEtiqueta = (order: typeof orders[0]) => {
-    const client = clients.find(c => c.id === order.clientId);
+    console.log('[Etiqueta] 🏷️ Preparando impressão para pedido:', order.number);
+    console.log('[Etiqueta] 🆔 Tentando encontrar cliente ID:', order.clientId);
+
+    // Fallback: Tenta encontrar por ID ou por Nome (caso o ID tenha se perdido em alguma transferência)
+    let client = clients.find(c => c.id === order.clientId);
+    if (!client) {
+      console.warn('[Etiqueta] ⚠️ Cliente não encontrado por ID. Tentando busca por nome:', order.clientName);
+      client = clients.find(c => c.name.toLowerCase() === order.clientName?.toLowerCase());
+    }
+
+    if (client) {
+      console.log('[Etiqueta] ✅ Cliente encontrado:', client.name);
+    } else {
+      console.error('[Etiqueta] ❌ Cliente não localizado na base de dados (total de clientes carregados:', clients.length, ')');
+    }
+
     const tempDiv = document.createElement('div');
     tempDiv.style.position = 'absolute';
     tempDiv.style.left = '-9999px';
@@ -123,22 +138,22 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 .header { text-align: center; padding-bottom: 2mm; border-bottom: 1.2mm solid #000; margin-bottom: 2mm; display: flex; align-items: center; justify-content: center; gap: 2mm; }
 .header-logo { max-height: 16mm; max-width: 45mm; object-fit: contain; }
 .header-info { text-align: left; }
-.header-title { font-size: 7.5pt; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase; color: #000; margin-bottom: 0.2mm; }
-.header-pedido { font-size: 16pt; font-weight: 900; font-family: 'Courier New', monospace; color: #000; letter-spacing: 2px; line-height: 1; }
+.header-title { font-size: 8pt; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase; color: #000; margin-bottom: 0.2mm; }
+.header-pedido { font-size: 18pt; font-weight: 900; font-family: 'Courier New', monospace; color: #000; letter-spacing: 2px; line-height: 1; }
 .section { margin-bottom: 2mm; }
-.section-label { font-size: 6.5pt; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; color: #000; margin-bottom: 1mm; }
-.remetente { padding: 2mm 2.5mm; border: 1mm solid #000; border-radius: 0.5mm; background: #fff; }
-.remetente .name { font-size: 8.5pt; font-weight: 900; color: #000; margin-bottom: 0.3mm; letter-spacing: 0.3px; }
-.remetente .address { font-size: 7pt; color: #000; line-height: 1.4; font-weight: 700; }
-.destinatario { flex: 1; padding: 3mm; border: 1.5mm solid #000; border-radius: 1mm; background: #fff; display: flex; flex-direction: column; }
-.destinatario .name { font-size: 13pt; font-weight: 900; color: #000; margin-bottom: 1.5mm; letter-spacing: 0.5px; }
-.destinatario .address { font-size: 8pt; color: #000; line-height: 1.5; font-weight: 700; }
-.destinatario .cpf { font-size: 7.5pt; color: #000; margin-top: 1mm; font-weight: 700; font-family: 'Courier New', monospace; }
-.destinatario .phone { font-size: 7.5pt; color: #000; margin-top: 0.5mm; font-weight: 700; }
+.section-label { font-size: 7.5pt; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; color: #000; margin-bottom: 1mm; border-bottom: 0.5mm solid #000; width: fit-content; }
+.remetente { padding: 2mm 2.5mm; border: 0.8mm solid #000; border-radius: 0.5mm; background: #fff; }
+.remetente .name { font-size: 9pt; font-weight: 900; color: #000; margin-bottom: 0.3mm; letter-spacing: 0.3px; }
+.remetente .address { font-size: 7.5pt; color: #000; line-height: 1.3; font-weight: 700; }
+.destinatario { flex: 1; padding: 4mm; border: 1.5mm solid #000; border-radius: 1mm; background: #fff; display: flex; flex-direction: column; justify-content: center; }
+.destinatario .name { font-size: 15pt; font-weight: 900; color: #000; margin-bottom: 2mm; letter-spacing: 0.5px; text-transform: uppercase; line-height: 1.1; }
+.destinatario .address { font-size: 10pt; color: #000; line-height: 1.4; font-weight: 800; }
+.destinatario .cpf { font-size: 9pt; color: #000; margin-top: 2mm; font-weight: 800; font-family: 'Courier New', monospace; }
+.destinatario .phone { font-size: 9pt; color: #000; margin-top: 1mm; font-weight: 800; }
 .barcode-section { text-align: center; padding-top: 2mm; border-top: 1mm dashed #000; margin-top: 1mm; }
-.barcode-section .barcode-label { font-size: 7pt; font-weight: 900; color: #000; margin-bottom: 1mm; letter-spacing: 1px; font-family: 'Courier New', monospace; }
-.barcode-section img { max-width: 75mm; height: auto; }
-.footer { text-align: center; font-size: 5.5pt; color: #000; margin-top: 0.5mm; font-weight: 700; }
+.barcode-section .barcode-label { font-size: 8pt; font-weight: 900; color: #000; margin-bottom: 1.5mm; letter-spacing: 2px; font-family: 'Courier New', monospace; }
+.barcode-section img { max-width: 85mm; height: auto; }
+.footer { text-align: center; font-size: 6pt; color: #000; margin-top: 1mm; font-weight: 700; border-top: 0.3mm solid #ccc; padding-top: 1mm; }
 </style></head><body>
 <div class="etiqueta">
   <div class="header">
@@ -159,18 +174,22 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
     <div class="section-label">Destinatário</div>
     <div class="destinatario">
       <div class="name">${order.clientName}</div>
-      <div class="address">${client?.address || 'Endereço não cadastrado'}<br>${client ? `${client.city} - ${client.state} CEP: ${client.cep}` : ''}</div>
-      ${client?.cpfCnpj ? `<div class="cpf">CPF: ${client.cpfCnpj}</div>` : ''}
-      ${client?.phone ? `<div class="phone">Tel: ${client.phone}</div>` : ''}
+      <div class="address">
+        ${client?.address || '<span style="color:red">ENDEREÇO NÃO LOCALIZADO</span>'}
+        ${client?.bairro ? `<br>Bairro: ${client.bairro}` : ''}
+        ${client ? `<br>${client.city} - ${client.state} CEP: ${client.cep}` : ''}
+      </div>
+      ${client?.cpfCnpj ? `<div class="cpf">CPF/CNPJ: ${client.cpfCnpj}</div>` : ''}
+      ${client?.phone ? `<div class="phone">Telefone: ${client.phone}</div>` : ''}
     </div>
   </div>
   <div class="barcode-section">
     <div class="barcode-label">PEDIDO: ${order.number}</div>
     <img src="${barcodeDataUrl}" alt="Código de barras" />
   </div>
-  <div class="footer">Emitido: ${new Date().toLocaleDateString('pt-BR')}</div>
+  <div class="footer">Emitido em: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
 </div>
-<script>window.onload = function() { setTimeout(function() { window.print(); setTimeout(window.close, 500); }, 300); };</script>
+<script>window.onload = function() { setTimeout(function() { window.print(); setTimeout(window.close, 1000); }, 500); };</script>
 </body></html>`;
       printWindow.document.write(html);
       printWindow.document.close();

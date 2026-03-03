@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { FinancialEntry, DelayReport, OrderReturn, ProductionError } from '@/types/erp';
+import type { FinancialEntry, DelayReport, OrderReturn, ProductionError, BarcodeScan, DeliveryPickup } from '@/types/erp';
 
 // ── Financial Entries ────────────────────────────────────────────────────────
 const supabaseToFinancial = (data: any): FinancialEntry => ({
@@ -211,3 +211,86 @@ export const resolveProductionErrorSupabase = async (errorId: string): Promise<P
         throw err;
     }
 };
+
+// ── Barcode Scans ────────────────────────────────────────────────────────────
+const supabaseToBarcodeScan = (data: any): BarcodeScan => ({
+    id: data.id,
+    orderId: data.order_id,
+    orderNumber: data.order_number,
+    scannedBy: data.scanned_by,
+    scannedAt: data.created_at,
+    success: data.success,
+    note: data.note,
+});
+
+export const fetchBarcodeScans = async (): Promise<BarcodeScan[]> => {
+    try {
+        const { data, error } = await supabase.from('barcode_scans').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        return (data || []).map(supabaseToBarcodeScan);
+    } catch (err: any) {
+        console.error('[BarcodeScans] Erro ao buscar leituras:', err.message);
+        return [];
+    }
+};
+
+export const createBarcodeScanSupabase = async (scan: Omit<BarcodeScan, 'id' | 'scannedAt'>): Promise<BarcodeScan | null> => {
+    try {
+        const payload = {
+            order_id: scan.orderId,
+            order_number: scan.orderNumber,
+            scanned_by: scan.scannedBy,
+            success: scan.success,
+            note: scan.note,
+        };
+        const { data, error } = await supabase.from('barcode_scans').insert([payload]).select().single();
+        if (error) throw error;
+        return supabaseToBarcodeScan(data);
+    } catch (err: any) {
+        console.error('[BarcodeScans] Erro ao criar leitura:', err.message);
+        throw err;
+    }
+};
+
+// ── Delivery Pickups ─────────────────────────────────────────────────────────
+const supabaseToDeliveryPickup = (data: any): DeliveryPickup => ({
+    id: data.id,
+    orderId: data.order_id,
+    orderNumber: data.order_number,
+    delivererName: data.deliverer_name,
+    photoUrl: data.photo_url,
+    signatureUrl: data.signature_url,
+    pickedUpAt: data.created_at,
+    note: data.note,
+});
+
+export const fetchDeliveryPickups = async (): Promise<DeliveryPickup[]> => {
+    try {
+        const { data, error } = await supabase.from('delivery_pickups').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        return (data || []).map(supabaseToDeliveryPickup);
+    } catch (err: any) {
+        console.error('[DeliveryPickups] Erro ao buscar retiradas:', err.message);
+        return [];
+    }
+};
+
+export const createDeliveryPickupSupabase = async (pickup: Omit<DeliveryPickup, 'id' | 'pickedUpAt'>): Promise<DeliveryPickup | null> => {
+    try {
+        const payload = {
+            order_id: pickup.orderId,
+            order_number: pickup.orderNumber,
+            deliverer_name: pickup.delivererName,
+            photo_url: pickup.photoUrl,
+            signature_url: pickup.signatureUrl,
+            note: pickup.note,
+        };
+        const { data, error } = await supabase.from('delivery_pickups').insert([payload]).select().single();
+        if (error) throw error;
+        return supabaseToDeliveryPickup(data);
+    } catch (err: any) {
+        console.error('[DeliveryPickups] Erro ao criar retirada:', err.message);
+        throw err;
+    }
+};
+

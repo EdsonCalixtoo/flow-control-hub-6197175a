@@ -9,7 +9,9 @@ import {
   fetchFinancialEntries, createFinancialEntrySupabase,
   fetchDelayReports, createDelayReportSupabase, markDelayReportReadSupabase,
   fetchOrderReturns, createOrderReturnSupabase,
-  fetchProductionErrors, createProductionErrorSupabase, resolveProductionErrorSupabase
+  fetchProductionErrors, createProductionErrorSupabase, resolveProductionErrorSupabase,
+  fetchBarcodeScans, createBarcodeScanSupabase,
+  fetchDeliveryPickups, createDeliveryPickupSupabase
 } from '@/lib/gestorServiceSupabase';
 
 interface ERPContextType {
@@ -91,15 +93,19 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           supabaseFinancial,
           supabaseDelays,
           supabaseReturns,
-          supabaseErrors
+          supabaseErrors,
+          supabaseScans,
+          supabasePickups
         ] = await Promise.all([
           fetchClients(),
           fetchProducts(),
-          fetchOrders(), // Roles serão aplicados via RLS se configurado, ou filtro no serviço
+          fetchOrders(),
           fetchFinancialEntries(),
           fetchDelayReports(),
           fetchOrderReturns(),
-          fetchProductionErrors()
+          fetchProductionErrors(),
+          fetchBarcodeScans(),
+          fetchDeliveryPickups()
         ]);
 
         setClients(supabaseClients);
@@ -109,6 +115,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setDelayReports(supabaseDelays);
         setOrderReturns(supabaseReturns);
         setProductionErrors(supabaseErrors);
+        setBarcodeScans(supabaseScans);
+        setDeliveryPickups(supabasePickups);
 
         console.log('[ERP] ✅ Sincronização concluída');
       } catch (err: any) {
@@ -436,28 +444,31 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  // ── BARCODE SCANS ────────────────────────────────────────────
-  const addBarcodeScan = useCallback((scan: Omit<BarcodeScan, 'id' | 'scannedAt'>) => {
-    const newScan: BarcodeScan = {
-      ...scan,
-      id: crypto.randomUUID(),
-      scannedAt: new Date().toISOString(),
-    };
-    setBarcodeScans(prev => [newScan, ...prev]);
-    console.log('[ERP] Leitura de código de barras registrada:', newScan.orderNumber);
-  }, [setBarcodeScans]);
+  // ── barcode scans ───────────────────────────────────────────
+  const addBarcodeScan = useCallback(async (scan: Omit<BarcodeScan, 'id' | 'scannedAt'>) => {
+    try {
+      const newScan = await createBarcodeScanSupabase(scan);
+      if (newScan) {
+        setBarcodeScans(prev => [newScan, ...prev]);
+        console.log('[ERP] 📡 Leitura sincronizada com Supabase:', scan.orderNumber);
+      }
+    } catch (err: any) {
+      console.error('[ERP] Erro ao sincronizar leitura:', err.message);
+    }
+  }, []);
 
-  // ── DELIVERY PICKUPS ─────────────────────────────────────────
-  const addDeliveryPickup = useCallback((pickup: Omit<DeliveryPickup, 'id' | 'pickedUpAt'>): Promise<void> => {
-    const newPickup: DeliveryPickup = {
-      ...pickup,
-      id: crypto.randomUUID(),
-      pickedUpAt: new Date().toISOString(),
-    };
-    setDeliveryPickups(prev => [newPickup, ...prev]);
-    console.log('[ERP] 📦 Retirada de entregador registrada:', newPickup.orderNumber);
-    return Promise.resolve();
-  }, [setDeliveryPickups]);
+  // ── delivery pickups ─────────────────────────────────────────
+  const addDeliveryPickup = useCallback(async (pickup: Omit<DeliveryPickup, 'id' | 'pickedUpAt'>) => {
+    try {
+      const newPickup = await createDeliveryPickupSupabase(pickup);
+      if (newPickup) {
+        setDeliveryPickups(prev => [newPickup, ...prev]);
+        console.log('[ERP] 🚚 Retirada sincronizada com Supabase:', pickup.orderNumber);
+      }
+    } catch (err: any) {
+      console.error('[ERP] Erro ao sincronizar retirada:', err.message);
+    }
+  }, []);
 
   // ── CLEAR ALL ────────────────────────────────────────────────
   const clearAll = useCallback(async () => {

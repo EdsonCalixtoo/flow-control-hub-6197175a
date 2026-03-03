@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 import { insertClientDirect, fetchUserClients, deleteClientById, type ClientResponse } from '@/services/clientServiceNew';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,6 +10,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function ClientesPageNew() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [userId, setUserId] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -37,16 +38,15 @@ export default function ClientesPageNew() {
   useEffect(() => {
     const init = async () => {
       console.log('[ClientesPageNew] 🚀 Inicializando...');
-      
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      console.log('[ClientesPageNew] User do contexto:', user);
+
+      if (!user?.id) {
         console.error('[ClientesPageNew] ❌ Sem autenticação!');
         navigate('/login');
         return;
       }
 
-      console.log('[ClientesPageNew] ✅ User:', user.id);
+      console.log('[ClientesPageNew] ✅ User ID:', user.id);
       setUserId(user.id);
 
       // Load clients
@@ -61,7 +61,7 @@ export default function ClientesPageNew() {
     };
 
     init();
-  }, [navigate]);
+  }, [user, navigate]);
 
   // ─── Handle Form Change ────────────────────────────────
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {

@@ -168,7 +168,7 @@ const CameraCapture: React.FC<{
         setError(null);
         setLoading(true);
         console.log('[CameraCapture] 🎥 Iniciando câmera...');
-        
+
         // VERIFICAÇÃO: videoRef deve estar disponível ANTES
         if (!videoRef.current) {
             console.error('[CameraCapture] ❌ videoRef.current é null ANTES de getUserMedia!');
@@ -177,27 +177,27 @@ const CameraCapture: React.FC<{
             return;
         }
         console.log('[CameraCapture] ✅ videoRef.current existe');
-        
+
         try {
             console.log('[CameraCapture] 📋 Solicitando getUserMedia...');
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: 'user' }
             });
-            
+
             const tracks = stream.getTracks();
             console.log('[CameraCapture] ✅ Stream obtido! Tracks:', tracks.length);
             if (tracks.length === 0) {
                 throw new Error('Stream obtido mas sem video tracks');
             }
-            
+
             console.log('[CameraCapture] 🎬 Primeiro: setar streaming = true...');
             setStreaming(true);
-            
+
             // IMPORTANTE: Aguardar render do video no DOM
             await new Promise(r => setTimeout(r, 100));
-            
+
             console.log('[CameraCapture] 📹 Agora atribuindo stream ao video...');
-            
+
             // VERIFICAÇÃO final
             if (!videoRef.current) {
                 console.error('[CameraCapture] ❌ videoRef desapareceu após setStreaming!');
@@ -207,11 +207,11 @@ const CameraCapture: React.FC<{
                 setLoading(false);
                 return;
             }
-            
+
             streamRef.current = stream;
             videoRef.current.srcObject = stream;
             console.log('[CameraCapture] ✅ srcObject atribuído');
-            
+
             // Tentar play manualmente em casos especiais
             try {
                 const playPromise = videoRef.current.play();
@@ -222,22 +222,22 @@ const CameraCapture: React.FC<{
             } catch (playErr: any) {
                 console.warn('[CameraCapture] ⚠️ play() falhou mas continuando:', playErr?.message);
             }
-            
+
             setLoading(false);
             console.log('[CameraCapture] ✅ Câmera ativa com sucesso!');
-            
+
         } catch (err: any) {
             console.error('[CameraCapture] ❌ Erro completo:', JSON.stringify(err));
             console.error('[CameraCapture] Name:', err?.name);
             console.error('[CameraCapture] Message:', err?.message);
             console.error('[CameraCapture] Code:', err?.code);
-            
+
             setLoading(false);
             setStreaming(false);
-            
+
             const code = err?.name || err?.code || (err?.message?.includes('permission') ? 'NotAllowedError' : 'UNKNOWN');
             let message = 'Não foi possível acessar a câmera.';
-            
+
             if (code === 'NotAllowedError' || err?.message?.includes('permission')) {
                 message = '❌ Permissão negada! Acesse Configurações → Câmera → Permitir acesso.';
             } else if (code === 'NotFoundError' || err?.message?.includes('no device')) {
@@ -247,7 +247,7 @@ const CameraCapture: React.FC<{
             } else {
                 message = `❌ Erro: ${code}. Tente novamente.`;
             }
-            
+
             setError(message);
         }
     }, []);
@@ -265,37 +265,37 @@ const CameraCapture: React.FC<{
     const takePhoto = () => {
         const video = videoRef.current;
         const canvas = canvasRef.current;
-        
+
         console.log('[CameraCapture] 📸 Tentando capturar foto...');
         console.log('[CameraCapture] Video ref:', !!video);
         console.log('[CameraCapture] Canvas ref:', !!canvas);
         console.log('[CameraCapture] Video ready state:', video?.readyState);
         console.log('[CameraCapture] Video dimensions:', video?.videoWidth, 'x', video?.videoHeight);
-        
+
         if (!video || !canvas) {
             console.error('[CameraCapture] ❌ Refs não disponíveis');
             setError('Erro interno: refs não disponíveis');
             return;
         }
-        
+
         try {
             // Usar dimensões do video, ou fallback para 640x480
             const w = video.videoWidth || 640;
             const h = video.videoHeight || 480;
-            
+
             console.log('[CameraCapture] Usando dimensões:', w, 'x', h);
-            
+
             canvas.width = w;
             canvas.height = h;
-            
+
             const ctx = canvas.getContext('2d');
             if (!ctx) {
                 throw new Error('Não conseguiu contexto 2D');
             }
-            
+
             ctx.drawImage(video, 0, 0, w, h);
             const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-            
+
             console.log('[CameraCapture] ✅ Foto capturada! Size:', dataUrl.length, 'bytes');
             stopCamera();
             onCapture(dataUrl);
@@ -329,7 +329,7 @@ const CameraCapture: React.FC<{
                 </div>
             )}
             <canvas ref={canvasRef} className="hidden" />
-            
+
             {/* Container com video - sempre responsivo */}
             {streaming ? (
                 <div className="relative w-full bg-black rounded-xl overflow-hidden border-2 border-primary/40 aspect-video flex items-stretch">
@@ -356,7 +356,7 @@ const CameraCapture: React.FC<{
                     muted
                 />
             )}
-            
+
             {/* Botões quando streaming */}
             {streaming && (
                 <div className="flex gap-2">
@@ -368,7 +368,7 @@ const CameraCapture: React.FC<{
                     </button>
                 </div>
             )}
-            
+
             {/* Botão abrir câmera quando não streaming */}
             {!streaming && (
                 <div className="space-y-2">
@@ -420,14 +420,14 @@ const EntregadoresPage: React.FC = () => {
     useEffect(() => {
         console.log('[EntregadoresPage] 🔄 Página carregada - iniciando sincronização Realtime');
         console.log('[EntregadoresPage] 📦 Pedidos atuais:', barcodeScans.length);
-        
+
         // A sincronização automática acontece via Realtime subscription no ERPContext
         // Marcar como carregado após 500ms (tempo para Realtime primário conectar)
         const timer = setTimeout(() => {
             console.log('[EntregadoresPage] ✅ Sincronização inicial completa');
             setLoadingInitial(false);
         }, 500);
-        
+
         return () => clearTimeout(timer);
     }, [barcodeScans.length]);
 
@@ -487,7 +487,9 @@ const EntregadoresPage: React.FC = () => {
         try {
             console.log(`[EntregadoresPage] 🔄 Confirmando pedido ${group.orderNumber}...`);
             console.log(`[EntregadoresPage] 📸 Com foto (${photo!.length} bytes) e assinatura (${signature!.length} bytes)`);
-            
+
+            const batchId = `RET-${Date.now()}`;
+
             // Aguarda o pickup ser salvo com foto e assinatura
             await addDeliveryPickup({
                 orderId: group.orderId,
@@ -495,10 +497,11 @@ const EntregadoresPage: React.FC = () => {
                 delivererName: delivererName.trim(),
                 photoUrl: photo!,
                 signatureUrl: signature!,
+                batchId: batchId,
             });
-            
+
             console.log(`[EntregadoresPage] ✅ Pickup salvo no banco`);
-            
+
             // Aguarda status ser atualizado
             await updateOrderStatus(
                 group.orderId,
@@ -507,9 +510,9 @@ const EntregadoresPage: React.FC = () => {
                 user?.name || 'Gestor',
                 `Retirado pelo entregador: ${delivererName.trim()}`
             );
-            
+
             console.log(`[EntregadoresPage] ✅ ${group.orderNumber} confirmado com sucesso!`);
-            
+
             setSuccess(group.orderNumber);
             setConfirmingId(null);
             setDelivererName('');
@@ -532,14 +535,15 @@ const EntregadoresPage: React.FC = () => {
         try {
             const selectedGroups = filtered.filter(g => selectedGroupIds.get(g.orderId));
             const orderNumbers: string[] = [];
-            
-            console.log(`[EntregadoresPage] 🔄 Confirmando lote de ${selectedCount} pedidos...`);
-            
+            const batchId = `RET-${Date.now()}`;
+
+            console.log(`[EntregadoresPage] 🔄 Confirmando lote ${batchId} de ${selectedCount} pedidos...`);
+
             // Confirma cada pedido e aguarda
             for (const group of selectedGroups) {
                 try {
                     console.log(`[EntregadoresPage] 📦 Processando ${group.orderNumber}...`);
-                    
+
                     // Aguarda o pickup ser salvo com foto e assinatura
                     await addDeliveryPickup({
                         orderId: group.orderId,
@@ -547,8 +551,9 @@ const EntregadoresPage: React.FC = () => {
                         delivererName: delivererName.trim(),
                         photoUrl: photo!,
                         signatureUrl: signature!,
+                        batchId: batchId,
                     });
-                    
+
                     // Aguarda status ser atualizado
                     await updateOrderStatus(
                         group.orderId,
@@ -557,7 +562,7 @@ const EntregadoresPage: React.FC = () => {
                         user?.name || 'Gestor',
                         `Retirado pelo entregador: ${delivererName.trim()}`
                     );
-                    
+
                     orderNumbers.push(group.orderNumber);
                     console.log(`[EntregadoresPage] ✅ ${group.orderNumber} confirmado`);
                 } catch (err) {
@@ -565,9 +570,9 @@ const EntregadoresPage: React.FC = () => {
                     throw err;
                 }
             }
-            
+
             console.log(`[EntregadoresPage] ✅ Lote completo! ${orderNumbers.length} pedidos confirmados`);
-            
+
             setSuccess(`${orderNumbers.length} lote(s) - ${orderNumbers.join(', ')}`);
             setConfirmingBatchMode(false);
             setSelectedGroupIds(new Map());
@@ -629,14 +634,26 @@ const EntregadoresPage: React.FC = () => {
                             setSelectedGroupIds(new Map());
                             setConfirmingId(null);
                         }}
-                        className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 ${
-                            confirmingBatchMode
+                        className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 ${confirmingBatchMode
                                 ? 'bg-warning/20 text-warning border border-warning/40'
                                 : 'bg-gradient-to-r from-primary/20 to-primary/10 text-primary border border-primary/20 hover:border-primary/40'
-                        }`}
+                            }`}
                     >
                         <ClipboardList className="w-4 h-4" />
-                        {confirmingBatchMode ? `Modo Lote Ativo (${Array.from(selectedGroupIds.values()).filter(v => v).length} selecionados)` : 'Modo Lote (Confirmar Lotes)'}
+                        {confirmingBatchMode ? `Modo Lote Ativo (${Array.from(selectedGroupIds.values()).filter(v => v).length} selecionados)` : 'Modo Lote (Confirmar Vários)'}
+                    </button>
+                )}
+
+                {confirmingBatchMode && pendingCount > 0 && (
+                    <button
+                        onClick={() => {
+                            const newMap = new Map();
+                            filtered.forEach(g => { if (!g.alreadyPickedUp) newMap.set(g.orderId, true); });
+                            setSelectedGroupIds(newMap);
+                        }}
+                        className="px-4 py-2 rounded-lg text-xs font-semibold bg-muted text-foreground border border-border/40 hover:bg-muted/80"
+                    >
+                        Selecionar Todos
                     </button>
                 )}
 

@@ -140,6 +140,7 @@ export interface DeliveryPickup {
   photoUrl: string;       // base64 da foto do rosto
   signatureUrl: string;  // base64 da assinatura
   pickedUpAt: string;
+  batchId?: string;      // ID do lote de retirada
   note?: string;
 }
 

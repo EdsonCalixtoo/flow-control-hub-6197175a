@@ -261,6 +261,7 @@ const supabaseToDeliveryPickup = (data: any): DeliveryPickup => ({
     photoUrl: data.photo_url,
     signatureUrl: data.signature_url,
     pickedUpAt: data.created_at,
+    batchId: data.batch_id,
     note: data.note,
 });
 
@@ -283,6 +284,7 @@ export const createDeliveryPickupSupabase = async (pickup: Omit<DeliveryPickup, 
             deliverer_name: pickup.delivererName,
             photo_url: pickup.photoUrl,
             signature_url: pickup.signatureUrl,
+            batch_id: pickup.batchId,
             note: pickup.note,
         };
         const { data, error } = await supabase.from('delivery_pickups').insert([payload]).select().single();

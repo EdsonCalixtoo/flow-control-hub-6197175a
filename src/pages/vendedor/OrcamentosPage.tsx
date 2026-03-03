@@ -226,6 +226,7 @@ const OrcamentosPage: React.FC = () => {
           observation: newObservation,
           deliveryDate: newDeliveryDate || undefined,
           orderType: newOrderType,
+          isConsigned: client.consignado,
           updatedAt: now,
         };
 
@@ -280,6 +281,7 @@ const OrcamentosPage: React.FC = () => {
             observation: newObservation,
             deliveryDate: newDeliveryDate || undefined,
             orderType: newOrderType,
+            isConsigned: client.consignado,
             createdAt: now,
             updatedAt: now,
             statusHistory: [{

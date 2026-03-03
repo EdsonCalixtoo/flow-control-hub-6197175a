@@ -72,6 +72,7 @@ const FinanceiroDashboard: React.FC = () => {
   const totalPendenteNormal = useMemo(() => {
     return ordersVisiveisFinanceiro
       .filter(o => {
+        if (o.isConsigned !== undefined) return !o.isConsigned;
         const client = clients.find(c => c.id === o.clientId) || clients.find(c => c.name === o.clientName);
         return !client?.consignado;
       })
@@ -81,6 +82,7 @@ const FinanceiroDashboard: React.FC = () => {
   const totalConsignadoOwed = useMemo(() => {
     return ordersVisiveisFinanceiro
       .filter(o => {
+        if (o.isConsigned !== undefined) return o.isConsigned;
         const client = clients.find(c => c.id === o.clientId) || clients.find(c => c.name === o.clientName);
         return client?.consignado;
       })
@@ -92,6 +94,7 @@ const FinanceiroDashboard: React.FC = () => {
 
   // Pedidos de clientes consignados
   const consignadosOrders = useMemo(() => ordersVisiveisFinanceiro.filter(o => {
+    if (o.isConsigned !== undefined) return o.isConsigned;
     const client = clients.find(c => c.id === o.clientId) || clients.find(c => c.name === o.clientName);
     return client?.consignado === true;
   }), [ordersVisiveisFinanceiro, clients]);
@@ -974,11 +977,12 @@ const FinanceiroDashboard: React.FC = () => {
                         <th className="cursor-pointer select-none" onClick={() => handleSort('number')}>
                           Pedido {sortBy === 'number' && (sortDir === 'asc' ? '↑' : '↓')}
                         </th>
-                        <th className="cursor-pointer select-none" onClick={() => handleSort('clientName')}>
+                        <th className="cursor-pointer select-none text-left" onClick={() => handleSort('clientName')}>
                           Cliente {sortBy === 'clientName' && (sortDir === 'asc' ? '↑' : '↓')}
                         </th>
-                        <th className="hidden md:table-cell">Vendedor</th>
-                        <th className="hidden md:table-cell">Forma Pgto</th>
+                        <th className="hidden md:table-cell text-left">Tipo</th>
+                        <th className="hidden md:table-cell text-left">Vendedor</th>
+                        <th className="hidden md:table-cell text-left">Forma Pgto</th>
                         <th className="cursor-pointer select-none text-right" onClick={() => handleSort('total')}>
                           Valor {sortBy === 'total' && (sortDir === 'asc' ? '↑' : '↓')}
                         </th>
@@ -993,16 +997,16 @@ const FinanceiroDashboard: React.FC = () => {
                           <td className="text-foreground">
                             <div className="flex items-center gap-1.5">
                               {order.clientName}
-                              {clients.find(c => c.id === order.clientId)?.consignado && (
+                              {(order.isConsigned || clients.find(c => c.id === order.clientId)?.consignado) && (
                                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 text-[9px] font-bold border border-amber-500/20" title="Cliente Consignado">
                                   ⭐ CONSIG.
                                 </span>
                               )}
                             </div>
                           </td>
-                          <td className="hidden lg:table-cell">
+                          <td className="hidden md:table-cell">
                             {(() => {
-                              const isConsigned = clients.find(c => c.id === order.clientId)?.consignado || clients.find(c => c.name === order.clientName)?.consignado;
+                              const isConsigned = order.isConsigned ?? (clients.find(c => c.id === order.clientId)?.consignado || clients.find(c => c.name === order.clientName)?.consignado);
                               return isConsigned ? (
                                 <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 text-[9px] font-extrabold uppercase border border-amber-500/20 shadow-sm">
                                   ⭐ Consignado

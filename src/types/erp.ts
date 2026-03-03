@@ -92,6 +92,7 @@ export interface Order {
   deliveryDate?: string;
   scheduledDate?: string;        // data de agendamento da produção
   orderType?: 'entrega' | 'instalacao';
+  isConsigned?: boolean;
   productionStatus?: ProductionStatus;  // status detalhado de produção
   statusHistory: StatusHistoryEntry[];
   // chat

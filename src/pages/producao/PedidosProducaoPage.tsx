@@ -828,12 +828,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
           </div>
         )}
 
-        {/* Chat interno */}
-        <OrderChat
-          orderId={viewOrder.id}
-          orderNumber={viewOrder.number}
-          allowedRoles={['vendedor', 'producao']}
-        />
+
 
         {/* Envio de ocorrência */}
         {['aguardando_producao', 'em_producao'].includes(viewOrder.status) && (

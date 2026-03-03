@@ -10,37 +10,53 @@ export async function createClient(
   try {
     console.log('[clientService] 📝 Iniciando createClient para:', client.name);
     console.log('[clientService] 🔑 created_by:', client.createdBy);
+    console.log('[clientService] ⏱️ Timestamp:', new Date().toISOString());
     
+    const insertPayload = {
+      name: client.name,
+      cpf_cnpj: client.cpfCnpj,
+      phone: client.phone,
+      email: client.email,
+      address: client.address,
+      bairro: client.bairro,
+      city: client.city,
+      state: client.state,
+      cep: client.cep,
+      notes: client.notes,
+      consignado: client.consignado || false,
+      created_by: client.createdBy,
+    };
+    
+    console.log('[clientService] 📤 Payload enviado:', JSON.stringify(insertPayload, null, 2));
+    console.log('[clientService] 🌐 Conectando ao Supabase...');
+    
+    const startTime = Date.now();
     const { data, error } = await supabase
       .from('clients')
-      .insert([
-        {
-          name: client.name,
-          cpf_cnpj: client.cpfCnpj,
-          phone: client.phone,
-          email: client.email,
-          address: client.address,
-          bairro: client.bairro,
-          city: client.city,
-          state: client.state,
-          cep: client.cep,
-          notes: client.notes,
-          consignado: client.consignado || false,
-          created_by: client.createdBy,
-        },
-      ])
+      .insert([insertPayload])
       .select()
       .single();
+    
+    const elapsed = Date.now() - startTime;
+    console.log(`[clientService] ⏱️ Supabase respondeu em ${elapsed}ms`);
 
     if (error) {
-      console.error('[clientService] ❌ Erro do Supabase:', error.code, error.message);
+      console.error('[clientService] ❌ ERRO DO SUPABASE!');
+      console.error('[clientService] ❌ Código:', error.code);
+      console.error('[clientService] ❌ Mensagem:', error.message);
+      console.error('[clientService] ❌ Detalhes:', JSON.stringify(error, null, 2));
       throw error;
     }
 
-    console.log('[clientService] ✅ Cliente inserido com sucesso:', data);
+    console.log('[clientService] ✅ Cliente inserido com sucesso!');
+    console.log('[clientService] ✅ Data:', data);
     return mapClientFromDb(data);
   } catch (error) {
-    console.error('[clientService] ❌ Erro ao criar cliente:', error?.message ?? error);
+    console.error('[clientService] ❌ ERRO FINAL AO CRIAR CLIENTE!');
+    console.error('[clientService] ❌ Tipo:', error?.constructor?.name);
+    console.error('[clientService] ❌ Mensagem:', error?.message ?? error);
+    console.error('[clientService] ❌ Stack:', error?.stack ?? 'N/A');
+    console.error('[clientService] ❌ JSON:', JSON.stringify(error, null, 2));
     throw error;
   }
 }

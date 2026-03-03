@@ -9,7 +9,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import AppLayout from "@/components/AppLayout";
 import LoginPage from "@/pages/LoginPage";
 import VendedorDashboard from "@/pages/vendedor/VendedorDashboard";
-import ClientesPage from "@/pages/vendedor/ClientesPage";
+import ClientesPageNew from "@/pages/vendedor/ClientesPageNew";
 import OrcamentosPage from "@/pages/vendedor/OrcamentosPage";
 import FinanceiroDashboard from "@/pages/financeiro/FinanceiroDashboard";
 import AprovacoesPage from "@/pages/financeiro/AprovacoesPage";
@@ -66,7 +66,7 @@ const App = () => (
 
                 {/* Vendedor */}
                 <Route path="/vendedor" element={<ProtectedRoute role="vendedor"><VendedorDashboard /></ProtectedRoute>} />
-                <Route path="/vendedor/clientes" element={<ProtectedRoute role="vendedor"><ClientesPage /></ProtectedRoute>} />
+                <Route path="/vendedor/clientes" element={<ProtectedRoute role="vendedor"><ClientesPageNew /></ProtectedRoute>} />
                 <Route path="/vendedor/orcamentos" element={<ProtectedRoute role="vendedor"><OrcamentosPage /></ProtectedRoute>} />
 
                 {/* Financeiro */}

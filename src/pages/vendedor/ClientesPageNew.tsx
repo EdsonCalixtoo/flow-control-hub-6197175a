@@ -633,10 +633,19 @@ export default function ClientesPageNew() {
         {selectedClient && (
           <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
             <div
-              style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+              style={{ position: 'absolute', inset: 0, background: isDark ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}
               onClick={() => setSelectedClient(null)}
             />
-            <div className="cl-form-card" style={{ position: 'relative', width: '100%', maxWidth: '650px', maxHeight: '90vh', overflowY: 'auto', padding: '32px' }}>
+            <div className="cl-form-card" style={{
+              position: 'relative',
+              width: '100%',
+              maxWidth: '650px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              padding: '32px',
+              backgroundColor: isDark ? 'rgba(30,41,59,0.95)' : '#ffffff',
+              boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.5)'
+            }}>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
                 <div style={{ display: 'flex', gap: '20px' }}>

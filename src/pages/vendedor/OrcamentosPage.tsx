@@ -106,9 +106,9 @@ const OrcamentosPage: React.FC = () => {
     }
   };
 
-  // Status que permitem excluir o orçamento
+  // Status que permitem excluir o orçamento (não enviados ou rejeitados pelo financeiro)
   const podeExcluir = (status: string) =>
-    status === 'rascunho' || status === 'rejeitado_financeiro';
+    ['rascunho', 'enviado', 'aprovado_cliente', 'rejeitado_financeiro'].includes(status);
 
   const handleDeleteOrder = async (orderId: string, orderNumber: string) => {
     if (!confirm(`Tem certeza que deseja excluir o orçamento ${orderNumber}? Esta ação não pode ser desfeita.`)) return;

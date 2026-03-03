@@ -70,17 +70,32 @@ const getCurrentUserId = async (): Promise<string> => {
  */
 export const fetchClients = async (): Promise<Client[]> => {
   try {
-    const userId = await getCurrentUserId();
-    console.log('[Clients] 📝 Buscando clientes para usuário:', userId);
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !session?.user?.id) {
+      console.error('[Clients] ❌ Sem sessão ativa');
+      return [];
+    }
 
-    const { data, error } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+    const userId = session.user.id;
+    const userRole = session.user.user_metadata?.role;
+
+    console.log('[Clients] 📝 Buscando clientes. User:', userId, 'Role:', userRole);
+
+    let query = supabase.from('clients').select('*');
+
+    // ✅ Se for vendedor, aplica o filtro de isolamento
+    // ✅ Gestores, Financeiro e Produção podem ver todos os clientes
+    if (userRole === 'vendedor') {
+      console.log('[Clients] 🔒 Aplicando isolamento de vendedor');
+      query = query.eq('user_id', userId);
+    } else {
+      console.log('[Clients] 🔓 Visibilidade total habilitada para role:', userRole);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
-      console.error('[Clients] ❌ Erro ao buscar clientes:', error.message);
+      console.error('[Clients] ❌ Erro ao buscar clientes no Supabase:', error.message);
       return [];
     }
 
@@ -88,7 +103,7 @@ export const fetchClients = async (): Promise<Client[]> => {
     console.log('[Clients] ✅ Clientes carregados:', clients.length);
     return clients;
   } catch (err: any) {
-    console.error('[Clients] ❌ Erro ao buscar clientes:', err.message);
+    console.error('[Clients] ❌ Erro inesperado ao buscar clientes:', err.message);
     return [];
   }
 };
@@ -117,19 +132,22 @@ export const createClient = async (client: Omit<Client, 'id' | 'createdAt' | 'cr
       consignado: client.consignado || false,
     };
 
-    const { data, error } = await supabase
-      .from('clients')
-      .insert([clientData])
-      .select()
-      .single();
+    const { data, error } = await Promise.race([
+      supabase.from('clients').insert([clientData]).select().single(),
+      new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Tempo limite excedido ao inserir no banco (10s)')), 10000))
+    ]);
 
     if (error) {
       console.error('[Clients] ❌ Supabase insert error:', error);
       throw new Error(error.message);
     }
 
+    if (!data) {
+      throw new Error('O banco de dados não retornou o cliente criado.');
+    }
+
     const newClient = supabaseToClient(data);
-    console.log('[Clients] ✅ Cliente criado:', newClient.id, newClient.name);
+    console.log('[Clients] ✅ Cliente criado com SUCESSO:', newClient.id, newClient.name);
     return newClient;
   } catch (err: any) {
     console.error('[Clients] ❌ Erro ao criar cliente:', err.message);

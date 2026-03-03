@@ -56,11 +56,37 @@ const FinanceiroDashboard: React.FC = () => {
     }
   }, [orders]);
 
-  const totalRecebido = financialEntries.filter(e => e.type === 'receita' && e.status === 'pago').reduce((s, e) => s + e.amount, 0);
-  const totalPendente = ordersVisiveisFinanceiro.filter(o => o.paymentStatus === 'pendente' || o.status === 'aguardando_financeiro').reduce((s, o) => s + o.total, 0);
-  const totalVencido = financialEntries.filter(e => e.status === 'pendente' && new Date(e.date) < new Date()).reduce((s, e) => s + e.amount, 0);
+  const totalRecebido = useMemo(() =>
+    financialEntries.filter(e => e.type === 'receita' && e.status === 'pago').reduce((s, e) => s + e.amount, 0)
+    , [financialEntries]);
+
+  // Função para calcular saldo devedor de um pedido
+  const getSaldoDevedor = (orderId: string, orderTotal: number) => {
+    const pagos = financialEntries
+      .filter(e => e.orderId === orderId && e.type === 'receita' && e.status === 'pago')
+      .reduce((s, e) => s + e.amount, 0);
+    return Math.max(0, orderTotal - pagos);
+  };
+
+  const totalPendenteNormal = useMemo(() => {
+    return ordersVisiveisFinanceiro
+      .filter(o => {
+        const client = clients.find(c => c.id === o.clientId);
+        return !client?.consignado;
+      })
+      .reduce((s, o) => s + getSaldoDevedor(o.id, o.total), 0);
+  }, [ordersVisiveisFinanceiro, financialEntries, clients]);
+
+  const totalConsignadoOwed = useMemo(() => {
+    return ordersVisiveisFinanceiro
+      .filter(o => {
+        const client = clients.find(c => c.id === o.clientId);
+        return client?.consignado;
+      })
+      .reduce((s, o) => s + getSaldoDevedor(o.id, o.total), 0);
+  }, [ordersVisiveisFinanceiro, financialEntries, clients]);
+
   const aguardandoLiberacao = ordersVisiveisFinanceiro.filter(o => o.status === 'aprovado_financeiro').length;
-  const pagamentosHoje = financialEntries.filter(e => e.date === new Date().toISOString().split('T')[0] && e.status === 'pago').length;
   const aguardandoFinanceiro = ordersVisiveisFinanceiro.filter(o => o.status === 'aguardando_financeiro').length;
 
   // Pedidos de clientes consignados
@@ -68,7 +94,6 @@ const FinanceiroDashboard: React.FC = () => {
     const client = clients.find(c => c.id === o.clientId);
     return client?.consignado === true;
   });
-  const totalConsignado = consignadosOrders.reduce((s, o) => s + o.total, 0);
 
   // ── Filtro por período ─────────────────────────────────────
   const filterByPeriod = (date: string, period: PeriodFilter): boolean => {
@@ -182,25 +207,39 @@ const FinanceiroDashboard: React.FC = () => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
 
-    // ✅ Cria lançamento financeiro para que os valores apareçam no dashboard
-    const entry: FinancialEntry = {
-      id: crypto.randomUUID(),
-      type: 'receita',
-      description: `Pagamento total - ${order.number} - ${order.clientName}`,
-      amount: order.total,
-      category: 'Venda de Produtos',
-      date: new Date().toISOString().split('T')[0],
-      status: 'pago',
-      orderId: order.id,
-      orderNumber: order.number,
-      clientId: order.clientId,
-      clientName: order.clientName,
-      paymentMethod: order.paymentMethod || 'Pix',
-      createdAt: new Date().toISOString(),
-    };
+    const client = clients.find(c => c.id === order.clientId);
+    const isConsignado = client?.consignado === true;
 
-    await addFinancialEntry(entry);
-    await updateOrderStatus(orderId, 'aguardando_producao', { paymentStatus: 'pago' }, 'Financeiro', 'Pagamento aprovado - Enviando para produção');
+    if (isConsignado) {
+      // ✅ Para clientes CONSIGNADOS, permite enviar para produção SEM obrigatoriedade de pagamento total
+      await updateOrderStatus(
+        orderId,
+        'aguardando_producao',
+        { paymentStatus: order.paymentStatus || 'pendente' },
+        'Financeiro',
+        'Consignado: Aprovado para produção sem obrigatoriedade de pagamento imediato'
+      );
+    } else {
+      // ✅ Para clientes normais, cria lançamento financeiro total (comportamento padrão de venda direta)
+      const entry: FinancialEntry = {
+        id: crypto.randomUUID(),
+        type: 'receita',
+        description: `Pagamento total - ${order.number} - ${order.clientName}`,
+        amount: order.total,
+        category: 'Venda de Produtos',
+        date: new Date().toISOString().split('T')[0],
+        status: 'pago',
+        orderId: order.id,
+        orderNumber: order.number,
+        clientId: order.clientId,
+        clientName: order.clientName,
+        paymentMethod: order.paymentMethod || 'Pix',
+        createdAt: new Date().toISOString(),
+      };
+
+      await addFinancialEntry(entry);
+      await updateOrderStatus(orderId, 'aguardando_producao', { paymentStatus: 'pago' }, 'Financeiro', 'Pagamento aprovado - Enviando para produção');
+    }
 
     setSelectedOrder(null);
     setShowReject(false);
@@ -252,9 +291,17 @@ const FinanceiroDashboard: React.FC = () => {
 
       // Se pagou 100%, aprova e envia para produção
       const novoTotal = totalPago + valor;
-      if (novoTotal >= order.total && order.status === 'aguardando_financeiro') {
-        await updateOrderStatus(order.id, 'aguardando_producao', { paymentStatus: 'pago' }, 'Financeiro', 'Valor total quitado — enviando para produção');
+      if (novoTotal >= order.total) {
+        if (order.status === 'aguardando_financeiro') {
+          await updateOrderStatus(order.id, 'aguardando_producao', { paymentStatus: 'pago' }, 'Financeiro', 'Valor total quitado — enviando para produção');
+        } else {
+          // Se já estava em outro status (ex: já em produção), apenas marca como pago
+          await updateOrderStatus(order.id, order.status, { paymentStatus: 'pago' }, 'Financeiro', 'Valor total quitado');
+        }
         setSelectedOrder(null);
+      } else {
+        // ✅ Atualiza status para PARCIAL se ainda não quitou
+        await updateOrderStatus(order.id, order.status, { paymentStatus: 'parcial' }, 'Financeiro', `Pagamento parcial de ${formatCurrency(valor)} recebido`);
       }
     } catch (err: any) {
       alert('Erro ao registrar pagamento: ' + (err?.message || 'Tente novamente'));
@@ -404,7 +451,7 @@ const FinanceiroDashboard: React.FC = () => {
                     )}
 
                     {/* Formulário novo pagamento */}
-                    {saldoDevedor > 0 && selectedOrder.status === 'aguardando_financeiro' && (
+                    {saldoDevedor > 0 && (selectedOrder.status === 'aguardando_financeiro' || clients.find(c => c.id === selectedOrder.clientId)?.consignado) && (
                       <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-3">
                         <p className="text-xs font-bold text-amber-500 uppercase tracking-wider flex items-center gap-1.5">
                           <Plus className="w-3.5 h-3.5" /> Registrar Novo Pagamento
@@ -624,14 +671,13 @@ const FinanceiroDashboard: React.FC = () => {
       </div>
 
       {/* Cards animados */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 stagger-children">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 stagger-children">
         <StatCard title="Aguard. Aprovação" value={aguardandoFinanceiro} icon={Clock} color="text-warning" />
-        <StatCard title="A Receber" value={formatCurrency(totalPendente)} icon={DollarSign} color="text-warning" />
-        <StatCard title="Recebido" value={formatCurrency(totalRecebido)} icon={TrendingUp} color="text-success" trend="+8%" />
-        <StatCard title="Vencido" value={formatCurrency(totalVencido)} icon={AlertTriangle} color="text-destructive" />
+        <StatCard title="A Receber" value={formatCurrency(totalPendenteNormal)} icon={DollarSign} color="text-warning" />
+        <StatCard title="Recebido" value={formatCurrency(totalRecebido)} icon={TrendingUp} color="text-success" />
         <StatCard title="Aguard. Produção" value={aguardandoLiberacao} icon={Send} color="text-info" />
         <div onClick={() => setShowConsignados(true)} className="cursor-pointer">
-          <StatCard title="Consignados" value={formatCurrency(totalConsignado)} icon={Star} color="text-amber-500" />
+          <StatCard title="Consignados" value={formatCurrency(totalConsignadoOwed)} icon={Star} color="text-amber-500" />
         </div>
       </div>
 
@@ -656,23 +702,46 @@ const FinanceiroDashboard: React.FC = () => {
               </div>
             ) : (
               <>
-                {consignadosOrders.map(order => (
-                  <div key={order.id} className="card-section p-4 flex items-center justify-between flex-wrap gap-3 bg-amber-500/5 border border-amber-500/20">
-                    <div>
-                      <p className="font-bold text-foreground text-sm">{order.number}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {order.clientName} • {new Date(order.createdAt).toLocaleDateString('pt-BR')}
-                      </p>
+                {consignadosOrders.map(order => {
+                  const saldo = getSaldoDevedor(order.id, order.total);
+                  return (
+                    <div key={order.id} className="card-section p-4 flex items-center justify-between flex-wrap gap-3 bg-amber-500/5 border border-amber-500/20">
+                      <div className="flex-1 min-w-[200px]">
+                        <p className="font-bold text-foreground text-sm">{order.number}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {order.clientName} • {new Date(order.createdAt).toLocaleDateString('pt-BR')}
+                        </p>
+                        {saldo < order.total && saldo > 0 && (
+                          <p className="text-[10px] text-amber-500 font-bold mt-1 uppercase tracking-wider">
+                            PAGO: {formatCurrency(order.total - saldo)}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-foreground text-sm">{formatCurrency(order.total)}</p>
+                        <p className="text-[10px] font-extrabold text-amber-500 mb-1">
+                          SALDO: {formatCurrency(saldo)}
+                        </p>
+                        <div className="flex items-center justify-end gap-2">
+                          <StatusBadge status={order.status} />
+                          <button
+                            onClick={() => { setSelectedOrder(order); setShowConsignados(false); }}
+                            className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center hover:bg-amber-600 transition-colors"
+                            title="Ver Detalhes / Receber Pagamento"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="font-bold text-foreground text-sm">{formatCurrency(order.total)}</p>
-                      <StatusBadge status={order.status} />
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
                 <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between">
-                  <span className="font-semibold text-foreground">Total em Consignação:</span>
-                  <span className="text-lg font-extrabold text-amber-500">{formatCurrency(totalConsignado)}</span>
+                  <div className="flex flex-col">
+                    <span className="text-[10px] uppercase font-bold text-amber-500">Total em Aberto</span>
+                    <span className="font-semibold text-foreground">Saldo Consignação:</span>
+                  </div>
+                  <span className="text-lg font-extrabold text-amber-500">{formatCurrency(totalConsignadoOwed)}</span>
                 </div>
               </>
             )}

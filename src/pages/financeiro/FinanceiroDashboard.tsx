@@ -129,7 +129,7 @@ const FinanceiroDashboard: React.FC = () => {
     const stats: Record<string, {
       sellerName: string;
       sellerId: string;
-      items: { product: string; quantity: number; total: number }[];
+      items: { product: string; sensorType?: string; quantity: number; total: number }[];
       totalVendas: number;
       qtdPedidos: number;
     }> = {};
@@ -148,13 +148,16 @@ const FinanceiroDashboard: React.FC = () => {
       stats[key].totalVendas += order.total;
       stats[key].qtdPedidos += 1;
       for (const item of order.items) {
-        const existingItem = stats[key].items.find(i => i.product === item.product);
+        const existingItem = stats[key].items.find(i =>
+          i.product === item.product && i.sensorType === item.sensorType
+        );
         if (existingItem) {
           existingItem.quantity += item.quantity;
           existingItem.total += item.total;
         } else {
           stats[key].items.push({
             product: item.product,
+            sensorType: item.sensorType,
             quantity: item.quantity,
             total: item.total,
           });
@@ -545,7 +548,7 @@ const FinanceiroDashboard: React.FC = () => {
                     <tr key={item.id}>
                       <td className="text-foreground font-medium">
                         {item.product}
-                        {item.product.toUpperCase().includes('KIT') && item.sensorType && (
+                        {item.sensorType && (
                           <span className="ml-2 text-xs font-semibold px-2 py-1 rounded-full bg-primary/20 text-primary">
                             {item.sensorType === 'com_sensor' ? '✅ COM SENSOR' : '⚪ SEM SENSOR'}
                           </span>
@@ -851,7 +854,14 @@ const FinanceiroDashboard: React.FC = () => {
                           <tbody>
                             {seller.items.sort((a, b) => b.quantity - a.quantity).map((item, idx) => (
                               <tr key={idx}>
-                                <td className="font-medium text-foreground">{item.product}</td>
+                                <td className="font-medium text-foreground">
+                                  {item.product}
+                                  {item.sensorType && (
+                                    <span className={`ml-2 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${item.sensorType === 'com_sensor' ? 'bg-success/10 text-success border border-success/20' : 'bg-muted text-muted-foreground border border-border/40'}`}>
+                                      {item.sensorType === 'com_sensor' ? '✓ COM SENSOR' : '⚪ SEM SENSOR'}
+                                    </span>
+                                  )}
+                                </td>
                                 <td className="text-center">
                                   <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary font-extrabold text-sm">
                                     {item.quantity}

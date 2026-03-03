@@ -833,7 +833,7 @@ const OrcamentosPage: React.FC = () => {
                 <tr key={item.id}>
                   <td className="text-foreground font-medium">
                     {item.product}
-                    {item.product.toUpperCase().includes('KIT') && item.sensorType && (
+                    {item.sensorType && (
                       <span className="ml-2 text-xs font-semibold px-2 py-1 rounded-full bg-primary/20 text-primary">
                         {item.sensorType === 'com_sensor' ? '✅ COM SENSOR' : '⚪ SEM SENSOR'}
                       </span>

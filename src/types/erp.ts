@@ -13,7 +13,7 @@ export interface Client {
   name: string;
   cpfCnpj: string;
   phone: string;
-  email: string;
+  email?: string;
   address: string;
   bairro?: string;          // campo bairro
   city: string;

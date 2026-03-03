@@ -1,6 +1,8 @@
-import React, { createContext, useContext, useCallback } from 'react';
+import React, { createContext, useContext, useCallback, useEffect } from 'react';
 import type { Order, Client, FinancialEntry, Product, OrderStatus, StatusHistoryEntry, DelayReport, ChatMessage, OrderReturn, ProductionError, BarcodeScan, DeliveryPickup } from '@/types/erp';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { useAuth } from '@/contexts/AuthContext';
+import { fetchClients, createClient as createClientSupabase, updateClient as updateClientSupabase, deleteClient as deleteClientSupabase } from '@/lib/clientServiceSupabase';
 
 interface ERPContextType {
   orders: Order[];
@@ -50,6 +52,8 @@ interface ERPContextType {
 const ERPContext = createContext<ERPContextType | null>(null);
 
 export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { isAuthenticated } = useAuth();
+  
   // ── Persistência local ──────
   const [orders, setOrders] = useLocalStorage<Order[]>('erp_orders', []);
   const [clients, setClients] = useLocalStorage<Client[]>('erp_clients', []);
@@ -62,6 +66,35 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [deliveryPickups, setDeliveryPickups] = React.useState<DeliveryPickup[]>([]);
   const [chatMessages, setChatMessages] = React.useState<Record<string, ChatMessage[]>>({});
   const [loading, setLoading] = React.useState(false);
+
+  // ── Carregar clientes do Supabase quando autenticado ──────────
+  useEffect(() => {
+    if (!isAuthenticated) {
+      console.log('[ERP] Usuário não autenticado, usando clientes locais');
+      return;
+    }
+
+    const loadClientsFromSupabase = async () => {
+      try {
+        setLoading(true);
+        console.log('[ERP] 📥 Carregando clientes do Supabase...');
+        const supabaseClients = await fetchClients();
+        
+        if (supabaseClients.length > 0) {
+          setClients(supabaseClients);
+          console.log('[ERP] ✅ Clientes carregados do Supabase:', supabaseClients.length);
+        } else {
+          console.log('[ERP] ⚠️ Nenhum cliente encontrado no Supabase');
+        }
+      } catch (err: any) {
+        console.error('[ERP] ❌ Erro ao carregar clientes:', err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadClientsFromSupabase();
+  }, [isAuthenticated, setClients]);
 
   // ── ORDERS ───────────────────────────────────────────────────
   const addOrder = useCallback((order: Order) => {
@@ -105,18 +138,69 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // ── CLIENTS ──────────────────────────────────────────────────
   const addClient = useCallback(async (client: Client): Promise<void> => {
-    setClients(prev => [client, ...prev]);
-    console.log('[ERP] ✨ Cliente criado:', client.name, client.id);
+    try {
+      console.log('[ERP] 📝 Criando cliente:', client.name);
+      
+      // Remove campos que não devem ser salvos no Supabase
+      const { id, createdAt, createdBy, ...clientData } = client;
+      
+      // Salva no Supabase
+      const newClient = await createClientSupabase(clientData as Omit<Client, 'id' | 'createdAt' | 'createdBy'>);
+      
+      if (newClient) {
+        setClients(prev => [newClient, ...prev]);
+        console.log('[ERP] ✅ Cliente criado com sucesso:', newClient.id);
+      } else {
+        throw new Error('Falha ao criar cliente no Supabase');
+      }
+    } catch (err: any) {
+      console.error('[ERP] ❌ Erro ao criar cliente:', err.message);
+      // Fallback: salva localmente se Supabase falhar
+      setClients(prev => [client, ...prev]);
+      throw err;
+    }
   }, [setClients]);
 
-  const editClient = useCallback((client: Client) => {
-    setClients(prev => prev.map(c => c.id === client.id ? client : c));
-    console.log('[ERP] 📝 Cliente editado:', client.name);
+  const editClient = useCallback(async (client: Client) => {
+    try {
+      console.log('[ERP] 📝 Atualizando cliente:', client.name);
+      
+      // Atualiza no Supabase
+      const updated = await updateClientSupabase(client);
+      
+      if (updated) {
+        setClients(prev => prev.map(c => c.id === client.id ? updated : c));
+        console.log('[ERP] ✅ Cliente atualizado com sucesso');
+      } else {
+        throw new Error('Falha ao atualizar cliente no Supabase');
+      }
+    } catch (err: any) {
+      console.error('[ERP] ❌ Erro ao atualizar cliente:', err.message);
+      // Fallback: atualiza localmente se Supabase falhar
+      setClients(prev => prev.map(c => c.id === client.id ? client : c));
+      throw err;
+    }
   }, [setClients]);
 
   const deleteClient = useCallback(async (clientId: string) => {
-    setClients(prev => prev.filter(c => c.id !== clientId));
-    console.log('[ERP] 🗑️ Cliente deletado:', clientId);
+    try {
+      console.log('[ERP] 🗑️ Deletando cliente:', clientId);
+      
+      // Deleta do Supabase
+      const success = await deleteClientSupabase(clientId);
+      
+      if (success) {
+        setClients(prev => prev.filter(c => c.id !== clientId));
+        console.log('[ERP] ✅ Cliente deletado com sucesso');
+      } else {
+        throw new Error('Falha ao deletar cliente no Supabase');
+      }
+    } catch (err: any) {
+      console.error('[ERP] ❌ Erro ao deletar cliente:', err.message);
+      // Fallback: deleta localmente se Supabase falhar
+      setClients(prev => prev.filter(c => c.id !== clientId));
+      throw err;
+    }
   }, [setClients]);
 
   // ── FINANCIAL ENTRIES ────────────────────────────────────────

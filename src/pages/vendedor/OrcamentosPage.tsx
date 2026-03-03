@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
@@ -6,7 +6,7 @@ import { OrderPipeline, OrderHistory } from '@/components/shared/OrderTimeline';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
 import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check, Download } from 'lucide-react';
 import type { Order, QuoteItem } from '@/types/erp';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
@@ -28,6 +28,7 @@ const OrcamentosPage: React.FC = () => {
   const { orders, addOrder, updateOrderStatus, editOrderFull, clients, products, deleteOrder } = useERP();
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const detailRef = useRef<HTMLDivElement>(null);
 
   // Se navegado desde a ficha do cliente, abre o form já com cliente pré-selecionado
@@ -60,8 +61,26 @@ const OrcamentosPage: React.FC = () => {
   const [newDeliveryDate, setNewDeliveryDate] = useState('');
   const [newOrderType, setNewOrderType] = useState<'entrega' | 'instalacao'>('entrega');
 
+  // Abre pedido via URL (?view=ID)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const viewId = params.get('view');
+    if (viewId) {
+      const order = orders.find(o => o.id === viewId);
+      if (order) setSelectedOrder(order);
+    }
+  }, [location.search, orders]);
+
+  // Se vier um clientId novo pelo estado, atualiza
+  useEffect(() => {
+    if (preSelectedClientId) {
+      setNewClientId(preSelectedClientId);
+      setShowCreate(true);
+    }
+  }, [preSelectedClientId]);
+
   const filtered = myOrders.filter(o =>
-    o.number.toLowerCase().includes(search.toLowerCase()) ||
+    String(o.number).toLowerCase().includes(search.toLowerCase()) ||
     o.clientName.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -231,12 +250,12 @@ const OrcamentosPage: React.FC = () => {
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
           console.log(`[OrcamentosPage] 🔄 TENTATIVA ${attempt}/${maxAttempts}: Gerando número do pedido...`);
-          const nextNumber = getNextOrderNumber(myOrders);
+          const nextNumber = getNextOrderNumber(orders); // ✅ Usa o pool GLOBAL de pedidos para evitar duplicados
           console.log(`[OrcamentosPage] ✅ Número gerado: ${nextNumber}`);
 
           const order: Order = {
             id: crypto.randomUUID(),
-            number: nextNumber,
+            number: String(nextNumber),
             clientId: client.id,
             clientName: client.name,
             sellerId: user?.id || '1',
@@ -937,7 +956,15 @@ const OrcamentosPage: React.FC = () => {
                 return (
                   <tr key={order.id}>
                     <td className="font-bold text-foreground">{order.number}</td>
-                    <td className="text-foreground">{order.clientName}</td>
+                    <td className="text-foreground">
+                      <button
+                        onClick={() => navigate('/vendedor/clientes', { state: { search: order.clientName } })}
+                        className="hover:text-primary transition-colors text-left"
+                        title="Ver ficha do cliente"
+                      >
+                        {order.clientName}
+                      </button>
+                    </td>
                     <td className="text-right font-semibold text-foreground hidden md:table-cell">{formatCurrency(order.total)}</td>
                     <td className="hidden lg:table-cell"><OrderPipeline order={order} compact /></td>
                     <td><StatusBadge status={order.status} /></td>
@@ -978,6 +1005,15 @@ const OrcamentosPage: React.FC = () => {
                             {deletingOrderId === order.id
                               ? <span className="text-[10px] animate-spin">⚙️</span>
                               : <Trash2 className="w-3.5 h-3.5" />}
+                          </button>
+                        )}
+                        {clients.find(c => c.id === order.clientId)?.phone && (
+                          <button
+                            onClick={() => openWhatsApp(clients.find(c => c.id === order.clientId)!.phone)}
+                            className="w-8 h-8 rounded-lg bg-success/10 text-success hover:bg-success/20 inline-flex items-center justify-center transition-colors"
+                            title="Conversar no WhatsApp"
+                          >
+                            <MessageCircle className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </div>

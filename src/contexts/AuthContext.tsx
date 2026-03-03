@@ -26,91 +26,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Carrega usuário da sessão do Supabase na inicialização
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        console.log('[Auth] Inicializando autenticação...');
-        
-        // Verifica se há sessão ativa
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.warn('[Auth] Erro ao obter sessão:', error.message);
-          setAuthLoading(false);
-          return;
-        }
+    console.log('[Auth] Inicializando autenticação...');
 
-        if (session?.user) {
-          console.log('[Auth] ✅ Sessão ativa para:', session.user.email);
-          
-          // Busca dados completos do usuário
-          const { data: userData, error: fetchError } = await supabase
-            .from('users')
-            .select('id, email, name, role')
-            .eq('id', session.user.id)
-            .single();
-
-          if (fetchError || !userData) {
-            console.warn('[Auth] Usuário não encontrado na tabela, usando dados da sessão');
-            const appUser: User = {
-              id: session.user.id,
-              email: session.user.email || '',
-              name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Usuário',
-              role: 'vendedor',
-            };
-            setUser(appUser);
-          } else {
-            const appUser: User = {
-              id: userData.id,
-              email: userData.email,
-              name: userData.name,
-              role: (userData.role || 'vendedor') as User['role'],
-            };
-            setUser(appUser);
-            console.log('[Auth] ✅ Usuário carregado:', appUser.email);
-          }
-        }
-      } catch (err: any) {
-        console.error('[Auth] Erro ao inicializar:', err);
-      } finally {
-        setAuthLoading(false);
-      }
-    };
-
-    initAuth();
-
-    // Listener para mudanças de autenticação
+    // onAuthStateChange com INITIAL_SESSION é a forma correta de inicializar:
+    // dispara imediatamente com a sessão do storage local (sem chamada de rede),
+    // resolvendo o authLoading antes de qualquer fetch adicional.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log('[Auth] Estado de autenticação mudou:', event);
-      
-      if (event === 'SIGNED_IN' && session?.user) {
-        // Busca dados do usuário
-        const { data: userData } = await supabase
-          .from('users')
-          .select('id, email, name, role')
-          .eq('id', session.user.id)
-          .single();
 
-        if (userData) {
-          const appUser: User = {
-            id: userData.id,
-            email: userData.email,
-            name: userData.name,
-            role: (userData.role || 'vendedor') as User['role'],
-          };
-          setUser(appUser);
-          console.log('[Auth] ✅ Usuário atualizado após login:', appUser.email);
-        } else {
-          const appUser: User = {
-            id: session.user.id,
-            email: session.user.email || '',
-            name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Usuário',
-            role: 'vendedor',
-          };
-          setUser(appUser);
+      if (event === 'INITIAL_SESSION') {
+        // Primeira leitura da sessão local — resolve o loading
+        if (session?.user) {
+          loadUserProfile(session.user); // não await para não bloquear
         }
+        setAuthLoading(false); // sempre libera o loading aqui
+      } else if (event === 'SIGNED_IN' && session?.user) {
+        loadUserProfile(session.user);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         console.log('[Auth] Usuário desconectado');
+      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
+        // Sessão renovada — atualiza silenciosamente
+        loadUserProfile(session.user);
       }
     });
 
@@ -119,49 +56,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
+  // ── Carrega o perfil do usuário a partir da tabela public.users ──
+  // Se não encontrar (ex: novo usuário antes do trigger existir), usa dados do JWT
+  const loadUserProfile = async (authUser: { id: string; email?: string; user_metadata?: any }) => {
+    const { data: userData } = await supabase
+      .from('users')
+      .select('id, email, name, role')
+      .eq('id', authUser.id)
+      .single();
+
+    const appUser: User = userData
+      ? {
+        id: userData.id,
+        email: userData.email,
+        name: userData.name,
+        role: (userData.role || 'vendedor') as User['role'],
+      }
+      : {
+        id: authUser.id,
+        email: authUser.email || '',
+        name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Usuário',
+        role: 'vendedor',
+      };
+
+    setUser(appUser);
+    console.log('[Auth] ✅ Perfil carregado:', appUser.email, '| role:', appUser.role);
+  };
+
   const login = useCallback(async (email: string, password: string) => {
     try {
       console.log('[Auth] 🔐 Login com email:', email);
-      
+
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (authError) {
-        throw new Error(authError.message);
-      }
-
-      if (!authData.session) {
-        throw new Error('Sem sessão mantida após login');
-      }
+      if (authError) throw new Error(authError.message);
+      if (!authData.session) throw new Error('Sem sessão mantida após login');
 
       console.log('[Auth] ✅ Login bem-sucedido');
-
-      // Busca dados do usuário
-      const { data: userData } = await supabase
-        .from('users')
-        .select('id, email, name, role')
-        .eq('id', authData.session.user.id)
-        .single();
-
-      if (userData) {
-        const appUser: User = {
-          id: userData.id,
-          email: userData.email,
-          name: userData.name,
-          role: (userData.role || 'vendedor') as User['role'],
-        };
-        setUser(appUser);
-      } else {
-        const appUser: User = {
-          id: authData.session.user.id,
-          email: authData.session.user.email || '',
-          name: authData.session.user.user_metadata?.name || email.split('@')[0],
-          role: 'vendedor',
-        };
-        setUser(appUser);
-      }
+      // O onAuthStateChange vai chamar loadUserProfile automaticamente
     } catch (err: any) {
       console.error('[Auth] ❌ Erro ao fazer login:', err.message);
       throw err;
@@ -171,61 +106,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const register = useCallback(async (email: string, password: string, name: string, role: string) => {
     try {
       console.log('[Auth] 📝 Registrando novo usuário:', email);
-      
-      // Cria conta no Supabase Auth
+
+      // Cria conta no Supabase Auth.
+      // O trigger on_auth_user_created cuida de inserir em public.users automaticamente.
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          data: {
-            name,
-            role,
-          },
+          data: { name, role: role || 'vendedor' },
         },
       });
 
-      if (signUpError) {
-        throw new Error(signUpError.message);
-      }
-
-      if (!authData.user) {
-        throw new Error('Falha ao criar usuário');
-      }
+      if (signUpError) throw new Error(signUpError.message);
+      if (!authData.user) throw new Error('Falha ao criar usuário');
 
       console.log('[Auth] ✅ Usuário criado em Auth:', authData.user.id);
 
-      // Insere dados do usuário na tabela
-      const { error: insertError } = await supabase.from('users').insert({
-        id: authData.user.id,
-        email,
-        name,
-        role: (role || 'vendedor') as User['role'],
-      });
+      // Aguarda o trigger executar (breve delay) e faz login
+      await new Promise(r => setTimeout(r, 500));
 
-      if (insertError) {
-        console.warn('[Auth] ⚠️ Erro ao inserir na tabela users:', insertError.message);
-        // Continua mesmo com erro, o auth foi criado
-      } else {
-        console.log('[Auth] ✅ Usuário inserido na tabela');
-      }
-
-      // Faz login automático
-      const { error: loginError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
 
       if (loginError) {
-        console.warn('[Auth] ⚠️ Erro ao fazer login automático após registro');
+        console.warn('[Auth] ⚠️ Erro ao fazer login automático:', loginError.message);
       } else {
-        const appUser: User = {
-          id: authData.user.id,
-          email,
-          name,
-          role: (role || 'vendedor') as User['role'],
-        };
-        setUser(appUser);
         console.log('[Auth] ✅ Registro e login automático bem-sucedidos');
+        // onAuthStateChange vai chamar loadUserProfile automaticamente
       }
     } catch (err: any) {
       console.error('[Auth] ❌ Erro ao registrar:', err.message);

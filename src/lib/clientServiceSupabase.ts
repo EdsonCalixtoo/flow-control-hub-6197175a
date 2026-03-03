@@ -4,21 +4,29 @@ import type { Client } from '@/types/erp';
 /**
  * Converter da estrutura TypeScript para estrutura do Supabase
  */
-const clientToSupabase = (client: Client, userId: string) => ({
-  id: client.id !== 'temp' ? client.id : undefined,
-  user_id: userId,
-  name: client.name,
-  cpf_cnpj: client.cpfCnpj,
-  phone: client.phone,
-  email: client.email,
-  address: client.address,
-  bairro: client.bairro || null,
-  city: client.city,
-  state: client.state,
-  cep: client.cep,
-  notes: client.notes,
-  consignado: client.consignado || false,
-});
+const clientToSupabase = (client: Client, userId: string) => {
+  const data: any = {
+    user_id: userId,
+    name: client.name,
+    cpf_cnpj: client.cpfCnpj,
+    phone: client.phone || null,
+    email: client.email || null,
+    address: client.address || null,
+    bairro: client.bairro || null,
+    city: client.city || null,
+    state: client.state || null,
+    cep: client.cep || null,
+    notes: client.notes || null,
+    consignado: client.consignado || false,
+  };
+
+  // Só inclui ID em updates (nunca em inserts)
+  if (client.id && client.id !== '' && client.id !== 'temp') {
+    data.id = client.id;
+  }
+
+  return data;
+};
 
 /**
  * Converter da estrutura do Supabase para TypeScript
@@ -41,22 +49,34 @@ const supabaseToClient = (data: any): Client => ({
 });
 
 /**
+ * Obtém o user_id da sessão atual.
+ * 
+ * IMPORTANTE: Usamos getSession() em vez de getUser() porque:
+ * - getUser() faz chamada remota à API do Supabase (pode retornar 406 com RLS)
+ * - getSession() lê o JWT local — garante que o id é o mesmo que auth.users registrou
+ * Isso resolve o erro "violates foreign key constraint clients_user_id_fkey"
+ */
+const getCurrentUserId = async (): Promise<string> => {
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (error || !session?.user?.id) {
+    throw new Error('Usuário não autenticado. Faça login novamente.');
+  }
+  console.log('[Clients] 🔑 user_id da sessão:', session.user.id);
+  return session.user.id;
+};
+
+/**
  * Buscar todos os clientes do usuário
  */
 export const fetchClients = async (): Promise<Client[]> => {
   try {
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      console.error('[Clients] ❌ Erro ao obter usuário:', userError?.message);
-      return [];
-    }
-
-    console.log('[Clients] 📝 Buscando clientes para usuário:', user.id);
+    const userId = await getCurrentUserId();
+    console.log('[Clients] 📝 Buscando clientes para usuário:', userId);
 
     const { data, error } = await supabase
       .from('clients')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -74,25 +94,28 @@ export const fetchClients = async (): Promise<Client[]> => {
 };
 
 /**
- * Crear novo cliente
+ * Criar novo cliente.
+ * O campo "id" NUNCA é enviado — o Supabase gera via gen_random_uuid().
  */
 export const createClient = async (client: Omit<Client, 'id' | 'createdAt' | 'createdBy'>): Promise<Client | null> => {
   try {
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      throw new Error('Usuário não autenticado');
-    }
+    const userId = await getCurrentUserId();
+    console.log('[Clients] 📝 Criando novo cliente:', client.name, '| user_id:', userId);
 
-    console.log('[Clients] 📝 Criando novo cliente:', client.name);
-
-    const clientData = clientToSupabase(
-      {
-        ...client,
-        id: 'temp',
-        createdAt: new Date().toISOString(),
-      },
-      user.id
-    );
+    const clientData = {
+      user_id: userId,
+      name: client.name,
+      cpf_cnpj: client.cpfCnpj,
+      phone: client.phone || null,
+      email: client.email || null,
+      address: client.address || null,
+      bairro: client.bairro || null,
+      city: client.city || null,
+      state: client.state || null,
+      cep: client.cep || null,
+      notes: client.notes || null,
+      consignado: client.consignado || false,
+    };
 
     const { data, error } = await supabase
       .from('clients')
@@ -101,6 +124,7 @@ export const createClient = async (client: Omit<Client, 'id' | 'createdAt' | 'cr
       .single();
 
     if (error) {
+      console.error('[Clients] ❌ Supabase insert error:', error);
       throw new Error(error.message);
     }
 
@@ -118,20 +142,16 @@ export const createClient = async (client: Omit<Client, 'id' | 'createdAt' | 'cr
  */
 export const updateClient = async (client: Client): Promise<Client | null> => {
   try {
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      throw new Error('Usuário não autenticado');
-    }
-
+    const userId = await getCurrentUserId();
     console.log('[Clients] 📝 Atualizando cliente:', client.id);
 
-    const clientData = clientToSupabase(client, user.id);
+    const clientData = clientToSupabase(client, userId);
 
     const { data, error } = await supabase
       .from('clients')
       .update(clientData)
       .eq('id', client.id)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .select()
       .single();
 
@@ -153,18 +173,14 @@ export const updateClient = async (client: Client): Promise<Client | null> => {
  */
 export const deleteClient = async (clientId: string): Promise<boolean> => {
   try {
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      throw new Error('Usuário não autenticado');
-    }
-
+    const userId = await getCurrentUserId();
     console.log('[Clients] 🗑️ Deletando cliente:', clientId);
 
     const { error } = await supabase
       .from('clients')
       .delete()
       .eq('id', clientId)
-      .eq('user_id', user.id);
+      .eq('user_id', userId);
 
     if (error) {
       throw new Error(error.message);
@@ -183,11 +199,7 @@ export const deleteClient = async (clientId: string): Promise<boolean> => {
  */
 export const getClientById = async (clientId: string): Promise<Client | null> => {
   try {
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      console.error('[Clients] ❌ Usuário não autenticado');
-      return null;
-    }
+    const userId = await getCurrentUserId();
 
     console.log('[Clients] 🔍 Buscando cliente:', clientId);
 
@@ -195,7 +207,7 @@ export const getClientById = async (clientId: string): Promise<Client | null> =>
       .from('clients')
       .select('*')
       .eq('id', clientId)
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single();
 
     if (error) {
@@ -215,18 +227,14 @@ export const getClientById = async (clientId: string): Promise<Client | null> =>
  */
 export const searchClientsByEmail = async (email: string): Promise<Client[]> => {
   try {
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      console.error('[Clients] ❌ Usuário não autenticado');
-      return [];
-    }
+    const userId = await getCurrentUserId();
 
     console.log('[Clients] 🔍 Buscando clientes por email:', email);
 
     const { data, error } = await supabase
       .from('clients')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .ilike('email', `%${email}%`);
 
     if (error) {
@@ -246,18 +254,14 @@ export const searchClientsByEmail = async (email: string): Promise<Client[]> => 
  */
 export const searchClientsByName = async (name: string): Promise<Client[]> => {
   try {
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      console.error('[Clients] ❌ Usuário não autenticado');
-      return [];
-    }
+    const userId = await getCurrentUserId();
 
     console.log('[Clients] 🔍 Buscando clientes por nome:', name);
 
     const { data, error } = await supabase
       .from('clients')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .ilike('name', `%${name}%`)
       .limit(10);
 
@@ -274,7 +278,7 @@ export const searchClientsByName = async (name: string): Promise<Client[]> => {
 };
 
 /**
- * Sincronizar clientes locais para Supabase (para migração de dados)
+ * Sincronizar clientes locais para Supabase (migração de dados)
  */
 export const syncClientsToSupabase = async (localClients: Client[]): Promise<{ synced: number; failed: number }> => {
   let synced = 0;
@@ -282,8 +286,8 @@ export const syncClientsToSupabase = async (localClients: Client[]): Promise<{ s
 
   for (const client of localClients) {
     try {
-      const { createdAt, createdBy, ...clientData } = client;
-      await createClient(clientData as Omit<Client, 'id' | 'createdAt' | 'createdBy'>);
+      const { createdAt, createdBy, id, ...clientData } = client;
+      await createClient(clientData);
       synced++;
     } catch (err) {
       console.error('[Clients] Erro ao sincronizar cliente:', client.name, err);

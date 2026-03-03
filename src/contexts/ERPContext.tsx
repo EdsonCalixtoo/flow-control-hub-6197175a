@@ -3,6 +3,14 @@ import type { Order, Client, FinancialEntry, Product, OrderStatus, StatusHistory
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchClients, createClient as createClientSupabase, updateClient as updateClientSupabase, deleteClient as deleteClientSupabase } from '@/lib/clientServiceSupabase';
+import { fetchProducts, createProduct as createProductSupabase, updateProductSupabase, deleteProductSupabase } from '@/lib/productServiceSupabase';
+import { fetchOrders, createOrderSupabase, updateOrderSupabase, deleteOrderSupabase } from '@/lib/orderServiceSupabase';
+import {
+  fetchFinancialEntries, createFinancialEntrySupabase,
+  fetchDelayReports, createDelayReportSupabase, markDelayReportReadSupabase,
+  fetchOrderReturns, createOrderReturnSupabase,
+  fetchProductionErrors, createProductionErrorSupabase, resolveProductionErrorSupabase
+} from '@/lib/gestorServiceSupabase';
 
 interface ERPContextType {
   orders: Order[];
@@ -53,54 +61,78 @@ const ERPContext = createContext<ERPContextType | null>(null);
 
 export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated } = useAuth();
-  
-  // ── Persistência local ──────
-  const [orders, setOrders] = useLocalStorage<Order[]>('erp_orders', []);
-  const [clients, setClients] = useLocalStorage<Client[]>('erp_clients', []);
-  const [financialEntries, setFinancialEntries] = useLocalStorage<FinancialEntry[]>('erp_financial', []);
-  const [products, setProducts] = useLocalStorage<Product[]>('erp_products', []);
-  const [delayReports, setDelayReports] = useLocalStorage<DelayReport[]>('erp_delay_reports', []);
-  const [orderReturns, setOrderReturns] = useLocalStorage<OrderReturn[]>('erp_order_returns', []);
-  const [productionErrors, setProductionErrors] = useLocalStorage<ProductionError[]>('erp_production_errors', []);
+
+  // ── Persistência local (Somente para itens não críticos ou ainda não migrados) ──────
+  const [orders, setOrders] = React.useState<Order[]>([]);
+  const [clients, setClients] = React.useState<Client[]>([]);
+  const [financialEntries, setFinancialEntries] = React.useState<FinancialEntry[]>([]);
+  const [products, setProducts] = React.useState<Product[]>([]);
+  const [delayReports, setDelayReports] = React.useState<DelayReport[]>([]);
+  const [orderReturns, setOrderReturns] = React.useState<OrderReturn[]>([]);
+  const [productionErrors, setProductionErrors] = React.useState<ProductionError[]>([]);
   const [barcodeScans, setBarcodeScans] = React.useState<BarcodeScan[]>([]);
   const [deliveryPickups, setDeliveryPickups] = React.useState<DeliveryPickup[]>([]);
   const [chatMessages, setChatMessages] = React.useState<Record<string, ChatMessage[]>>({});
   const [loading, setLoading] = React.useState(false);
 
-  // ── Carregar clientes do Supabase quando autenticado ──────────
+  // ── Carregar DADOS do Supabase quando autenticado ──────────
   useEffect(() => {
-    if (!isAuthenticated) {
-      console.log('[ERP] Usuário não autenticado, usando clientes locais');
-      return;
-    }
+    if (!isAuthenticated) return;
 
-    const loadClientsFromSupabase = async () => {
+    const loadFromSupabase = async () => {
       try {
         setLoading(true);
-        console.log('[ERP] 📥 Carregando clientes do Supabase...');
-        const supabaseClients = await fetchClients();
-        
-        if (supabaseClients.length > 0) {
-          setClients(supabaseClients);
-          console.log('[ERP] ✅ Clientes carregados do Supabase:', supabaseClients.length);
-        } else {
-          console.log('[ERP] ⚠️ Nenhum cliente encontrado no Supabase');
-        }
+        console.log('[ERP] 📥 Sincronizando com Supabase...');
+
+        const [
+          supabaseClients,
+          supabaseProducts,
+          supabaseOrders,
+          supabaseFinancial,
+          supabaseDelays,
+          supabaseReturns,
+          supabaseErrors
+        ] = await Promise.all([
+          fetchClients(),
+          fetchProducts(),
+          fetchOrders(), // Roles serão aplicados via RLS se configurado, ou filtro no serviço
+          fetchFinancialEntries(),
+          fetchDelayReports(),
+          fetchOrderReturns(),
+          fetchProductionErrors()
+        ]);
+
+        setClients(supabaseClients);
+        setProducts(supabaseProducts);
+        setOrders(supabaseOrders);
+        setFinancialEntries(supabaseFinancial);
+        setDelayReports(supabaseDelays);
+        setOrderReturns(supabaseReturns);
+        setProductionErrors(supabaseErrors);
+
+        console.log('[ERP] ✅ Sincronização concluída');
       } catch (err: any) {
-        console.error('[ERP] ❌ Erro ao carregar clientes:', err.message);
+        console.error('[ERP] ❌ Erro na sincronização:', err.message);
       } finally {
         setLoading(false);
       }
     };
 
-    loadClientsFromSupabase();
-  }, [isAuthenticated, setClients]);
+    loadFromSupabase();
+  }, [isAuthenticated]);
 
   // ── ORDERS ───────────────────────────────────────────────────
-  const addOrder = useCallback((order: Order) => {
-    setOrders(prev => [order, ...prev]);
-    console.log('[ERP] ✨ Ordem criada:', order.number, order.id);
-  }, [setOrders]);
+  const addOrder = useCallback(async (order: Order) => {
+    try {
+      const newOrder = await createOrderSupabase(order);
+      if (newOrder) {
+        setOrders(prev => [newOrder, ...prev]);
+        console.log('[ERP] ✨ Pedido criado no Supabase:', newOrder.number);
+      }
+    } catch (err: any) {
+      console.error('[ERP] Erro ao criar pedido:', err.message);
+    }
+  }, []);
 
   const updateOrderStatus = useCallback(async (
     orderId: string,
@@ -110,43 +142,86 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     note?: string,
   ) => {
     const now = new Date().toISOString();
+    const currentOrder = orders.find(o => o.id === orderId);
+    if (!currentOrder) return;
+
     const historyEntry: StatusHistoryEntry = {
       status, timestamp: now, user: userName || 'Sistema', note,
     };
 
-    setOrders(prev =>
-      prev.map(o => {
-        if (o.id !== orderId) return o;
-        return { ...o, status, updatedAt: now, statusHistory: [...o.statusHistory, historyEntry], ...extra };
-      })
-    );
-    console.log('[ERP] Status atualizado:', status);
-  }, [setOrders]);
+    const updateFields = {
+      status,
+      updatedAt: now,
+      statusHistory: [...currentOrder.statusHistory, historyEntry],
+      ...extra
+    };
 
-  const updateOrder = useCallback((orderId: string, fields: Partial<Order>) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...fields, updatedAt: new Date().toISOString() } : o));
-  }, [setOrders]);
+    try {
+      const updated = await updateOrderSupabase(orderId, updateFields);
+      if (updated) {
+        setOrders(prev => prev.map(o => o.id === orderId ? updated : o));
+        console.log('[ERP] Status atualizado no Supabase:', status);
+      }
+    } catch (err: any) {
+      console.error('[ERP] Erro ao atualizar status:', err.message);
+    }
+  }, [orders]);
+
+  const updateOrder = useCallback(async (orderId: string, fields: Partial<Order>) => {
+    try {
+      const updated = await updateOrderSupabase(orderId, fields);
+      if (updated) {
+        setOrders(prev => prev.map(o => o.id === orderId ? updated : o));
+      }
+    } catch (err: any) {
+      console.error('[ERP] Erro ao atualizar pedido:', err.message);
+    }
+  }, []);
 
   const editOrderFull = useCallback(async (order: Order) => {
-    setOrders(prev => prev.map(o => o.id === order.id ? { ...order, updatedAt: new Date().toISOString() } : o));
-  }, [setOrders]);
+    try {
+      const updated = await updateOrderSupabase(order.id, order);
+      if (updated) {
+        setOrders(prev => prev.map(o => o.id === order.id ? updated : o));
+      }
+    } catch (err: any) {
+      console.error('[ERP] Erro ao editar pedido:', err.message);
+    }
+  }, []);
 
   const deleteOrder = useCallback(async (orderId: string) => {
-    setOrders(prev => prev.filter(o => o.id !== orderId));
-    console.log('[ERP] ✅ Pedido deletado:', orderId);
-  }, [setOrders]);
+    try {
+      await deleteOrderSupabase(orderId);
+      setOrders(prev => prev.filter(o => o.id !== orderId));
+      console.log('[ERP] ✅ Pedido deletado do Supabase');
+    } catch (err: any) {
+      console.error('[ERP] Erro ao deletar pedido:', err.message);
+    }
+  }, []);
 
   // ── CLIENTS ──────────────────────────────────────────────────
   const addClient = useCallback(async (client: Client): Promise<void> => {
     try {
       console.log('[ERP] 📝 Criando cliente:', client.name);
-      
-      // Remove campos que não devem ser salvos no Supabase
-      const { id, createdAt, createdBy, ...clientData } = client;
-      
-      // Salva no Supabase
-      const newClient = await createClientSupabase(clientData as Omit<Client, 'id' | 'createdAt' | 'createdBy'>);
-      
+
+      // Extrair apenas os campos que o Supabase precisa (sem id, createdAt, createdBy)
+      const clientData: Omit<Client, 'id' | 'createdAt' | 'createdBy'> = {
+        name: client.name,
+        cpfCnpj: client.cpfCnpj,
+        email: client.email,
+        phone: client.phone,
+        address: client.address,
+        bairro: client.bairro,
+        city: client.city,
+        state: client.state,
+        cep: client.cep,
+        notes: client.notes,
+        consignado: client.consignado,
+      };
+
+      // Salva no Supabase — o banco gera o ID automaticamente
+      const newClient = await createClientSupabase(clientData);
+
       if (newClient) {
         setClients(prev => [newClient, ...prev]);
         console.log('[ERP] ✅ Cliente criado com sucesso:', newClient.id);
@@ -155,8 +230,6 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } catch (err: any) {
       console.error('[ERP] ❌ Erro ao criar cliente:', err.message);
-      // Fallback: salva localmente se Supabase falhar
-      setClients(prev => [client, ...prev]);
       throw err;
     }
   }, [setClients]);
@@ -164,10 +237,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const editClient = useCallback(async (client: Client) => {
     try {
       console.log('[ERP] 📝 Atualizando cliente:', client.name);
-      
+
       // Atualiza no Supabase
       const updated = await updateClientSupabase(client);
-      
+
       if (updated) {
         setClients(prev => prev.map(c => c.id === client.id ? updated : c));
         console.log('[ERP] ✅ Cliente atualizado com sucesso');
@@ -185,10 +258,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteClient = useCallback(async (clientId: string) => {
     try {
       console.log('[ERP] 🗑️ Deletando cliente:', clientId);
-      
+
       // Deleta do Supabase
       const success = await deleteClientSupabase(clientId);
-      
+
       if (success) {
         setClients(prev => prev.filter(c => c.id !== clientId));
         console.log('[ERP] ✅ Cliente deletado com sucesso');
@@ -204,46 +277,93 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [setClients]);
 
   // ── FINANCIAL ENTRIES ────────────────────────────────────────
-  const addFinancialEntry = useCallback((entry: FinancialEntry) => {
-    setFinancialEntries(prev => {
-      if (prev.some(e => e.id === entry.id)) return prev;
-      return [entry, ...prev];
-    });
-    console.log('[ERP] Lançamento financeiro criado:', entry.description);
-  }, [setFinancialEntries]);
+  const addFinancialEntry = useCallback(async (entry: FinancialEntry) => {
+    try {
+      const newEntry = await createFinancialEntrySupabase(entry);
+      if (newEntry) {
+        setFinancialEntries(prev => [newEntry, ...prev]);
+        console.log('[ERP] Lançamento financeiro criado no Supabase');
+      }
+    } catch (err: any) {
+      console.error('[ERP] Erro ao criar financeiro:', err.message);
+    }
+  }, []);
 
   // ── PRODUCTS ─────────────────────────────────────────────────
-  const addProduct = useCallback((product: Product) => {
-    setProducts(prev => [product, ...prev]);
-    console.log('[ERP] Produto criado:', product.name);
+  const addProduct = useCallback(async (product: Product) => {
+    try {
+      console.log('[ERP] 📦 Criando produto:', product.name);
+      const { id, createdAt, updatedAt, ...productData } = product;
+      const newProduct = await createProductSupabase(productData);
+      if (newProduct) {
+        setProducts(prev => [newProduct, ...prev]);
+        console.log('[ERP] ✅ Produto criado no Supabase:', newProduct.id);
+      } else {
+        throw new Error('Falha ao criar produto no Supabase');
+      }
+    } catch (err: any) {
+      console.error('[ERP] ❌ Erro ao criar produto:', err.message);
+      // fallback local
+      setProducts(prev => [product, ...prev]);
+      throw err;
+    }
   }, [setProducts]);
 
-  const updateProduct = useCallback((product: Product) => {
-    setProducts(prev => prev.map(p => p.id === product.id ? product : p));
-    console.log('[ERP] Produto atualizado:', product.name);
+  const updateProduct = useCallback(async (product: Product) => {
+    try {
+      console.log('[ERP] 📦 Atualizando produto:', product.name);
+      const updated = await updateProductSupabase(product);
+      if (updated) {
+        setProducts(prev => prev.map(p => p.id === product.id ? updated : p));
+        console.log('[ERP] ✅ Produto atualizado no Supabase:', updated.id);
+      } else {
+        throw new Error('Falha ao atualizar produto no Supabase');
+      }
+    } catch (err: any) {
+      console.error('[ERP] ❌ Erro ao atualizar produto:', err.message);
+      // fallback local
+      setProducts(prev => prev.map(p => p.id === product.id ? product : p));
+      throw err;
+    }
   }, [setProducts]);
 
-  const deleteProduct = useCallback((productId: string) => {
-    setProducts(prev => prev.filter(p => p.id !== productId));
-    console.log('[ERP] Produto deletado:', productId);
+  const deleteProduct = useCallback(async (productId: string) => {
+    try {
+      console.log('[ERP] 🗑️ Deletando produto:', productId);
+      await deleteProductSupabase(productId);
+      setProducts(prev => prev.filter(p => p.id !== productId));
+      console.log('[ERP] ✅ Produto deletado do Supabase:', productId);
+    } catch (err: any) {
+      console.error('[ERP] ❌ Erro ao deletar produto:', err.message);
+      // fallback local
+      setProducts(prev => prev.filter(p => p.id !== productId));
+      throw err;
+    }
   }, [setProducts]);
 
   // ── DELAY REPORTS ────────────────────────────────────────────
-  const addDelayReport = useCallback((report: Omit<DelayReport, 'id' | 'sentAt' | 'readAt'>) => {
-    const newReport: DelayReport = {
-      ...report,
-      id: crypto.randomUUID(),
-      sentAt: new Date().toISOString(),
-    };
-    setDelayReports(prev => [newReport, ...prev]);
-    console.log('[ERP] Relatório de atraso criado:', newReport.orderNumber);
-  }, [setDelayReports]);
+  const addDelayReport = useCallback(async (report: Omit<DelayReport, 'id' | 'sentAt' | 'readAt'>) => {
+    try {
+      const newReport = await createDelayReportSupabase(report);
+      if (newReport) {
+        setDelayReports(prev => [newReport, ...prev]);
+        console.log('[ERP] Alerta de atraso criado no Supabase');
+      }
+    } catch (err: any) {
+      console.error('[ERP] Erro ao criar alerta:', err.message);
+    }
+  }, []);
 
-  const markDelayReportRead = useCallback((reportId: string) => {
-    setDelayReports(prev => prev.map(r =>
-      r.id === reportId ? { ...r, readAt: new Date().toISOString() } : r
-    ));
-  }, [setDelayReports]);
+  const markDelayReportRead = useCallback(async (reportId: string) => {
+    try {
+      const updated = await markDelayReportReadSupabase(reportId);
+      if (updated) {
+        setDelayReports(prev => prev.map(r => r.id === reportId ? updated : r));
+      }
+    } catch (err: any) {
+      console.error('[ERP] Erro ao marcar como lido:', err.message);
+    }
+  }, []);
 
   const unreadDelayReports = delayReports.filter(r => !r.readAt).length;
 
@@ -281,21 +401,40 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // ── ORDER RETURNS ─────────────────────────────────────────────
   const addOrderReturn = useCallback(async (ret: Omit<OrderReturn, 'id' | 'createdAt'>) => {
-    const newRet: OrderReturn = { ...ret, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
-    setOrderReturns(prev => [newRet, ...prev]);
-    console.log('[ERP] Devolução criada');
-  }, [setOrderReturns]);
+    try {
+      const newRet = await createOrderReturnSupabase(ret);
+      if (newRet) {
+        setOrderReturns(prev => [newRet, ...prev]);
+        console.log('[ERP] Devolução criada no Supabase');
+      }
+    } catch (err: any) {
+      console.error('[ERP] Erro ao criar devolução:', err.message);
+    }
+  }, []);
 
   // ── PRODUCTION ERRORS ─────────────────────────────────────────
   const addProductionError = useCallback(async (err: Omit<ProductionError, 'id' | 'createdAt'>) => {
-    const newErr: ProductionError = { ...err, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
-    setProductionErrors(prev => [newErr, ...prev]);
-    console.log('[ERP] Erro de produção criado');
-  }, [setProductionErrors]);
+    try {
+      const newErr = await createProductionErrorSupabase({ ...err, resolved: false });
+      if (newErr) {
+        setProductionErrors(prev => [newErr, ...prev]);
+        console.log('[ERP] Erro de produção criado no Supabase');
+      }
+    } catch (err: any) {
+      console.error('[ERP] Erro ao criar erro de produção:', err.message);
+    }
+  }, []);
 
   const resolveError = useCallback(async (errorId: string) => {
-    setProductionErrors(prev => prev.map(e => e.id === errorId ? { ...e, resolved: true, resolvedAt: new Date().toISOString() } : e));
-  }, [setProductionErrors]);
+    try {
+      const updated = await resolveProductionErrorSupabase(errorId);
+      if (updated) {
+        setProductionErrors(prev => prev.map(e => e.id === errorId ? updated : e));
+      }
+    } catch (err: any) {
+      console.error('[ERP] Erro ao resolver erro:', err.message);
+    }
+  }, []);
 
   // ── BARCODE SCANS ────────────────────────────────────────────
   const addBarcodeScan = useCallback((scan: Omit<BarcodeScan, 'id' | 'scannedAt'>) => {

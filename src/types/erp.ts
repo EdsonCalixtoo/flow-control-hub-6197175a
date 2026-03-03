@@ -173,8 +173,15 @@ export interface FinancialEntry {
   category: string;
   date: string;
   status: 'pago' | 'pendente';
-  orderId?: string;      // pedido vinculado (pagamentos parciais consignado)
+  orderId?: string;      // pedido vinculado
+  orderNumber?: string;
+  clientId?: string;
+  clientName?: string;
+  paymentMethod?: string;
+  dueDate?: string;
+  paidAt?: string;
   receiptUrl?: string;  // comprovante do pagamento parcial
+  createdAt: string;
 }
 
 export interface Product {

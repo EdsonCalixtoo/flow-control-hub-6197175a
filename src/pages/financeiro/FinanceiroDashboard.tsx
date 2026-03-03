@@ -17,12 +17,13 @@ type PeriodFilter = 'hoje' | '7dias' | '30dias' | 'personalizado' | 'todos';
 type Tab = 'pedidos' | 'vendedores';
 
 const FinanceiroDashboard: React.FC = () => {
-  const { orders, clients, financialEntries, updateOrderStatus, addFinancialEntry } = useERP();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const { orders, clients, financialEntries, updateOrderStatus, addFinancialEntry, loadFromSupabase } = useERP();
   const [activeTab, setActiveTab] = useState<Tab>('pedidos');
   const [statusFilter, setStatusFilter] = useState<PaymentFilter>('todos');
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('todos');
   const [paymentMethodFilter, setPaymentMethodFilter] = useState('todos');
-  const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<'number' | 'clientName' | 'total' | 'createdAt'>('createdAt');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -71,7 +72,7 @@ const FinanceiroDashboard: React.FC = () => {
   const totalPendenteNormal = useMemo(() => {
     return ordersVisiveisFinanceiro
       .filter(o => {
-        const client = clients.find(c => c.id === o.clientId);
+        const client = clients.find(c => c.id === o.clientId) || clients.find(c => c.name === o.clientName);
         return !client?.consignado;
       })
       .reduce((s, o) => s + getSaldoDevedor(o.id, o.total), 0);
@@ -80,7 +81,7 @@ const FinanceiroDashboard: React.FC = () => {
   const totalConsignadoOwed = useMemo(() => {
     return ordersVisiveisFinanceiro
       .filter(o => {
-        const client = clients.find(c => c.id === o.clientId);
+        const client = clients.find(c => c.id === o.clientId) || clients.find(c => c.name === o.clientName);
         return client?.consignado;
       })
       .reduce((s, o) => s + getSaldoDevedor(o.id, o.total), 0);
@@ -90,10 +91,10 @@ const FinanceiroDashboard: React.FC = () => {
   const aguardandoFinanceiro = ordersVisiveisFinanceiro.filter(o => o.status === 'aguardando_financeiro').length;
 
   // Pedidos de clientes consignados
-  const consignadosOrders = ordersVisiveisFinanceiro.filter(o => {
-    const client = clients.find(c => c.id === o.clientId);
+  const consignadosOrders = useMemo(() => ordersVisiveisFinanceiro.filter(o => {
+    const client = clients.find(c => c.id === o.clientId) || clients.find(c => c.name === o.clientName);
     return client?.consignado === true;
-  });
+  }), [ordersVisiveisFinanceiro, clients]);
 
   // ── Filtro por período ─────────────────────────────────────
   const filterByPeriod = (date: string, period: PeriodFilter): boolean => {
@@ -208,7 +209,9 @@ const FinanceiroDashboard: React.FC = () => {
     if (!order) return;
 
     const client = clients.find(c => c.id === order.clientId);
-    const isConsignado = client?.consignado === true;
+    // IMPORTANTE: Se o cliente não for encontrado por ID, tenta por nome como fallback
+    const actualClient = client || clients.find(c => c.name === order.clientName);
+    const isConsignado = actualClient?.consignado === true;
 
     if (isConsignado) {
       // ✅ Para clientes CONSIGNADOS, permite enviar para produção SEM obrigatoriedade de pagamento total
@@ -220,7 +223,7 @@ const FinanceiroDashboard: React.FC = () => {
         'Consignado: Aprovado para produção sem obrigatoriedade de pagamento imediato'
       );
     } else {
-      // ✅ Para clientes normais, cria lançamento financeiro total (comportamento padrão de venda direta)
+      // ✅ Para clientes normais, cria lançamento financeiro total (venda direta)
       const entry: FinancialEntry = {
         id: crypto.randomUUID(),
         type: 'receita',
@@ -244,6 +247,15 @@ const FinanceiroDashboard: React.FC = () => {
     setSelectedOrder(null);
     setShowReject(false);
     setRejectReason('');
+  };
+
+  const syncData = async () => {
+    setIsRefreshing(true);
+    try {
+      if (loadFromSupabase) await loadFromSupabase();
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const rejeitarPedido = (orderId: string) => {
@@ -664,9 +676,15 @@ const FinanceiroDashboard: React.FC = () => {
           <p className="page-subtitle">Controle completo das finanças</p>
         </div>
         {/* Indicador de tempo real */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-success/10 border border-success/20 text-success text-[10px] font-semibold">
-          <Radio className="w-3 h-3 animate-pulse" />
-          Tempo Real — atualizado {lastUpdate.toLocaleTimeString('pt-BR')}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={syncData}
+            disabled={isRefreshing}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-all ${isRefreshing ? 'bg-muted text-muted-foreground' : 'bg-success/10 border border-success/20 text-success hover:bg-success/20'} text-[10px] font-semibold`}
+          >
+            <Radio className={`w-3 h-3 ${isRefreshing ? 'animate-spin' : 'animate-pulse'}`} />
+            {isRefreshing ? 'Sincronizando...' : `Tempo Real — atualizado ${lastUpdate.toLocaleTimeString('pt-BR')}`}
+          </button>
         </div>
       </div>
 
@@ -982,6 +1000,20 @@ const FinanceiroDashboard: React.FC = () => {
                               )}
                             </div>
                           </td>
+                          <td className="hidden lg:table-cell">
+                            {(() => {
+                              const isConsigned = clients.find(c => c.id === order.clientId)?.consignado || clients.find(c => c.name === order.clientName)?.consignado;
+                              return isConsigned ? (
+                                <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 text-[9px] font-extrabold uppercase border border-amber-500/20 shadow-sm">
+                                  ⭐ Consignado
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-500 text-[9px] font-extrabold uppercase border border-slate-500/20">
+                                  Normal
+                                </span>
+                              );
+                            })()}
+                          </td>
                           <td className="hidden md:table-cell text-foreground text-xs">{order.sellerName}</td>
                           <td className="hidden md:table-cell text-foreground">{order.paymentMethod || '—'}</td>
                           <td className="text-right font-semibold text-foreground">{formatCurrency(order.total)}</td>
@@ -993,9 +1025,9 @@ const FinanceiroDashboard: React.FC = () => {
                               </button>
                               {order.status === 'aguardando_financeiro' && (
                                 <button
-                                  onClick={() => updateOrderStatus(order.id, 'aprovado_financeiro', { paymentStatus: 'pago' }, 'Financeiro', 'Pagamento aprovado')}
+                                  onClick={() => aprovarEEnviarProducao(order.id)}
                                   className="w-8 h-8 rounded-lg bg-success/10 text-success hover:bg-success/20 inline-flex items-center justify-center transition-colors"
-                                  title="Dar baixa"
+                                  title="Aprovar e Enviar para Produção"
                                 >
                                   <CheckCircle className="w-3.5 h-3.5" />
                                 </button>

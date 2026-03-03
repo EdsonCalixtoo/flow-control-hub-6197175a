@@ -57,6 +57,7 @@ interface ERPContextType {
   addDelayReport: (report: Omit<DelayReport, 'id' | 'sentAt' | 'readAt'>) => void;
   markDelayReportRead: (reportId: string) => void;
   clearAll: () => Promise<void>;
+  loadFromSupabase: () => Promise<void>;
 }
 
 const ERPContext = createContext<ERPContextType | null>(null);
@@ -78,56 +79,55 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [loading, setLoading] = React.useState(false);
 
   // ── Carregar DADOS do Supabase quando autenticado ──────────
-  useEffect(() => {
+  const loadFromSupabase = useCallback(async () => {
     if (!isAuthenticated) return;
+    try {
+      setLoading(true);
+      console.log('[ERP] 📥 Sincronizando com Supabase...');
 
-    const loadFromSupabase = async () => {
-      try {
-        setLoading(true);
-        console.log('[ERP] 📥 Sincronizando com Supabase...');
+      const [
+        supabaseClients,
+        supabaseProducts,
+        supabaseOrders,
+        supabaseFinancial,
+        supabaseDelays,
+        supabaseReturns,
+        supabaseErrors,
+        supabaseScans,
+        supabasePickups
+      ] = await Promise.all([
+        fetchClients(),
+        fetchProducts(),
+        fetchOrders(),
+        fetchFinancialEntries(),
+        fetchDelayReports(),
+        fetchOrderReturns(),
+        fetchProductionErrors(),
+        fetchBarcodeScans(),
+        fetchDeliveryPickups()
+      ]);
 
-        const [
-          supabaseClients,
-          supabaseProducts,
-          supabaseOrders,
-          supabaseFinancial,
-          supabaseDelays,
-          supabaseReturns,
-          supabaseErrors,
-          supabaseScans,
-          supabasePickups
-        ] = await Promise.all([
-          fetchClients(),
-          fetchProducts(),
-          fetchOrders(),
-          fetchFinancialEntries(),
-          fetchDelayReports(),
-          fetchOrderReturns(),
-          fetchProductionErrors(),
-          fetchBarcodeScans(),
-          fetchDeliveryPickups()
-        ]);
+      setClients(supabaseClients);
+      setProducts(supabaseProducts);
+      setOrders(supabaseOrders);
+      setFinancialEntries(supabaseFinancial);
+      setDelayReports(supabaseDelays);
+      setOrderReturns(supabaseReturns);
+      setProductionErrors(supabaseErrors);
+      setBarcodeScans(supabaseScans);
+      setDeliveryPickups(supabasePickups);
 
-        setClients(supabaseClients);
-        setProducts(supabaseProducts);
-        setOrders(supabaseOrders);
-        setFinancialEntries(supabaseFinancial);
-        setDelayReports(supabaseDelays);
-        setOrderReturns(supabaseReturns);
-        setProductionErrors(supabaseErrors);
-        setBarcodeScans(supabaseScans);
-        setDeliveryPickups(supabasePickups);
-
-        console.log('[ERP] ✅ Sincronização concluída');
-      } catch (err: any) {
-        console.error('[ERP] ❌ Erro na sincronização:', err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadFromSupabase();
+      console.log('[ERP] ✅ Sincronização concluída');
+    } catch (err: any) {
+      console.error('[ERP] ❌ Erro na sincronização:', err.message);
+    } finally {
+      setLoading(false);
+    }
   }, [isAuthenticated]);
+
+  useEffect(() => {
+    loadFromSupabase();
+  }, [isAuthenticated, loadFromSupabase]);
 
   // ── ORDERS ───────────────────────────────────────────────────
   const addOrder = useCallback(async (order: Order) => {
@@ -498,6 +498,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addOrder, deleteOrder, updateOrderStatus, updateOrder, editOrderFull,
       addClient, editClient, addFinancialEntry,
       addProduct, updateProduct, deleteProduct, deleteClient, addDelayReport, markDelayReportRead, clearAll,
+      loadFromSupabase
     }}>
       {children}
     </ERPContext.Provider>

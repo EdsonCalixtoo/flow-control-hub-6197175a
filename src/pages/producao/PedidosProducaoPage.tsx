@@ -216,16 +216,6 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
       productionStatus: 'finalizado',
     }, finishedBy, 'Producao finalizada');
 
-    // ✅ Registra barcode scan automático para o pedido aparecer nos ENTREGADORES
-    // (equivale à leitura do código de barras na saída da produção)
-    addBarcodeScan({
-      orderId: order.id,
-      orderNumber: order.number,
-      scannedBy: finishedBy,
-      success: true,
-      note: 'Produto liberado automaticamente ao finalizar produção',
-    });
-
     setGuia(orderId);
   };
 
@@ -313,11 +303,10 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
         return;
       }
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          facingMode: 'environment', 
-          width: { ideal: 1280 }, 
-          height: { ideal: 720 },
-          focusMode: { ideal: 'continuous' }
+        video: {
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
         },
         audio: false,
       });
@@ -327,11 +316,11 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
     } catch (err: any) {
       console.error('Camera error:', err);
       let msg = 'Não foi possível acessar a câmera.';
-      
+
       if (err?.name === 'NotAllowedError') {
         msg = '🔒 Permissão negada. Acesse as configurações do navegador: ' +
-              'Configurações > Privacidade > Câmera > Permita este site. ' +
-              'Alternativamente, use leitor USB ou Digite manualmente.';
+          'Configurações > Privacidade > Câmera > Permita este site. ' +
+          'Alternativamente, use leitor USB ou Digite manualmente.';
       } else if (err?.name === 'NotFoundError') {
         msg = '📱 Nenhuma câmera encontrada. Use um leitor USB de código de barras ou digite o número do pedido manualmente.';
       } else if (err?.name === 'NotReadableError') {
@@ -487,7 +476,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                 value={scanInput}
                 onChange={e => setScanInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleScan()}
-                placeholder="PED-001234 ou código de barras"
+                placeholder="PED-001 ou código de barras"
                 className="input-modern text-center text-lg font-mono font-bold tracking-widest flex-1"
                 autoFocus={!cameraActive || !barcodeDetectorAvailable}
               />
@@ -505,7 +494,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                 {scanResult.success ? '✅ Sucesso!' : '❌ Erro'}
               </p>
               <p className="text-sm text-foreground mt-1">{scanResult.message}</p>
-              
+
               {!scanResult.success && (
                 <div className="mt-4 p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground text-left space-y-1">
                   <p className="font-semibold">💡 Dicas de solução:</p>

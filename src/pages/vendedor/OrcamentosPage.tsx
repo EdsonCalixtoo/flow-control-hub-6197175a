@@ -255,7 +255,7 @@ const OrcamentosPage: React.FC = () => {
 
           const order: Order = {
             id: crypto.randomUUID(),
-            number: String(nextNumber),
+            number: `PED-${String(nextNumber).padStart(3, '0')}`,
             clientId: client.id,
             clientName: client.name,
             sellerId: user?.id || '1',
@@ -275,6 +275,7 @@ const OrcamentosPage: React.FC = () => {
             taxes: 0,
             total: subtotal,
             status: 'rascunho',
+            paymentStatus: 'pendente', // ✅ Inicializa status de pagamento para dashboard financeiro
             notes: newNotes,
             observation: newObservation,
             deliveryDate: newDeliveryDate || undefined,

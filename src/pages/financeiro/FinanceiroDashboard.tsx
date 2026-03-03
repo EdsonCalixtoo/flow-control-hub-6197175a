@@ -178,8 +178,30 @@ const FinanceiroDashboard: React.FC = () => {
   };
 
   // Fluxo: Financeiro aprova e envia direto para Produção (sem etapa intermediária do Gestor)
-  const aprovarEEnviarProducao = (orderId: string) => {
-    updateOrderStatus(orderId, 'aguardando_producao', { paymentStatus: 'pago' }, 'Financeiro', 'Pagamento aprovado - Enviando para produção');
+  const aprovarEEnviarProducao = async (orderId: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+
+    // ✅ Cria lançamento financeiro para que os valores apareçam no dashboard
+    const entry: FinancialEntry = {
+      id: crypto.randomUUID(),
+      type: 'receita',
+      description: `Pagamento total - ${order.number} - ${order.clientName}`,
+      amount: order.total,
+      category: 'Venda de Produtos',
+      date: new Date().toISOString().split('T')[0],
+      status: 'pago',
+      orderId: order.id,
+      orderNumber: order.number,
+      clientId: order.clientId,
+      clientName: order.clientName,
+      paymentMethod: order.paymentMethod || 'Pix',
+      createdAt: new Date().toISOString(),
+    };
+
+    await addFinancialEntry(entry);
+    await updateOrderStatus(orderId, 'aguardando_producao', { paymentStatus: 'pago' }, 'Financeiro', 'Pagamento aprovado - Enviando para produção');
+
     setSelectedOrder(null);
     setShowReject(false);
     setRejectReason('');
@@ -217,7 +239,11 @@ const FinanceiroDashboard: React.FC = () => {
         date: new Date().toISOString().split('T')[0],
         status: 'pago',
         orderId: order.id,
+        orderNumber: order.number,
+        clientId: order.clientId,
+        clientName: order.clientName,
         receiptUrl: novoPagComprovante || undefined,
+        createdAt: new Date().toISOString(),
       };
       addFinancialEntry(entry);
       setNovoPagValor('');

@@ -657,11 +657,19 @@ const EntregadoresPage: React.FC = () => {
 
             {/* Batch mode button + Filter tabs */}
             <div className="flex gap-2 items-center flex-wrap">
-                {pendingCount > 1 && (
+                {pendingCount > 0 && (
                     <button
                         onClick={() => {
-                            setConfirmingBatchMode(!confirmingBatchMode);
-                            setSelectedGroupIds(new Map());
+                            const newMode = !confirmingBatchMode;
+                            setConfirmingBatchMode(newMode);
+                            if (newMode) {
+                                // Auto-seleciona todos os pendentes no lote
+                                const newMap = new Map();
+                                filtered.forEach(g => { if (!g.alreadyPickedUp) newMap.set(g.orderId, true); });
+                                setSelectedGroupIds(newMap);
+                            } else {
+                                setSelectedGroupIds(new Map());
+                            }
                             setConfirmingId(null);
                         }}
                         className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 ${confirmingBatchMode
@@ -670,21 +678,29 @@ const EntregadoresPage: React.FC = () => {
                             }`}
                     >
                         <ClipboardList className="w-4 h-4" />
-                        {confirmingBatchMode ? `Modo Lote Ativo (${Array.from(selectedGroupIds.values()).filter(v => v).length} selecionados)` : 'Modo Lote (Confirmar Vários)'}
+                        {confirmingBatchMode ? `Modo Lote Ativo: Todos Pendentes Selecionados` : 'Modo Lote (Confirmar Tudo)'}
                     </button>
                 )}
 
                 {confirmingBatchMode && pendingCount > 0 && (
-                    <button
-                        onClick={() => {
-                            const newMap = new Map();
-                            filtered.forEach(g => { if (!g.alreadyPickedUp) newMap.set(g.orderId, true); });
-                            setSelectedGroupIds(newMap);
-                        }}
-                        className="px-4 py-2 rounded-lg text-xs font-semibold bg-muted text-foreground border border-border/40 hover:bg-muted/80"
-                    >
-                        Selecionar Todos
-                    </button>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => {
+                                const newMap = new Map();
+                                filtered.forEach(g => { if (!g.alreadyPickedUp) newMap.set(g.orderId, true); });
+                                setSelectedGroupIds(newMap);
+                            }}
+                            className="px-4 py-2 rounded-lg text-xs font-semibold bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20"
+                        >
+                            Refiltrar Pendentes
+                        </button>
+                        <button
+                            onClick={() => setSelectedGroupIds(new Map())}
+                            className="px-4 py-2 rounded-lg text-xs font-semibold bg-muted text-foreground border border-border/40 hover:bg-muted/80"
+                        >
+                            Limpar Lote
+                        </button>
+                    </div>
                 )}
 
                 {/* Filter tabs */}
@@ -889,19 +905,10 @@ const EntregadoresPage: React.FC = () => {
                                                 </>
                                             )}
                                             {!group.alreadyPickedUp && confirmingBatchMode && (
-                                                <label className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 cursor-pointer hover:bg-primary/20 transition-colors border border-primary/30">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedGroupIds.get(group.orderId) || false}
-                                                        onChange={(e) => {
-                                                            const newMap = new Map(selectedGroupIds);
-                                                            newMap.set(group.orderId, e.target.checked);
-                                                            setSelectedGroupIds(newMap);
-                                                        }}
-                                                        className="w-4 h-4 cursor-pointer"
-                                                    />
-                                                    <span className="text-xs font-semibold text-primary">Selecionar</span>
-                                                </label>
+                                                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-success/10 border border-success/30">
+                                                    <CheckCircle className="w-3.5 h-3.5 text-success" />
+                                                    <span className="text-xs font-bold text-success uppercase">Incluído no Lote</span>
+                                                </div>
                                             )}
                                         </div>
                                     </div>

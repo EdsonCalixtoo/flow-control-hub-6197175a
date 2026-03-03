@@ -207,8 +207,12 @@ export default function ClientesPageNew() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!form.name.trim()) { setError('Nome é obrigatório'); return; }
-    if (!form.cpfCnpj || form.cpfCnpj.replace(/\D/g, '').length < 11) { setError('CPF/CNPJ inválido (mínimo 11 dígitos)'); return; }
+    if (!form.name.trim()) { setError('⚠️ O nome do cliente é obrigatório.'); return; }
+    if (!form.cpfCnpj || form.cpfCnpj.replace(/\D/g, '').length < 11) { setError('⚠️ CPF/CNPJ inválido (mínimo 11 dígitos).'); return; }
+    if (!form.phone.trim()) { setError('⚠️ O telefone é obrigatório para contato.'); return; }
+    if (!form.address.trim()) { setError('⚠️ O endereço (logradouro) é obrigatório para entregas.'); return; }
+    if (!form.city.trim()) { setError('⚠️ A cidade é obrigatória.'); return; }
+    if (!form.state.trim()) { setError('⚠️ O estado (UF) é obrigatório.'); return; }
 
     const fullAddress = form.numero
       ? `${form.address}, ${form.numero}${form.complemento ? ` - ${form.complemento}` : ''}`
@@ -462,11 +466,11 @@ export default function ClientesPageNew() {
                 </div>
                 <div className="cl-grid-2" style={{ marginTop: '14px' }}>
                   <div>
-                    <label className="cl-label">E-mail</label>
-                    <input className="cl-input" type="email" name="email" value={form.email} onChange={handleChange} placeholder="email@exemplo.com" />
+                    <label className="cl-label">E-mail (Opcional)</label>
+                    <input className="cl-input" type="email" name="email" value={form.email} onChange={handleChange} placeholder="Opcional" />
                   </div>
                   <div>
-                    <label className="cl-label">Telefone / WhatsApp</label>
+                    <label className="cl-label">Telefone / WhatsApp *</label>
                     <input className="cl-input" type="tel" name="phone" value={form.phone} onChange={handleChange} placeholder="(11) 99999-9999" maxLength={15} />
                   </div>
                 </div>
@@ -484,7 +488,7 @@ export default function ClientesPageNew() {
                 </div>
                 <div className="cl-grid-4" style={{ marginBottom: '14px' }}>
                   <div>
-                    <label className="cl-label">Logradouro</label>
+                    <label className="cl-label">Logradouro *</label>
                     <input className="cl-input" type="text" name="address" value={form.address} onChange={handleChange} placeholder="Rua, Av..." />
                   </div>
                   <div>
@@ -502,11 +506,11 @@ export default function ClientesPageNew() {
                 </div>
                 <div className="cl-grid-2">
                   <div>
-                    <label className="cl-label">Cidade</label>
+                    <label className="cl-label">Cidade *</label>
                     <input className="cl-input" type="text" name="city" value={form.city} onChange={handleChange} placeholder="São Paulo" />
                   </div>
                   <div>
-                    <label className="cl-label">UF</label>
+                    <label className="cl-label">UF *</label>
                     <input className="cl-input" type="text" name="state" value={form.state} onChange={handleChange} placeholder="SP" maxLength={2} style={{ textTransform: 'uppercase' }} />
                   </div>
                 </div>

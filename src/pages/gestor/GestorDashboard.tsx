@@ -45,6 +45,75 @@ const GestorDashboard: React.FC = () => {
   const [newReturnOrder, setNewReturnOrder] = useState('');
   const [newReturnReason, setNewReturnReason] = useState('');
   const [addingReturn, setAddingReturn] = useState(false);
+  const [seeding, setSeeding] = useState(false);
+
+  const handleSeedProducts = async () => {
+    if (seeding) return;
+    setSeeding(true);
+    try {
+      const kits = [
+        {
+          sku: 'KIT-SPRINTER-N',
+          name: 'KIT SPRINTER .N',
+          description: '1–Chicote, 1–Suporte coluna, 1–Courinho capinha, 3–Enforca gato pequeno, 1–Fusível, 1–Trava em U, 1–Parafuso Allen, 5–Espaçador 40mm, 2–Espaçador 60mm, 2–Adesivos, 1–Garantia, 1–Colar azul, 1–Cremalheira 1,20m',
+          category: 'Kits',
+          unitPrice: 0,
+          costPrice: 0,
+          stockQuantity: 100,
+          minStock: 10,
+          unit: 'kit'
+        },
+        {
+          sku: 'KIT-DAILY-N',
+          name: 'KIT DAILY .N',
+          description: '1–Chicote, 1–Suporte coluna, 1–Courinho capinha, 3–Enforca gato pequeno, 1–Fusível, 1–Trava em U, 1–Parafuso Allen, 5–Espaçador 40mm, 2–Espaçador 60mm, 2–Adesivos, 1–Garantia, 1–Colar azul, 1–Cremalheira 1,20m',
+          category: 'Kits',
+          unitPrice: 0,
+          costPrice: 0,
+          stockQuantity: 100,
+          minStock: 10,
+          unit: 'kit'
+        },
+        {
+          sku: 'KIT-DUCATO',
+          name: 'KIT DUCATO',
+          description: '6–Espaçador 40mm, 1–Porta fusível, 1–Parafuso Allen, 1–Trava cabo, 3–Enforca gato, 1–Courinho capinha, 1–Suporte coluna, 3–Adesivos, 1–Garantia, 1–Cremalheira 1,10m, 1–Chicote',
+          category: 'Kits',
+          unitPrice: 0,
+          costPrice: 0,
+          stockQuantity: 100,
+          minStock: 10,
+          unit: 'kit'
+        },
+        {
+          sku: 'KIT-BOXER',
+          name: 'KIT BOXER',
+          description: '6–Espaçador 40mm, 1–Porta fusível, 1–Parafuso Allen, 1–Trava cabo, 3–Enforca gato, 1–Courinho capinha, 1–Suporte coluna, 3–Adesivos, 1–Garantia, 1–Cremalheira 1,10m, 1–Chicote',
+          category: 'Kits',
+          unitPrice: 0,
+          costPrice: 0,
+          stockQuantity: 100,
+          minStock: 10,
+          unit: 'kit'
+        }
+      ];
+
+      for (const kit of kits) {
+        const exists = products.find(p => p.sku === kit.sku || p.name === kit.name);
+        if (!exists) {
+          // Precisamos importar o serviço ou usar a função do contexto se disponível
+          // Como o contexto não expõe addProduct como Promise/async facilmente para múltiplos aqui, 
+          // usaremos uma abordagem direta se o contexto permitir.
+          // Mas o ERPContext expõe addProduct.
+        }
+      }
+      alert('Funcionalidade de carga preparada. Por favor, utilize o botão na interface.');
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSeeding(false);
+    }
+  };
 
   const totalPedidos = orders.length;
   const emProducao = orders.filter(o => o.status === 'em_producao').length;
@@ -597,10 +666,54 @@ const GestorDashboard: React.FC = () => {
           )}
 
           {orderReturns.length === 0 ? (
-            <div className="card-section p-12 text-center">
-              <RotateCcw className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="font-bold text-foreground">Nenhum pedido devolvido</p>
-              <p className="text-sm text-muted-foreground mt-1">Nenhuma devolução registrada</p>
+            <div className="space-y-4">
+              <div className="card-section p-6 text-center">
+                <h2 className="card-section-title">Acesso Rápido</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Atalhos para funções administrativas</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <button
+                  onClick={async () => {
+                    if (seeding) return;
+                    setSeeding(true);
+                    // Mock-like logic or direct call
+                    // Better: use the context addProduct (but it might need to be async)
+                    // We'll just hardcode the ingestion here for the user to click.
+                    const kits = [
+                      { sku: 'KIT-SPR-N', name: 'KIT SPRINTER .N', desc: '1–Chicote, 1–Suporte coluna, 1–Courinho capinha, 3–Enforca gato pequeno, 1–Fusível, 1–Trava em U, 1–Parafuso Allen, 5–Espaçador 40mm, 2–Espaçador 60mm, 2–Adesivos, 1–Garantia, 1–Colar azul, 1–Cremalheira 1,20m' },
+                      { sku: 'KIT-DAI-N', name: 'KIT DAILY .N', desc: '1–Chicote, 1–Suporte coluna, 1–Courinho capinha, 3–Enforca gato pequeno, 1–Fusível, 1–Trava em U, 1–Parafuso Allen, 5–Espaçador 40mm, 2–Espaçador 60mm, 2–Adesivos, 1–Garantia, 1–Colar azul, 1–Cremalheira 1,20m' },
+                      { sku: 'KIT-DUC-N', name: 'KIT DUCATO', desc: '6–Espaçador 40mm, 1–Porta fusível, 1–Parafuso Allen, 1–Trava cabo, 3–Enforca gato, 1–Courinho capinha, 1–Suporte coluna, 3–Adesivos, 1–Garantia, 1–Cremalheira 1,10m, 1–Chicote' },
+                      { sku: 'KIT-BOX-N', name: 'KIT BOXER', desc: '6–Espaçador 40mm, 1–Porta fusível, 1–Parafuso Allen, 1–Trava cabo, 3–Enforca gato, 1–Courinho capinha, 1–Suporte coluna, 3–Adesivos, 1–Garantia, 1–Cremalheira 1,10m, 1–Chicote' },
+                    ];
+
+                    const { createProduct } = await import('@/lib/productServiceSupabase');
+                    let count = 0;
+                    for (const k of kits) {
+                      if (!products.find(p => p.name === k.name)) {
+                        await createProduct({
+                          sku: k.sku, name: k.name, description: k.desc,
+                          category: 'Kits', unitPrice: 0, costPrice: 0, stockQuantity: 100, minStock: 5, unit: 'kit', status: 'ativo',
+                          supplier: ''
+                        });
+                        count++;
+                      }
+                    }
+                    alert(`${count} produtos novos adicionados ao catálogo!`);
+                    setSeeding(false);
+                    window.location.reload();
+                  }}
+                  disabled={seeding}
+                  className="btn-modern bg-primary/10 text-primary border-primary/20 justify-center py-4"
+                >
+                  <Plus className="w-5 h-5" /> {seeding ? 'Subindo...' : 'Carga de Produtos (Kits)'}
+                </button>
+                <button onClick={() => navigate('/gestor/estoque')} className="btn-modern bg-muted text-foreground justify-center py-4">
+                  <Package className="w-5 h-5" /> Gerenciar Estoque
+                </button>
+                <button onClick={() => navigate('/gestor/logs')} className="btn-modern bg-muted text-foreground justify-center py-4">
+                  <ClipboardList className="w-5 h-5" /> Logs do Sistema
+                </button>
+              </div>
             </div>
           ) : (
             <div className="space-y-3">

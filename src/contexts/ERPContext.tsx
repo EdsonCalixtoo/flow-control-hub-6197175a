@@ -37,7 +37,7 @@ interface ERPContextType {
   resolveError: (errorId: string) => Promise<void>;
   // barcode scans
   barcodeScans: BarcodeScan[];
-  addBarcodeScan: (scan: Omit<BarcodeScan, 'id' | 'scannedAt'>) => void;
+  addBarcodeScan: (scan: Omit<BarcodeScan, 'id' | 'scannedAt'>) => Promise<void>;
   // delivery pickups
   deliveryPickups: DeliveryPickup[];
   addDeliveryPickup: (pickup: Omit<DeliveryPickup, 'id' | 'pickedUpAt'>) => Promise<void>;

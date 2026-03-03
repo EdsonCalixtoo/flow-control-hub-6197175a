@@ -268,7 +268,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
     setCameraActive(false);
   }, []);
 
-  const processCode = useCallback((rawCode: string) => {
+  const processCode = useCallback(async (rawCode: string) => {
     const code = rawCode.trim().toUpperCase();
     if (!code) return;
     const order = orders.find(o => o.number === code);
@@ -276,21 +276,32 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
     const now = new Date().toISOString();
 
     if (order) {
+      // Pedidos consignados têm tratamento especial? 
+      // Não, as etapas de aprovação devem ser seguidas. 
+      // Mas vamos garantir que o status produto_liberado mostre que já foi processado.
+
       if (order.status === 'producao_finalizada') {
-        updateOrderStatus(order.id, 'produto_liberado', {
-          releasedAt: now,
-          releasedBy: scannedBy,
-        }, scannedBy, 'Produto liberado via leitura de código de barras');
-        addBarcodeScan({
-          orderId: order.id,
-          orderNumber: order.number,
-          scannedBy,
-          success: true,
-          note: 'Produto liberado via scanner',
-        });
-        setScanResult({ success: true, message: `✅ Pedido ${order.number} liberado com sucesso!`, orderNumber: order.number });
+        try {
+          await updateOrderStatus(order.id, 'produto_liberado', {
+            releasedAt: now,
+            releasedBy: scannedBy,
+          }, scannedBy, 'Produto liberado via leitura de código de barras');
+
+          await addBarcodeScan({
+            orderId: order.id,
+            orderNumber: order.number,
+            scannedBy,
+            success: true,
+            note: 'Produto liberado via scanner',
+          });
+
+          setScanResult({ success: true, message: `✅ Pedido ${order.number} liberado com sucesso!`, orderNumber: order.number });
+        } catch (err: any) {
+          console.error('[Scanner] Erro ao atualizar status:', err);
+          setScanResult({ success: false, message: `❌ Erro ao processar liberação: ${err.message}` });
+        }
       } else if (order.status === 'produto_liberado' || order.status === 'retirado_entregador') {
-        addBarcodeScan({
+        await addBarcodeScan({
           orderId: order.id,
           orderNumber: order.number,
           scannedBy,
@@ -299,26 +310,29 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
         });
         setScanResult({ success: true, message: `ℹ️ Pedido ${order.number} já foi liberado anteriormente.`, orderNumber: order.number });
       } else if (!['aprovado_financeiro', 'aguardando_producao', 'em_producao', 'producao_finalizada'].includes(order.status)) {
-        addBarcodeScan({
+        await addBarcodeScan({
           orderId: order.id,
           orderNumber: order.number,
           scannedBy,
           success: false,
           note: `Pedido não aprovado pelo financeiro. Status: ${order.status}`,
         });
-        setScanResult({ success: false, message: `❌ Pedido ${order.number} NÃO foi aprovado pelo financeiro.` });
+        setScanResult({
+          success: false,
+          message: `❌ Pedido ${order.number} NÃO foi aprovado pelo financeiro. Status: ${order.status}. Fale com o financeiro para liberar.`
+        });
       } else {
-        addBarcodeScan({
+        await addBarcodeScan({
           orderId: order.id,
           orderNumber: order.number,
           scannedBy,
           success: false,
           note: `Produção não finalizada. Status atual: ${order.status}`,
         });
-        setScanResult({ success: false, message: `⚠️ Pedido ${order.number} ainda não finalizou a produção. Status: ${order.status}` });
+        setScanResult({ success: false, message: `⚠️ Pedido ${order.number} ainda não finalizou a produção. Status atual: ${order.status}. Finalize o pedido antes de liberar.` });
       }
     } else {
-      setScanResult({ success: false, message: '❌ Código não encontrado. Verifique e tente novamente.' });
+      setScanResult({ success: false, message: '❌ Código não encontrado. Verifique se o código é o número do pedido (ex: PED-001).' });
     }
     setScanInput('');
   }, [orders, addBarcodeScan, updateOrderStatus, user]);

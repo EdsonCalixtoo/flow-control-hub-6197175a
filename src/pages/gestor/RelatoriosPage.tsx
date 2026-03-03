@@ -37,21 +37,27 @@ const RelatoriosPage: React.FC = () => {
       orders: string[]
     }>();
 
-    const sortedPickups = [...deliveryPickups].sort((a, b) => new Date(b.pickedUpAt).getTime() - new Date(a.pickedUpAt).getTime());
+    const sortedPickups = [...deliveryPickups].sort((a, b) => {
+      const dateA = a.pickedUpAt ? new Date(a.pickedUpAt).getTime() : 0;
+      const dateB = b.pickedUpAt ? new Date(b.pickedUpAt).getTime() : 0;
+      return dateB - dateA;
+    });
 
     sortedPickups.forEach(p => {
       const bId = p.batchId || `SINGLE-${p.id}`;
       if (!batchesMap.has(bId)) {
         batchesMap.set(bId, {
           id: bId,
-          delivererName: p.delivererName,
-          date: p.pickedUpAt,
-          photoUrl: p.photoUrl,
-          signatureUrl: p.signatureUrl,
+          delivererName: p.delivererName || 'Não identificado',
+          date: p.pickedUpAt || new Date().toISOString(),
+          photoUrl: p.photoUrl || '',
+          signatureUrl: p.signatureUrl || '',
           orders: []
         });
       }
-      batchesMap.get(bId)!.orders.push(p.orderNumber);
+      if (p.orderNumber) {
+        batchesMap.get(bId)!.orders.push(p.orderNumber);
+      }
     });
 
     return Array.from(batchesMap.values());

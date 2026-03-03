@@ -589,39 +589,69 @@ const EntregadoresPage: React.FC = () => {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 pb-24">
             {/* Header */}
-            <div>
-                <h1 className="page-header flex items-center gap-2">
-                    <Truck className="w-6 h-6 text-primary" /> Entregadores
-                </h1>
-                <p className="page-subtitle">Gerencie a retirada de pedidos pelos entregadores</p>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-3 gap-3">
-                {[
-                    { label: 'Aguardando Retirada', value: pendingCount, cls: 'text-warning', bg: 'bg-warning/10' },
-                    { label: 'Já Retirados', value: doneCount, cls: 'text-success', bg: 'bg-success/10' },
-                    { label: 'Total de Lotes', value: groups.length, cls: 'text-primary', bg: 'bg-primary/10' },
-                ].map(s => (
-                    <div key={s.label} className="card-section p-4 text-center">
-                        <div className={`w-10 h-10 rounded-xl ${s.bg} flex items-center justify-center mx-auto mb-2`}>
-                            <Package className={`w-5 h-5 ${s.cls}`} />
+            <div className="flex items-center justify-between flex-wrap gap-4">
+                <div>
+                    <h1 className="page-header flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                            <Truck className="w-6 h-6 text-primary" />
                         </div>
-                        <p className={`text-2xl font-black ${s.cls}`}>{s.value}</p>
-                        <p className="text-[10px] text-muted-foreground font-semibold mt-0.5">{s.label}</p>
-                    </div>
-                ))}
+                        Entregadores
+                    </h1>
+                    <p className="page-subtitle">Gerencie a retirada de pedidos e colete assinaturas dos entregadores</p>
+                </div>
+                <div className="flex bg-muted/50 p-1 rounded-xl border border-border/30">
+                    <button
+                        onClick={() => setFilterStatus('pendente')}
+                        className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${filterStatus === 'pendente' ? 'bg-white text-primary shadow-sm border border-border/20' : 'text-muted-foreground hover:text-foreground'}`}
+                    >
+                        ⏳ Pendentes ({pendingCount})
+                    </button>
+                    <button
+                        onClick={() => setFilterStatus('retirado')}
+                        className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${filterStatus === 'retirado' ? 'bg-white text-primary shadow-sm border border-border/20' : 'text-muted-foreground hover:text-foreground'}`}
+                    >
+                        ✅ Retirados ({doneCount})
+                    </button>
+                    <button
+                        onClick={() => setFilterStatus('todos')}
+                        className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${filterStatus === 'todos' ? 'bg-white text-primary shadow-sm border border-border/20' : 'text-muted-foreground hover:text-foreground'}`}
+                    >
+                        📦 Todos
+                    </button>
+                </div>
             </div>
 
-            {/* Success toast */}
+            {/* Stats Summary */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="card-section p-4 bg-amber-500/[0.03] border-amber-500/20">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-amber-500/70 mb-1">Aguardando Retirada</p>
+                    <p className="text-2xl font-black text-amber-500">{pendingCount}</p>
+                </div>
+                <div className="card-section p-4 bg-success/[0.03] border-success/20">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-success/70 mb-1">Pedidos Retirados</p>
+                    <p className="text-2xl font-black text-success">{doneCount}</p>
+                </div>
+                <div className="card-section p-4 bg-primary/[0.03] border-primary/20">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-primary/70 mb-1">Total Mapeado</p>
+                    <p className="text-2xl font-black text-primary">{groups.length}</p>
+                </div>
+                <div className="card-section p-4 bg-secondary/[0.03] border-secondary/20">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-secondary-foreground/70 mb-1">Novas Leituras</p>
+                    <p className="text-2xl font-black text-secondary-foreground">{barcodeScans.length}</p>
+                </div>
+            </div>
+
+
+
             {success && (
-                <div className="card-section p-4 border-success/40 bg-success/5 flex items-center gap-3 animate-scale-in">
-                    <CheckCircle className="w-5 h-5 text-success shrink-0" />
-                    <p className="text-sm font-semibold text-success">
-                        Pedido <strong>{success}</strong> marcado como retirado com sucesso!
-                    </p>
+                <div className="flex items-center gap-3 p-4 rounded-2xl bg-success/10 border border-success/30 text-success animate-scale-in">
+                    <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                    <div className="flex-1">
+                        <p className="text-sm font-bold">Confirmação Realizada!</p>
+                        <p className="text-xs opacity-80">Pedido(s) {success} atualizado(s) com sucesso.</p>
+                    </div>
                 </div>
             )}
 
@@ -635,8 +665,8 @@ const EntregadoresPage: React.FC = () => {
                             setConfirmingId(null);
                         }}
                         className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 ${confirmingBatchMode
-                                ? 'bg-warning/20 text-warning border border-warning/40'
-                                : 'bg-gradient-to-r from-primary/20 to-primary/10 text-primary border border-primary/20 hover:border-primary/40'
+                            ? 'bg-warning/20 text-warning border border-warning/40'
+                            : 'bg-gradient-to-r from-primary/20 to-primary/10 text-primary border border-primary/20 hover:border-primary/40'
                             }`}
                     >
                         <ClipboardList className="w-4 h-4" />

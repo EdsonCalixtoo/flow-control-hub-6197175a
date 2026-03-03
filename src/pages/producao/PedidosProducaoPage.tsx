@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { StatusBadge, formatDate as fmtDate } from '@/components/shared/StatusBadge';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
 import OrderChat from '@/components/shared/OrderChat';
-import { Play, CheckCircle, Printer, Package, ArrowLeft, Search, ScanLine, X, Eye, Truck, Wrench, Calendar, Clock, AlertTriangle, CalendarClock, Send, Camera, StopCircle, History } from 'lucide-react';
+import { Play, CheckCircle, Printer, Package, ArrowLeft, Search, ScanLine, X, Eye, Truck, Wrench, Calendar, Clock, AlertTriangle, CalendarClock, Send, Camera, StopCircle, History, RefreshCw, Filter, ShieldAlert } from 'lucide-react';
 import BarcodeComponent from 'react-barcode';
 import { useSearchParams } from 'react-router-dom';
 import type { ProductionStatus } from '@/types/erp';
@@ -26,7 +26,7 @@ const PRODUCTION_STATUS_OPTS: { value: ProductionStatus; label: string; cls: str
 ];
 
 const PedidosProducaoPage: React.FC = () => {
-  const { orders, clients, updateOrderStatus, updateOrder, addDelayReport, addBarcodeScan, barcodeScans } = useERP();
+  const { orders, clients, barcodeScans, updateOrderStatus, addBarcodeScan, updateOrder, addDelayReport, loadFromSupabase, loading } = useERP();
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const tipoFiltro = searchParams.get('tipo') || '';
@@ -34,6 +34,7 @@ const PedidosProducaoPage: React.FC = () => {
 
   const [guia, setGuia] = useState<string | null>(null);
   const [showScanner, setShowScanner] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [scanInput, setScanInput] = useState('');
   const [scanResult, setScanResult] = useState<{ success: boolean; message: string; orderNumber?: string } | null>(null);
   const [search, setSearch] = useState('');
@@ -81,17 +82,20 @@ const PedidosProducaoPage: React.FC = () => {
     console.log('[Etiqueta] 🏷️ Preparando impressão para pedido:', order.number);
     console.log('[Etiqueta] 🆔 Tentando encontrar cliente ID:', order.clientId);
 
-    // Fallback: Tenta encontrar por ID ou por Nome (caso o ID tenha se perdido em alguma transferência)
+    // Fallback: Tenta encontrar por ID ou por Nome de forma ultra robusta
+    const normalize = (s: string) => s.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
+
     let client = clients.find(c => c.id === order.clientId);
     if (!client) {
-      console.warn('[Etiqueta] ⚠️ Cliente não encontrado por ID. Tentando busca por nome:', order.clientName);
-      client = clients.find(c => c.name.toLowerCase() === order.clientName?.toLowerCase());
+      console.warn('[Etiqueta] ⚠️ Cliente não encontrado por ID. Tentando busca robusta por nome:', order.clientName);
+      const nameRef = normalize(order.clientName || "");
+      client = clients.find(c => normalize(c.name) === nameRef);
     }
 
     if (client) {
-      console.log('[Etiqueta] ✅ Cliente encontrado:', client.name);
+      console.log('[Etiqueta] ✅ Cliente encontrado:', client.name, 'Endereço:', client.address);
     } else {
-      console.error('[Etiqueta] ❌ Cliente não localizado na base de dados (total de clientes carregados:', clients.length, ')');
+      console.error('[Etiqueta] ❌ Cliente não localizado (Total na base:', clients.length, ')');
     }
 
     const tempDiv = document.createElement('div');
@@ -248,6 +252,14 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
     setScheduleDate('');
   };
 
+  const syncData = async () => {
+    setIsRefreshing(true);
+    try {
+      if (loadFromSupabase) await loadFromSupabase();
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   const stopCamera = useCallback(() => {
     if (intervalRef.current) { clearInterval(intervalRef.current); intervalRef.current = null; }
@@ -903,18 +915,28 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="page-header">{PAGE_TITLES[tipoFiltro] ?? 'Pedidos de Producao'}</h1>
+          <h1 className="page-header">{PAGE_TITLES[tipoFiltro] ?? 'Pedidos de Produção'}</h1>
           <p className="page-subtitle">
-            {tipoFiltro === 'entrega' ? 'Pedidos de entrega em producao' :
-              tipoFiltro === 'instalacao' ? 'Pedidos de instalacao em producao' :
+            {tipoFiltro === 'entrega' ? 'Pedidos de entrega em produção' :
+              tipoFiltro === 'instalacao' ? 'Pedidos de instalação em produção' :
                 tipoFiltro === 'agendado' ? 'Pedidos agendados pela equipe' :
                   tipoFiltro === 'atrasado' ? 'Pedidos com atraso na entrega' :
-                    'Gerencie a producao dos pedidos aprovados'}
+                    'Gerencie a produção dos pedidos aprovados'}
           </p>
         </div>
-        <button onClick={() => setShowScanner(true)} className="btn-modern bg-gradient-to-r from-producao to-producao/80 text-primary-foreground">
-          <ScanLine className="w-4 h-4" /> Ler Codigo
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={syncData}
+            disabled={isRefreshing || loading}
+            className={`btn-modern gap-2 text-xs font-bold ${isRefreshing || loading ? 'bg-muted text-muted-foreground' : 'bg-success/10 text-success border-success/20 hover:bg-success/20'}`}
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing || loading ? 'animate-spin' : ''}`} />
+            {isRefreshing || loading ? 'Sincronizando...' : 'Sincronizar'}
+          </button>
+          <button onClick={() => setShowScanner(true)} className="btn-modern bg-gradient-to-r from-producao to-producao/80 text-primary-foreground">
+            <ScanLine className="w-4 h-4" /> Ler Código
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">

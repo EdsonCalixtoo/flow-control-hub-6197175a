@@ -1,21 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/contexts/AuthContext';
-import { insertClientDirect, fetchUserClients, deleteClientById, type ClientResponse } from '@/services/clientServiceNew';
+import { useERP } from '@/contexts/ERPContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import type { Client } from '@/types/erp';
 
 export default function ClientesPageNew() {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const [userId, setUserId] = useState<string>('');
+  const { clients, addClient, deleteClient } = useERP();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [clients, setClients] = useState<ClientResponse[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
@@ -33,35 +31,6 @@ export default function ClientesPageNew() {
     notes: '',
     consignado: false,
   });
-
-  // ─── Init ───────────────────────────────────────────────
-  useEffect(() => {
-    const init = async () => {
-      console.log('[ClientesPageNew] 🚀 Inicializando...');
-      console.log('[ClientesPageNew] User do contexto:', user);
-
-      if (!user?.id) {
-        console.error('[ClientesPageNew] ❌ Sem autenticação!');
-        navigate('/login');
-        return;
-      }
-
-      console.log('[ClientesPageNew] ✅ User ID:', user.id);
-      setUserId(user.id);
-
-      // Load clients
-      try {
-        const userClients = await fetchUserClients(user.id);
-        setClients(userClients);
-        console.log('[ClientesPageNew] ✅ Clientes carregados:', userClients.length);
-      } catch (err: any) {
-        console.error('[ClientesPageNew] ❌ Erro ao carregar clientes:', err.message);
-        setError(err.message);
-      }
-    };
-
-    init();
-  }, [user, navigate]);
 
   // ─── Handle Form Change ────────────────────────────────
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -125,23 +94,31 @@ export default function ClientesPageNew() {
       return;
     }
 
-    if (!userId) {
-      setError('Erro: Você não está autenticado');
-      return;
-    }
-
     try {
       setLoading(true);
-      console.log('[ClientesPageNew] 📤 Enviando para Supabase...');
+      console.log('[ClientesPageNew] 📝 Criando novo cliente no estado local...');
 
-      const response = await insertClientDirect(form, userId);
-      
-      console.log('[ClientesPageNew] ✅✅✅ SUCESSO!');
-      setSuccess(`Cliente "${response.name}" cadastrado com sucesso!`);
+      const newClient: Client = {
+        id: crypto.randomUUID(),
+        name: form.name,
+        cpfCnpj: form.cpfCnpj,
+        email: form.email,
+        phone: form.phone,
+        address: form.address,
+        bairro: form.bairro,
+        city: form.city,
+        state: form.state,
+        cep: form.cep,
+        notes: form.notes,
+        consignado: form.consignado,
+        createdBy: 'local-user',
+        createdAt: new Date().toISOString(),
+      };
 
-      // Reload clients
-      const userClients = await fetchUserClients(userId);
-      setClients(userClients);
+      await addClient(newClient);
+
+      console.log('[ClientesPageNew] ✅ Cliente criado com sucesso!');
+      setSuccess(`Cliente "${newClient.name}" cadastrado com sucesso!`);
 
       // Reset form
       setForm({
@@ -178,9 +155,8 @@ export default function ClientesPageNew() {
       setDeleting(clientId);
       console.log('[ClientesPageNew] 🗑️ Deletando:', clientId);
 
-      await deleteClientById(clientId, userId);
+      await deleteClient(clientId);
 
-      setClients(prev => prev.filter(c => c.id !== clientId));
       setSuccess(`"${clientName}" deletado com sucesso!`);
       setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
@@ -424,7 +400,7 @@ export default function ClientesPageNew() {
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <h3 className="font-bold text-lg">{client.name}</h3>
-                    <p className="text-sm text-gray-600">CPF/CNPJ: {client.cpf_cnpj}</p>
+                    <p className="text-sm text-gray-600">CPF/CNPJ: {client.cpfCnpj}</p>
                     <p className="text-sm text-gray-600">Email: {client.email || '—'}</p>
                     <p className="text-sm text-gray-600">Telefone: {client.phone || '—'}</p>
                     {client.address && (
@@ -453,7 +429,7 @@ export default function ClientesPageNew() {
                 </div>
 
                 <p className="text-xs text-gray-500 mt-3">
-                  Criado em: {new Date(client.created_at).toLocaleDateString('pt-BR')}
+                  Criado em: {new Date(client.createdAt).toLocaleDateString('pt-BR')}
                 </p>
               </Card>
             ))

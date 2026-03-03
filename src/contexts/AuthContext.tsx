@@ -1,166 +1,97 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import type { User, UserRole } from '@/types/erp';
-import { supabase } from '@/lib/supabase';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: 'vendedor' | 'gestor' | 'financeiro' | 'producao' | 'admin';
+}
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string) => Promise<string | null>;
-  register: (name: string, email: string, password: string, role: UserRole) => Promise<string | null>;
-  logout: () => void;
-  clearSessionCompletely: () => void;
   isAuthenticated: boolean;
   authLoading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  register: (data: { name: string; email: string; password: string; role: string }) => Promise<void>;
+  logout: () => Promise<void>;
+  clearSessionCompletely: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
-
-// Constrói o objeto User a partir dos dados disponíveis
-function buildUser(
-  id: string,
-  email: string,
-  meta: Record<string, unknown>,
-  profileData?: { name: string; role: string; avatar_url?: string }
-): User {
-  return {
-    id,
-    name: profileData?.name || (meta?.name as string) || email.split('@')[0] || 'Usuário',
-    email,
-    role: ((profileData?.role || meta?.role) as UserRole) ?? 'vendedor',
-    avatar: profileData?.avatar_url ?? undefined,
-  };
-}
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
+  // Carrega usuário do localStorage na inicialização
   useEffect(() => {
-    let mounted = true;
-
-    // Timeout de segurança: após 4s, libera a tela mesmo sem resposta
-    const fallbackTimer = setTimeout(() => {
-      if (mounted) setAuthLoading(false);
-    }, 4000);
-
-    const initAuth = async () => {
+    const savedUser = localStorage.getItem('auth_user');
+    if (savedUser) {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!mounted) return;
-
-        if (session?.user) {
-          const au = session.user;
-          const meta = au.user_metadata ?? {};
-
-          // Tenta carregar perfil do banco (silencia erros se tabela não existe)
-          try {
-            const { data } = await supabase
-              .from('profiles').select('*').eq('id', au.id).single();
-            if (mounted && data) {
-              setUser(buildUser(au.id, au.email ?? '', meta, data));
-              return;
-            }
-          } catch { /* tabela não existe ainda */ }
-
-          // Fallback: usa metadados da sessão (disponíveis imediatamente)
-          if (mounted) {
-            setUser(buildUser(au.id, au.email ?? '', meta));
-          }
-        }
-      } catch { /* ignore */ }
-      finally {
-        clearTimeout(fallbackTimer);
-        if (mounted) setAuthLoading(false);
+        setUser(JSON.parse(savedUser));
+      } catch (err) {
+        console.error('[Auth] Erro ao carregar usuário:', err);
+        localStorage.removeItem('auth_user');
       }
-    };
-
-    initAuth();
-
-    // Listener para mudanças em tempo real (login / logout)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (!mounted) return;
-        if (!session?.user) {
-          setUser(null);
-          return;
-        }
-        const au = session.user;
-        const meta = au.user_metadata ?? {};
-
-        // Usa metadados imediatamente (sem aguardar DB) → sem spinner
-        setUser(buildUser(au.id, au.email ?? '', meta));
-
-        // Tenta enriquecer com dados da tabela profiles em background
-        try {
-          const { data } = await supabase
-            .from('profiles').select('*').eq('id', au.id).single();
-          if (mounted && data) {
-            setUser(buildUser(au.id, au.email ?? '', meta, data));
-          }
-        } catch { /* ignora se tabela não existe */ }
-      }
-    );
-
-    return () => {
-      mounted = false;
-      clearTimeout(fallbackTimer);
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  // ── LOGIN ─────────────────────────────────────────────────
-  const login = useCallback(async (email: string, password: string): Promise<string | null> => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return error ? error.message : null;
-  }, []);
-
-  // ── REGISTER ──────────────────────────────────────────────
-  // name e role nos metadados → trigger handle_new_user() cria o perfil no banco
-  const register = useCallback(async (
-    name: string, email: string, password: string, role: UserRole
-  ): Promise<string | null> => {
-    const { error } = await supabase.auth.signUp({
-      email, password,
-      options: { data: { name, role } },
-    });
-    return error ? error.message : null;
-  }, []);
-
-  // ── LOGOUT ────────────────────────────────────────────────
-  const logout = useCallback(() => {
-    supabase.auth.signOut();
-    setUser(null);
-  }, []);
-
-  // ── CLEAR SESSION COMPLETELY ──────────────────────────────
-  // Limpa tudo: localStorage, sessionStorage, cookies, sessão Supabase
-  const clearSessionCompletely = useCallback(() => {
-    try {
-      // Limpar localStorage
-      localStorage.clear();
-      // Limpar sessionStorage
-      sessionStorage.clear();
-      // Limpar IndexedDB do Supabase
-      if (indexedDB) {
-        const dbs = ['supabase'];
-        dbs.forEach(dbName => {
-          try {
-            const req = indexedDB.deleteDatabase(dbName);
-            req.onsuccess = () => console.log(`[Auth] Limpou DB: ${dbName}`);
-          } catch (e) { console.warn(`[Auth] Erro ao limpar ${dbName}:`, e); }
-        });
-      }
-      // Logout do Supabase
-      supabase.auth.signOut().catch(err => console.warn('[Auth] Erro logout:', err));
-      setUser(null);
-      // Recarregar página para limpar cache
-      window.location.href = '/';
-    } catch (e) {
-      console.error('[Auth] Erro ao limpar sessão:', e);
     }
+    setAuthLoading(false);
   }, []);
+
+  const login = async (email: string, password: string) => {
+    // Simulação de login - sem backend
+    console.log('[Auth] Login com:', email);
+    
+    const mockUser: User = {
+      id: crypto.randomUUID(),
+      name: email.split('@')[0],
+      email,
+      role: 'vendedor',
+    };
+
+    setUser(mockUser);
+    localStorage.setItem('auth_user', JSON.stringify(mockUser));
+  };
+
+  const register = async (data: { name: string; email: string; password: string; role: string }) => {
+    // Simulação de registro - sem backend
+    console.log('[Auth] Registrando:', data.email);
+    
+    const newUser: User = {
+      id: crypto.randomUUID(),
+      name: data.name,
+      email: data.email,
+      role: (data.role || 'vendedor') as User['role'],
+    };
+
+    setUser(newUser);
+    localStorage.setItem('auth_user', JSON.stringify(newUser));
+  };
+
+  const logout = async () => {
+    console.log('[Auth] Logout');
+    setUser(null);
+    localStorage.removeItem('auth_user');
+  };
+
+  const clearSessionCompletely = async () => {
+    console.log('[Auth] Limpando sessão completamente');
+    setUser(null);
+    localStorage.removeItem('auth_user');
+    localStorage.clear();
+  };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, clearSessionCompletely, isAuthenticated: !!user, authLoading }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        isAuthenticated: !!user,
+        authLoading,
+        login,
+        register,
+        logout,
+        clearSessionCompletely,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -168,6 +99,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 export const useAuth = () => {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
+  if (!ctx) {
+    throw new Error('useAuth deve ser usado dentro de AuthProvider');
+  }
   return ctx;
 };

@@ -1,15 +1,22 @@
 import React, { useState, useRef } from 'react';
 import { useERP } from '@/contexts/ERPContext';
-import { useAuth } from '@/contexts/AuthContext';
 import { StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
 import { OrderPipeline, OrderHistory } from '@/components/shared/OrderTimeline';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
 import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check, Download } from 'lucide-react';
-import { getNextOrderNumber } from '@/lib/supabaseService';
 import type { Order, QuoteItem } from '@/types/erp';
 import { useLocation } from 'react-router-dom';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+
+// Função local para gerar próximo número de ordem
+const getNextOrderNumber = (existingOrders: Order[]): number => {
+  if (existingOrders.length === 0) return 1;
+  const numbers = existingOrders
+    .map(o => parseInt(o.number.replace(/\D/g, ''), 10))
+    .filter(n => !isNaN(n));
+  return Math.max(...numbers, 0) + 1;
+};
 
 // Status que bloqueiam a edição do orçamento
 // Fluxo: Vendedor → Financeiro → Produção (sem etapa de Gestor)
@@ -223,7 +230,7 @@ const OrcamentosPage: React.FC = () => {
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
           console.log(`[OrcamentosPage] 🔄 TENTATIVA ${attempt}/${maxAttempts}: Gerando número do pedido...`);
-          const nextNumber = await getNextOrderNumber();
+          const nextNumber = getNextOrderNumber(myOrders);
           console.log(`[OrcamentosPage] ✅ Número gerado: ${nextNumber}`);
 
           const order: Order = {

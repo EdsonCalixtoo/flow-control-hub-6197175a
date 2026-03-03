@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { useERP } from '@/contexts/ERPContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
 import { OrderPipeline, OrderHistory } from '@/components/shared/OrderTimeline';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';

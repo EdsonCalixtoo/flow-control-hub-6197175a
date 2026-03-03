@@ -72,7 +72,7 @@ const LoginPage: React.FC = () => {
       } else {
         if (!name.trim()) { setError('Informe seu nome completo.'); setLoading(false); return; }
         if (password.length < 6) { setError('A senha deve ter pelo menos 6 caracteres.'); setLoading(false); return; }
-        const err = await register(name, email, password, selectedRole);
+        const err = await register(email, password, name, selectedRole);
         if (err) {
           setError(err);
         } else {

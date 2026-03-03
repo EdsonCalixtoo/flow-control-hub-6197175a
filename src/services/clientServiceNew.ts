@@ -59,24 +59,48 @@ export async function insertClientDirect(
   };
 
   console.log('[insertClientDirect] 📤 Enviando payload:', JSON.stringify(payload));
+  console.log('[insertClientDirect] ⏱️ Conectando ao Supabase (timeout 10s)...');
 
-  // Insert
-  console.log('[insertClientDirect] ⏱️ Conectando ao Supabase...');
-  const { data, error } = await supabase
-    .from('clients')
-    .insert([payload])
-    .select()
-    .single();
+  // Wrapper com timeout para não travar
+  return new Promise<ClientResponse>((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      console.error('[insertClientDirect] ⏰ TIMEOUT 10s! Supabase não respondeu!');
+      reject(new Error('Timeout: Supabase não respondeu em 10 segundos'));
+    }, 10000);
 
-  if (error) {
-    console.error('[insertClientDirect] ❌ ERRO!');
-    console.error('[insertClientDirect] Código:', error.code);
-    console.error('[insertClientDirect] Mensagem:', error.message);
-    throw new Error(`${error.code}: ${error.message}`);
-  }
+    (async () => {
+      try {
+        const startTime = Date.now();
+        const { data, error } = await supabase
+          .from('clients')
+          .insert([payload])
+          .select()
+          .single();
 
-  console.log('[insertClientDirect] ✅ SUCESSO! Cliente criado:', data.id);
-  return data as ClientResponse;
+        const elapsed = Date.now() - startTime;
+        console.log(`[insertClientDirect] ⏱️ Resposta recebida em ${elapsed}ms`);
+
+        if (error) {
+          console.error('[insertClientDirect] ❌ ERRO DO SUPABASE!');
+          console.error('[insertClientDirect] ❌ Código:', error.code);
+          console.error('[insertClientDirect] ❌ Mensagem:', error.message);
+          console.error('[insertClientDirect] ❌ Detalhes:', JSON.stringify(error, null, 2));
+          clearTimeout(timeoutId);
+          reject(new Error(`${error.code}: ${error.message}`));
+          return;
+        }
+
+        console.log('[insertClientDirect] ✅ SUCESSO! Cliente criado:', data.id);
+        clearTimeout(timeoutId);
+        resolve(data as ClientResponse);
+      } catch (err: any) {
+        console.error('[insertClientDirect] ❌ ERRO NA REQUISIÇÃO!');
+        console.error('[insertClientDirect] ❌ Mensagem:', err?.message);
+        clearTimeout(timeoutId);
+        reject(err);
+      }
+    })();
+  });
 }
 
 /**

@@ -452,31 +452,34 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const addClient = useCallback(async (client: Client): Promise<void> => {
     setClients(prev => [client, ...prev]);
     console.log('[ERP] ✨ Cliente criado no state local:', client.name, client.id);
+    console.log('[ERP] 📤 Enviando para Supabase...');
 
-    // ✅ Timeout de 12s: se demorar mais que isso, assume sucesso
-    // (cliente pode ter sido salvo, apenas a validação travou)
+    // ✅ Timeout de 3s (se demorar mais, algo está errado)
     const createClientWithTimeout = new Promise<void>((resolve, reject) => {
       const timeoutId = setTimeout(() => {
-        console.log('[ERP] ⏱️ Timeout ao salvar cliente (12s) — assumindo sucesso');
-        resolve(); // Resolve = sucesso, cliente permanece na tela
-      }, 12000);
+        console.error('[ERP] ⏱️ TIMEOUT (3s) - Supabase não respondeu! Removendo cliente do state');
+        // Remove cliente do state se timeout
+        setClients(prev => prev.filter(c => c.id !== client.id));
+        reject(new Error('Timeout ao salvar cliente (3s). Verifique conexão e RLS'));
+      }, 3000);
 
       createClient(client)
         .then(() => {
           clearTimeout(timeoutId);
-          console.log('[ERP] ✅ Cliente salvo com sucesso:', client.name);
+          console.log('[ERP] ✅✅✅ Cliente SALVO COM SUCESSO no Supabase:', client.name);
           resolve();
         })
         .catch(error => {
           clearTimeout(timeoutId);
-          console.error('[ERP] ❌ Erro real ao salvar cliente:', error?.message ?? error);
-          // Remove do state apenas se erro real (não timeout)
+          console.error('[ERP] ❌ Erro ao salvar cliente:', error?.message ?? error);
+          // Remove do state em caso de erro
           setClients(prev => prev.filter(c => c.id !== client.id));
           reject(error);
         });
     });
 
     try {
+      console.log('[ERP] ⏳ Aguardando resposta do Supabase...');
       await createClientWithTimeout;
 
       // Re-sincroniza em background (não bloqueia)
@@ -488,11 +491,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           console.log('[ERP] ✅ Clientes sincronizados:', dbClients.length, 'clientes');
         } catch (err) {
           console.error('[ERP] ⚠️ Re-sync falhou (não bloqueia):', err);
-          // Realtime vai sincronizar em breve
         }
       })();
     } catch (err) {
-      console.error('[ERP] ❌ Falha ao salvar cliente (removido do state):', err?.message ?? err);
+      console.error('[ERP] ❌ Erro final ao salvar cliente:', err?.message ?? err);
       throw err;
     }
   }, [setClients]);

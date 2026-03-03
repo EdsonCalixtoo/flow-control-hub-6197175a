@@ -35,16 +35,43 @@ function maskCep(raw: string): string {
   return d.replace(/(\d{5})(\d{1,3})$/, '$1-$2');
 }
 
-// ─── ViaCEP ──────────────────────────────────────────────────
+// ─── BrasilAPI para CEP (sem CORS bloqueado) ──────────────────────────────
 async function fetchViaCep(cep: string) {
   const digits = cep.replace(/\D/g, '');
   if (digits.length !== 8) return null;
+  
   try {
-    const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
+    // 🔄 Timeout de 5s
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    // ✅ Usando BrasilAPI (tem suporte CORS, não é bloqueado)
+    const res = await fetch(`https://brasilapi.com.br/api/cep/v1/${digits}`, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    
+    if (!res.ok) {
+      console.warn(`[CEP] HTTP ${res.status} - CEP não encontrado`);
+      return null;
+    }
+    
     const data = await res.json();
-    if (data.erro) return null;
-    return data as { logradouro: string; bairro: string; localidade: string; uf: string };
-  } catch {
+    if (data.status === 400) {
+      console.warn('[CEP] CEP inválido:', digits);
+      return null;
+    }
+    
+    return {
+      logradouro: data.street || '',
+      bairro: data.neighborhood || '',
+      localidade: data.city || '',
+      uf: data.state || ''
+    };
+  } catch (err: any) {
+    if (err?.name === 'AbortError') {
+      console.warn('[CEP] ⏱️ Timeout (5s)');
+    } else {
+      console.warn('[CEP] ❌ Erro ao buscar CEP:', err?.message);
+    }
     return null;
   }
 }
@@ -106,20 +133,28 @@ const ClientesPage: React.FC = () => {
     setForm(f => ({ ...f, cep: masked }));
     setCepError('');
     const digits = masked.replace(/\D/g, '');
+    
     if (digits.length === 8) {
       setCepLoading(true);
-      const data = await fetchViaCep(masked);
-      setCepLoading(false);
-      if (data) {
-        setForm(f => ({
-          ...f,
-          logradouro: data.logradouro || f.logradouro,
-          bairro: data.bairro || f.bairro,
-          city: data.localidade,
-          state: data.uf,
-        }));
-      } else {
-        setCepError('CEP não encontrado');
+      try {
+        const data = await fetchViaCep(masked);
+        setCepLoading(false);
+        
+        if (data) {
+          setForm(f => ({
+            ...f,
+            logradouro: data.logradouro || f.logradouro,
+            bairro: data.bairro || f.bairro,
+            city: data.localidade,
+            state: data.uf,
+          }));
+        } else {
+          // ⚠️ Não bloqueia o formulário - deixa usuário continuar mesmo se viacep falhar
+          console.warn('[CEP] Não foi possível buscar endereço - usuário pode preencher manualmente');
+        }
+      } catch (err) {
+        console.error('[CEP] Erro ao buscar viacep:', err);
+        setCepLoading(false);
       }
     }
   };
@@ -140,15 +175,18 @@ const ClientesPage: React.FC = () => {
 
     try {
       setSavingClient(true);
+      setFormError('');
 
-      console.log('[ClientesPage] 📝 Criando cliente:', form.name);
-      console.log('[ClientesPage] 🆔 User ID:', user?.id);
-      console.log('[ClientesPage] 🔐 User Role:', user?.role);
+      console.log('[ClientesPage] 🔵 INICIANDO CADASTRO DE CLIENTE');
+      console.log('[ClientesPage] 📝 Nome:', form.name);
+      console.log('[ClientesPage] 🆔 Seu ID:', user?.id);
+      console.log('[ClientesPage] 🔐 Seu Role:', user?.role);
+
+      if (!user?.id) {
+        throw new Error('❌ Você não está autenticado! Faça login novamente.');
+      }
 
       const { logradouro, numero, complemento, ...rest } = form;
-
-      // ✅ Garante que createdBy sempre tem um valor
-      const createdById = user?.id || 'sistema';
 
       const newClient: Client = {
         id: crypto.randomUUID(),
@@ -156,47 +194,23 @@ const ClientesPage: React.FC = () => {
         address: buildAddress(form),
         bairro: form.bairro,
         consignado: form.consignado,
-        createdBy: createdById,
+        createdBy: user.id,
         createdAt: new Date().toISOString(),
       } as Client;
 
-      console.log('[ClientesPage] 📦 Novo cliente:', {
-        id: newClient.id,
-        name: newClient.name,
-        createdBy: newClient.createdBy,
-      });
+      console.log('[ClientesPage] 📦 Enviando para API:', JSON.stringify(newClient, null, 2));
 
-      // ✅ Timeout adicional de 14s como fallback
-      // ERPContext já tem timeout de 12s, este é camada extra de proteção
-      const createClientWithTimeout = new Promise<void>((resolve, reject) => {
-        const timeoutId = setTimeout(() => {
-          console.log('[ClientesPage] ⏱️ Fallback timeout (14s) — assumindo sucesso...');
-          resolve(); // Resolve — cliente foi salvo ou está sendo salvo
-        }, 14000);
-
-        addClient(newClient)
-          .then(() => {
-            clearTimeout(timeoutId);
-            resolve();
-          })
-          .catch(error => {
-            clearTimeout(timeoutId);
-            reject(error);
-          });
-      });
-
-      await createClientWithTimeout;
-      console.log('[ClientesPage] ✅ Cliente salvo:', newClient.name);
+      await addClient(newClient);
+      
+      console.log('[ClientesPage] ✅✅✅ CLIENTE CADASTRADO COM SUCESSO!');
 
       setSavingClient(false);
       setShowCreate(false);
       setForm(EMPTY_FORM);
       setFormError('');
-
-      console.log('[ClientesPage] ✨ Sucesso! Cliente visível para todos os vendedores');
     } catch (err: any) {
-      console.error('[ClientesPage] ❌ Erro ao criar cliente:', err?.message ?? err);
-      setFormError(`❌ Erro ao cadastrar cliente: ${err?.message || 'Tente novamente'}`);
+      console.error('[ClientesPage] ❌❌❌ ERRO FINAL:', err?.message ?? err);
+      setFormError(`❌ Erro: ${err?.message || 'Tente novamente'}`);
       setSavingClient(false);
     }
   };

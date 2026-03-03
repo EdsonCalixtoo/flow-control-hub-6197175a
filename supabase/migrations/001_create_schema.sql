@@ -118,33 +118,40 @@ ALTER TABLE order_status_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_messages ENABLE ROW LEVEL SECURITY;
 
 -- PROFILES: Cada usuário vê seu próprio perfil e admins veem todos
+DROP POLICY IF EXISTS "profiles_select_self" ON profiles;
 CREATE POLICY "profiles_select_self" ON profiles
   FOR SELECT USING (auth.uid() = id);
 
+DROP POLICY IF EXISTS "profiles_select_all_by_admin" ON profiles;
 CREATE POLICY "profiles_select_all_by_admin" ON profiles
   FOR SELECT USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
   );
 
+DROP POLICY IF EXISTS "profiles_insert_own" ON profiles;
 CREATE POLICY "profiles_insert_own" ON profiles
   FOR INSERT WITH CHECK (auth.uid() = id);
 
+DROP POLICY IF EXISTS "profiles_update_self" ON profiles;
 CREATE POLICY "profiles_update_self" ON profiles
   FOR UPDATE USING (auth.uid() = id);
 
 -- CLIENTS: Vendedor vê seus clientes, outros veem todos
+DROP POLICY IF EXISTS "clients_select_own" ON clients;
 CREATE POLICY "clients_select_own" ON clients
   FOR SELECT USING (
     created_by = auth.uid() OR
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'financeiro', 'gestor'))
   );
 
+DROP POLICY IF EXISTS "clients_insert_vendedor" ON clients;
 CREATE POLICY "clients_insert_vendedor" ON clients
   FOR INSERT WITH CHECK (
     created_by = auth.uid() AND
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'vendedor')
   );
 
+DROP POLICY IF EXISTS "clients_update_own" ON clients;
 CREATE POLICY "clients_update_own" ON clients
   FOR UPDATE USING (
     created_by = auth.uid() OR
@@ -152,18 +159,21 @@ CREATE POLICY "clients_update_own" ON clients
   );
 
 -- QUOTES: Vendedor vê seus orçamentos, financeiro vê todos, etc
+DROP POLICY IF EXISTS "quotes_select_vendedor" ON quotes;
 CREATE POLICY "quotes_select_vendedor" ON quotes
   FOR SELECT USING (
     seller_id = auth.uid() OR
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin', 'financeiro', 'gestor', 'producao'))
   );
 
+DROP POLICY IF EXISTS "quotes_insert_vendedor" ON quotes;
 CREATE POLICY "quotes_insert_vendedor" ON quotes
   FOR INSERT WITH CHECK (
     seller_id = auth.uid() AND
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'vendedor')
   );
 
+DROP POLICY IF EXISTS "quotes_update_vendedor" ON quotes;
 CREATE POLICY "quotes_update_vendedor" ON quotes
   FOR UPDATE USING (
     seller_id = auth.uid() OR
@@ -171,6 +181,7 @@ CREATE POLICY "quotes_update_vendedor" ON quotes
   );
 
 -- QUOTE_ITEMS: Acesso baseado no acesso ao orçamento
+DROP POLICY IF EXISTS "quote_items_select" ON quote_items;
 CREATE POLICY "quote_items_select" ON quote_items
   FOR SELECT USING (
     EXISTS (
@@ -181,6 +192,7 @@ CREATE POLICY "quote_items_select" ON quote_items
     )
   );
 
+DROP POLICY IF EXISTS "quote_items_insert" ON quote_items;
 CREATE POLICY "quote_items_insert" ON quote_items
   FOR INSERT WITH CHECK (
     EXISTS (
@@ -189,6 +201,7 @@ CREATE POLICY "quote_items_insert" ON quote_items
   );
 
 -- ORDER_STATUS_HISTORY: Todos podem ver o histórico dos orçamentos que têm acesso
+DROP POLICY IF EXISTS "status_history_select" ON order_status_history;
 CREATE POLICY "status_history_select" ON order_status_history
   FOR SELECT USING (
     EXISTS (
@@ -199,6 +212,7 @@ CREATE POLICY "status_history_select" ON order_status_history
     )
   );
 
+DROP POLICY IF EXISTS "status_history_insert" ON order_status_history;
 CREATE POLICY "status_history_insert" ON order_status_history
   FOR INSERT WITH CHECK (
     EXISTS (
@@ -210,6 +224,7 @@ CREATE POLICY "status_history_insert" ON order_status_history
   );
 
 -- ORDER_MESSAGES: Chat do orçamento
+DROP POLICY IF EXISTS "messages_select" ON order_messages;
 CREATE POLICY "messages_select" ON order_messages
   FOR SELECT USING (
     EXISTS (
@@ -220,6 +235,7 @@ CREATE POLICY "messages_select" ON order_messages
     )
   );
 
+DROP POLICY IF EXISTS "messages_insert" ON order_messages;
 CREATE POLICY "messages_insert" ON order_messages
   FOR INSERT WITH CHECK (
     sender_id = auth.uid() AND
@@ -235,14 +251,14 @@ CREATE POLICY "messages_insert" ON order_messages
 -- ÍNDICES PARA PERFORMANCE
 -- ===============================================
 
-CREATE INDEX idx_clients_seller ON clients(created_by);
-CREATE INDEX idx_quotes_client ON quotes(client_id);
-CREATE INDEX idx_quotes_seller ON quotes(seller_id);
-CREATE INDEX idx_quotes_status ON quotes(status);
-CREATE INDEX idx_quote_items_quote ON quote_items(quote_id);
-CREATE INDEX idx_status_history_quote ON order_status_history(quote_id);
-CREATE INDEX idx_messages_quote ON order_messages(quote_id);
-CREATE INDEX idx_messages_sender ON order_messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_clients_seller ON clients(created_by);
+CREATE INDEX IF NOT EXISTS idx_quotes_client ON quotes(client_id);
+CREATE INDEX IF NOT EXISTS idx_quotes_seller ON quotes(seller_id);
+CREATE INDEX IF NOT EXISTS idx_quotes_status ON quotes(status);
+CREATE INDEX IF NOT EXISTS idx_quote_items_quote ON quote_items(quote_id);
+CREATE INDEX IF NOT EXISTS idx_status_history_quote ON order_status_history(quote_id);
+CREATE INDEX IF NOT EXISTS idx_messages_quote ON order_messages(quote_id);
+CREATE INDEX IF NOT EXISTS idx_messages_sender ON order_messages(sender_id);
 
 -- ===============================================
 -- FUNÇÕES PARA AUTOMAÇÃO
@@ -258,17 +274,22 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Triggers para updated_at
+DROP TRIGGER IF EXISTS update_profiles_updated_at ON profiles;
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_clients_updated_at ON clients;
 CREATE TRIGGER update_clients_updated_at BEFORE UPDATE ON clients
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_quotes_updated_at ON quotes;
 CREATE TRIGGER update_quotes_updated_at BEFORE UPDATE ON quotes
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_quote_items_updated_at ON quote_items;
 CREATE TRIGGER update_quote_items_updated_at BEFORE UPDATE ON quote_items
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_messages_updated_at ON order_messages;
 CREATE TRIGGER update_messages_updated_at BEFORE UPDATE ON order_messages
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

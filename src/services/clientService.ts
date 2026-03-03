@@ -8,6 +8,9 @@ export async function createClient(
   client: Omit<Client, 'id' | 'createdAt'> & { createdAt?: string }
 ): Promise<Client> {
   try {
+    console.log('[clientService] 📝 Iniciando createClient para:', client.name);
+    console.log('[clientService] 🔑 created_by:', client.createdBy);
+    
     const { data, error } = await supabase
       .from('clients')
       .insert([
@@ -29,11 +32,15 @@ export async function createClient(
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error('[clientService] ❌ Erro do Supabase:', error.code, error.message);
+      throw error;
+    }
 
+    console.log('[clientService] ✅ Cliente inserido com sucesso:', data);
     return mapClientFromDb(data);
   } catch (error) {
-    console.error('Erro ao criar cliente:', error);
+    console.error('[clientService] ❌ Erro ao criar cliente:', error?.message ?? error);
     throw error;
   }
 }

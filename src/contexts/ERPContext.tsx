@@ -144,21 +144,6 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     console.log('[ERP] Produto deletado:', productId);
   }, [setProducts]);
 
-  const deleteClient = useCallback(async (clientId: string) => {
-    setClients(prev => prev.filter(c => c.id !== clientId));
-    console.log('[ERP] 🗑️ Cliente deletado do state local:', clientId);
-    try {
-      await deleteClientDb(clientId);
-      console.log('[ERP] ✅ Cliente deletado do banco:', clientId);
-    } catch (err: any) {
-      console.error('[ERP] ❌ Erro ao deletar cliente do banco:', err?.message ?? err);
-      // Re-sincroniza para restaurar o cliente em caso de erro
-      const updated = await fetchClients();
-      setClients(updated);
-      throw err;
-    }
-  }, [setClients]);
-
   // ── DELAY REPORTS ────────────────────────────────────────────
   const addDelayReport = useCallback((report: Omit<DelayReport, 'id' | 'sentAt' | 'readAt'>) => {
     const newReport: DelayReport = {

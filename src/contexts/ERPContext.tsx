@@ -281,6 +281,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [supaLoaded, syncFromSupabase]);
 
   // ── Polling de produtos (fallback se realtime falhar) ─────────────────────
+  // 🚨 DESABILITADO: Causava requisições frequentes que travavam Supabase
   // Sincroniza produtos a cada 30s para garantir que estoque está atualizado
   useEffect(() => {
     if (!supaLoaded) return;
@@ -300,10 +301,12 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Faz primeira sincronização imediatamente
     pollProducts();
 
+    // 🚨 COMENTADO: Polling desabilitado para não travar Supabase
     // Depois a cada 30 segundos (ajuste se necessário)
-    const intervalId = setInterval(pollProducts, 30000);
+    // const intervalId = setInterval(pollProducts, 30000);
 
-    return () => clearInterval(intervalId);
+    // return () => clearInterval(intervalId);
+    return () => {};
   }, [supaLoaded, setProducts]);
 
   // ── ORDERS ───────────────────────────────────────────────────
@@ -454,14 +457,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     console.log('[ERP] ✨ Cliente criado no state local:', client.name, client.id);
     console.log('[ERP] 📤 Enviando para Supabase...');
 
-    // ✅ Timeout de 3s (se demorar mais, algo está errado)
+    // ✅ Timeout de 15s (Supabase pode estar lento)
     const createClientWithTimeout = new Promise<void>((resolve, reject) => {
       const timeoutId = setTimeout(() => {
-        console.error('[ERP] ⏱️ TIMEOUT (3s) - Supabase não respondeu! Removendo cliente do state');
+        console.error('[ERP] ⏱️ TIMEOUT (15s) - Supabase não respondeu! Removendo cliente do state');
         // Remove cliente do state se timeout
         setClients(prev => prev.filter(c => c.id !== client.id));
-        reject(new Error('Timeout ao salvar cliente (3s). Verifique conexão e RLS'));
-      }, 3000);
+        reject(new Error('Timeout ao salvar cliente (15s). Supabase pode estar indisponível.'));
+      }, 15000);
 
       createClient(client)
         .then(() => {
@@ -482,17 +485,18 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.log('[ERP] ⏳ Aguardando resposta do Supabase...');
       await createClientWithTimeout;
 
+      // 🚨 Re-sincroniza DESABILITADA para não travar (causa requisições extras)
       // Re-sincroniza em background (não bloqueia)
-      (async () => {
-        try {
-          console.log('[ERP] 🔄 Re-sincronizando clientes em background...');
-          const dbClients = await fetchClients();
-          setClients(dbClients);
-          console.log('[ERP] ✅ Clientes sincronizados:', dbClients.length, 'clientes');
-        } catch (err) {
-          console.error('[ERP] ⚠️ Re-sync falhou (não bloqueia):', err);
-        }
-      })();
+      // (async () => {
+      //   try {
+      //     console.log('[ERP] 🔄 Re-sincronizando clientes em background...');
+      //     const dbClients = await fetchClients();
+      //     setClients(dbClients);
+      //     console.log('[ERP] ✅ Clientes sincronizados:', dbClients.length, 'clientes');
+      //   } catch (err) {
+      //     console.error('[ERP] ⚠️ Re-sync falhou (não bloqueia):', err);
+      //   }
+      // })();
     } catch (err) {
       console.error('[ERP] ❌ Erro final ao salvar cliente:', err?.message ?? err);
       throw err;

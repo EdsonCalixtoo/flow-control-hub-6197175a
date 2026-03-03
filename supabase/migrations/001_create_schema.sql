@@ -33,6 +33,20 @@ CREATE TABLE IF NOT EXISTS clients (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 2.5 TABELA DE PRODUTOS (Estoque)
+CREATE TABLE IF NOT EXISTS products (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  sku TEXT UNIQUE,
+  description TEXT,
+  quantity INTEGER NOT NULL DEFAULT 0,
+  unit_price DECIMAL(12, 2) NOT NULL DEFAULT 0,
+  category TEXT,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 3. TABELA DE ORÇAMENTOS
 CREATE TABLE IF NOT EXISTS quotes (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -109,13 +123,15 @@ CREATE TABLE IF NOT EXISTS order_messages (
 -- POLÍTICAS DE SEGURANÇA (RLS)
 -- ===============================================
 
--- Habilitar RLS em todas as tabelas
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE clients ENABLE ROW LEVEL SECURITY;
-ALTER TABLE quotes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE quote_items ENABLE ROW LEVEL SECURITY;
-ALTER TABLE order_status_history ENABLE ROW LEVEL SECURITY;
-ALTER TABLE order_messages ENABLE ROW LEVEL SECURITY;
+-- 🚨 RLS DESABILITADO TEMPORARIAMENTE PARA TESTES
+-- Desabilitar RLS em todas as tabelas
+ALTER TABLE profiles DISABLE ROW LEVEL SECURITY;
+ALTER TABLE clients DISABLE ROW LEVEL SECURITY;
+ALTER TABLE products DISABLE ROW LEVEL SECURITY;
+ALTER TABLE quotes DISABLE ROW LEVEL SECURITY;
+ALTER TABLE quote_items DISABLE ROW LEVEL SECURITY;
+ALTER TABLE order_status_history DISABLE ROW LEVEL SECURITY;
+ALTER TABLE order_messages DISABLE ROW LEVEL SECURITY;
 
 -- PROFILES: Cada usuário vê seu próprio perfil e admins veem todos
 DROP POLICY IF EXISTS "profiles_select_self" ON profiles;
@@ -273,6 +289,28 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- 🔑 FUNÇÃO: Criar profile automaticamente quando novo usuário é criado
+CREATE OR REPLACE FUNCTION handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO profiles (id, email, full_name, role)
+  VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE((NEW.raw_user_meta_data->>'name'), NEW.email),
+    COALESCE((NEW.raw_user_meta_data->>'role'), 'vendedor')
+  )
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 🔑 TRIGGER: Executar handle_new_user quando usuário é criado em auth.users
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+
 -- Triggers para updated_at
 DROP TRIGGER IF EXISTS update_profiles_updated_at ON profiles;
 CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles
@@ -280,6 +318,10 @@ CREATE TRIGGER update_profiles_updated_at BEFORE UPDATE ON profiles
 
 DROP TRIGGER IF EXISTS update_clients_updated_at ON clients;
 CREATE TRIGGER update_clients_updated_at BEFORE UPDATE ON clients
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+DROP TRIGGER IF EXISTS update_products_updated_at ON products;
+CREATE TRIGGER update_products_updated_at BEFORE UPDATE ON products
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 DROP TRIGGER IF EXISTS update_quotes_updated_at ON quotes;

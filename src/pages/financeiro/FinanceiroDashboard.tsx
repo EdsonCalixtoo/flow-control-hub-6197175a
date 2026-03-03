@@ -36,7 +36,7 @@ const FinanceiroDashboard: React.FC = () => {
   const [rejectReason, setRejectReason] = useState('');
   // Pagamentos parciais (consignado)
   const [novoPagValor, setNovoPagValor] = useState('');
-  const [novoPagComprovante, setNovoPagComprovante] = useState('');
+  const [novoPagComprovantes, setNovoPagComprovantes] = useState<string[]>([]);
   const [novoPagDescricao, setNovoPagDescricao] = useState('');
   const [salvandoPag, setSalvandoPag] = useState(false);
   const itemsPerPage = 5;
@@ -299,13 +299,13 @@ const FinanceiroDashboard: React.FC = () => {
         orderNumber: order.number,
         clientId: order.clientId,
         clientName: order.clientName,
-        receiptUrl: novoPagComprovante || undefined,
+        receiptUrls: novoPagComprovantes,
         createdAt: new Date().toISOString(),
       };
       addFinancialEntry(entry);
       setNovoPagValor('');
       setNovoPagDescricao('');
-      setNovoPagComprovante('');
+      setNovoPagComprovantes([]);
 
       // Se pagou 100%, aprova e envia para produção
       const novoTotal = totalPago + valor;
@@ -454,10 +454,23 @@ const FinanceiroDashboard: React.FC = () => {
                             </div>
                             <div className="text-right shrink-0">
                               <p className="text-sm font-extrabold text-success">{formatCurrency(pag.amount)}</p>
-                              {pag.receiptUrl && (
+                              {pag.receiptUrls && pag.receiptUrls.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {pag.receiptUrls.map((url, i) => (
+                                    <button
+                                      key={i}
+                                      onClick={() => window.open(url, '_blank')}
+                                      className="text-[9px] text-primary underline"
+                                    >
+                                      Comprovante {i + 1}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                              {pag.receiptUrl && (!pag.receiptUrls || pag.receiptUrls.length === 0) && (
                                 <button
                                   onClick={() => window.open(pag.receiptUrl, '_blank')}
-                                  className="text-[9px] text-primary underline"
+                                  className="text-[9px] text-primary underline mt-1"
                                 >
                                   Ver comprovante
                                 </button>
@@ -502,8 +515,8 @@ const FinanceiroDashboard: React.FC = () => {
                         <div>
                           <label className="text-[10px] text-muted-foreground block mb-1">Comprovante (opcional)</label>
                           <ComprovanteUpload
-                            value={novoPagComprovante}
-                            onChange={setNovoPagComprovante}
+                            values={novoPagComprovantes}
+                            onChange={setNovoPagComprovantes}
                             label=""
                           />
                         </div>
@@ -612,10 +625,15 @@ const FinanceiroDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Comprovante de Pagamento */}
-            {selectedOrder.receiptUrl && (
+            {/* Comprovantes de Pagamento */}
+            {(selectedOrder.receiptUrls?.length ?? 0) > 0 && (
               <div className="card-section p-5">
-                <ComprovanteUpload value={selectedOrder.receiptUrl} onChange={() => { }} label="Comprovante de Pagamento" readOnly />
+                <ComprovanteUpload values={selectedOrder.receiptUrls || []} onChange={() => { }} label="Comprovantes de Pagamento" readOnly />
+              </div>
+            )}
+            {!(selectedOrder.receiptUrls?.length) && selectedOrder.receiptUrl && (
+              <div className="card-section p-5">
+                <ComprovanteUpload values={[selectedOrder.receiptUrl]} onChange={() => { }} label="Comprovante de Pagamento" readOnly />
               </div>
             )}
 

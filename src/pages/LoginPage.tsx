@@ -12,16 +12,14 @@ const roles: { role: UserRole; icon: React.ElementType; desc: string; gradient: 
 ];
 
 type Step = 'select' | 'auth';
-type Mode = 'login' | 'register';
 
 const LoginPage: React.FC = () => {
-  const { login, register, clearSessionCompletely } = useAuth();
+  const { login, clearSessionCompletely } = useAuth();
 
   const [step, setStep] = useState<Step>('select');
-  const [mode, setMode] = useState<Mode>('login');
+
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
 
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
@@ -37,7 +35,7 @@ const LoginPage: React.FC = () => {
     setStep('auth');
     setError(null);
     setSuccess(null);
-    setName(''); setEmail(''); setPassword('');
+    setEmail(''); setPassword('');
   };
 
   const handleBack = () => {
@@ -54,32 +52,20 @@ const LoginPage: React.FC = () => {
     setLoading(true);
 
     try {
-      if (mode === 'login') {
-        const err = await login(email, password);
-        if (err) {
-          setError(err);
-          // Se for erro de token, oferece opção de limpar sessão
-          if (err.toLowerCase().includes('refresh') || err.toLowerCase().includes('invalid')) {
-            setShowClearSessionOption(true);
-          }
-          setLoading(false);
-        }
-        // Se login ok: o onAuthStateChange vai redirecionar em até 3s.
-        // Paramos o loading após 4s caso não redirecione.
-        else {
-          setTimeout(() => setLoading(false), 4000);
-        }
-      } else {
-        if (!name.trim()) { setError('Informe seu nome completo.'); setLoading(false); return; }
-        if (password.length < 6) { setError('A senha deve ter pelo menos 6 caracteres.'); setLoading(false); return; }
-        const err = await register(email, password, name, selectedRole);
-        if (err) {
-          setError(err);
-        } else {
-          setSuccess('Conta criada! Verifique seu e-mail para confirmar e depois faça o login.');
-          setMode('login');
+      const err = await login(email, password);
+      if (err) {
+        const errorMessage = String(err);
+        setError(errorMessage);
+        // Se for erro de token, oferece opção de limpar sessão
+        if (errorMessage.toLowerCase().includes('refresh') || errorMessage.toLowerCase().includes('invalid')) {
+          setShowClearSessionOption(true);
         }
         setLoading(false);
+      }
+      // Se login ok: o onAuthStateChange vai redirecionar em até 3s.
+      // Paramos o loading após 4s caso não redirecione.
+      else {
+        setTimeout(() => setLoading(false), 4000);
       }
     } catch {
       setError('Erro inesperado. Tente novamente.');
@@ -153,7 +139,7 @@ const LoginPage: React.FC = () => {
             </>
           )}
 
-          {/* ════════ STEP 2: Login / Cadastro ════════ */}
+          {/* ════════ STEP 2: Login ════════ */}
           {step === 'auth' && selectedRoleData && (
             <div className="animate-scale-in">
               {/* Header do perfil selecionado */}
@@ -168,19 +154,6 @@ const LoginPage: React.FC = () => {
                   <p className="text-sm font-bold text-foreground">{ROLE_LABELS[selectedRole!]}</p>
                   <p className="text-xs text-muted-foreground">{selectedRoleData.desc}</p>
                 </div>
-              </div>
-
-              {/* Tabs Login / Cadastro */}
-              <div className="flex gap-1.5 mb-6 p-1 bg-muted/50 rounded-xl">
-                {(['login', 'register'] as const).map(m => (
-                  <button
-                    key={m}
-                    onClick={() => { setMode(m); setError(null); setSuccess(null); }}
-                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all duration-200 ${mode === m ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
-                  >
-                    {m === 'login' ? '🔑 Entrar' : '✨ Criar conta'}
-                  </button>
-                ))}
               </div>
 
               {/* Mensagem de sucesso */}
@@ -200,21 +173,6 @@ const LoginPage: React.FC = () => {
 
               {/* Formulário */}
               <form onSubmit={handleSubmit} className="space-y-4">
-                {mode === 'register' && (
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Nome completo</label>
-                    <input
-                      type="text"
-                      value={name}
-                      onChange={e => setName(e.target.value)}
-                      className="input-modern"
-                      placeholder="Ex: João da Silva"
-                      required
-                      autoFocus
-                    />
-                  </div>
-                )}
-
                 <div>
                   <label className="text-xs font-semibold text-muted-foreground block mb-1.5">E-mail</label>
                   <input
@@ -224,7 +182,7 @@ const LoginPage: React.FC = () => {
                     className="input-modern"
                     placeholder="seu@email.com"
                     required
-                    autoFocus={mode === 'login'}
+                    autoFocus
                   />
                 </div>
 
@@ -257,9 +215,7 @@ const LoginPage: React.FC = () => {
                 >
                   {loading
                     ? <><Loader2 className="w-4 h-4 animate-spin" /> Aguarde...</>
-                    : mode === 'login'
-                      ? <><ArrowRight className="w-4 h-4" /> Entrar no sistema</>
-                      : <><ArrowRight className="w-4 h-4" /> Criar minha conta</>
+                    : <><ArrowRight className="w-4 h-4" /> Entrar no sistema</>
                   }
                 </button>
               </form>

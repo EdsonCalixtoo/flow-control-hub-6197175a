@@ -797,9 +797,9 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                 <tr key={item.id}>
                   <td className="font-semibold text-foreground">
                     {item.product}
-                    {item.sensorType && (
-                      <span className="ml-2 text-xs font-semibold px-2 py-1 rounded-full bg-primary/20 text-primary border border-primary/30">
-                        {item.sensorType === 'com_sensor' ? '✅ COM SENSOR' : '⚪ SEM SENSOR'}
+                    {item.product.toUpperCase().includes('KIT') && (
+                      <span className={`ml-2 text-xs font-semibold px-2 py-1 rounded-full ${(!item.sensorType || item.sensorType === 'com_sensor') ? 'bg-primary/20 text-primary border-primary/30' : 'bg-muted text-muted-foreground border-border/30'}`}>
+                        {(!item.sensorType || item.sensorType === 'com_sensor') ? '✅ COM SENSOR' : '⚪ SEM SENSOR'}
                       </span>
                     )}
                   </td>
@@ -824,7 +824,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
         {/* Comprovante */}
         {viewOrder.receiptUrl && (
           <div className="card-section p-5">
-            <ComprovanteUpload value={viewOrder.receiptUrl} onChange={() => { }} label="Comprovante de Pagamento" readOnly />
+            <ComprovanteUpload values={viewOrder.receiptUrls && viewOrder.receiptUrls.length > 0 ? viewOrder.receiptUrls : [viewOrder.receiptUrl]} onChange={() => { }} label="Comprovante de Pagamento" readOnly />
           </div>
         )}
 
@@ -1012,7 +1012,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                       </p>
                       {/* Produtos com descrição */}
                       <p className="text-[10px] text-muted-foreground mt-0.5">
-                        {order.items.map(i => `${i.product}${i.sensorType ? ` (${i.sensorType === 'com_sensor' ? '✅ COM SENSOR' : '⚪ SEM SENSOR'})` : ''} x${i.quantity}${i.description ? ` (${i.description})` : ''}`).join(' | ')}
+                        {order.items.map(i => `${i.product}${i.product.toUpperCase().includes('KIT') ? ` (${(!i.sensorType || i.sensorType === 'com_sensor') ? '✅ COM SENSOR' : '⚪ SEM SENSOR'})` : ''} x${i.quantity}${i.description ? ` (${i.description})` : ''}`).join(' | ')}
                       </p>
                       <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-2">
                         <span>Criado: {new Date(order.createdAt).toLocaleDateString('pt-BR')}</span>

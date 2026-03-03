@@ -23,6 +23,8 @@ import {
   CalendarClock,
   AlertTriangle,
   Users2,
+  Shield,
+  Tag,
 } from 'lucide-react';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -34,6 +36,7 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: 
     { label: 'Dashboard', icon: LayoutDashboard, path: '/vendedor' },
     { label: 'Clientes', icon: Users, path: '/vendedor/clientes' },
     { label: 'Orçamentos', icon: FileText, path: '/vendedor/orcamentos' },
+    { label: 'Garantias', icon: Shield, path: '/vendedor/garantias' },
   ],
   financeiro: [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/financeiro' },
@@ -42,6 +45,7 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: 
     { label: 'Pagamentos', icon: DollarSign, path: '/financeiro/pagamentos' },
     { label: 'Lançamentos', icon: BarChart3, path: '/financeiro/lancamentos' },
     { label: 'Fluxo de Caixa', icon: TrendingUp, path: '/financeiro/fluxo' },
+    { label: 'Garantias', icon: Shield, path: '/financeiro/garantias' },
   ],
   gestor: [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/gestor' },
@@ -49,6 +53,7 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: 
     { label: 'Problemas na Produção', icon: AlertTriangle, path: '/gestor?tab=problemas' },
     { label: 'Pedidos Devolvidos', icon: BarChart3, path: '/gestor?tab=devolvidos' },
     { label: 'Relatórios de Erros', icon: CheckSquare, path: '/gestor?tab=erros' },
+    { label: 'Produtos', icon: Tag, path: '/gestor/produtos' },
     { label: 'Estoque', icon: Package, path: '/gestor/estoque' },
     { label: 'Relatórios', icon: BarChart3, path: '/gestor/relatorios' },
   ],

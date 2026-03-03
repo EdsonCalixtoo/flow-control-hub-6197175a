@@ -18,6 +18,7 @@ const supabaseToOrder = (data: any): Order => ({
     deliveryDate: data.delivery_date || undefined,
     orderType: data.order_type || 'entrega',
     receiptUrl: data.receipt_url || undefined,
+    receiptUrls: data.receipt_urls || (data.receipt_url ? [data.receipt_url] : []),
     items: data.items || [],
     statusHistory: data.status_history || [],
     createdAt: data.created_at,
@@ -40,6 +41,7 @@ const orderToSupabase = (order: Partial<Order>) => {
     if (order.deliveryDate !== undefined) data.delivery_date = order.deliveryDate;
     if (order.orderType) data.order_type = order.orderType;
     if (order.receiptUrl !== undefined) data.receipt_url = order.receiptUrl;
+    if (order.receiptUrls !== undefined) data.receipt_urls = order.receiptUrls;
 
     if (order.items) data.items = order.items;
     if (order.statusHistory) data.status_history = order.statusHistory;

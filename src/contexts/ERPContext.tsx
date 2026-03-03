@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useCallback, useEffect } from 'react';
-import type { Order, Client, FinancialEntry, Product, OrderStatus, StatusHistoryEntry, DelayReport, ChatMessage, OrderReturn, ProductionError, BarcodeScan, DeliveryPickup } from '@/types/erp';
+import type { Order, Client, FinancialEntry, Product, OrderStatus, StatusHistoryEntry, DelayReport, ChatMessage, OrderReturn, ProductionError, BarcodeScan, DeliveryPickup, Warranty } from '@/types/erp';
+import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchClients, createClient as createClientSupabase, updateClient as updateClientSupabase, deleteClient as deleteClientSupabase } from '@/lib/clientServiceSupabase';
@@ -13,6 +15,7 @@ import {
   fetchBarcodeScans, createBarcodeScanSupabase,
   fetchDeliveryPickups, createDeliveryPickupSupabase
 } from '@/lib/gestorServiceSupabase';
+import { fetchWarranties, createWarranty as createWarrantySupabase, updateWarranty as updateWarrantySupabase } from '@/lib/warrantyServiceSupabase';
 
 interface ERPContextType {
   orders: Order[];
@@ -41,6 +44,10 @@ interface ERPContextType {
   // delivery pickups
   deliveryPickups: DeliveryPickup[];
   addDeliveryPickup: (pickup: Omit<DeliveryPickup, 'id' | 'pickedUpAt'>) => Promise<void>;
+  // warrantries
+  warranties: Warranty[];
+  addWarranty: (warranty: Omit<Warranty, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  updateWarrantyStatus: (id: string, status: Warranty['status'], resolution?: string) => Promise<void>;
   // order ops
   addOrder: (order: Order) => void;
   deleteOrder: (orderId: string) => Promise<void>;
@@ -75,6 +82,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [productionErrors, setProductionErrors] = React.useState<ProductionError[]>([]);
   const [barcodeScans, setBarcodeScans] = React.useState<BarcodeScan[]>([]);
   const [deliveryPickups, setDeliveryPickups] = React.useState<DeliveryPickup[]>([]);
+  const [warranties, setWarranties] = React.useState<Warranty[]>([]);
   const [chatMessages, setChatMessages] = React.useState<Record<string, ChatMessage[]>>({});
   const [loading, setLoading] = React.useState(false);
 
@@ -94,7 +102,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         supabaseReturns,
         supabaseErrors,
         supabaseScans,
-        supabasePickups
+        supabasePickups,
+        supabaseWarranties
       ] = await Promise.all([
         fetchClients(),
         fetchProducts(),
@@ -104,7 +113,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         fetchOrderReturns(),
         fetchProductionErrors(),
         fetchBarcodeScans(),
-        fetchDeliveryPickups()
+        fetchDeliveryPickups(),
+        fetchWarranties()
       ]);
 
       setClients(supabaseClients);
@@ -116,6 +126,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setProductionErrors(supabaseErrors);
       setBarcodeScans(supabaseScans);
       setDeliveryPickups(supabasePickups);
+      setWarranties(supabaseWarranties);
 
       console.log('[ERP] ✅ Sincronização concluída');
     } catch (err: any) {
@@ -127,6 +138,75 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     loadFromSupabase();
+  }, [isAuthenticated, loadFromSupabase]);
+
+  // ── INSCRIÇÃO EM TEMPO REAL ──────────────────────────────────
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    console.log('[ERP] 📡 Iniciando canais de tempo real...');
+
+    const channel = supabase
+      .channel('schema-db-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'orders' },
+        (payload) => {
+          console.log('[Realtime] Change in orders:', payload);
+          if (payload.eventType === 'INSERT') {
+            const newOrder = payload.new as any; // Need to map or just reload
+            // Simplest is to reload for now to ensure consistency, 
+            // but for performance we should map and update state.
+            loadFromSupabase();
+            toast.info(`Novo orçamento criado: ${newOrder.number}`);
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedOrder = payload.new as any;
+            loadFromSupabase();
+            toast.info(`Pedido ${updatedOrder.number} atualizado: ${updatedOrder.status}`);
+          } else if (payload.eventType === 'DELETE') {
+            loadFromSupabase();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'financial_entries' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            loadFromSupabase();
+            const entry = payload.new as any;
+            toast.success(`Novo lançamento financeiro: ${entry.description}`);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'delay_reports' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            loadFromSupabase();
+            toast.warning('Novo alerta de atraso recebido!');
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'warranties' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            loadFromSupabase();
+            const w = payload.new as any;
+            toast.warning(`Nova solicitação de garantia: ${w.order_number}`);
+          } else if (payload.eventType === 'UPDATE') {
+            loadFromSupabase();
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [isAuthenticated, loadFromSupabase]);
 
   // ── ORDERS ───────────────────────────────────────────────────
@@ -470,6 +550,30 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
+  // ── warranties ─────────────────────────────────────────────
+  const addWarranty = useCallback(async (warranty: Omit<Warranty, 'id' | 'createdAt' | 'updatedAt'>) => {
+    try {
+      const newW = await createWarrantySupabase(warranty);
+      if (newW) {
+        setWarranties(prev => [newW, ...prev]);
+        console.log('[ERP] Garantia criada no Supabase');
+      }
+    } catch (err: any) {
+      console.error('[ERP] Erro ao criar garantia:', err.message);
+    }
+  }, []);
+
+  const updateWarrantyStatus = useCallback(async (id: string, status: Warranty['status'], resolution?: string) => {
+    try {
+      const updated = await updateWarrantySupabase(id, { status, resolution });
+      if (updated) {
+        setWarranties(prev => prev.map(w => w.id === id ? updated : w));
+      }
+    } catch (err: any) {
+      console.error('[ERP] Erro ao atualizar garantia:', err.message);
+    }
+  }, []);
+
   // ── CLEAR ALL ────────────────────────────────────────────────
   const clearAll = useCallback(async () => {
     const keys = ['erp_orders', 'erp_clients', 'erp_financial', 'erp_products', 'erp_delay_reports', 'erp_order_returns', 'erp_production_errors', 'erp_barcode_scans', 'erp_delivery_pickups'];
@@ -497,6 +601,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       deliveryPickups, addDeliveryPickup,
       addOrder, deleteOrder, updateOrderStatus, updateOrder, editOrderFull,
       addClient, editClient, addFinancialEntry,
+      warranties, addWarranty, updateWarrantyStatus,
       addProduct, updateProduct, deleteProduct, deleteClient, addDelayReport, markDelayReportRead, clearAll,
       loadFromSupabase
     }}>

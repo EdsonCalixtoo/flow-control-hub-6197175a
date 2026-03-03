@@ -97,6 +97,7 @@ export interface Order {
   statusHistory: StatusHistoryEntry[];
   // chat
   chatMessages?: ChatMessage[];
+  receiptUrls?: string[]; // Para múltiplos comprovantes
 }
 
 export interface ChatMessage {
@@ -182,7 +183,8 @@ export interface FinancialEntry {
   paymentMethod?: string;
   dueDate?: string;
   paidAt?: string;
-  receiptUrl?: string;  // comprovante do pagamento parcial
+  receiptUrl?: string;  // legacy
+  receiptUrls?: string[]; // Para múltiplos comprovantes
   createdAt: string;
 }
 
@@ -278,4 +280,19 @@ export interface DelayReport {
   sentAt: string;
   readAt?: string;
   sentBy: string;
+}
+
+export interface Warranty {
+  id: string;
+  orderId?: string;
+  orderNumber?: string;
+  clientId?: string;
+  clientName: string;
+  product?: string;
+  description: string;
+  status: 'pendente' | 'aprovado' | 'rejeitado' | 'concluido';
+  receiptUrls?: string[];
+  resolution?: string;
+  createdAt: string;
+  updatedAt: string;
 }

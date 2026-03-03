@@ -17,6 +17,7 @@ const supabaseToFinancial = (data: any): FinancialEntry => ({
     dueDate: data.due_date || undefined,
     paidAt: data.paid_at || undefined,
     receiptUrl: data.receipt_url || undefined,
+    receiptUrls: data.receipt_urls || (data.receipt_url ? [data.receipt_url] : []),
     date: data.created_at?.slice(0, 10) || new Date().toISOString().slice(0, 10),
     createdAt: data.created_at,
 });
@@ -48,6 +49,7 @@ export const createFinancialEntrySupabase = async (entry: FinancialEntry): Promi
             due_date: entry.dueDate || null,
             paid_at: entry.paidAt || null,
             receipt_url: entry.receiptUrl || null,
+            receipt_urls: entry.receiptUrls || [],
         };
         const { data, error } = await supabase.from('financial_entries').insert([payload]).select().single();
         if (error) throw error;

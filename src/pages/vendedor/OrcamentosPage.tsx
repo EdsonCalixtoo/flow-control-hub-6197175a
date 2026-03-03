@@ -38,7 +38,7 @@ const OrcamentosPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(() => !!preSelectedClientId);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
-  const [comprovanteAttached, setComprovanteAttached] = useState('');
+  const [comprovantesAttached, setComprovantesAttached] = useState<string[]>([]);
   const [formError, setFormError] = useState('');
   const [savingOrder, setSavingOrder] = useState(false);
   const [sendingToFinance, setSendingToFinance] = useState(false);
@@ -88,16 +88,16 @@ const OrcamentosPage: React.FC = () => {
   const enviarFinanceiro = async (orderId: string) => {
     try {
       setSendingToFinance(true);
-      const receipt = comprovanteAttached || selectedOrder?.receiptUrl;
+      const receipts = comprovantesAttached.length > 0 ? comprovantesAttached : (selectedOrder?.receiptUrls || []);
       await updateOrderStatus(
         orderId, 'aguardando_financeiro',
-        receipt ? { receiptUrl: receipt } : undefined,
+        receipts.length > 0 ? { receiptUrls: receipts } : undefined,
         user?.name || 'Vendedor',
-        receipt ? 'Enviado para aprovação financeira com comprovante' : 'Enviado para aprovação financeira'
+        receipts.length > 0 ? 'Enviado para aprovação financeira com comprovante(s)' : 'Enviado para aprovação financeira'
       );
       console.log('[OrcamentosPage] ✅ Orçamento enviado para financeiro');
       setSelectedOrder(null);
-      setComprovanteAttached('');
+      setComprovantesAttached([]);
     } catch (err: any) {
       console.error('[OrcamentosPage] ❌ Erro ao enviar para financeiro:', err?.message ?? err);
       alert('❌ Erro ao enviar: ' + (err?.message || 'Tente novamente'));
@@ -270,7 +270,7 @@ const OrcamentosPage: React.FC = () => {
               discount: 0,
               discountType: 'percent' as const,
               total: item.quantity * item.unitPrice,
-              sensorType: item.sensorType,
+              sensorType: item.sensorType || (item.product.toUpperCase().includes('KIT') ? 'com_sensor' : undefined),
             })),
             subtotal,
             taxes: 0,
@@ -592,6 +592,13 @@ const OrcamentosPage: React.FC = () => {
                           if (selectedProduct) {
                             newItem.unitPrice = selectedProduct.unitPrice;
                             newItem.description = selectedProduct.description;
+
+                            // Initialize sensorType for KITs
+                            if (e.target.value.toUpperCase().includes('KIT')) {
+                              newItem.sensorType = 'com_sensor';
+                            } else {
+                              delete newItem.sensorType;
+                            }
                           }
                           const updated = [...newItems];
                           updated[i] = newItem;
@@ -833,9 +840,9 @@ const OrcamentosPage: React.FC = () => {
                 <tr key={item.id}>
                   <td className="text-foreground font-medium">
                     {item.product}
-                    {item.sensorType && (
-                      <span className="ml-2 text-xs font-semibold px-2 py-1 rounded-full bg-primary/20 text-primary">
-                        {item.sensorType === 'com_sensor' ? '✅ COM SENSOR' : '⚪ SEM SENSOR'}
+                    {item.product.toUpperCase().includes('KIT') && (
+                      <span className={`ml-2 text-xs font-semibold px-2 py-1 rounded-full ${(!item.sensorType || item.sensorType === 'com_sensor') ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'} border border-primary/30`}>
+                        {(!item.sensorType || item.sensorType === 'com_sensor') ? '✅ COM SENSOR' : '⚪ SEM SENSOR'}
                       </span>
                     )}
                   </td>
@@ -871,7 +878,7 @@ const OrcamentosPage: React.FC = () => {
         {/* Botão "Enviar para Financeiro" — apenas para status corretos */}
         {podeEnviarFinanceiro && (() => {
           const clienteConsignado = !!clients.find(c => c.id === selectedOrder.clientId)?.consignado;
-          const temComprovante = !!(comprovanteAttached.trim() || selectedOrder.receiptUrl);
+          const temComprovante = (comprovantesAttached.length > 0) || (selectedOrder.receiptUrls && selectedOrder.receiptUrls.length > 0);
           // Consignado: pode enviar sem comprovante. Normal: precisa de comprovante.
           const podeEnviar = clienteConsignado ? true : temComprovante;
 
@@ -879,11 +886,11 @@ const OrcamentosPage: React.FC = () => {
             <>
               <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
                 <ComprovanteUpload
-                  value={comprovanteAttached || selectedOrder.receiptUrl}
-                  onChange={setComprovanteAttached}
+                  values={comprovantesAttached.length > 0 ? comprovantesAttached : (selectedOrder.receiptUrls || [])}
+                  onChange={setComprovantesAttached}
                   label={clienteConsignado
-                    ? "Comprovante de Pagamento (opcional para clientes consignados)"
-                    : "Comprovante de Pagamento (obrigatório para enviar ao Financeiro)"}
+                    ? "Comprovantes de Pagamento (opcional para clientes consignados)"
+                    : "Comprovantes de Pagamento (obrigatório para enviar ao Financeiro)"}
                 />
                 {clienteConsignado && !temComprovante && (
                   <p className="text-[10px] text-amber-500 mt-2 flex items-center gap-1">
@@ -974,7 +981,7 @@ const OrcamentosPage: React.FC = () => {
                     <td className="text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         <button
-                          onClick={() => { setSelectedOrder(order); setComprovanteAttached(order.receiptUrl || ''); }}
+                          onClick={() => { setSelectedOrder(order); setComprovantesAttached(order.receiptUrls || []); }}
                           className="w-8 h-8 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center justify-center transition-colors"
                           title="Ver detalhes"
                         >
@@ -991,7 +998,7 @@ const OrcamentosPage: React.FC = () => {
                         )}
                         {(order.status === 'rascunho' || order.status === 'enviado' || order.status === 'aprovado_cliente') && (
                           <button
-                            onClick={() => { setSelectedOrder(order); setComprovanteAttached(order.receiptUrl || ''); }}
+                            onClick={() => { setSelectedOrder(order); setComprovantesAttached(order.receiptUrls || []); }}
                             className="w-8 h-8 rounded-lg bg-vendedor/10 text-vendedor hover:bg-vendedor/20 inline-flex items-center justify-center transition-colors"
                             title="Enviar ao Financeiro"
                           >

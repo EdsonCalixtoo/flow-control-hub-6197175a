@@ -119,16 +119,27 @@ const AprovacoesPage: React.FC = () => {
           </div>
           <div className="text-right text-xl font-extrabold text-foreground">Total: {formatCurrency(selectedOrder.total)}</div>
           {/* Comprovante do vendedor */}
-          {selectedOrder.receiptUrl && (
+          {(selectedOrder.receiptUrls?.length ?? 0) > 0 && (
             <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
               <ComprovanteUpload
-                value={selectedOrder.receiptUrl}
+                values={selectedOrder.receiptUrls || []}
                 onChange={() => { }}
-                label="Comprovante Enviado pelo Vendedor"
+                label="Comprovantes Enviados pelo Vendedor"
+                readOnly
               />
             </div>
           )}
-          {!selectedOrder.receiptUrl && (
+          {!(selectedOrder.receiptUrls?.length) && selectedOrder.receiptUrl && (
+            <div className="p-4 rounded-xl bg-muted/30 border border-border/30">
+              <ComprovanteUpload
+                values={[selectedOrder.receiptUrl]}
+                onChange={() => { }}
+                label="Comprovante Enviado pelo Vendedor"
+                readOnly
+              />
+            </div>
+          )}
+          {!(selectedOrder.receiptUrls?.length) && !selectedOrder.receiptUrl && (
             <div className="p-3 rounded-xl bg-warning/10 border border-warning/20 text-warning text-xs font-medium">
               ⚠ Nenhum comprovante foi anexado pelo vendedor.
             </div>

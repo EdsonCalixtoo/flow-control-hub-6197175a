@@ -11,16 +11,19 @@ import LoginPage from "@/pages/LoginPage";
 import VendedorDashboard from "@/pages/vendedor/VendedorDashboard";
 import ClientesPageNew from "@/pages/vendedor/ClientesPageNew";
 import OrcamentosPage from "@/pages/vendedor/OrcamentosPage";
+import GarantiaVendedorPage from "@/pages/vendedor/GarantiasPage";
 import FinanceiroDashboard from "@/pages/financeiro/FinanceiroDashboard";
 import AprovacoesPage from "@/pages/financeiro/AprovacoesPage";
 import PagamentosPage from "@/pages/financeiro/PagamentosPage";
 import LancamentosPage from "@/pages/financeiro/LancamentosPage";
 import FluxoCaixaPage from "@/pages/financeiro/FluxoCaixaPage";
 import VendedoresControlPage from "@/pages/financeiro/VendedoresControlPage";
+import GarantiaFinanceiroPage from "@/pages/financeiro/GarantiasPage";
 import GestorDashboard from "@/pages/gestor/GestorDashboard";
 import ConferenciaPage from "@/pages/gestor/ConferenciaPage";
 import RelatoriosPage from "@/pages/gestor/RelatoriosPage";
 import EstoquePage from "@/pages/gestor/EstoquePage";
+import ProdutosPage from "@/pages/gestor/ProdutosPage";
 import EntregadoresPage from "@/pages/gestor/EntregadoresPage";
 import ProducaoDashboard from "@/pages/producao/ProducaoDashboard";
 import PedidosProducaoPage from "@/pages/producao/PedidosProducaoPage";
@@ -68,6 +71,7 @@ const App = () => (
                 <Route path="/vendedor" element={<ProtectedRoute role="vendedor"><VendedorDashboard /></ProtectedRoute>} />
                 <Route path="/vendedor/clientes" element={<ProtectedRoute role="vendedor"><ClientesPageNew /></ProtectedRoute>} />
                 <Route path="/vendedor/orcamentos" element={<ProtectedRoute role="vendedor"><OrcamentosPage /></ProtectedRoute>} />
+                <Route path="/vendedor/garantias" element={<ProtectedRoute role="vendedor"><GarantiaVendedorPage /></ProtectedRoute>} />
 
                 {/* Financeiro */}
                 <Route path="/financeiro" element={<ProtectedRoute role="financeiro"><FinanceiroDashboard /></ProtectedRoute>} />
@@ -76,11 +80,13 @@ const App = () => (
                 <Route path="/financeiro/lancamentos" element={<ProtectedRoute role="financeiro"><LancamentosPage /></ProtectedRoute>} />
                 <Route path="/financeiro/fluxo" element={<ProtectedRoute role="financeiro"><FluxoCaixaPage /></ProtectedRoute>} />
                 <Route path="/financeiro/vendedores" element={<ProtectedRoute role="financeiro"><VendedoresControlPage /></ProtectedRoute>} />
+                <Route path="/financeiro/garantias" element={<ProtectedRoute role="financeiro"><GarantiaFinanceiroPage /></ProtectedRoute>} />
 
                 {/* Gestor */}
                 <Route path="/gestor" element={<ProtectedRoute role="gestor"><GestorDashboard /></ProtectedRoute>} />
                 <Route path="/gestor/conferencia" element={<ProtectedRoute role="gestor"><ConferenciaPage /></ProtectedRoute>} />
                 <Route path="/gestor/estoque" element={<ProtectedRoute role="gestor"><EstoquePage /></ProtectedRoute>} />
+                <Route path="/gestor/produtos" element={<ProtectedRoute role="gestor"><ProdutosPage /></ProtectedRoute>} />
                 <Route path="/gestor/relatorios" element={<ProtectedRoute role="gestor"><RelatoriosPage /></ProtectedRoute>} />
                 <Route path="/gestor/entregadores" element={<ProtectedRoute role="gestor"><EntregadoresPage /></ProtectedRoute>} />
 

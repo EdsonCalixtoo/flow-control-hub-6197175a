@@ -2,7 +2,11 @@ import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import type { UserRole } from '@/types/erp';
 import { ROLE_LABELS } from '@/types/erp';
-import { ShoppingCart, DollarSign, BarChart3, Factory, ArrowRight, ArrowLeft, Eye, EyeOff, Loader2, AlertCircle, Trash2 } from 'lucide-react';
+import {
+  ShoppingCart, DollarSign, BarChart3, Factory,
+  ArrowRight, ArrowLeft, Eye, EyeOff, Loader2, AlertCircle,
+  Trash2, UserPlus, LogIn, CheckCircle2, User,
+} from 'lucide-react';
 
 const roles: { role: UserRole; icon: React.ElementType; desc: string; gradient: string; iconBg: string }[] = [
   { role: 'vendedor', icon: ShoppingCart, desc: 'Orçamentos, clientes e vendas', gradient: 'from-vendedor/10 to-vendedor/5', iconBg: 'bg-vendedor' },
@@ -12,17 +16,21 @@ const roles: { role: UserRole; icon: React.ElementType; desc: string; gradient: 
 ];
 
 type Step = 'select' | 'auth';
+type AuthMode = 'login' | 'register';
 
 const LoginPage: React.FC = () => {
-  const { login, clearSessionCompletely } = useAuth();
+  const { login, register, clearSessionCompletely } = useAuth();
 
   const [step, setStep] = useState<Step>('select');
-
+  const [authMode, setAuthMode] = useState<AuthMode>('login');
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
 
+  // campos compartilhados
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -30,41 +38,44 @@ const LoginPage: React.FC = () => {
 
   const selectedRoleData = roles.find(r => r.role === selectedRole);
 
+  const resetFields = () => {
+    setName(''); setEmail(''); setPassword('');
+    setError(null); setSuccess(null); setShowPw(false);
+  };
+
   const handleSelectRole = (role: UserRole) => {
     setSelectedRole(role);
+    setAuthMode('login');
     setStep('auth');
-    setError(null);
-    setSuccess(null);
-    setEmail(''); setPassword('');
+    resetFields();
   };
 
   const handleBack = () => {
     setStep('select');
-    setError(null);
-    setSuccess(null);
+    resetFields();
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const switchMode = (mode: AuthMode) => {
+    setAuthMode(mode);
+    resetFields();
+  };
+
+  // ── LOGIN ──
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedRole) return;
-    setError(null);
-    setSuccess(null);
-    setLoading(true);
+    setError(null); setSuccess(null); setLoading(true);
 
     try {
       const err = await login(email, password);
       if (err) {
-        const errorMessage = String(err);
-        setError(errorMessage);
-        // Se for erro de token, oferece opção de limpar sessão
-        if (errorMessage.toLowerCase().includes('refresh') || errorMessage.toLowerCase().includes('invalid')) {
+        const msg = String(err);
+        setError(msg);
+        if (msg.toLowerCase().includes('refresh') || msg.toLowerCase().includes('invalid')) {
           setShowClearSessionOption(true);
         }
         setLoading(false);
-      }
-      // Se login ok: o onAuthStateChange vai redirecionar em até 3s.
-      // Paramos o loading após 4s caso não redirecione.
-      else {
+      } else {
         setTimeout(() => setLoading(false), 4000);
       }
     } catch {
@@ -73,6 +84,28 @@ const LoginPage: React.FC = () => {
     }
   };
 
+  // ── CADASTRO (somente vendedor) ──
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) { setError('Informe o nome completo.'); return; }
+    if (password.length < 6) { setError('A senha deve ter no mínimo 6 caracteres.'); return; }
+
+    setError(null); setSuccess(null); setLoading(true);
+
+    try {
+      await register(email, password, name.trim(), 'vendedor');
+      setSuccess(`✅ Conta de "${name.trim()}" criada com sucesso! Fazendo login...`);
+      setTimeout(() => setLoading(false), 4000);
+    } catch (err: any) {
+      const msg: string = err?.message || 'Erro ao criar conta.';
+      if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already exists')) {
+        setError('Este e-mail já está cadastrado. Faça login.');
+      } else {
+        setError(msg);
+      }
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen relative overflow-hidden flex items-center justify-center p-4">
@@ -85,12 +118,12 @@ const LoginPage: React.FC = () => {
       <div className="relative z-10 w-full max-w-md animate-scale-in">
         <div className="bg-card/80 backdrop-blur-2xl rounded-3xl border border-border/20 shadow-2xl shadow-primary/10 p-8">
 
-          {/* ── Logo sempre visível ── */}
+          {/* Logo */}
           <div className="text-center mb-7">
             <img src="/Automatiza-logo-rgb-01.jpg" alt="Automatiza Vans" className="mx-auto max-w-[240px] w-full h-auto object-contain rounded-2xl" />
           </div>
 
-          {/* ── BANNER: Erro de token expirado ── */}
+          {/* Banner: token expirado */}
           {showClearSessionOption && (
             <div className="mb-5 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-3">
               <div className="flex items-start gap-2">
@@ -102,11 +135,7 @@ const LoginPage: React.FC = () => {
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  if (confirm('Isso vai limpar todos os dados de sessão e recarregar a página. Continuar?')) {
-                    clearSessionCompletely();
-                  }
-                }}
+                onClick={() => { if (confirm('Limpar todos os dados de sessão e recarregar a página?')) clearSessionCompletely(); }}
                 className="w-full py-2 px-3 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-600 text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
               >
                 <Trash2 className="w-3.5 h-3.5" /> Limpar sessão e fazer login novamente
@@ -139,11 +168,12 @@ const LoginPage: React.FC = () => {
             </>
           )}
 
-          {/* ════════ STEP 2: Login ════════ */}
+          {/* ════════ STEP 2: Login / Cadastro ════════ */}
           {step === 'auth' && selectedRoleData && (
             <div className="animate-scale-in">
-              {/* Header do perfil selecionado */}
-              <div className="flex items-center gap-3 mb-6">
+
+              {/* Header do perfil */}
+              <div className="flex items-center gap-3 mb-5">
                 <button onClick={handleBack} className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
                   <ArrowLeft className="w-4 h-4" />
                 </button>
@@ -156,10 +186,37 @@ const LoginPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Abas Login / Cadastrar — somente para vendedor */}
+              {selectedRole === 'vendedor' && (
+                <div className="flex rounded-xl overflow-hidden border border-border/30 mb-5">
+                  <button
+                    type="button"
+                    onClick={() => switchMode('login')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold transition-all duration-200 ${authMode === 'login'
+                        ? `${selectedRoleData.iconBg} text-primary-foreground shadow-md`
+                        : 'bg-muted/40 text-muted-foreground hover:text-foreground'
+                      }`}
+                  >
+                    <LogIn className="w-3.5 h-3.5" /> Entrar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => switchMode('register')}
+                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold transition-all duration-200 ${authMode === 'register'
+                        ? `${selectedRoleData.iconBg} text-primary-foreground shadow-md`
+                        : 'bg-muted/40 text-muted-foreground hover:text-foreground'
+                      }`}
+                  >
+                    <UserPlus className="w-3.5 h-3.5" /> Cadastrar vendedor
+                  </button>
+                </div>
+              )}
+
               {/* Mensagem de sucesso */}
               {success && (
-                <div className="mb-4 p-3 rounded-xl bg-success/10 border border-success/20 text-success text-xs font-medium">
-                  {success}
+                <div className="mb-4 p-3 rounded-xl bg-green-500/10 border border-green-500/20 flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
+                  <p className="text-green-600 text-xs font-medium">{success}</p>
                 </div>
               )}
 
@@ -171,54 +228,116 @@ const LoginPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Formulário */}
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1.5">E-mail</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    className="input-modern"
-                    placeholder="seu@email.com"
-                    required
-                    autoFocus
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Senha</label>
-                  <div className="relative">
+              {/* ── FORMULÁRIO: LOGIN ── */}
+              {authMode === 'login' && (
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground block mb-1.5">E-mail</label>
                     <input
-                      type={showPw ? 'text' : 'password'}
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      className="input-modern pr-11"
-                      placeholder="••••••••"
+                      type="email"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      className="input-modern"
+                      placeholder="seu@email.com"
                       required
-                      minLength={6}
+                      autoFocus
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowPw(v => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
                   </div>
-                </div>
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Senha</label>
+                    <div className="relative">
+                      <input
+                        type={showPw ? 'text' : 'password'}
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        className="input-modern pr-11"
+                        placeholder="••••••••"
+                        required
+                        minLength={6}
+                      />
+                      <button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                        {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className={`w-full btn-modern bg-gradient-to-r justify-center ${selectedRoleData.iconBg} text-primary-foreground disabled:opacity-60 disabled:cursor-not-allowed mt-2`}
+                  >
+                    {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Aguarde...</> : <><ArrowRight className="w-4 h-4" /> Entrar no sistema</>}
+                  </button>
+                </form>
+              )}
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className={`w-full btn-modern bg-gradient-to-r justify-center ${selectedRoleData.iconBg} text-primary-foreground disabled:opacity-60 disabled:cursor-not-allowed mt-2`}
-                >
-                  {loading
-                    ? <><Loader2 className="w-4 h-4 animate-spin" /> Aguarde...</>
-                    : <><ArrowRight className="w-4 h-4" /> Entrar no sistema</>
-                  }
-                </button>
-              </form>
+              {/* ── FORMULÁRIO: CADASTRO (vendedor) ── */}
+              {authMode === 'register' && selectedRole === 'vendedor' && (
+                <form onSubmit={handleRegister} className="space-y-4">
+                  {/* Nome */}
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Nome completo</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        className="input-modern pr-11"
+                        placeholder="Ex: João Silva"
+                        required
+                        autoFocus
+                      />
+                      <User className="w-4 h-4 text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                  </div>
+
+                  {/* E-mail */}
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground block mb-1.5">E-mail</label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={e => setEmail(e.target.value)}
+                      className="input-modern"
+                      placeholder="vendedor@email.com"
+                      required
+                    />
+                  </div>
+
+                  {/* Senha */}
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Senha <span className="text-muted-foreground/60 font-normal">(mín. 6 caracteres)</span></label>
+                    <div className="relative">
+                      <input
+                        type={showPw ? 'text' : 'password'}
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        className="input-modern pr-11"
+                        placeholder="••••••••"
+                        required
+                        minLength={6}
+                      />
+                      <button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                        {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className={`w-full btn-modern bg-gradient-to-r justify-center ${selectedRoleData.iconBg} text-primary-foreground disabled:opacity-60 disabled:cursor-not-allowed mt-2`}
+                  >
+                    {loading
+                      ? <><Loader2 className="w-4 h-4 animate-spin" /> Criando conta...</>
+                      : <><UserPlus className="w-4 h-4" /> Criar conta de vendedor</>
+                    }
+                  </button>
+
+                  <p className="text-center text-[10px] text-muted-foreground/50">
+                    Após criar a conta, o login será feito automaticamente.
+                  </p>
+                </form>
+              )}
 
               <p className="text-center text-[11px] text-muted-foreground/60 mt-5">
                 Grupo Automatiza Vans • Sistema ERP

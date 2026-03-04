@@ -21,12 +21,16 @@ const supabaseToOrder = (data: any): Order => ({
     receiptUrls: data.receipt_urls || (data.receipt_url ? [data.receipt_url] : []),
     items: data.items || [],
     statusHistory: data.status_history || [],
+    installationDate: data.installation_date || undefined,
+    installationTime: data.installation_time || undefined,
+    installationPaymentType: data.installation_payment_type || undefined,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
 });
 
 const orderToSupabase = (order: Partial<Order>) => {
     const data: any = {};
+    if (order.id) data.id = order.id;
     if (order.number) data.number = order.number;
     if (order.clientId) data.client_id = order.clientId;
     if (order.clientName) data.client_name = order.clientName;
@@ -42,6 +46,9 @@ const orderToSupabase = (order: Partial<Order>) => {
     if (order.orderType) data.order_type = order.orderType;
     if (order.receiptUrl !== undefined) data.receipt_url = order.receiptUrl;
     if (order.receiptUrls !== undefined) data.receipt_urls = order.receiptUrls;
+    if (order.installationDate !== undefined) data.installation_date = order.installationDate;
+    if (order.installationTime !== undefined) data.installation_time = order.installationTime;
+    if (order.installationPaymentType !== undefined) data.installation_payment_type = order.installationPaymentType;
 
     if (order.items) data.items = order.items;
     if (order.statusHistory) data.status_history = order.statusHistory;

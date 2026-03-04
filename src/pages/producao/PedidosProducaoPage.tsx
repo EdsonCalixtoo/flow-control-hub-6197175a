@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { StatusBadge, formatDate as fmtDate } from '@/components/shared/StatusBadge';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
 import OrderChat from '@/components/shared/OrderChat';
-import { Play, CheckCircle, Printer, Package, ArrowLeft, Search, ScanLine, X, Eye, Truck, Wrench, Calendar, Clock, AlertTriangle, CalendarClock, Send, Camera, StopCircle, History, RefreshCw, Filter, ShieldAlert } from 'lucide-react';
+import { Play, CheckCircle, Printer, Package, ArrowLeft, Search, ScanLine, X, Eye, Truck, Wrench, Calendar, Clock, AlertTriangle, CalendarClock, Send, Camera, StopCircle, History, RefreshCw, Filter, ShieldAlert, DollarSign } from 'lucide-react';
 import BarcodeComponent from 'react-barcode';
 import { useSearchParams } from 'react-router-dom';
 import type { ProductionStatus } from '@/types/erp';
@@ -44,6 +44,7 @@ const PedidosProducaoPage: React.FC = () => {
   const [reportSent, setReportSent] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [scheduleDate, setScheduleDate] = useState('');
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [manualLate, setManualLate] = useState<Set<string>>(new Set());
   const barcodeRef = useRef<HTMLDivElement>(null);
 
@@ -56,17 +57,29 @@ const PedidosProducaoPage: React.FC = () => {
   const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const getLocalDateString = (date: Date = new Date()) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
   // Helper: atrasado = data passada OU marcado manualmente OU productionStatus === 'atrasado'
-  const isLate = (order: typeof orders[0]) =>
-    order.productionStatus === 'atrasado' ||
-    manualLate.has(order.id) ||
-    (order.deliveryDate
-      ? new Date(order.deliveryDate) < new Date() &&
-      !['producao_finalizada', 'produto_liberado'].includes(order.status)
-      : false);
+  const isLate = (order: typeof orders[0]) => {
+    const todayStr = getLocalDateString();
+
+    const deliveryDate = order.deliveryDate || '';
+    const installationDate = order.installationDate || '';
+
+    const datePassed = (deliveryDate && deliveryDate < todayStr) || (installationDate && installationDate < todayStr);
+
+    return order.productionStatus === 'atrasado' ||
+      manualLate.has(order.id) ||
+      (datePassed && !['producao_finalizada', 'produto_liberado'].includes(order.status));
+  };
 
   const isScheduled = (order: typeof orders[0]) =>
-    order.productionStatus === 'agendado' || !!order.scheduledDate;
+    order.productionStatus === 'agendado' || !!order.scheduledDate || (order.orderType === 'instalacao' && !!order.installationDate);
 
   const PAGE_TITLES: Record<string, string> = {
     entrega: 'Pedidos — Entrega',
@@ -207,7 +220,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
   const tipoFiltered = allOrders.filter(o => {
     if (tipoFiltro === 'entrega') return o.orderType === 'entrega';
     if (tipoFiltro === 'instalacao') return o.orderType === 'instalacao';
-    if (tipoFiltro === 'agendado') return isScheduled(o);
+    if (tipoFiltro === 'agendado') return o.productionStatus === 'agendado' || !!o.scheduledDate;
     if (tipoFiltro === 'atrasado') return isLate(o);
     return true;
   });
@@ -736,7 +749,10 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
             <span className="text-[10px] uppercase text-muted-foreground block mb-1">Agendado para</span>
             <span className="flex items-center gap-1.5 text-sm font-bold text-foreground">
               <CalendarClock className="w-4 h-4 text-primary" />
-              {viewOrder.scheduledDate ? new Date(viewOrder.scheduledDate).toLocaleDateString('pt-BR') : '—'}
+              {viewOrder.orderType === 'instalacao'
+                ? (viewOrder.installationDate ? `${new Date(viewOrder.installationDate + 'T00:00:00').toLocaleDateString('pt-BR')} ${viewOrder.installationTime || ''}` : '—')
+                : (viewOrder.scheduledDate ? new Date(viewOrder.scheduledDate + 'T00:00:00').toLocaleDateString('pt-BR') : '—')
+              }
             </span>
           </div>
           <div className="card-section p-4">
@@ -753,6 +769,36 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
               ))}
             </div>
           </div>
+          {viewOrder.orderType === 'instalacao' && viewOrder.installationPaymentType && (
+            <div className={`card-section overflow-hidden ${viewOrder.installationPaymentType === 'pago' ? 'border-success/30 bg-success/5' : 'border-warning/30 bg-warning/5'}`}>
+              <div className="p-4">
+                <span className="text-[10px] uppercase text-muted-foreground block mb-2 font-bold tracking-wider">Pagamento da Instalação</span>
+
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2">
+                    {viewOrder.installationPaymentType === 'pago' ? (
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-success text-success-foreground w-full justify-center shadow-sm">
+                        <CheckCircle className="w-4 h-4" />
+                        <span className="text-sm font-extrabold uppercase">✓ Já está Pago</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col w-full gap-1">
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-t-xl bg-warning text-warning-foreground w-full justify-center">
+                          <DollarSign className="w-4 h-4" />
+                          <span className="text-sm font-extrabold uppercase">Pagar no Local</span>
+                        </div>
+                        <div className="flex items-center justify-center py-3 rounded-b-xl bg-white/50 border-x border-b border-warning/20">
+                          <span className="text-2xl font-black text-warning-foreground tracking-tight">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(viewOrder.total)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Vendedor responsável */}
@@ -904,7 +950,10 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
               className="btn-modern bg-primary/10 text-primary shadow-none justify-center py-2.5 text-xs hover:bg-primary/20 border border-primary/30 px-4"
             >
               <CalendarClock className="w-3.5 h-3.5" />
-              {isScheduled(viewOrder) ? `Agendado: ${new Date(viewOrder.scheduledDate!).toLocaleDateString('pt-BR')} — Editar` : 'Agendar Pedido'}
+              {isScheduled(viewOrder)
+                ? `Agendado: ${new Date((viewOrder.scheduledDate || viewOrder.installationDate) + 'T00:00:00').toLocaleDateString('pt-BR')} — Editar`
+                : 'Agendar Pedido'
+              }
             </button>
           )}
           {(viewOrder.status === 'producao_finalizada' || viewOrder.status === 'produto_liberado') && (
@@ -927,13 +976,24 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
           <h1 className="page-header">{PAGE_TITLES[tipoFiltro] ?? 'Pedidos de Produção'}</h1>
           <p className="page-subtitle">
             {tipoFiltro === 'entrega' ? 'Pedidos de entrega em produção' :
-              tipoFiltro === 'instalacao' ? 'Pedidos de instalação em produção' :
-                tipoFiltro === 'agendado' ? 'Pedidos agendados pela equipe' :
+              tipoFiltro === 'instalacao' ? 'Todas as instalações agendadas' :
+                tipoFiltro === 'agendado' ? 'Pedidos com agendamento de produção' :
                   tipoFiltro === 'atrasado' ? 'Pedidos com atraso na entrega' :
                     'Gerencie a produção dos pedidos aprovados'}
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {tipoFiltro === 'instalacao' && (
+            <div className="flex items-center gap-2 mr-2 bg-muted/30 p-1.5 rounded-xl border border-border/10">
+              <Calendar className="w-4 h-4 text-muted-foreground ml-1" />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={e => setSelectedDate(e.target.value)}
+                className="bg-transparent border-none text-xs font-bold focus:outline-none"
+              />
+            </div>
+          )}
           <button
             onClick={syncData}
             disabled={isRefreshing || loading}
@@ -973,88 +1033,94 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
         </div>
       </div>
 
-      {filteredOrders.length === 0 ? (
-        <div className="card-section p-12 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-4">
-            <Package className="w-8 h-8 text-muted-foreground" />
+      {
+        filteredOrders.length === 0 ? (
+          <div className="card-section p-12 text-center">
+            <div className="w-16 h-16 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-4">
+              <Package className="w-8 h-8 text-muted-foreground" />
+            </div>
+            <p className="text-foreground font-bold text-lg">Nenhum pedido encontrado</p>
+            <p className="text-sm text-muted-foreground mt-1">Aguardando pedidos aprovados</p>
           </div>
-          <p className="text-foreground font-bold text-lg">Nenhum pedido encontrado</p>
-          <p className="text-sm text-muted-foreground mt-1">Aguardando pedidos aprovados</p>
-        </div>
-      ) : (
-        <div className="space-y-3 stagger-children">
-          {filteredOrders.map(order => {
-            const late = isLate(order);
-            const scheduled = isScheduled(order);
-            return (
-              <div key={order.id} className={`card-section p-5 hover:shadow-lg transition-all duration-300 ${late ? 'border-destructive/20' : 'hover:shadow-primary/[0.04]'}`}>
-                <div className="flex items-center justify-between flex-wrap gap-3">
-                  <div className="flex items-center gap-4">
-                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${late ? 'bg-destructive/10' : 'bg-gradient-to-br from-producao/20 to-producao/5'}`}>
-                      <Package className={`w-5 h-5 ${late ? 'text-destructive' : 'text-producao'}`} />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-bold text-foreground text-sm">{order.number}</p>
-                        <StatusBadge status={order.status} />
-                        {order.orderType === 'instalacao'
-                          ? <span className="status-badge bg-producao/10 text-producao text-[9px]"><Wrench className="w-2.5 h-2.5" /> Instalação</span>
-                          : <span className="status-badge bg-primary/10 text-primary text-[9px]"><Truck className="w-2.5 h-2.5" /> Entrega</span>
-                        }
-                        {late && <span className="status-badge bg-destructive/10 text-destructive text-[9px]"><AlertTriangle className="w-2.5 h-2.5" /> ATRASADO</span>}
-                        {scheduled && !late && <span className="status-badge bg-primary/10 text-primary text-[9px]"><CalendarClock className="w-2.5 h-2.5" /> AGENDADO</span>}
+        ) : (
+          <div className="space-y-3 stagger-children">
+            {filteredOrders.map(order => {
+              const late = isLate(order);
+              const scheduled = isScheduled(order);
+              return (
+                <div key={order.id} className={`card-section p-5 hover:shadow-lg transition-all duration-300 ${late ? 'border-destructive/20' : 'hover:shadow-primary/[0.04]'}`}>
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <div className="flex items-center gap-4">
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${late ? 'bg-destructive/10' : 'bg-gradient-to-br from-producao/20 to-producao/5'}`}>
+                        <Package className={`w-5 h-5 ${late ? 'text-destructive' : 'text-producao'}`} />
                       </div>
-                      {/* Nome do vendedor */}
-                      <p className="text-xs text-muted-foreground mt-1">
-                        <span className="font-semibold text-foreground">{order.clientName}</span>
-                        <span className="mx-1">•</span>
-                        <span>Vendedor: <span className="font-semibold">{order.sellerName}</span></span>
-                      </p>
-                      {/* Produtos com descrição */}
-                      <p className="text-[10px] text-muted-foreground mt-0.5">
-                        {order.items.map(i => `${i.product}${i.product.toUpperCase().includes('KIT') ? ` (${(!i.sensorType || i.sensorType === 'com_sensor') ? '✅ COM SENSOR' : '⚪ SEM SENSOR'})` : ''} x${i.quantity}${i.description ? ` (${i.description})` : ''}`).join(' | ')}
-                      </p>
-                      <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-2">
-                        <span>Criado: {new Date(order.createdAt).toLocaleDateString('pt-BR')}</span>
-                        {order.deliveryDate && (
-                          <span className={late ? 'text-destructive font-semibold' : ''}>
-                            <Calendar className="w-2.5 h-2.5 inline" /> Entrega: {new Date(order.deliveryDate).toLocaleDateString('pt-BR')}
-                          </span>
-                        )}
-                        {order.scheduledDate && (
-                          <span className="text-primary">
-                            <CalendarClock className="w-2.5 h-2.5 inline" /> Agendado: {new Date(order.scheduledDate).toLocaleDateString('pt-BR')}
-                          </span>
-                        )}
-                      </p>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-bold text-foreground text-sm">{order.number}</p>
+                          <StatusBadge status={order.status} />
+                          {order.orderType === 'instalacao'
+                            ? <span className="status-badge bg-producao/10 text-producao text-[9px]"><Wrench className="w-2.5 h-2.5" /> Instalação</span>
+                            : <span className="status-badge bg-primary/10 text-primary text-[9px]"><Truck className="w-2.5 h-2.5" /> Entrega</span>
+                          }
+                          {order.orderType === 'instalacao' && order.installationPaymentType && (
+                            <span className={`status-badge text-[9px] font-bold ${order.installationPaymentType === 'pago' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
+                              {order.installationPaymentType === 'pago' ? '💰 PAGO' : `💵 PAGAR: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(order.total)}`}
+                            </span>
+                          )}
+                          {late && <span className="status-badge bg-destructive/10 text-destructive text-[9px]"><AlertTriangle className="w-2.5 h-2.5" /> ATRASADO</span>}
+                          {scheduled && !late && <span className="status-badge bg-primary/10 text-primary text-[9px]"><CalendarClock className="w-2.5 h-2.5" /> AGENDADO</span>}
+                        </div>
+                        {/* Nome do vendedor */}
+                        <p className="text-xs text-muted-foreground mt-1">
+                          <span className="font-semibold text-foreground">{order.clientName}</span>
+                          <span className="mx-1">•</span>
+                          <span>Vendedor: <span className="font-semibold">{order.sellerName}</span></span>
+                        </p>
+                        {/* Produtos com descrição */}
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          {order.items.map(i => `${i.product}${i.product.toUpperCase().includes('KIT') ? ` (${(!i.sensorType || i.sensorType === 'com_sensor') ? '✅ COM SENSOR' : '⚪ SEM SENSOR'})` : ''} x${i.quantity}${i.description ? ` (${i.description})` : ''}`).join(' | ')}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-2">
+                          <span>Criado: {new Date(order.createdAt).toLocaleDateString('pt-BR')}</span>
+                          {order.deliveryDate && (
+                            <span className={late ? 'text-destructive font-semibold' : ''}>
+                              <Calendar className="w-2.5 h-2.5 inline" /> Entrega: {new Date(order.deliveryDate).toLocaleDateString('pt-BR')}
+                            </span>
+                          )}
+                          {order.scheduledDate && (
+                            <span className="text-primary">
+                              <CalendarClock className="w-2.5 h-2.5 inline" /> Agendado: {new Date(order.scheduledDate).toLocaleDateString('pt-BR')}
+                            </span>
+                          )}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={() => setViewOrderId(order.id)} className="btn-modern bg-muted text-foreground shadow-none text-xs px-3 py-2 hover:bg-muted/80">
-                      <Eye className="w-3.5 h-3.5" /> Ver Pedido
-                    </button>
-                    {order.status === 'aguardando_producao' && (
-                      <button onClick={() => setViewOrderId(order.id)} className="btn-modern bg-gradient-to-r from-producao to-producao/80 text-primary-foreground text-xs px-4 py-2">
-                        <Play className="w-3.5 h-3.5" /> Iniciar
+                    <div className="flex gap-2">
+                      <button onClick={() => setViewOrderId(order.id)} className="btn-modern bg-muted text-foreground shadow-none text-xs px-3 py-2 hover:bg-muted/80">
+                        <Eye className="w-3.5 h-3.5" /> Ver Pedido
                       </button>
-                    )}
-                    {order.status === 'em_producao' && (
-                      <button onClick={() => setViewOrderId(order.id)} className="btn-modern bg-gradient-to-r from-success to-success/80 text-success-foreground text-xs px-4 py-2">
-                        <CheckCircle className="w-3.5 h-3.5" /> Finalizar
-                      </button>
-                    )}
-                    {(order.status === 'producao_finalizada' || order.status === 'produto_liberado') && (
-                      <button onClick={() => setGuia(order.id)} className="btn-modern bg-primary/10 text-primary shadow-none text-xs px-4 py-2 hover:bg-primary/20">
-                        <Printer className="w-3.5 h-3.5" /> Ver Guia
-                      </button>
-                    )}
+                      {order.status === 'aguardando_producao' && (
+                        <button onClick={() => setViewOrderId(order.id)} className="btn-modern bg-gradient-to-r from-producao to-producao/80 text-primary-foreground text-xs px-4 py-2">
+                          <Play className="w-3.5 h-3.5" /> Iniciar
+                        </button>
+                      )}
+                      {order.status === 'em_producao' && (
+                        <button onClick={() => setViewOrderId(order.id)} className="btn-modern bg-gradient-to-r from-success to-success/80 text-success-foreground text-xs px-4 py-2">
+                          <CheckCircle className="w-3.5 h-3.5" /> Finalizar
+                        </button>
+                      )}
+                      {(order.status === 'producao_finalizada' || order.status === 'produto_liberado') && (
+                        <button onClick={() => setGuia(order.id)} className="btn-modern bg-primary/10 text-primary shadow-none text-xs px-4 py-2 hover:bg-primary/20">
+                          <Printer className="w-3.5 h-3.5" /> Ver Guia
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
     </div>
   );
 };

@@ -438,6 +438,11 @@ const EntregadoresPage: React.FC = () => {
             if (!scan.success) continue;
             const order = orders.find(o => o.id === scan.orderId);
             if (!order) continue;
+
+            // Filtro: Apenas pedidos liberados pela produção ou já retirados
+            if (order.status !== 'produto_liberado' && order.status !== 'retirado_entregador') {
+                continue;
+            }
             const pickup = deliveryPickups.find(p => p.orderId === scan.orderId);
             if (!map.has(scan.orderId)) {
                 const totalQty = order.items.reduce((acc, i) => acc + i.quantity, 0);

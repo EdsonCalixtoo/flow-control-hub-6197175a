@@ -12,12 +12,27 @@ const ProducaoDashboard: React.FC = () => {
     ['aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'].includes(o.status)
   );
 
+  const getLocalDateString = (date: Date = new Date()) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
+  const todayStr = getLocalDateString();
   const aguardando = prodOrders.filter(o => o.status === 'aguardando_producao').length;
   const emProducao = prodOrders.filter(o => o.status === 'em_producao').length;
   const finalizados = prodOrders.filter(o => o.status === 'producao_finalizada').length;
   const liberados = prodOrders.filter(o => o.status === 'produto_liberado').length;
   const entregas = prodOrders.filter(o => o.orderType === 'entrega').length;
+
+  // Contagem de TODAS as instalações ativas
   const instalacoes = prodOrders.filter(o => o.orderType === 'instalacao').length;
+
+  // Agendados: apenas pedidos que não são instalação mas tem data de agendamento
+  const agendados = prodOrders.filter(o =>
+    o.orderType !== 'instalacao' && (o.productionStatus === 'agendado' || !!o.scheduledDate)
+  ).length;
 
   // Atrasados por data (manual late nao esta acessivel aqui pois vive no PedidosProducaoPage)
   const atrasados = prodOrders.filter(o =>
@@ -63,7 +78,7 @@ const ProducaoDashboard: React.FC = () => {
           <StatCard title="Atrasados" value={atrasados} icon={AlertTriangle} color="text-destructive" />
         </Link>
         <Link to="/producao/pedidos?tipo=agendado" className="block">
-          <StatCard title="Agendados" value={0} icon={CalendarClock} color="text-info" />
+          <StatCard title="Agendados" value={agendados} icon={CalendarClock} color="text-info" />
         </Link>
       </div>
 
@@ -150,6 +165,11 @@ const ProducaoDashboard: React.FC = () => {
                       <div className="flex items-center gap-1.5">
                         {order.number}
                         {isLate && <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-destructive bg-destructive/10 px-1.5 py-0.5 rounded-full"><AlertTriangle className="w-2.5 h-2.5" /> ATRASADO</span>}
+                        {order.orderType === 'instalacao' && order.installationPaymentType && (
+                          <span className={`inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${order.installationPaymentType === 'pago' ? 'text-success bg-success/10' : 'text-warning bg-warning/10'}`}>
+                            {order.installationPaymentType === 'pago' ? 'PAGO' : 'PENDENTE'}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="text-foreground">{order.clientName}</td>

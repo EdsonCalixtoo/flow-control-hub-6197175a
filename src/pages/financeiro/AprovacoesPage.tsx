@@ -17,9 +17,28 @@ const AprovacoesPage: React.FC = () => {
 
   const pendentes = orders.filter(o => o.status === 'aguardando_financeiro');
 
-  const aprovar = (orderId: string) => {
+  const aprovar = async (orderId: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+
+    const client = clients.find(c => c.id === order.clientId);
+    const isConsignado = client?.consignado === true;
+    const isInstalacao = order.orderType === 'instalacao';
+
+    // Se for consignado ou instalação, não marca como 'pago' obrigatoriamente
+    const extra: Partial<Order> = {};
+    if (!isConsignado && !isInstalacao) {
+      extra.paymentStatus = 'pago';
+    }
+
     // Fluxo: Financeiro aprova e envia direto para Produção (sem Gestor)
-    updateOrderStatus(orderId, 'aguardando_producao', { paymentStatus: 'pago' }, userName, 'Pagamento aprovado - Enviando para produção');
+    await updateOrderStatus(
+      orderId,
+      'aguardando_producao',
+      extra,
+      userName,
+      isConsignado ? 'Consignado: Aprovado para produção' : (isInstalacao ? 'Instalação: Aprovado para produção' : 'Pagamento aprovado - Enviando para produção')
+    );
     setSelectedOrder(null);
   };
 

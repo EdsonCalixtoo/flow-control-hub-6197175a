@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { useERP } from '@/contexts/ERPContext';
 import { StatCard, StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
@@ -32,6 +34,7 @@ const FinanceiroDashboard: React.FC = () => {
   const [sellerPeriod, setSellerPeriod] = useState<PeriodFilter>('todos');
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   const [showConsignados, setShowConsignados] = useState(false);
+  const [showInstallations, setShowInstallations] = useState(false);
   const [showReject, setShowReject] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   // Pagamentos parciais (consignado)
@@ -89,6 +92,12 @@ const FinanceiroDashboard: React.FC = () => {
       .reduce((s, o) => s + getSaldoDevedor(o.id, o.total), 0);
   }, [ordersVisiveisFinanceiro, financialEntries, clients]);
 
+  const totalInstallationsOwed = useMemo(() => {
+    return ordersVisiveisFinanceiro
+      .filter(o => o.orderType === 'instalacao')
+      .reduce((s, o) => s + getSaldoDevedor(o.id, o.total), 0);
+  }, [ordersVisiveisFinanceiro, financialEntries]);
+
   const aguardandoLiberacao = ordersVisiveisFinanceiro.filter(o => o.status === 'aprovado_financeiro').length;
   const aguardandoFinanceiro = ordersVisiveisFinanceiro.filter(o => o.status === 'aguardando_financeiro').length;
 
@@ -98,6 +107,9 @@ const FinanceiroDashboard: React.FC = () => {
     const client = clients.find(c => c.id === o.clientId) || clients.find(c => c.name === o.clientName);
     return client?.consignado === true;
   }), [ordersVisiveisFinanceiro, clients]);
+
+  // Pedidos de instalação
+  const installationOrders = useMemo(() => ordersVisiveisFinanceiro.filter(o => o.orderType === 'instalacao'), [ordersVisiveisFinanceiro]);
 
   // ── Filtro por período ─────────────────────────────────────
   const filterByPeriod = (date: string, period: PeriodFilter): boolean => {
@@ -227,6 +239,15 @@ const FinanceiroDashboard: React.FC = () => {
         { paymentStatus: order.paymentStatus || 'pendente' },
         'Financeiro',
         'Consignado: Aprovado para produção sem obrigatoriedade de pagamento imediato'
+      );
+    } else if (order.orderType === 'instalacao') {
+      // ✅ Para INSTALAÇÕES, também permite enviar para produção mesmo sem pagamento total (ex: pagar na hora)
+      await updateOrderStatus(
+        orderId,
+        'aguardando_producao',
+        { paymentStatus: order.paymentStatus || 'pendente' },
+        'Financeiro',
+        'Instalação: Aprovado para produção. Pagamento será controlado pelo financeiro.'
       );
     } else {
       // ✅ Para clientes normais, cria lançamento financeiro total (venda direta)
@@ -361,7 +382,7 @@ const FinanceiroDashboard: React.FC = () => {
                 ) : null;
               })()}
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 mb-3">
                 {[
                   { label: 'Cliente', value: selectedOrder.clientName },
                   { label: 'Vendedor', value: selectedOrder.sellerName },
@@ -374,6 +395,21 @@ const FinanceiroDashboard: React.FC = () => {
                   </div>
                 ))}
               </div>
+
+              {/* Endereço de Entrega */}
+              {(() => {
+                const client = clients.find(c => c.id === selectedOrder.clientId) || clients.find(c => c.name === selectedOrder.clientName);
+                if (!client) return null;
+                return (
+                  <div className="p-3 rounded-xl bg-primary/5 border border-primary/20">
+                    <span className="text-[10px] text-primary uppercase tracking-wider font-bold block mb-1">📍 Endereço de Entrega / Instalação</span>
+                    <p className="text-sm font-semibold text-foreground">
+                      {client.address}, {client.bairro ? `${client.bairro}, ` : ''}{client.city} - {client.state}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">CEP: {client.cep}</p>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Observação do orçamento */}
@@ -384,21 +420,29 @@ const FinanceiroDashboard: React.FC = () => {
               </div>
             )}
 
-            {/* ★ PAGAMENTOS PARCIAIS CONSIGNADO */}
+            {/* ★ PAGAMENTOS PARCIAIS (CONSIGNADO E INSTALAÇÃO) */}
             {(() => {
               const client = clients.find(c => c.id === selectedOrder.clientId);
-              if (!client?.consignado) return null;
+              const isConsigned = client?.consignado;
+              const isInstallation = selectedOrder.orderType === 'instalacao';
+
+              if (!isConsigned && !isInstallation) return null;
+
               const pagamentos = getPagamentosDosPedido(selectedOrder.id);
               const totalPago = pagamentos.reduce((s, p) => s + p.amount, 0);
               const saldoDevedor = selectedOrder.total - totalPago;
               const percentPago = Math.min(100, (totalPago / selectedOrder.total) * 100);
 
+              const colorClass = isConsigned ? 'amber-500' : 'producao';
+              const Icon = isConsigned ? Star : DollarSign;
+              const title = isConsigned ? 'Pagamentos Parciais — Consignado' : 'Pagamentos Parciais — Instalação';
+
               return (
-                <div className="card-section overflow-hidden border border-amber-500/30">
-                  <div className="card-section-header bg-amber-500/5">
+                <div className={`card-section overflow-hidden border border-${colorClass}/30`}>
+                  <div className={`card-section-header bg-${colorClass}/5`}>
                     <div className="flex items-center gap-2">
-                      <Star className="w-4 h-4 text-amber-500" />
-                      <h3 className="card-section-title text-amber-500">Pagamentos Parciais — Consignado</h3>
+                      <Icon className={`w-4 h-4 text-${colorClass}`} />
+                      <h3 className={`card-section-title text-${colorClass}`}>{title}</h3>
                     </div>
                   </div>
 
@@ -429,7 +473,7 @@ const FinanceiroDashboard: React.FC = () => {
                       </div>
                       <div className="h-2 rounded-full bg-muted overflow-hidden">
                         <div
-                          className="h-full rounded-full bg-gradient-to-r from-amber-500 to-success transition-all duration-500"
+                          className={`h-full rounded-full bg-gradient-to-r ${isConsigned ? 'from-amber-500 to-success' : 'from-producao to-success'} transition-all duration-500`}
                           style={{ width: `${percentPago}%` }}
                         />
                       </div>
@@ -482,9 +526,9 @@ const FinanceiroDashboard: React.FC = () => {
                     )}
 
                     {/* Formulário novo pagamento */}
-                    {saldoDevedor > 0 && (selectedOrder.status === 'aguardando_financeiro' || clients.find(c => c.id === selectedOrder.clientId)?.consignado) && (
-                      <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-3">
-                        <p className="text-xs font-bold text-amber-500 uppercase tracking-wider flex items-center gap-1.5">
+                    {saldoDevedor > 0 && (selectedOrder.status === 'aguardando_financeiro' || isConsigned || isInstallation) && (
+                      <div className={`p-4 rounded-xl border border-${colorClass}/30 bg-${colorClass}/5 space-y-3`}>
+                        <p className={`text-xs font-bold text-${colorClass} uppercase tracking-wider flex items-center gap-1.5`}>
                           <Plus className="w-3.5 h-3.5" /> Registrar Novo Pagamento
                         </p>
                         <div className="grid grid-cols-2 gap-3">
@@ -523,7 +567,7 @@ const FinanceiroDashboard: React.FC = () => {
                         <button
                           onClick={() => adicionarPagamentoParcial(selectedOrder)}
                           disabled={salvandoPag || !novoPagValor}
-                          className="btn-modern bg-amber-500 text-white hover:bg-amber-600 w-full justify-center disabled:opacity-50"
+                          className={`btn-modern ${isConsigned ? 'bg-amber-500' : 'bg-producao'} text-white hover:opacity-90 w-full justify-center disabled:opacity-50`}
                         >
                           {salvandoPag
                             ? <><span className="animate-spin">⚙️</span> Salvando...</>
@@ -541,6 +585,30 @@ const FinanceiroDashboard: React.FC = () => {
                 </div>
               );
             })()}
+
+            {/* Alerta Instalação */}
+            {selectedOrder.orderType === 'instalacao' && (
+              <div className="p-4 rounded-xl bg-producao/5 border border-producao/20 mb-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="w-4 h-4 text-producao" />
+                  <p className="text-xs font-bold text-producao uppercase tracking-wider">Agendamento de Instalação</p>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="p-2 rounded-lg bg-background border border-border/40">
+                    <p className="text-[9px] text-muted-foreground uppercase font-bold">Data</p>
+                    <p className="text-sm font-semibold">{selectedOrder.installationDate ? format(new Date(selectedOrder.installationDate + 'T12:00:00'), 'dd/MM/yyyy') : '—'}</p>
+                  </div>
+                  <div className="p-2 rounded-lg bg-background border border-border/40">
+                    <p className="text-[9px] text-muted-foreground uppercase font-bold">Horário</p>
+                    <p className="text-sm font-semibold">{selectedOrder.installationTime || '—'}</p>
+                  </div>
+                  <div className="p-2 rounded-lg bg-background border border-border/40">
+                    <p className="text-[9px] text-muted-foreground uppercase font-bold">Cobrança</p>
+                    <p className="text-sm font-semibold capitalize">{selectedOrder.installationPaymentType === 'pago' ? 'Já Pago' : 'Pagar na Hora'}</p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="card-section">
               <div className="card-section-header">
@@ -721,6 +789,9 @@ const FinanceiroDashboard: React.FC = () => {
         <div onClick={() => setShowConsignados(true)} className="cursor-pointer">
           <StatCard title="Consignados" value={formatCurrency(totalConsignadoOwed)} icon={Star} color="text-amber-500" />
         </div>
+        <div onClick={() => setShowInstallations(true)} className="cursor-pointer">
+          <StatCard title="Instalações" value={formatCurrency(totalInstallationsOwed)} icon={TrendingUp} color="text-producao" />
+        </div>
       </div>
 
       {/* Modal de Consignados */}
@@ -791,8 +862,74 @@ const FinanceiroDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Não mostrar Tabs se estiver vendo Consignados */}
-      {!showConsignados && (
+      {/* Modal de Instalações */}
+      {showInstallations && (
+        <div className="card-section p-6 space-y-5 animate-scale-in">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 text-producao" />
+              <h2 className="font-bold text-foreground text-lg">Controle de Instalações</h2>
+              <span className="px-2 py-1 rounded-full bg-producao/20 text-producao text-xs font-bold">{installationOrders.length}</span>
+            </div>
+            <button onClick={() => setShowInstallations(false)} className="btn-modern bg-muted text-foreground shadow-none text-xs">
+              <ArrowLeft className="w-3.5 h-3.5" /> Voltar
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {installationOrders.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground text-sm">
+                Nenhum pedido de instalação registrado
+              </div>
+            ) : (
+              <>
+                {installationOrders.map(order => {
+                  const saldo = getSaldoDevedor(order.id, order.total);
+                  return (
+                    <div key={order.id} className="card-section p-4 flex items-center justify-between flex-wrap gap-3 bg-producao/5 border border-producao/20">
+                      <div className="flex-1 min-w-[200px]">
+                        <p className="font-bold text-foreground text-sm">{order.number}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {order.clientName} • Agendado para: {order.installationDate ? format(new Date(order.installationDate + 'T12:00:00'), 'dd/MM/yyyy') : 'Não definido'} às {order.installationTime || '—'}
+                        </p>
+                        <p className="text-[10px] text-producao font-bold mt-1 uppercase tracking-wider">
+                          Status: {order.installationPaymentType === 'pago' ? '✓ PAGO' : '💰 PAGAR NA HORA'}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-foreground text-sm">{formatCurrency(order.total)}</p>
+                        <p className={`text-[10px] font-extrabold mb-1 ${saldo > 0 ? 'text-destructive' : 'text-success'}`}>
+                          SALDO: {formatCurrency(saldo)}
+                        </p>
+                        <div className="flex items-center justify-end gap-2">
+                          <StatusBadge status={order.status} />
+                          <button
+                            onClick={() => { setSelectedOrder(order); setShowInstallations(false); }}
+                            className="w-7 h-7 rounded-lg bg-producao text-white flex items-center justify-center hover:bg-producao-dark transition-colors"
+                            title="Ver Detalhes / Receber Pagamento"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="p-4 rounded-xl bg-producao/10 border border-producao/20 flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] uppercase font-bold text-producao">Total em Aberto</span>
+                    <span className="font-semibold text-foreground">Saldo Instalações:</span>
+                  </div>
+                  <span className="text-lg font-extrabold text-producao">{formatCurrency(totalInstallationsOwed)}</span>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Não mostrar Tabs se estiver vendo Consignados ou Instalações */}
+      {!showConsignados && !showInstallations && (
         <>
           <div className="flex gap-2 border-b border-border/40">
             <button

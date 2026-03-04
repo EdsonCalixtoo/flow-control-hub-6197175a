@@ -92,6 +92,9 @@ export interface Order {
   deliveryDate?: string;
   scheduledDate?: string;        // data de agendamento da produção
   orderType?: 'entrega' | 'instalacao';
+  installationDate?: string;
+  installationTime?: string;
+  installationPaymentType?: 'pago' | 'pagar_na_hora';
   isConsigned?: boolean;
   productionStatus?: ProductionStatus;  // status detalhado de produção
   statusHistory: StatusHistoryEntry[];

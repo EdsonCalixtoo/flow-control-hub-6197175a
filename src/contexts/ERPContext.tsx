@@ -49,7 +49,7 @@ interface ERPContextType {
   addWarranty: (warranty: Omit<Warranty, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
   updateWarrantyStatus: (id: string, status: Warranty['status'], resolution?: string) => Promise<void>;
   // order ops
-  addOrder: (order: Order) => void;
+  addOrder: (order: Order) => Promise<void>;
   deleteOrder: (orderId: string) => Promise<void>;
   updateOrderStatus: (orderId: string, status: OrderStatus, extra?: Partial<Order>, userName?: string, note?: string) => Promise<void>;
   updateOrder: (orderId: string, fields: Partial<Order>) => void;
@@ -219,6 +219,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } catch (err: any) {
       console.error('[ERP] Erro ao criar pedido:', err.message);
+      throw err;
     }
   }, []);
 

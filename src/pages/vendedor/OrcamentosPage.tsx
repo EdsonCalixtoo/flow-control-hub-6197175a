@@ -9,7 +9,11 @@ import type { Order, QuoteItem } from '@/types/erp';
 import { useLocation, useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { InstallationCalendar } from '@/components/shared/InstallationCalendar';
+import { checkInstallationConflict, saveInstallation, deleteInstallationByOrder, InstallationAppointment } from '@/lib/installationServiceSupabase';
 
 // Função local para gerar próximo número de ordem
 const getNextOrderNumber = (existingOrders: Order[]): number => {
@@ -61,6 +65,8 @@ const OrcamentosPage: React.FC = () => {
   const [newObservation, setNewObservation] = useState('');
   const [newDeliveryDate, setNewDeliveryDate] = useState('');
   const [newOrderType, setNewOrderType] = useState<'entrega' | 'instalacao'>('entrega');
+  const [newInstallationTime, setNewInstallationTime] = useState('');
+  const [newInstallationPaymentType, setNewInstallationPaymentType] = useState<'pago' | 'pagar_na_hora'>('pago');
 
   // Abre pedido via URL (?view=ID)
   useEffect(() => {
@@ -116,6 +122,7 @@ const OrcamentosPage: React.FC = () => {
     try {
       setDeletingOrderId(orderId);
       await deleteOrder(orderId);
+      await deleteInstallationByOrder(orderId); // Limpa agendamento se existir
       setSelectedOrder(null);
       console.log('[OrcamentosPage] ✅ Orçamento excluído:', orderNumber);
     } catch (err: any) {
@@ -149,6 +156,8 @@ const OrcamentosPage: React.FC = () => {
     setNewObservation(order.observation || '');
     setNewDeliveryDate(order.deliveryDate || '');
     setNewOrderType(order.orderType || 'entrega');
+    setNewInstallationTime(order.installationTime || '');
+    setNewInstallationPaymentType(order.installationPaymentType || 'pago');
     setFormError('');
   };
 
@@ -161,6 +170,8 @@ const OrcamentosPage: React.FC = () => {
     setNewObservation('');
     setNewDeliveryDate('');
     setNewOrderType('entrega');
+    setNewInstallationTime('');
+    setNewInstallationPaymentType('pago');
     setFormError('');
   };
 
@@ -207,12 +218,28 @@ const OrcamentosPage: React.FC = () => {
 
     const now = new Date().toISOString();
 
+    // Validação extra para instalação
+    if (newOrderType === 'instalacao') {
+      if (!newDeliveryDate || !newInstallationTime) {
+        setFormError('⚠️ Informe a data e o horário da instalação.');
+        return;
+      }
+
+      // Verifica conflito de horário
+      const hasConflict = await checkInstallationConflict(newDeliveryDate, newInstallationTime);
+      if (hasConflict && !editingOrder) { // Se estiver editando, pode ser o próprio compromisso anterior (precisaria checar ID, mas para simplificar vamos permitir se for o mesmo dia/hora do pedido original)
+        setFormError('⚠️ Este horário já está ocupado por outra instalação. Escolha outro.');
+        return;
+      }
+    }
+
     // ────────────────────────────
     // MODO EDIÇÃO
     // ────────────────────────────
     if (editingOrder) {
       try {
         setSavingOrder(true);
+        const now = new Date().toISOString();
         const updatedOrder: Order = {
           ...editingOrder,
           clientId: client.id,
@@ -241,11 +268,32 @@ const OrcamentosPage: React.FC = () => {
 
         console.log('[OrcamentosPage] 📝 Editando orçamento:', updatedOrder.number);
         await editOrderFull(updatedOrder);
+
+        // Se mudou para instalação ou alterou dados de instalação, atualiza agenda
+        if (newOrderType === 'instalacao') {
+          await deleteInstallationByOrder(updatedOrder.id);
+          await saveInstallation({
+            order_id: updatedOrder.id,
+            seller_id: user?.id || '1',
+            client_name: client.name,
+            date: newDeliveryDate,
+            time: newInstallationTime,
+            payment_type: newInstallationPaymentType
+          });
+        } else if (editingOrder.orderType === 'instalacao' && newOrderType === 'entrega') {
+          await deleteInstallationByOrder(updatedOrder.id);
+        }
+
         setFormError('');
         resetForm();
       } catch (err: any) {
         console.error('[OrcamentosPage] ❌ Erro ao editar orçamento:', err?.message ?? err);
-        setFormError(`❌ Erro ao editar orçamento: ${err?.message || 'Tente novamente'}`);
+        const errMsg = err?.message ?? String(err);
+        if (errMsg.toLowerCase().includes('duplicate') || errMsg.toLowerCase().includes('unique') || errMsg.includes('409')) {
+          setFormError('❌ Conflito: Este horário de instalação já foi ocupado ou o número do pedido já existe.');
+        } else {
+          setFormError(`❌ Erro ao editar orçamento: ${errMsg || 'Tente novamente'}`);
+        }
       } finally {
         setSavingOrder(false);
       }
@@ -260,9 +308,10 @@ const OrcamentosPage: React.FC = () => {
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         try {
           console.log(`[OrcamentosPage] 🔄 TENTATIVA ${attempt}/${maxAttempts}: Gerando número do pedido...`);
-          const nextNumber = getNextOrderNumber(orders); // ✅ Usa o pool GLOBAL de pedidos para evitar duplicados
+          const nextNumber = getNextOrderNumber(orders);
           console.log(`[OrcamentosPage] ✅ Número gerado: ${nextNumber}`);
 
+          const now = new Date().toISOString();
           const order: Order = {
             id: crypto.randomUUID(),
             number: `PED-${String(nextNumber).padStart(3, '0')}`,
@@ -285,7 +334,7 @@ const OrcamentosPage: React.FC = () => {
             taxes: 0,
             total: subtotal,
             status: 'rascunho',
-            paymentStatus: 'pendente', // ✅ Inicializa status de pagamento para dashboard financeiro
+            paymentStatus: 'pendente',
             notes: newNotes,
             observation: newObservation,
             deliveryDate: newDeliveryDate || undefined,
@@ -301,8 +350,24 @@ const OrcamentosPage: React.FC = () => {
             }],
           };
 
-          console.log(`[OrcamentosPage] 📍 Salvando orçamento ${order.number} no banco...`);
+          if (newOrderType === 'instalacao') {
+            order.installationDate = newDeliveryDate;
+            order.installationTime = newInstallationTime;
+            order.installationPaymentType = newInstallationPaymentType;
+          }
+
           await addOrder(order);
+
+          if (newOrderType === 'instalacao') {
+            await saveInstallation({
+              order_id: order.id,
+              seller_id: user?.id || '1',
+              client_name: client.name,
+              date: newDeliveryDate,
+              time: newInstallationTime,
+              payment_type: newInstallationPaymentType
+            });
+          }
 
           setFormError('');
           resetForm();
@@ -312,8 +377,7 @@ const OrcamentosPage: React.FC = () => {
           const errMsg = err?.message ?? String(err);
           console.error(`[OrcamentosPage] ❌ Tentativa ${attempt} falhou:`, errMsg);
 
-          const isDuplicate = errMsg.toLowerCase().includes('duplicate') ||
-            errMsg.toLowerCase().includes('unique');
+          const isDuplicate = errMsg.toLowerCase().includes('duplicate') || errMsg.toLowerCase().includes('unique');
           const shouldRetry = attempt < maxAttempts && (
             isDuplicate ||
             errMsg.toLowerCase().includes('timeout') ||
@@ -321,7 +385,6 @@ const OrcamentosPage: React.FC = () => {
           );
 
           if (shouldRetry) {
-            console.log(`[OrcamentosPage] 🔄 Retentando em 2 segundos...`);
             await new Promise(resolve => setTimeout(resolve, 2000));
           } else {
             throw err;
@@ -333,19 +396,16 @@ const OrcamentosPage: React.FC = () => {
     try {
       await createOrderWithRetry();
     } catch (err: any) {
-      console.error('[OrcamentosPage] ❌ ERRO CRÍTICO (após retries):', err?.message ?? err);
+      console.error('[OrcamentosPage] ❌ ERRO CRÍTICO:', err?.message ?? err);
       const errMsg = err?.message ?? String(err);
-
       let userMessage = 'Erro ao criar orçamento. Tente novamente.';
 
-      if (errMsg.toLowerCase().includes('duplicate') || errMsg.toLowerCase().includes('unique')) {
-        userMessage = '❌ Erro: Número de pedido duplicado. Tente novamente em alguns segundos.';
-      } else if (errMsg.toLowerCase().includes('permission') || errMsg.toLowerCase().includes('authenticated')) {
+      if (errMsg.toLowerCase().includes('duplicate') || errMsg.toLowerCase().includes('unique') || errMsg.includes('409')) {
+        userMessage = '❌ Erro: Conflito de dados. O número do pedido ou o horário de instalação já existe.';
+      } else if (errMsg.toLowerCase().includes('permission')) {
         userMessage = '❌ Erro de permissão. Verifique se você está logado.';
-      } else if (errMsg.toLowerCase().includes('not found') || errMsg.toLowerCase().includes('function')) {
-        userMessage = '❌ Erro no servidor. A migração SQL pode não ter sido aplicada. Contacte suporte.';
-      } else if (errMsg.toLowerCase().includes('network') || errMsg.toLowerCase().includes('timeout')) {
-        userMessage = '❌ Erro de conexão. Verifique sua internet e tente novamente.';
+      } else if (errMsg.toLowerCase().includes('foreign key')) {
+        userMessage = '❌ Erro de integridade: O pedido não pôde ser vinculado à instalação.';
       }
 
       setFormError(userMessage);
@@ -714,6 +774,57 @@ const OrcamentosPage: React.FC = () => {
             </div>
           </div>
 
+          {/* Calendário de Instalação */}
+          {newOrderType === 'instalacao' && (
+            <div className="space-y-4 p-5 rounded-2xl bg-producao/5 border border-producao/20 animate-in fade-in duration-500">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-8 h-8 rounded-lg bg-producao flex items-center justify-center text-white">
+                  <Check className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-foreground uppercase tracking-tight">Agendamento de Instalação</h3>
+                  <p className="text-[10px] text-muted-foreground font-bold">Escolha um horário disponível para a equipe</p>
+                </div>
+              </div>
+
+              <InstallationCalendar
+                selectedDate={newDeliveryDate}
+                selectedTime={newInstallationTime}
+                onSelect={(date, time) => {
+                  setNewDeliveryDate(date);
+                  setNewInstallationTime(time);
+                  toast.success(`Horário selecionado: ${time} no dia ${format(new Date(date + 'T12:00:00'), 'dd/MM/yyyy')}`);
+                }}
+              />
+
+              <div className="space-y-2 pt-4 border-t border-producao/10">
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Forma de Pagamento da Instalação</label>
+                <div className="flex gap-2">
+                  {(['pago', 'pagar_na_hora'] as const).map(p => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setNewInstallationPaymentType(p)}
+                      className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all ${newInstallationPaymentType === p
+                        ? 'bg-success/10 border-success text-success'
+                        : 'border-border/40 text-muted-foreground hover:border-success/30'
+                        }`}
+                    >
+                      {p === 'pago' ? '✅ Já Pago' : '💰 Pagar na Hora'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {(newDeliveryDate && newInstallationTime) && (
+                <div className="p-3 rounded-xl bg-success/5 border border-success/20 text-[11px] text-success font-medium">
+                  ✨ Agendado para <strong>{format(new Date(newDeliveryDate + 'T12:00:00'), 'dd/MM/yyyy')}</strong> às <strong>{newInstallationTime}</strong>.
+                  Pagamento: <strong>{newInstallationPaymentType === 'pago' ? 'Já Pago' : 'A pagar na hora'}</strong>.
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Observações */}
           <div className="space-y-1">
             <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Observação</label>
@@ -895,9 +1006,11 @@ const OrcamentosPage: React.FC = () => {
         {/* Botão "Enviar para Financeiro" — apenas para status corretos */}
         {podeEnviarFinanceiro && (() => {
           const clienteConsignado = !!clients.find(c => c.id === selectedOrder.clientId)?.consignado;
+          const isInstalacao = selectedOrder.orderType === 'instalacao';
           const temComprovante = (comprovantesAttached.length > 0) || (selectedOrder.receiptUrls && selectedOrder.receiptUrls.length > 0);
-          // Consignado: pode enviar sem comprovante. Normal: precisa de comprovante.
-          const podeEnviar = clienteConsignado ? true : temComprovante;
+
+          // Consignado ou Instalação: pode enviar sem comprovante. Normal: precisa de comprovante.
+          const podeEnviar = (clienteConsignado || isInstalacao) ? true : temComprovante;
 
           return (
             <>
@@ -912,6 +1025,11 @@ const OrcamentosPage: React.FC = () => {
                 {clienteConsignado && !temComprovante && (
                   <p className="text-[10px] text-amber-500 mt-2 flex items-center gap-1">
                     ⭐ Cliente consignado — pode enviar sem comprovante. O financeiro registrará os pagamentos parciais.
+                  </p>
+                )}
+                {isInstalacao && !temComprovante && (
+                  <p className="text-[10px] text-producao mt-2 flex items-center gap-1">
+                    🔧 Pedido de Instalação — pode enviar sem comprovante (especialmente se for "Pagar na hora").
                   </p>
                 )}
               </div>

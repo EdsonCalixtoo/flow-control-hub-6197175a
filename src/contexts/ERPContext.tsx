@@ -6,7 +6,7 @@ import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchClients, createClient as createClientSupabase, updateClient as updateClientSupabase, deleteClient as deleteClientSupabase } from '@/lib/clientServiceSupabase';
 import { fetchProducts, createProduct as createProductSupabase, updateProductSupabase, deleteProductSupabase } from '@/lib/productServiceSupabase';
-import { fetchOrders, createOrderSupabase, updateOrderSupabase, deleteOrderSupabase } from '@/lib/orderServiceSupabase';
+import { fetchOrders, createOrderSupabase, updateOrderSupabase, deleteOrderSupabase, supabaseToOrder } from '@/lib/orderServiceSupabase';
 import {
   fetchFinancialEntries, createFinancialEntrySupabase,
   fetchDelayReports, createDelayReportSupabase, markDelayReportReadSupabase,
@@ -154,17 +154,20 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         (payload) => {
           console.log('[Realtime] Change in orders:', payload);
           if (payload.eventType === 'INSERT') {
-            const newOrder = payload.new as any; // Need to map or just reload
-            // Simplest is to reload for now to ensure consistency, 
-            // but for performance we should map and update state.
-            loadFromSupabase();
+            const newOrder = supabaseToOrder(payload.new);
+            setOrders(prev => {
+              // Evita duplicatas se o insert local já tiver ocorrido
+              if (prev.find(o => o.id === newOrder.id)) return prev;
+              return [newOrder, ...prev];
+            });
             toast.info(`Novo orçamento criado: ${newOrder.number}`);
           } else if (payload.eventType === 'UPDATE') {
-            const updatedOrder = payload.new as any;
-            loadFromSupabase();
+            const updatedOrder = supabaseToOrder(payload.new);
+            setOrders(prev => prev.map(o => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o));
             toast.info(`Pedido ${updatedOrder.number} atualizado: ${updatedOrder.status}`);
           } else if (payload.eventType === 'DELETE') {
-            loadFromSupabase();
+            const oldId = (payload.old as any).id;
+            setOrders(prev => prev.filter(o => o.id !== oldId));
           }
         }
       )
@@ -173,8 +176,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         { event: '*', schema: 'public', table: 'financial_entries' },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            loadFromSupabase();
             const entry = payload.new as any;
+            setFinancialEntries(prev => [entry, ...prev]);
             toast.success(`Novo lançamento financeiro: ${entry.description}`);
           }
         }
@@ -207,7 +210,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         { event: '*', schema: 'public', table: 'products' },
         (payload) => {
           console.log('[Realtime] Change in products:', payload);
-          loadFromSupabase();
+          if (payload.eventType === 'INSERT') {
+            setProducts(prev => [payload.new as Product, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            setProducts(prev => prev.map(p => p.id === (payload.new as any).id ? (payload.new as Product) : p));
+          } else if (payload.eventType === 'DELETE') {
+            setProducts(prev => prev.filter(p => p.id !== (payload.old as any).id));
+          }
         }
       )
       .subscribe();

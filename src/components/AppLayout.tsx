@@ -32,6 +32,10 @@ import { useState } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useOrderNotification } from '@/hooks/useOrderNotification';
 
+const FINANCEIRO_STATUSES = ['aguardando_financeiro'];
+const PRODUCAO_STATUSES = ['aguardando_producao'];
+const EMPTY_STATUSES: string[] = [];
+
 const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: string }[]> = {
   vendedor: [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/vendedor' },
@@ -95,8 +99,8 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const shouldWatchProducao = user.role === 'producao' || user.role === 'gestor' || user.role === 'root' || user.role === 'admin'; // Modified
 
   // Apenas renderiza os hooks se a role exigir, passando arrays vazios se não
-  useOrderNotification(orders, shouldWatchFinanceiro ? ['aguardando_financeiro'] : [], 'Aprovações (Financeiro)');
-  useOrderNotification(orders, shouldWatchProducao ? ['aguardando_producao'] : [], 'Fila de Produção');
+  useOrderNotification(orders, shouldWatchFinanceiro ? FINANCEIRO_STATUSES : EMPTY_STATUSES, 'Aprovações (Financeiro)');
+  useOrderNotification(orders, shouldWatchProducao ? PRODUCAO_STATUSES : EMPTY_STATUSES, 'Fila de Produção');
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">

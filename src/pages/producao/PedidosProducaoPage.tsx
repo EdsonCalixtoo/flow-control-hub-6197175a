@@ -56,6 +56,7 @@ const PedidosProducaoPage: React.FC = () => {
     if (event.type === 'UPDATE' && event.previousStatus !== 'aguardando_producao' && event.order.status === 'aguardando_producao') {
       setNotificationCount(prev => prev + 1);
       console.log('[PedidosProducaoPage] 🔔 NOVO PEDIDO PARA PRODUÇÃO - Tempo Real');
+      setTimeout(() => loadFromSupabase(), 100);
     }
   }, ['aguardando_producao']);
 

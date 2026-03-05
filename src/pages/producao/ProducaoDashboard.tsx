@@ -7,7 +7,7 @@ import { Package, Clock, Factory, CheckCircle, ScanLine, Printer, Truck, Wrench,
 import { Link, useNavigate } from 'react-router-dom';
 
 const ProducaoDashboard: React.FC = () => {
-  const { orders } = useERP();
+  const { orders, loadFromSupabase } = useERP();
   const navigate = useNavigate();
   const [notificationCount, setNotificationCount] = useState(0);
 
@@ -16,6 +16,7 @@ const ProducaoDashboard: React.FC = () => {
     if (event.type === 'UPDATE' && event.previousStatus !== 'aguardando_producao' && event.order.status === 'aguardando_producao') {
       setNotificationCount(prev => prev + 1);
       console.log('[ProducaoDashboard] 🔔 NOVO PEDIDO PARA PRODUÇÃO - Tempo Real');
+      setTimeout(() => loadFromSupabase(), 100);
     }
   }, ['aguardando_producao']);
 

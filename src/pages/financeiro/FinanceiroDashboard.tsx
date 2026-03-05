@@ -401,12 +401,20 @@ const FinanceiroDashboard: React.FC = () => {
                 const client = clients.find(c => c.id === selectedOrder.clientId) || clients.find(c => c.name === selectedOrder.clientName);
                 if (!client) return null;
                 return (
-                  <div className="p-3 rounded-xl bg-primary/5 border border-primary/20">
-                    <span className="text-[10px] text-primary uppercase tracking-wider font-bold block mb-1">📍 Endereço de Entrega / Instalação</span>
-                    <p className="text-sm font-semibold text-foreground">
-                      {client.address}, {client.bairro ? `${client.bairro}, ` : ''}{client.city} - {client.state}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">CEP: {client.cep}</p>
+                  <div className="space-y-2">
+                    <div className="p-3 rounded-xl bg-primary/5 border border-primary/20">
+                      <span className="text-[10px] text-primary uppercase tracking-wider font-bold block mb-1">📍 Endereço de Entrega / Instalação</span>
+                      <p className="text-sm font-semibold text-foreground">
+                        {client.address}, {client.bairro ? `${client.bairro}, ` : ''}{client.city} - {client.state}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">CEP: {client.cep}</p>
+                    </div>
+                    {client.cpfCnpj && (
+                      <div className="p-3 rounded-xl bg-success/5 border border-success/20">
+                        <span className="text-[10px] text-success uppercase tracking-wider font-bold block mb-1">🪪 CPF / CNPJ</span>
+                        <p className="text-sm font-semibold font-mono text-foreground">{client.cpfCnpj}</p>
+                      </div>
+                    )}
                   </div>
                 );
               })()}

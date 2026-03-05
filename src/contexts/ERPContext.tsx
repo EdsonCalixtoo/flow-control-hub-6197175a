@@ -209,6 +209,58 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [isAuthenticated, loadFromSupabase]);
 
+  // ── PRODUCTS ─────────────────────────────────────────────────
+  const addProduct = useCallback(async (product: Product) => {
+    try {
+      console.log('[ERP] 📦 Criando produto:', product.name);
+      const { id, createdAt, updatedAt, ...productData } = product;
+      const newProduct = await createProductSupabase(productData);
+      if (newProduct) {
+        setProducts(prev => [newProduct, ...prev]);
+        console.log('[ERP] ✅ Produto criado no Supabase:', newProduct.id);
+      } else {
+        throw new Error('Falha ao criar produto no Supabase');
+      }
+    } catch (err: any) {
+      console.error('[ERP] ❌ Erro ao criar produto:', err.message);
+      // fallback local
+      setProducts(prev => [product, ...prev]);
+      throw err;
+    }
+  }, [setProducts]);
+
+  const updateProduct = useCallback(async (product: Product) => {
+    try {
+      console.log('[ERP] 📦 Atualizando produto:', product.name);
+      const updated = await updateProductSupabase(product);
+      if (updated) {
+        setProducts(prev => prev.map(p => p.id === product.id ? updated : p));
+        console.log('[ERP] ✅ Produto atualizado no Supabase:', updated.id);
+      } else {
+        throw new Error('Falha ao atualizar produto no Supabase');
+      }
+    } catch (err: any) {
+      console.error('[ERP] ❌ Erro ao atualizar produto:', err.message);
+      // fallback local
+      setProducts(prev => prev.map(p => p.id === product.id ? product : p));
+      throw err;
+    }
+  }, [setProducts]);
+
+  const deleteProduct = useCallback(async (productId: string) => {
+    try {
+      console.log('[ERP] 🗑️ Deletando produto:', productId);
+      await deleteProductSupabase(productId);
+      setProducts(prev => prev.filter(p => p.id !== productId));
+      console.log('[ERP] ✅ Produto deletado do Supabase:', productId);
+    } catch (err: any) {
+      console.error('[ERP] ❌ Erro ao deletar produto:', err.message);
+      // fallback local
+      setProducts(prev => prev.filter(p => p.id !== productId));
+      throw err;
+    }
+  }, [setProducts]);
+
   // ── ORDERS ───────────────────────────────────────────────────
   const addOrder = useCallback(async (order: Order) => {
     try {
@@ -250,11 +302,50 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (updated) {
         setOrders(prev => prev.map(o => o.id === orderId ? updated : o));
         console.log('[ERP] Status atualizado no Supabase:', status);
+
+        // 📦 GESTÃO AUTOMÁTICA DE ESTOQUE
+
+        // 1. DEDUÇÃO (RESERVA): Quando o pedido é enviado para o financeiro ou pula para produção
+        const isReserving = (status === 'aguardando_financeiro' || status === 'aguardando_producao') &&
+          !['aguardando_financeiro', 'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'].includes(currentOrder.status);
+
+        if (isReserving) {
+          console.log('[ERP] 📦 Deduzindo estoque (Reserva):', currentOrder.number);
+          for (const item of currentOrder.items) {
+            const product = products.find(p => p.name === item.product);
+            if (product) {
+              const newQuantity = Math.max(0, product.stockQuantity - item.quantity);
+              await updateProduct({
+                ...product,
+                stockQuantity: newQuantity,
+                status: newQuantity === 0 ? 'esgotado' : product.status
+              });
+            }
+          }
+          toast.success('Estoque reservado/deduzido com sucesso!');
+        }
+
+        // 2. ESTORNO: Quando o pedido é rejeitado pelo financeiro e estava anteriormente reservado
+        if (status === 'rejeitado_financeiro' && currentOrder.status === 'aguardando_financeiro') {
+          console.log('[ERP] 📦 Estornando estoque (Pedido Rejeitado):', currentOrder.number);
+          for (const item of currentOrder.items) {
+            const product = products.find(p => p.name === item.product);
+            if (product) {
+              const newQuantity = product.stockQuantity + item.quantity;
+              await updateProduct({
+                ...product,
+                stockQuantity: newQuantity,
+                status: 'ativo'
+              });
+            }
+          }
+          toast.info('Estoque retornado ao sistema.');
+        }
       }
     } catch (err: any) {
       console.error('[ERP] Erro ao atualizar status:', err.message);
     }
-  }, [orders]);
+  }, [orders, products, updateProduct]);
 
   const updateOrder = useCallback(async (orderId: string, fields: Partial<Order>) => {
     try {
@@ -279,14 +370,31 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, []);
 
   const deleteOrder = useCallback(async (orderId: string) => {
+    const orderToDelete = orders.find(o => o.id === orderId);
     try {
       await deleteOrderSupabase(orderId);
       setOrders(prev => prev.filter(o => o.id !== orderId));
       console.log('[ERP] ✅ Pedido deletado do Supabase');
+
+      // 3. ESTORNO NA EXCLUSÃO: Se o pedido já tinha deduzido estoque
+      if (orderToDelete && ['aguardando_financeiro', 'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'].includes(orderToDelete.status)) {
+        console.log('[ERP] 📦 Estornando estoque (Pedido Excluído):', orderToDelete.number);
+        for (const item of orderToDelete.items) {
+          const product = products.find(p => p.name === item.product);
+          if (product) {
+            const newQuantity = product.stockQuantity + item.quantity;
+            await updateProduct({
+              ...product,
+              stockQuantity: newQuantity,
+              status: 'ativo'
+            });
+          }
+        }
+      }
     } catch (err: any) {
       console.error('[ERP] Erro ao deletar pedido:', err.message);
     }
-  }, []);
+  }, [orders, products, updateProduct]);
 
   // ── CLIENTS ──────────────────────────────────────────────────
   const addClient = useCallback(async (client: Client): Promise<void> => {
@@ -377,58 +485,6 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.error('[ERP] Erro ao criar financeiro:', err.message);
     }
   }, []);
-
-  // ── PRODUCTS ─────────────────────────────────────────────────
-  const addProduct = useCallback(async (product: Product) => {
-    try {
-      console.log('[ERP] 📦 Criando produto:', product.name);
-      const { id, createdAt, updatedAt, ...productData } = product;
-      const newProduct = await createProductSupabase(productData);
-      if (newProduct) {
-        setProducts(prev => [newProduct, ...prev]);
-        console.log('[ERP] ✅ Produto criado no Supabase:', newProduct.id);
-      } else {
-        throw new Error('Falha ao criar produto no Supabase');
-      }
-    } catch (err: any) {
-      console.error('[ERP] ❌ Erro ao criar produto:', err.message);
-      // fallback local
-      setProducts(prev => [product, ...prev]);
-      throw err;
-    }
-  }, [setProducts]);
-
-  const updateProduct = useCallback(async (product: Product) => {
-    try {
-      console.log('[ERP] 📦 Atualizando produto:', product.name);
-      const updated = await updateProductSupabase(product);
-      if (updated) {
-        setProducts(prev => prev.map(p => p.id === product.id ? updated : p));
-        console.log('[ERP] ✅ Produto atualizado no Supabase:', updated.id);
-      } else {
-        throw new Error('Falha ao atualizar produto no Supabase');
-      }
-    } catch (err: any) {
-      console.error('[ERP] ❌ Erro ao atualizar produto:', err.message);
-      // fallback local
-      setProducts(prev => prev.map(p => p.id === product.id ? product : p));
-      throw err;
-    }
-  }, [setProducts]);
-
-  const deleteProduct = useCallback(async (productId: string) => {
-    try {
-      console.log('[ERP] 🗑️ Deletando produto:', productId);
-      await deleteProductSupabase(productId);
-      setProducts(prev => prev.filter(p => p.id !== productId));
-      console.log('[ERP] ✅ Produto deletado do Supabase:', productId);
-    } catch (err: any) {
-      console.error('[ERP] ❌ Erro ao deletar produto:', err.message);
-      // fallback local
-      setProducts(prev => prev.filter(p => p.id !== productId));
-      throw err;
-    }
-  }, [setProducts]);
 
   // ── DELAY REPORTS ────────────────────────────────────────────
   const addDelayReport = useCallback(async (report: Omit<DelayReport, 'id' | 'sentAt' | 'readAt'>) => {

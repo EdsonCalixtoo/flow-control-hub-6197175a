@@ -144,58 +144,67 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    console.log('[ERP] 📡 Iniciando canais de tempo real...');
+    // Use um identificador único para o canal para evitar conflitos de cache do Supabase
+    const channelName = `realtime-erp-${Math.floor(Math.random() * 1000)}`;
+    console.log(`[ERP] 📡 Conectando ao canal de tempo real: ${channelName}`);
 
     const channel = supabase
-      .channel('schema-db-changes')
+      .channel(channelName)
+      // Escuta TODAS as mudanças na tabela de pedidos
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
         (payload) => {
-          console.log('[Realtime] Change in orders:', payload);
+          console.log('%c[Realtime-Orders] EVENTO RECEBIDO!', 'background: #004400; color: #00ff00; font-weight: bold;', payload.eventType, payload.new || payload.old);
+
+          // Sempre recarrega para garantir dados completos (clientes, relacionamentos, etc)
           loadFromSupabase();
+
+          // Notificações visuais imediatas
           if (payload.eventType === 'INSERT') {
-            toast.info(`Novo pedido recebido`);
+            const newOrder = payload.new as any;
+            toast.info(`🔔 Novo pedido recebido: ${newOrder.number || 'sem número'}`, {
+              description: 'O painel foi atualizado automaticamente.',
+              duration: 5000,
+            });
           } else if (payload.eventType === 'UPDATE') {
-            toast.info(`Pedido atualizado`);
+            const updatedOrder = payload.new as any;
+            toast.info(`📦 Pedido ${updatedOrder.number} atualizado`, {
+              description: `Status: ${updatedOrder.status.replace('_', ' ')}`,
+              duration: 3000,
+            });
           }
         }
       )
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'financial_entries' },
-        (payload) => {
-          console.log('[Realtime] Novo lançamento financeiro:', payload.new);
-          loadFromSupabase(); // Financeiro é mais complexo, melhor recarregar
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'delay_reports' },
-        (payload) => {
-          loadFromSupabase();
-          toast.warning('Novo alerta de atraso recebido!');
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'warranties' },
-        (payload) => {
-          loadFromSupabase();
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'products' },
-        (payload) => {
-          loadFromSupabase();
-        }
-      )
+      // Outras tabelas relevantes
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'financial_entries' }, () => {
+        console.log('[Realtime] Novo lançamento financeiro detectado');
+        loadFromSupabase();
+      })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'delay_reports' }, () => {
+        console.log('[Realtime] Novo alerta de atraso detectado');
+        loadFromSupabase();
+        toast.warning('⚠️ Novo alerta de atraso recebido!');
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'warranties' }, () => {
+        loadFromSupabase();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
+        loadFromSupabase();
+      })
       .subscribe((status) => {
-        console.log('[Realtime] Status da conexão:', status);
+        console.log(`[Realtime] Estado da conexão do canal ${channelName}:`, status);
+        if (status === 'SUBSCRIBED') {
+          console.log('%c[Realtime] ✅ SISTEMA DE TEMPO REAL ATIVO E ESCUTANDO', 'color: #00ff00; font-weight: bold;');
+        }
+        if (status === 'CHANNEL_ERROR') {
+          console.error('[Realtime] ❌ Erro ao conectar ao canal de tempo real. Tentando reconectar...');
+          // O Supabase tenta reconectar sozinho, mas podemos forçar recarga se necessário
+        }
       });
 
     return () => {
+      console.log(`[ERP] 🔌 Desconectando canal: ${channelName}`);
       supabase.removeChannel(channel);
     };
   }, [isAuthenticated, loadFromSupabase]);

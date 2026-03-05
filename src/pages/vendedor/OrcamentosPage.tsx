@@ -1050,10 +1050,11 @@ const OrcamentosPage: React.FC = () => {
         {podeEnviarFinanceiro && (() => {
           const clienteConsignado = !!clients.find(c => c.id === selectedOrder.clientId)?.consignado;
           const isInstalacao = selectedOrder.orderType === 'instalacao';
+          const isRetirada = selectedOrder.orderType === 'retirada';
           const temComprovante = (comprovantesAttached.length > 0) || (selectedOrder.receiptUrls && selectedOrder.receiptUrls.length > 0);
 
-          // Consignado ou Instalação: pode enviar sem comprovante. Normal: precisa de comprovante.
-          const podeEnviar = (clienteConsignado || isInstalacao) ? true : temComprovante;
+          // Consignado, Instalação ou Retirada: pode enviar sem comprovante. Normal: precisa de comprovante.
+          const podeEnviar = (clienteConsignado || isInstalacao || isRetirada) ? true : temComprovante;
 
           return (
             <>
@@ -1073,6 +1074,11 @@ const OrcamentosPage: React.FC = () => {
                 {isInstalacao && !temComprovante && (
                   <p className="text-[10px] text-producao mt-2 flex items-center gap-1">
                     🔧 Pedido de Instalação — pode enviar sem comprovante (especialmente se for "Pagar na hora").
+                  </p>
+                )}
+                {isRetirada && !temComprovante && (
+                  <p className="text-[10px] text-amber-500 mt-2 flex items-center gap-1">
+                    📦 Pedido de Retirada — pode enviar sem comprovante (especialmente se for "Cobrar no Local").
                   </p>
                 )}
               </div>
@@ -1095,7 +1101,7 @@ const OrcamentosPage: React.FC = () => {
                 </button>
               </div>
 
-              {!clienteConsignado && !temComprovante && (
+              {!clienteConsignado && !isInstalacao && !isRetirada && !temComprovante && (
                 <p className="text-[10px] text-muted-foreground text-center">
                   ⚠️ Anexe o comprovante de pagamento para habilitar o envio ao financeiro
                 </p>

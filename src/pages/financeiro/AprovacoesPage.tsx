@@ -24,10 +24,11 @@ const AprovacoesPage: React.FC = () => {
     const client = clients.find(c => c.id === order.clientId);
     const isConsignado = client?.consignado === true;
     const isInstalacao = order.orderType === 'instalacao';
+    const isRetirada = order.orderType === 'retirada';
 
     // Se for consignado ou instalação, não marca como 'pago' obrigatoriamente
     const extra: Partial<Order> = {};
-    if (!isConsignado && !isInstalacao) {
+    if (!isConsignado && !isInstalacao && !isRetirada) {
       extra.paymentStatus = 'pago';
     }
 
@@ -37,7 +38,7 @@ const AprovacoesPage: React.FC = () => {
       'aguardando_producao',
       extra,
       userName,
-      isConsignado ? 'Consignado: Aprovado para produção' : (isInstalacao ? 'Instalação: Aprovado para produção' : 'Pagamento aprovado - Enviando para produção')
+      isConsignado ? 'Consignado: Aprovado para produção' : (isInstalacao ? 'Instalação: Aprovado para produção' : (isRetirada ? 'Retirada: Aprovado para produção' : 'Pagamento aprovado - Enviando para produção'))
     );
     setSelectedOrder(null);
   };
@@ -90,7 +91,9 @@ const AprovacoesPage: React.FC = () => {
                     <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
                       {selectedOrder.orderType === 'instalacao'
                         ? <><Wrench className="w-3.5 h-3.5 text-producao" /> Instalação</>
-                        : <><Truck className="w-3.5 h-3.5 text-primary" /> Entrega</>
+                        : selectedOrder.orderType === 'retirada'
+                          ? <><Inbox className="w-3.5 h-3.5 text-amber-500" /> Retirada</>
+                          : <><Truck className="w-3.5 h-3.5 text-primary" /> Entrega</>
                       }
                     </span>
                   </div>

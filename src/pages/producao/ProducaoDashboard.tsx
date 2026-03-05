@@ -1,12 +1,23 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { StatCard, StatusBadge, formatCurrency, formatDate } from '@/components/shared/StatusBadge';
+import { RealtimeNotificationHandler } from '@/components/shared/RealtimeNotificationHandler';
+import { useRealtimeOrders } from '@/hooks/useRealtimeOrders';
 import { Package, Clock, Factory, CheckCircle, ScanLine, Printer, Truck, Wrench, AlertTriangle, CalendarClock } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 const ProducaoDashboard: React.FC = () => {
   const { orders } = useERP();
   const navigate = useNavigate();
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  // Monitora em tempo real quando novos pedidos chegam para produção
+  useRealtimeOrders((event) => {
+    if (event.type === 'UPDATE' && event.previousStatus !== 'aguardando_producao' && event.order.status === 'aguardando_producao') {
+      setNotificationCount(prev => prev + 1);
+      console.log('[ProducaoDashboard] 🔔 NOVO PEDIDO PARA PRODUÇÃO - Tempo Real');
+    }
+  }, ['aguardando_producao']);
 
   const prodOrders = orders.filter(o =>
     ['aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'].includes(o.status)
@@ -45,6 +56,7 @@ const ProducaoDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      <RealtimeNotificationHandler />
       <div>
         <h1 className="page-header">Dashboard de Producao</h1>
         <p className="page-subtitle">Acompanhe a producao em tempo real</p>
@@ -52,8 +64,18 @@ const ProducaoDashboard: React.FC = () => {
 
       {/* Stats principais */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 stagger-children">
-        <Link to="/producao/pedidos?tipo=" className="block">
-          <StatCard title="Aguardando" value={aguardando} icon={Clock} color="text-warning" />
+        <Link to="/producao/pedidos?tipo=" className="block relative">
+          <div className="relative">
+            <StatCard title="Aguardando" value={aguardando} icon={Clock} color="text-warning" />
+            {notificationCount > 0 && (
+              <div className="absolute -top-2 -right-2 flex items-center gap-1">
+                <div className="bg-danger text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center animate-bounce">
+                  {notificationCount > 9 ? '9+' : notificationCount}
+                </div>
+                <div className="absolute -top-2 -right-2 bg-danger rounded-full w-6 h-6 animate-pulse opacity-40"></div>
+              </div>
+            )}
+          </div>
         </Link>
         <Link to="/producao/pedidos" className="block">
           <StatCard title="Em Producao" value={emProducao} icon={Factory} color="text-producao" />

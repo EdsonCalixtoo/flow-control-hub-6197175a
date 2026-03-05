@@ -3,6 +3,8 @@ import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatusBadge, formatDate as fmtDate } from '@/components/shared/StatusBadge';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
+import { RealtimeNotificationHandler } from '@/components/shared/RealtimeNotificationHandler';
+import { useRealtimeOrders } from '@/hooks/useRealtimeOrders';
 import OrderChat from '@/components/shared/OrderChat';
 import { Play, CheckCircle, Printer, Package, ArrowLeft, Search, ScanLine, X, Eye, Truck, Wrench, Calendar, Clock, AlertTriangle, CalendarClock, Send, Camera, StopCircle, History, RefreshCw, Filter, ShieldAlert, DollarSign } from 'lucide-react';
 import BarcodeComponent from 'react-barcode';
@@ -46,7 +48,16 @@ const PedidosProducaoPage: React.FC = () => {
   const [scheduleDate, setScheduleDate] = useState('');
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [manualLate, setManualLate] = useState<Set<string>>(new Set());
+  const [notificationCount, setNotificationCount] = useState(0);
   const barcodeRef = useRef<HTMLDivElement>(null);
+
+  // Monitora em tempo real quando novos pedidos chegam para produção
+  useRealtimeOrders((event) => {
+    if (event.type === 'UPDATE' && event.previousStatus !== 'aguardando_producao' && event.order.status === 'aguardando_producao') {
+      setNotificationCount(prev => prev + 1);
+      console.log('[PedidosProducaoPage] 🔔 NOVO PEDIDO PARA PRODUÇÃO - Tempo Real');
+    }
+  }, ['aguardando_producao']);
 
   // Camera scanner state
   const [cameraActive, setCameraActive] = useState(false);
@@ -984,6 +995,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 
   return (
     <div className="space-y-6">
+      <RealtimeNotificationHandler />
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="page-header">{PAGE_TITLES[tipoFiltro] ?? 'Pedidos de Produção'}</h1>

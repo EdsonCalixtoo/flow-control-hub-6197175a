@@ -4,7 +4,9 @@ import { ptBR } from 'date-fns/locale';
 import { useERP } from '@/contexts/ERPContext';
 import { StatCard, StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
-import { DollarSign, TrendingUp, Clock, AlertTriangle, Search, Filter, ChevronDown, ChevronLeft, ChevronRight, Eye, CheckCircle, XCircle, Send, ArrowLeft, Users2, BarChart3, Radio, Star, Plus, Trash2, Inbox } from 'lucide-react';
+import { RealtimeNotificationHandler } from '@/components/shared/RealtimeNotificationHandler';
+import { DollarSign, TrendingUp, Clock, AlertTriangle, Search, Filter, ChevronDown, ChevronLeft, ChevronRight, Eye, CheckCircle, XCircle, Send, ArrowLeft, Users2, BarChart3, Radio, Star, Plus, Trash2, Inbox, Bell } from 'lucide-react';
+import { useRealtimeOrders } from '@/hooks/useRealtimeOrders';
 import type { Order, FinancialEntry } from '@/types/erp';
 
 // Status que devem aparecer no financeiro (apenas quando o vendedor clicou em Enviar)
@@ -21,6 +23,7 @@ type Tab = 'pedidos' | 'vendedores';
 const FinanceiroDashboard: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [notificationCount, setNotificationCount] = useState(0);
   const { orders, clients, financialEntries, updateOrderStatus, addFinancialEntry, loadFromSupabase } = useERP();
   const [activeTab, setActiveTab] = useState<Tab>('pedidos');
   const [statusFilter, setStatusFilter] = useState<PaymentFilter>('todos');
@@ -61,6 +64,14 @@ const FinanceiroDashboard: React.FC = () => {
       prevOrdersLen.current = orders.length;
     }
   }, [orders]);
+
+  // 📡 Monitora em tempo real quando novos pedidos chegam para financeiro
+  useRealtimeOrders((event) => {
+    if (event.type === 'UPDATE' && event.previousStatus !== 'aguardando_financeiro' && event.order.status === 'aguardando_financeiro') {
+      setNotificationCount(prev => prev + 1);
+      console.log('[FinanceiroDashboard] 🔔 NOVO PEDIDO PARA APROVAÇÃO - Tempo Real');
+    }
+  }, ['aguardando_financeiro']);
 
   const totalRecebido = useMemo(() =>
     financialEntries.filter(e => e.type === 'receita' && e.status === 'pago').reduce((s, e) => s + e.amount, 0)
@@ -832,6 +843,7 @@ const FinanceiroDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      <RealtimeNotificationHandler />
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="page-header">Dashboard Financeiro</h1>
@@ -852,7 +864,17 @@ const FinanceiroDashboard: React.FC = () => {
 
       {/* Cards animados */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 stagger-children">
-        <StatCard title="Aguard. Aprovação" value={aguardandoFinanceiro} icon={Clock} color="text-warning" />
+        <div className="relative">
+          <StatCard title="Aguard. Aprovação" value={aguardandoFinanceiro} icon={Clock} color="text-warning" />
+          {notificationCount > 0 && (
+            <div className="absolute -top-2 -right-2 flex items-center gap-1">
+              <div className="bg-danger text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center animate-bounce">
+                {notificationCount > 9 ? '9+' : notificationCount}
+              </div>
+              <div className="absolute -top-2 -right-2 bg-danger rounded-full w-6 h-6 animate-pulse opacity-40"></div>
+            </div>
+          )}
+        </div>
         <StatCard title="A Receber" value={formatCurrency(totalPendenteNormal)} icon={DollarSign} color="text-warning" />
         <div onClick={() => setShowRecebido(true)} className="cursor-pointer">
           <StatCard title="Recebido" value={formatCurrency(totalRecebido)} icon={TrendingUp} color="text-success" />

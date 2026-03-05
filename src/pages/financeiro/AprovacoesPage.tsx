@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
 import { OrderPipeline, OrderHistory } from '@/components/shared/OrderTimeline';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
-import { CheckCircle, XCircle, Eye, Send, ArrowLeft, Inbox, History, Star, Truck, Wrench, Calendar } from 'lucide-react';
+import { RealtimeNotificationHandler } from '@/components/shared/RealtimeNotificationHandler';
+import { CheckCircle, XCircle, Eye, Send, ArrowLeft, Inbox, History, Star, Truck, Wrench, Calendar, Bell } from 'lucide-react';
+import { useRealtimeOrders } from '@/hooks/useRealtimeOrders';
 import type { Order } from '@/types/erp';
 
 const AprovacoesPage: React.FC = () => {
@@ -14,6 +16,15 @@ const AprovacoesPage: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [showReject, setShowReject] = useState(false);
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  // Monitora mudanças de pedidos em tempo real
+  useRealtimeOrders((event) => {
+    if (event.type === 'UPDATE' && event.previousStatus !== 'aguardando_financeiro' && event.order.status === 'aguardando_financeiro') {
+      setNotificationCount(prev => prev + 1);
+      console.log('[AprovacoesPage] 🔔 Novo pedido para aprovação recebido em TEMPO REAL');
+    }
+  }, ['aguardando_financeiro']);
 
   const pendentes = orders.filter(o => o.status === 'aguardando_financeiro');
 
@@ -52,6 +63,7 @@ const AprovacoesPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      <RealtimeNotificationHandler />
       <div>
         <h1 className="page-header">Aprovações de Vendas</h1>
         <p className="page-subtitle">{pendentes.length} vendas aguardando aprovação</p>

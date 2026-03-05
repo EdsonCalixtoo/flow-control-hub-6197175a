@@ -67,19 +67,15 @@ const LoginPage: React.FC = () => {
     setError(null); setSuccess(null); setLoading(true);
 
     try {
-      const err = await login(email, password);
-      if (err) {
-        const msg = String(err);
-        setError(msg);
-        if (msg.toLowerCase().includes('refresh') || msg.toLowerCase().includes('invalid')) {
-          setShowClearSessionOption(true);
-        }
-        setLoading(false);
-      } else {
-        setTimeout(() => setLoading(false), 4000);
+      await login(email, password);
+      // Se não der erro, finaliza com sucesso
+      setTimeout(() => setLoading(false), 4000);
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      setError(msg);
+      if (msg.toLowerCase().includes('refresh') || msg.toLowerCase().includes('invalid')) {
+        setShowClearSessionOption(true);
       }
-    } catch {
-      setError('Erro inesperado. Tente novamente.');
       setLoading(false);
     }
   };
@@ -193,8 +189,8 @@ const LoginPage: React.FC = () => {
                     type="button"
                     onClick={() => switchMode('login')}
                     className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold transition-all duration-200 ${authMode === 'login'
-                        ? `${selectedRoleData.iconBg} text-primary-foreground shadow-md`
-                        : 'bg-muted/40 text-muted-foreground hover:text-foreground'
+                      ? `${selectedRoleData.iconBg} text-primary-foreground shadow-md`
+                      : 'bg-muted/40 text-muted-foreground hover:text-foreground'
                       }`}
                   >
                     <LogIn className="w-3.5 h-3.5" /> Entrar
@@ -203,8 +199,8 @@ const LoginPage: React.FC = () => {
                     type="button"
                     onClick={() => switchMode('register')}
                     className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold transition-all duration-200 ${authMode === 'register'
-                        ? `${selectedRoleData.iconBg} text-primary-foreground shadow-md`
-                        : 'bg-muted/40 text-muted-foreground hover:text-foreground'
+                      ? `${selectedRoleData.iconBg} text-primary-foreground shadow-md`
+                      : 'bg-muted/40 text-muted-foreground hover:text-foreground'
                       }`}
                   >
                     <UserPlus className="w-3.5 h-3.5" /> Cadastrar vendedor

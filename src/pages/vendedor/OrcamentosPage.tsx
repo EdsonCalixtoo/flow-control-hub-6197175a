@@ -113,6 +113,37 @@ const OrcamentosPage: React.FC = () => {
     }
   };
 
+  const [enviandoComprovanteExtra, setEnviandoComprovanteExtra] = useState(false);
+  const enviarComprovanteAdicional = async () => {
+    if (!selectedOrder) return;
+    const existingUrls = selectedOrder.receiptUrls || [];
+    const newUrls = comprovantesAttached.filter(url => !existingUrls.includes(url));
+
+    if (newUrls.length === 0) {
+      alert("Selecione um arquivo novo para enviar.");
+      return;
+    }
+
+    setEnviandoComprovanteExtra(true);
+    try {
+      await updateOrderStatus(
+        selectedOrder.id,
+        selectedOrder.status,
+        { receiptUrls: [...existingUrls, ...newUrls] },
+        user?.name || 'Vendedor',
+        'Novo comprovante/anexo enviado pelo vendedor'
+      );
+      console.log('[OrcamentosPage] ✅ Comprovante adicional anexado');
+      setComprovantesAttached([]);
+      setSelectedOrder({ ...selectedOrder, receiptUrls: [...existingUrls, ...newUrls] });
+    } catch (err: any) {
+      console.error('[OrcamentosPage] ❌ Erro ao anexar comprovante:', err?.message ?? err);
+      alert('❌ Erro ao enviar anexo: ' + (err?.message || 'Tente novamente'));
+    } finally {
+      setEnviandoComprovanteExtra(false);
+    }
+  };
+
   // Status que permitem excluir o orçamento (não enviados ou rejeitados pelo financeiro)
   const podeExcluir = (status: string) =>
     ['rascunho', 'enviado', 'aprovado_cliente', 'rejeitado_financeiro'].includes(status);
@@ -1109,6 +1140,54 @@ const OrcamentosPage: React.FC = () => {
             </>
           );
         })()}
+
+        {/* Botão de Anexar Comprovantes Adicionais para pedidos já enviados/em andamento */}
+        {!podeEnviarFinanceiro && (
+          <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 space-y-3">
+            <h3 className="text-[12px] font-bold uppercase tracking-wider text-primary mb-2 flex items-center gap-1.5">
+              📎 Enviar Comprovante / Anexo Adicional
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Se você esqueceu ou precisa enviar um comprovante, vídeo ou recibo extra para este pedido, envie por aqui. O arquivo ficará salvo e o financeiro será notificado no histórico.
+            </p>
+            <ComprovanteUpload
+              values={comprovantesAttached.filter(url => !(selectedOrder.receiptUrls || []).includes(url))}
+              onChange={(urls) => {
+                const existingUrls = selectedOrder.receiptUrls || [];
+                // Keeps the new ones and existing ones in the uploader, so we combine:
+                setComprovantesAttached([...existingUrls, ...urls.filter(u => !existingUrls.includes(u))]);
+              }}
+              label="Selecionar anexos adicionais"
+            />
+            {comprovantesAttached.filter(url => !(selectedOrder.receiptUrls || []).includes(url)).length > 0 && (
+              <button
+                onClick={enviarComprovanteAdicional}
+                disabled={enviandoComprovanteExtra}
+                className="btn-modern bg-primary text-primary-foreground hover:bg-primary-dark shadow-none w-full justify-center disabled:opacity-50"
+              >
+                {enviandoComprovanteExtra ? (
+                  <><span className="animate-spin">⚙️</span> Enviando Anexo...</>
+                ) : (
+                  <><FileText className="w-4 h-4" /> Enviar para o Pedido</>
+                )}
+              </button>
+            )}
+
+            {/* Visualização de comprovantes existentes (somente leitura aqui) */}
+            {(selectedOrder.receiptUrls && selectedOrder.receiptUrls.length > 0) && (
+              <div className="pt-3 mt-3 border-t border-primary/10">
+                <p className="text-[10px] font-semibold text-muted-foreground uppercase mb-2">Anexos já enviados ({selectedOrder.receiptUrls.length})</p>
+                <div className="flex flex-wrap gap-2">
+                  {selectedOrder.receiptUrls.map((url, idx) => (
+                    <a key={idx} href={url} target="_blank" rel="noreferrer" className="text-xs text-primary underline">
+                      Ver Anexo {idx + 1}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }

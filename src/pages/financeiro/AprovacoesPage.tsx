@@ -6,6 +6,7 @@ import { OrderPipeline, OrderHistory } from '@/components/shared/OrderTimeline';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
 import { CheckCircle, XCircle, Eye, Send, ArrowLeft, Inbox, History, Star, Truck, Wrench, Calendar } from 'lucide-react';
 import type { Order } from '@/types/erp';
+import { useOrderNotification } from '@/hooks/useOrderNotification';
 
 const AprovacoesPage: React.FC = () => {
   const { orders, clients, updateOrderStatus } = useERP();
@@ -14,6 +15,9 @@ const AprovacoesPage: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [rejectReason, setRejectReason] = useState('');
   const [showReject, setShowReject] = useState(false);
+
+  // Hook de notificação com som
+  useOrderNotification(orders, ['aguardando_financeiro']);
 
   const pendentes = orders.filter(o => o.status === 'aguardando_financeiro');
 

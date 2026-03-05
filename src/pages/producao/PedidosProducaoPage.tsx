@@ -8,6 +8,7 @@ import { Play, CheckCircle, Printer, Package, ArrowLeft, Search, ScanLine, X, Ey
 import BarcodeComponent from 'react-barcode';
 import { useSearchParams } from 'react-router-dom';
 import type { ProductionStatus } from '@/types/erp';
+import { useOrderNotification } from '@/hooks/useOrderNotification';
 
 const REMETENTE = {
   name: 'Grupo Automozia',
@@ -47,6 +48,9 @@ const PedidosProducaoPage: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [manualLate, setManualLate] = useState<Set<string>>(new Set());
   const barcodeRef = useRef<HTMLDivElement>(null);
+
+  // Hook de notificação com som
+  useOrderNotification(orders, ['aguardando_producao']);
 
   // Camera scanner state
   const [cameraActive, setCameraActive] = useState(false);

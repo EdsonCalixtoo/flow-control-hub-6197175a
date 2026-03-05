@@ -40,6 +40,9 @@ const FinanceiroDashboard: React.FC = () => {
   const [showInstallations, setShowInstallations] = useState(false);
   const [showRetiradas, setShowRetiradas] = useState(false);
   const [showRecebido, setShowRecebido] = useState(false);
+  const [showAguardandoAprovacao, setShowAguardandoAprovacao] = useState(false);
+  const [showAReceber, setShowAReceber] = useState(false);
+  const [showAguardandoProducao, setShowAguardandoProducao] = useState(false);
   const [showReject, setShowReject] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   // Pagamentos parciais (consignado)
@@ -869,7 +872,7 @@ const FinanceiroDashboard: React.FC = () => {
 
       {/* Cards animados */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 stagger-children">
-        <div className="relative">
+        <div onClick={() => setShowAguardandoAprovacao(true)} className="cursor-pointer relative">
           <StatCard title="Aguard. Aprovação" value={aguardandoFinanceiro} icon={Clock} color="text-warning" />
           {notificationCount > 0 && (
             <div className="absolute -top-2 -right-2 flex items-center gap-1">
@@ -880,11 +883,15 @@ const FinanceiroDashboard: React.FC = () => {
             </div>
           )}
         </div>
-        <StatCard title="A Receber" value={formatCurrency(totalPendenteNormal)} icon={DollarSign} color="text-warning" />
+        <div onClick={() => setShowAReceber(true)} className="cursor-pointer">
+          <StatCard title="A Receber" value={formatCurrency(totalPendenteNormal)} icon={DollarSign} color="text-warning" />
+        </div>
         <div onClick={() => setShowRecebido(true)} className="cursor-pointer">
           <StatCard title="Recebido" value={formatCurrency(totalRecebido)} icon={TrendingUp} color="text-success" />
         </div>
-        <StatCard title="Aguard. Produção" value={aguardandoLiberacao} icon={Send} color="text-info" />
+        <div onClick={() => setShowAguardandoProducao(true)} className="cursor-pointer">
+          <StatCard title="Aguard. Produção" value={aguardandoLiberacao} icon={Send} color="text-info" />
+        </div>
         <div onClick={() => setShowConsignados(true)} className="cursor-pointer">
           <StatCard title="Consignados" value={formatCurrency(totalConsignadoOwed)} icon={Star} color="text-amber-500" />
         </div>
@@ -1147,8 +1154,163 @@ const FinanceiroDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* Modal de Aguardando Aprovação */}
+      {showAguardandoAprovacao && (
+        <div className="card-section p-6 space-y-5 animate-scale-in">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Clock className="w-5 h-5 text-warning" />
+              <h2 className="font-bold text-foreground text-lg">Pedidos Aguardando Aprovação</h2>
+              <span className="px-2 py-1 rounded-full bg-warning/20 text-warning text-xs font-bold">{orders.filter(o => o.status === 'aguardando_financeiro').length}</span>
+            </div>
+            <button onClick={() => setShowAguardandoAprovacao(false)} className="btn-modern bg-muted text-foreground shadow-none text-xs">
+              <ArrowLeft className="w-3.5 h-3.5" /> Voltar
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {orders.filter(o => o.status === 'aguardando_financeiro').length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground text-sm">
+                Nenhum pedido aguardando aprovação
+              </div>
+            ) : (
+              orders.filter(o => o.status === 'aguardando_financeiro').map(order => (
+                <div key={order.id} className="card-section p-4 flex items-center justify-between flex-wrap gap-3 bg-warning/5 border border-warning/20">
+                  <div className="flex-1 min-w-[200px]">
+                    <p className="font-bold text-foreground text-sm">{order.number}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {order.clientName} • {new Date(order.createdAt).toLocaleDateString('pt-BR')}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-foreground text-sm">{formatCurrency(order.total)}</p>
+                    <div className="flex items-center justify-end gap-2 mt-2">
+                      <StatusBadge status={order.status} />
+                      <button
+                        onClick={() => { setSelectedOrder(order); setShowAguardandoAprovacao(false); }}
+                        className="w-7 h-7 rounded-lg bg-warning text-white flex items-center justify-center hover:bg-warning/80 transition-colors"
+                        title="Ver Detalhes"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal de A Receber */}
+      {showAReceber && (
+        <div className="card-section p-6 space-y-5 animate-scale-in">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-warning" />
+              <h2 className="font-bold text-foreground text-lg">Pedidos A Receber</h2>
+              <span className="px-2 py-1 rounded-full bg-warning/20 text-warning text-xs font-bold">{orders.filter(o => (o.total - (o.paid || 0)) > 0).length}</span>
+            </div>
+            <button onClick={() => setShowAReceber(false)} className="btn-modern bg-muted text-foreground shadow-none text-xs">
+              <ArrowLeft className="w-3.5 h-3.5" /> Voltar
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {orders.filter(o => (o.total - (o.paid || 0)) > 0).length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground text-sm">
+                Nenhum pedido a receber
+              </div>
+            ) : (
+              orders.filter(o => (o.total - (o.paid || 0)) > 0).map(order => {
+                const saldo = order.total - (order.paid || 0);
+                return (
+                  <div key={order.id} className="card-section p-4 flex items-center justify-between flex-wrap gap-3 bg-warning/5 border border-warning/20">
+                    <div className="flex-1 min-w-[200px]">
+                      <p className="font-bold text-foreground text-sm">{order.number}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {order.clientName} • {new Date(order.createdAt).toLocaleDateString('pt-BR')}
+                      </p>
+                      {order.paid && order.paid > 0 && (
+                        <p className="text-[10px] text-amber-500 font-bold mt-1 uppercase tracking-wider">
+                          PAGO: {formatCurrency(order.paid)}
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-foreground text-sm">{formatCurrency(order.total)}</p>
+                      <p className="text-[10px] font-extrabold text-warning mb-1">
+                        SALDO: {formatCurrency(saldo)}
+                      </p>
+                      <div className="flex items-center justify-end gap-2">
+                        <StatusBadge status={order.status} />
+                        <button
+                          onClick={() => { setSelectedOrder(order); setShowAReceber(false); }}
+                          className="w-7 h-7 rounded-lg bg-warning text-white flex items-center justify-center hover:bg-warning/80 transition-colors"
+                          title="Ver Detalhes / Receber Pagamento"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Aguardando Produção */}
+      {showAguardandoProducao && (
+        <div className="card-section p-6 space-y-5 animate-scale-in">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Send className="w-5 h-5 text-info" />
+              <h2 className="font-bold text-foreground text-lg">Pedidos Aguardando Produção</h2>
+              <span className="px-2 py-1 rounded-full bg-info/20 text-info text-xs font-bold">{orders.filter(o => o.status === 'aprovado_financeiro').length}</span>
+            </div>
+            <button onClick={() => setShowAguardandoProducao(false)} className="btn-modern bg-muted text-foreground shadow-none text-xs">
+              <ArrowLeft className="w-3.5 h-3.5" /> Voltar
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {orders.filter(o => o.status === 'aprovado_financeiro').length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground text-sm">
+                Nenhum pedido aguardando produção
+              </div>
+            ) : (
+              orders.filter(o => o.status === 'aprovado_financeiro').map(order => (
+                <div key={order.id} className="card-section p-4 flex items-center justify-between flex-wrap gap-3 bg-info/5 border border-info/20">
+                  <div className="flex-1 min-w-[200px]">
+                    <p className="font-bold text-foreground text-sm">{order.number}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {order.clientName} • {new Date(order.createdAt).toLocaleDateString('pt-BR')}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-foreground text-sm">{formatCurrency(order.total)}</p>
+                    <div className="flex items-center justify-end gap-2 mt-2">
+                      <StatusBadge status={order.status} />
+                      <button
+                        onClick={() => { setSelectedOrder(order); setShowAguardandoProducao(false); }}
+                        className="w-7 h-7 rounded-lg bg-info text-white flex items-center justify-center hover:bg-info/80 transition-colors"
+                        title="Ver Detalhes"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Não mostrar Tabs se estiver vendo Consignados, Instalações ou Retiradas ou Recebido */}
-      {!showConsignados && !showInstallations && !showRetiradas && !showRecebido && (
+      {!showConsignados && !showInstallations && !showRetiradas && !showRecebido && !showAguardandoAprovacao && !showAReceber && !showAguardandoProducao && (
         <>
           <div className="flex gap-2 border-b border-border/40">
             <button

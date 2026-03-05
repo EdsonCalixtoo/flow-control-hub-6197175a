@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import type { Order, OrderStatus } from '@/types/erp';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-export const supabaseToOrder = (data: any): Order => ({
+const supabaseToOrder = (data: any): Order => ({
     id: data.id,
     number: data.number,
     clientId: data.client_id,

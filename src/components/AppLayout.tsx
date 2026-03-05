@@ -30,6 +30,7 @@ import { useThemeContext } from '@/contexts/ThemeContext';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useERP } from '@/contexts/ERPContext';
+import { useOrderNotification } from '@/hooks/useOrderNotification';
 
 const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: string }[]> = {
   vendedor: [
@@ -81,13 +82,21 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { theme, toggleTheme } = useThemeContext();
-  const { unreadDelayReports } = useERP();
+  const { theme, toggleTheme } = useThemeContext(); // Added
+  const { unreadDelayReports, orders } = useERP(); // Modified to destructure unreadDelayReports and orders
 
-  if (!user) return null;
+  if (!user) return null; // Added
 
   const items = NAV_ITEMS[user.role] || [];
   const roleGradient = ROLE_COLORS[user.role] || 'from-primary to-primary/70';
+
+  // Configuração global das notificações sonoras
+  const shouldWatchFinanceiro = user.role === 'financeiro' || user.role === 'gestor' || user.role === 'root' || user.role === 'admin'; // Modified
+  const shouldWatchProducao = user.role === 'producao' || user.role === 'gestor' || user.role === 'root' || user.role === 'admin'; // Modified
+
+  // Apenas renderiza os hooks se a role exigir, passando arrays vazios se não
+  useOrderNotification(orders, shouldWatchFinanceiro ? ['aguardando_financeiro'] : [], 'Aprovações (Financeiro)');
+  useOrderNotification(orders, shouldWatchProducao ? ['aguardando_producao'] : [], 'Fila de Produção');
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">

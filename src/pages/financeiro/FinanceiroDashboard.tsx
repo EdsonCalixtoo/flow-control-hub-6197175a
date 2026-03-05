@@ -6,7 +6,6 @@ import { StatCard, StatusBadge, formatCurrency } from '@/components/shared/Statu
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
 import { DollarSign, TrendingUp, Clock, AlertTriangle, Search, Filter, ChevronDown, ChevronLeft, ChevronRight, Eye, CheckCircle, XCircle, Send, ArrowLeft, Users2, BarChart3, Radio, Star, Plus, Trash2, Inbox } from 'lucide-react';
 import type { Order, FinancialEntry } from '@/types/erp';
-import { useOrderNotification } from '@/hooks/useOrderNotification';
 
 // Status que devem aparecer no financeiro (apenas quando o vendedor clicou em Enviar)
 // Fluxo simplificado: Financeiro aprova e envia direto para Produção (sem Gestor)
@@ -49,9 +48,6 @@ const FinanceiroDashboard: React.FC = () => {
   const [novoPagDescricao, setNovoPagDescricao] = useState('');
   const [salvandoPag, setSalvandoPag] = useState(false);
   const itemsPerPage = 5;
-
-  // Notificação com som
-  useOrderNotification(orders, ['aguardando_financeiro']);
 
   // ✅ Filtra APENAS pedidos que foram enviados ao financeiro
   // Rascunhos e orçamentos não enviados NÃO aparecem aqui

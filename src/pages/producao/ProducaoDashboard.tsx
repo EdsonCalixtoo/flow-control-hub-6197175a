@@ -3,7 +3,6 @@ import { useERP } from '@/contexts/ERPContext';
 import { StatCard, StatusBadge, formatCurrency, formatDate } from '@/components/shared/StatusBadge';
 import { Package, Clock, Factory, CheckCircle, ScanLine, Printer, Truck, Wrench, AlertTriangle, CalendarClock } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useOrderNotification } from '@/hooks/useOrderNotification';
 
 const ProducaoDashboard: React.FC = () => {
   const { orders } = useERP();
@@ -12,9 +11,6 @@ const ProducaoDashboard: React.FC = () => {
   const prodOrders = orders.filter(o =>
     ['aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'].includes(o.status)
   );
-
-  // Notificação com som
-  useOrderNotification(orders, ['aguardando_producao']);
 
   const getLocalDateString = (date: Date = new Date()) => {
     const y = date.getFullYear();

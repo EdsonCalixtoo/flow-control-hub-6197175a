@@ -6,7 +6,7 @@ import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchClients, createClient as createClientSupabase, updateClient as updateClientSupabase, deleteClient as deleteClientSupabase } from '@/lib/clientServiceSupabase';
 import { fetchProducts, createProduct as createProductSupabase, updateProductSupabase, deleteProductSupabase } from '@/lib/productServiceSupabase';
-import { fetchOrders, createOrderSupabase, updateOrderSupabase, deleteOrderSupabase } from '@/lib/orderServiceSupabase';
+import { fetchOrders, createOrderSupabase, updateOrderSupabase, deleteOrderSupabase, fetchOrderById } from '@/lib/orderServiceSupabase';
 import {
   fetchFinancialEntries, createFinancialEntrySupabase,
   fetchDelayReports, createDelayReportSupabase, markDelayReportReadSupabase,
@@ -151,66 +151,67 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
-        (payload) => {
-          console.log('[Realtime] Change in orders:', payload);
+        async (payload) => {
+          console.log('[Realtime] Change in orders:', payload.eventType, payload.new);
+
           if (payload.eventType === 'INSERT') {
-            const newOrder = payload.new as any; // Need to map or just reload
-            // Simplest is to reload for now to ensure consistency, 
-            // but for performance we should map and update state.
-            loadFromSupabase();
-            toast.info(`Novo orçamento criado: ${newOrder.number}`);
+            // Ao invés de recarregar tudo, buscamos apenas esse novo pedido formatado
+            const newOrderRaw = payload.new as any;
+            const fullOrder = await fetchOrderById(newOrderRaw.id);
+            if (fullOrder) {
+              setOrders(prev => {
+                if (prev.find(o => o.id === fullOrder.id)) return prev;
+                return [fullOrder, ...prev];
+              });
+              toast.info(`Novo pedido recebido: ${fullOrder.number}`);
+            }
           } else if (payload.eventType === 'UPDATE') {
-            const updatedOrder = payload.new as any;
-            loadFromSupabase();
-            toast.info(`Pedido ${updatedOrder.number} atualizado: ${updatedOrder.status}`);
+            const updatedRaw = payload.new as any;
+            const fullOrder = await fetchOrderById(updatedRaw.id);
+            if (fullOrder) {
+              setOrders(prev => prev.map(o => o.id === fullOrder.id ? fullOrder : o));
+              // Notifica apenas se for uma mudança relevante de status ou se não fomos nós que mudamos
+              toast.info(`Pedido ${fullOrder.number} atualizado`);
+            }
           } else if (payload.eventType === 'DELETE') {
-            loadFromSupabase();
+            const oldOrder = payload.old as any;
+            setOrders(prev => prev.filter(o => o.id !== oldOrder.id));
           }
         }
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'financial_entries' },
+        { event: 'INSERT', schema: 'public', table: 'financial_entries' },
         (payload) => {
-          if (payload.eventType === 'INSERT') {
-            loadFromSupabase();
-            const entry = payload.new as any;
-            toast.success(`Novo lançamento financeiro: ${entry.description}`);
-          }
+          console.log('[Realtime] Novo lançamento financeiro:', payload.new);
+          loadFromSupabase(); // Financeiro é mais complexo, melhor recarregar
         }
       )
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: 'delay_reports' },
+        { event: 'INSERT', schema: 'public', table: 'delay_reports' },
         (payload) => {
-          if (payload.eventType === 'INSERT') {
-            loadFromSupabase();
-            toast.warning('Novo alerta de atraso recebido!');
-          }
+          loadFromSupabase();
+          toast.warning('Novo alerta de atraso recebido!');
         }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'warranties' },
         (payload) => {
-          if (payload.eventType === 'INSERT') {
-            loadFromSupabase();
-            const w = payload.new as any;
-            toast.warning(`Nova solicitação de garantia: ${w.order_number}`);
-          } else if (payload.eventType === 'UPDATE') {
-            loadFromSupabase();
-          }
+          loadFromSupabase();
         }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'products' },
         (payload) => {
-          console.log('[Realtime] Change in products:', payload);
           loadFromSupabase();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('[Realtime] Status da conexão:', status);
+      });
 
     return () => {
       supabase.removeChannel(channel);

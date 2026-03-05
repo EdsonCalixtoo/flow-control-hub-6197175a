@@ -62,6 +62,7 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: 
     { label: 'Todos os Pedidos', icon: Package, path: '/producao/pedidos' },
     { label: 'Entrega', icon: Truck, path: '/producao/pedidos?tipo=entrega' },
     { label: 'Instalação', icon: Wrench, path: '/producao/pedidos?tipo=instalacao' },
+    { label: 'Retirada', icon: Package, path: '/producao/pedidos?tipo=retirada' },
     { label: 'Agendados', icon: CalendarClock, path: '/producao/pedidos?tipo=agendado' },
     { label: 'Atrasados', icon: AlertTriangle, path: '/producao/pedidos?tipo=atrasado' },
   ],

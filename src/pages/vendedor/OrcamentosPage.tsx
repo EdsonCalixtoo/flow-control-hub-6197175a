@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
 import { OrderPipeline, OrderHistory } from '@/components/shared/OrderTimeline';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
-import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check, Download, Link2 } from 'lucide-react';
+import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check, Download, Link2, DollarSign } from 'lucide-react';
 import type { Order, QuoteItem } from '@/types/erp';
 import { useLocation, useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
@@ -64,7 +64,7 @@ const OrcamentosPage: React.FC = () => {
   const [newNotes, setNewNotes] = useState('');
   const [newObservation, setNewObservation] = useState('');
   const [newDeliveryDate, setNewDeliveryDate] = useState('');
-  const [newOrderType, setNewOrderType] = useState<'entrega' | 'instalacao'>('entrega');
+  const [newOrderType, setNewOrderType] = useState<'entrega' | 'instalacao' | 'retirada'>('entrega');
   const [newInstallationTime, setNewInstallationTime] = useState('');
   const [newInstallationPaymentType, setNewInstallationPaymentType] = useState<'pago' | 'pagar_na_hora'>('pago');
 
@@ -262,6 +262,7 @@ const OrcamentosPage: React.FC = () => {
           observation: newObservation,
           deliveryDate: newDeliveryDate || undefined,
           orderType: newOrderType,
+          installationPaymentType: (newOrderType === 'instalacao' || newOrderType === 'retirada') ? newInstallationPaymentType : undefined,
           isConsigned: client.consignado,
           updatedAt: now,
         };
@@ -350,9 +351,9 @@ const OrcamentosPage: React.FC = () => {
             }],
           };
 
-          if (newOrderType === 'instalacao') {
-            order.installationDate = newDeliveryDate;
-            order.installationTime = newInstallationTime;
+          if (newOrderType === 'instalacao' || newOrderType === 'retirada') {
+            order.installationDate = newDeliveryDate || undefined;
+            order.installationTime = newInstallationTime || undefined;
             order.installationPaymentType = newInstallationPaymentType;
           }
 
@@ -755,7 +756,7 @@ const OrcamentosPage: React.FC = () => {
             <div className="space-y-1">
               <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Tipo do Pedido</label>
               <div className="flex gap-2">
-                {(['entrega', 'instalacao'] as const).map(t => (
+                {(['entrega', 'instalacao', 'retirada'] as const).map(t => (
                   <button
                     key={t}
                     type="button"
@@ -763,16 +764,58 @@ const OrcamentosPage: React.FC = () => {
                     className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all ${newOrderType === t
                       ? t === 'entrega'
                         ? 'bg-primary/10 border-primary text-primary'
-                        : 'bg-producao/10 border-producao text-producao'
+                        : t === 'instalacao'
+                          ? 'bg-producao/10 border-producao text-producao'
+                          : 'bg-amber-500/10 border-amber-500 text-amber-500'
                       : 'border-border/40 text-muted-foreground hover:border-primary/30'
                       }`}
                   >
-                    {t === 'entrega' ? '🚚 Entrega' : '🔧 Instalação'}
+                    {t === 'entrega' ? '🚚 Entrega' : t === 'instalacao' ? '🔧 Instalação' : '📦 Retirada'}
                   </button>
                 ))}
               </div>
             </div>
           </div>
+
+          {/* Opções de Pagamento para RETIRADA */}
+          {newOrderType === 'retirada' && (
+            <div className="space-y-3 p-5 rounded-2xl bg-amber-500/5 border border-amber-500/20 animate-in fade-in duration-500">
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-white">
+                  <Check className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-foreground uppercase tracking-tight">Status de Pagamento (Retirada)</h3>
+                  <p className="text-[10px] text-muted-foreground font-bold">O cliente já pagou ou pagará na retirada?</p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setNewInstallationPaymentType('pago')}
+                  className={`flex-1 flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${newInstallationPaymentType === 'pago'
+                    ? 'bg-success/10 border-success text-success scale-[1.02] shadow-sm'
+                    : 'bg-muted/30 border-transparent text-muted-foreground grayscale hover:grayscale-0'
+                    }`}
+                >
+                  <Check className="w-5 h-5" />
+                  <span className="text-xs font-black uppercase">Pago</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setNewInstallationPaymentType('pagar_na_hora')}
+                  className={`flex-1 flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${newInstallationPaymentType === 'pagar_na_hora'
+                    ? 'bg-warning/10 border-warning text-warning scale-[1.02] shadow-sm'
+                    : 'bg-muted/30 border-transparent text-muted-foreground grayscale hover:grayscale-0'
+                    }`}
+                >
+                  <DollarSign className="w-5 h-5" />
+                  <span className="text-xs font-black uppercase">Cobrar no Local</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Calendário de Instalação */}
           {newOrderType === 'instalacao' && (

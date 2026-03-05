@@ -11,6 +11,7 @@ import LoginPage from "@/pages/LoginPage";
 import VendedorDashboard from "@/pages/vendedor/VendedorDashboard";
 import ClientesPageNew from "@/pages/vendedor/ClientesPageNew";
 import OrcamentosPage from "@/pages/vendedor/OrcamentosPage";
+import ClienteDetalhesPage from "@/pages/vendedor/ClienteDetalhesPage";
 import GarantiaVendedorPage from "@/pages/vendedor/GarantiasPage";
 import FinanceiroDashboard from "@/pages/financeiro/FinanceiroDashboard";
 import AprovacoesPage from "@/pages/financeiro/AprovacoesPage";
@@ -71,6 +72,7 @@ const App = () => (
                 {/* Vendedor */}
                 <Route path="/vendedor" element={<ProtectedRoute role="vendedor"><VendedorDashboard /></ProtectedRoute>} />
                 <Route path="/vendedor/clientes" element={<ProtectedRoute role="vendedor"><ClientesPageNew /></ProtectedRoute>} />
+                <Route path="/vendedor/clientes/:id" element={<ProtectedRoute role="vendedor"><ClienteDetalhesPage /></ProtectedRoute>} />
                 <Route path="/vendedor/orcamentos" element={<ProtectedRoute role="vendedor"><OrcamentosPage /></ProtectedRoute>} />
                 <Route path="/vendedor/garantias" element={<ProtectedRoute role="vendedor"><GarantiaVendedorPage /></ProtectedRoute>} />
 

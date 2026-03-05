@@ -84,6 +84,7 @@ const PedidosProducaoPage: React.FC = () => {
   const PAGE_TITLES: Record<string, string> = {
     entrega: 'Pedidos — Entrega',
     instalacao: 'Pedidos — Instalação',
+    retirada: 'Pedidos — Retirada',
     agendado: 'Pedidos — Agendados',
     atrasado: 'Pedidos — Atrasados',
     '': 'Todos os Pedidos',
@@ -220,6 +221,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
   const tipoFiltered = allOrders.filter(o => {
     if (tipoFiltro === 'entrega') return o.orderType === 'entrega';
     if (tipoFiltro === 'instalacao') return o.orderType === 'instalacao';
+    if (tipoFiltro === 'retirada') return o.orderType === 'retirada';
     if (tipoFiltro === 'agendado') return o.productionStatus === 'agendado' || !!o.scheduledDate;
     if (tipoFiltro === 'atrasado') return isLate(o);
     return true;
@@ -246,9 +248,11 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
     const finishedBy = user?.name || 'Equipe Producao';
     const now = new Date().toISOString();
 
+    const isInternalFlow = order.orderType === 'retirada' || order.orderType === 'instalacao';
+
     updateOrderStatus(orderId, 'producao_finalizada', {
       productionFinishedAt: now,
-      qrCode,
+      qrCode: isInternalFlow ? undefined : qrCode,
       productionStatus: 'finalizado',
     }, finishedBy, 'Producao finalizada');
 
@@ -605,9 +609,11 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h1 className="page-header">Guia de Producao</h1>
           <div className="flex gap-2">
-            <button onClick={() => printEtiqueta(guiaOrder)} className="btn-primary">
-              <Printer className="w-4 h-4" /> Imprimir Etiqueta
-            </button>
+            {guiaOrder.orderType === 'entrega' && (
+              <button onClick={() => printEtiqueta(guiaOrder)} className="btn-primary">
+                <Printer className="w-4 h-4" /> Imprimir Etiqueta
+              </button>
+            )}
             <button onClick={() => setGuia(null)} className="btn-modern bg-muted text-foreground shadow-none">
               <ArrowLeft className="w-4 h-4" /> Voltar
             </button>
@@ -734,7 +740,12 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
           <div className="card-section p-4">
             <span className="text-[10px] uppercase text-muted-foreground block mb-1">Tipo</span>
             <span className="flex items-center gap-1.5 text-sm font-bold text-foreground">
-              {viewOrder.orderType === 'instalacao' ? <><Wrench className="w-4 h-4 text-producao" /> Instalação</> : <><Truck className="w-4 h-4 text-primary" /> Entrega</>}
+              {viewOrder.orderType === 'instalacao'
+                ? <><Wrench className="w-4 h-4 text-producao" /> Instalação</>
+                : viewOrder.orderType === 'retirada'
+                  ? <><Package className="w-4 h-4 text-amber-500" /> Retirada no Local</>
+                  : <><Truck className="w-4 h-4 text-primary" /> Entrega</>
+              }
             </span>
           </div>
           <div className={`card-section p-4 ${isLate(viewOrder) ? 'border-destructive/30 bg-destructive/5' : ''}`}>
@@ -769,10 +780,12 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
               ))}
             </div>
           </div>
-          {viewOrder.orderType === 'instalacao' && viewOrder.installationPaymentType && (
+          {(viewOrder.orderType === 'instalacao' || viewOrder.orderType === 'retirada') && viewOrder.installationPaymentType && (
             <div className={`card-section overflow-hidden ${viewOrder.installationPaymentType === 'pago' ? 'border-success/30 bg-success/5' : 'border-warning/30 bg-warning/5'}`}>
               <div className="p-4">
-                <span className="text-[10px] uppercase text-muted-foreground block mb-2 font-bold tracking-wider">Pagamento da Instalação</span>
+                <span className="text-[10px] uppercase text-muted-foreground block mb-2 font-bold tracking-wider">
+                  Status de Pagamento
+                </span>
 
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-2">
@@ -785,7 +798,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                       <div className="flex flex-col w-full gap-1">
                         <div className="flex items-center gap-2 px-3 py-1.5 rounded-t-xl bg-warning text-warning-foreground w-full justify-center">
                           <DollarSign className="w-4 h-4" />
-                          <span className="text-sm font-extrabold uppercase">Pagar no Local</span>
+                          <span className="text-sm font-extrabold uppercase">Cobrar no Local</span>
                         </div>
                         <div className="flex items-center justify-center py-3 rounded-b-xl bg-white/50 border-x border-b border-warning/20">
                           <span className="text-2xl font-black text-warning-foreground tracking-tight">

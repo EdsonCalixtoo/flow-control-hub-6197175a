@@ -97,6 +97,7 @@ export interface Order {
   installationPaymentType?: 'pago' | 'pagar_na_hora';
   isConsigned?: boolean;
   productionStatus?: ProductionStatus;  // status detalhado de produção
+  volumes?: number;  // quantidade de caixas/volumes para entrega (default 1)
   statusHistory: StatusHistoryEntry[];
   // chat
   chatMessages?: ChatMessage[];

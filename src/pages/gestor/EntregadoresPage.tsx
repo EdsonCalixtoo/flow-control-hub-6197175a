@@ -18,6 +18,8 @@ interface OrderGroup {
     scans: Array<{ id: string; scannedBy: string; scannedAt: string }>;
     totalQty: number;
     alreadyPickedUp: boolean;
+    volumeIndex?: number;  // Índice do volume (0-based)
+    totalVolumes?: number; // Quantidade total de volumes
     pickupInfo?: {
         delivererName: string;
         pickedUpAt: string;
@@ -443,30 +445,40 @@ const EntregadoresPage: React.FC = () => {
             if (order.status !== 'produto_liberado' && order.status !== 'retirado_entregador') {
                 continue;
             }
+
             const pickup = deliveryPickups.find(p => p.orderId === scan.orderId);
-            if (!map.has(scan.orderId)) {
-                const totalQty = order.items.reduce((acc, i) => acc + i.quantity, 0);
-                map.set(scan.orderId, {
-                    orderId: scan.orderId,
-                    orderNumber: scan.orderNumber,
-                    clientName: order.clientName,
-                    sellerName: order.sellerName,
-                    scans: [],
-                    totalQty,
-                    alreadyPickedUp: !!pickup,
-                    pickupInfo: pickup ? {
-                        delivererName: pickup.delivererName,
-                        pickedUpAt: pickup.pickedUpAt,
-                        photoUrl: pickup.photoUrl,
-                        signatureUrl: pickup.signatureUrl,
-                    } : undefined,
+            const volumes = order.volumes || 1;  // Quantidade de volumes/caixas
+
+            // Criar uma entrada para cada volume
+            for (let volumeIndex = 0; volumeIndex < volumes; volumeIndex++) {
+                const groupKey = `${scan.orderId}-vol-${volumeIndex}`;
+
+                if (!map.has(groupKey)) {
+                    const totalQty = order.items.reduce((acc, i) => acc + i.quantity, 0);
+                    map.set(groupKey, {
+                        orderId: scan.orderId,
+                        orderNumber: scan.orderNumber,
+                        clientName: order.clientName,
+                        sellerName: order.sellerName,
+                        scans: [],
+                        totalQty,
+                        alreadyPickedUp: !!pickup,
+                        volumeIndex,
+                        totalVolumes: volumes,
+                        pickupInfo: pickup ? {
+                            delivererName: pickup.delivererName,
+                            pickedUpAt: pickup.pickedUpAt,
+                            photoUrl: pickup.photoUrl,
+                            signatureUrl: pickup.signatureUrl,
+                        } : undefined,
+                    });
+                }
+                map.get(groupKey)!.scans.push({
+                    id: scan.id,
+                    scannedBy: scan.scannedBy,
+                    scannedAt: scan.scannedAt,
                 });
             }
-            map.get(scan.orderId)!.scans.push({
-                id: scan.id,
-                scannedBy: scan.scannedBy,
-                scannedAt: scan.scannedAt,
-            });
         }
         return [...map.values()].sort((a, b) => {
             if (a.alreadyPickedUp && !b.alreadyPickedUp) return 1;
@@ -851,6 +863,11 @@ const EntregadoresPage: React.FC = () => {
                                             <div>
                                                 <div className="flex items-center gap-2 flex-wrap">
                                                     <p className="font-bold text-foreground text-sm">{group.orderNumber}</p>
+                                                    {group.totalVolumes && group.totalVolumes > 1 && (
+                                                        <span className="status-badge bg-producao/10 text-producao text-[9px]">
+                                                            📦 Volume {(group.volumeIndex || 0) + 1} de {group.totalVolumes}
+                                                        </span>
+                                                    )}
                                                     {order && <StatusBadge status={order.status} />}
                                                     {group.alreadyPickedUp && (
                                                         <span className="status-badge bg-success/10 text-success text-[9px]">

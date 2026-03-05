@@ -49,6 +49,9 @@ const PedidosProducaoPage: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [manualLate, setManualLate] = useState<Set<string>>(new Set());
   const [notificationCount, setNotificationCount] = useState(0);
+  const [scannedOrderForVolumes, setScannedOrderForVolumes] = useState<any>(null);
+  const [volumesInput, setVolumesInput] = useState('1');
+  const [showVolumesDialog, setShowVolumesDialog] = useState(false);
   const barcodeRef = useRef<HTMLDivElement>(null);
 
   // Monitora em tempo real quando novos pedidos chegam para produção
@@ -311,23 +314,15 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 
       if (order.status === 'producao_finalizada') {
         try {
-          await updateOrderStatus(order.id, 'produto_liberado', {
-            releasedAt: now,
-            releasedBy: scannedBy,
-          }, scannedBy, 'Produto liberado via leitura de código de barras');
-
-          await addBarcodeScan({
-            orderId: order.id,
-            orderNumber: order.number,
-            scannedBy,
-            success: true,
-            note: 'Produto liberado via scanner',
-          });
-
-          setScanResult({ success: true, message: `✅ Pedido ${order.number} liberado com sucesso!`, orderNumber: order.number });
+          // Armazenar pedido e pedir quantidade de volumes
+          setScannedOrderForVolumes(order);
+          setVolumesInput('1');
+          setShowVolumesDialog(true);
+          setScanResult({ success: true, message: `✅ Pedido ${order.number} escaneado! Insira a quantidade de volumes.`, orderNumber: order.number });
+          setScanInput('');
         } catch (err: any) {
-          console.error('[Scanner] Erro ao atualizar status:', err);
-          setScanResult({ success: false, message: `❌ Erro ao processar liberação: ${err.message}` });
+          console.error('[Scanner] Erro ao processar:', err);
+          setScanResult({ success: false, message: `❌ Erro ao processar: ${err.message}` });
         }
       } else if (order.status === 'produto_liberado' || order.status === 'retirado_entregador') {
         await addBarcodeScan({
@@ -365,6 +360,59 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
     }
     setScanInput('');
   }, [orders, addBarcodeScan, updateOrderStatus, user]);
+
+  const handleConfirmVolumes = useCallback(async () => {
+    if (!scannedOrderForVolumes) return;
+
+    const volumes = parseInt(volumesInput) || 1;
+    if (volumes < 1) {
+      setScanResult({ success: false, message: '❌ A quantidade de volumes deve ser no mínimo 1.' });
+      return;
+    }
+
+    const scannedBy = user?.name || 'Equipe Produção';
+    const now = new Date().toISOString();
+
+    try {
+      // Liberar pedido com volumes definidos
+      await updateOrderStatus(
+        scannedOrderForVolumes.id,
+        'produto_liberado',
+        {
+          releasedAt: now,
+          releasedBy: scannedBy,
+          volumes: volumes,
+        },
+        scannedBy,
+        `Produto liberado com ${volumes} volume(s)`
+      );
+
+      await addBarcodeScan({
+        orderId: scannedOrderForVolumes.id,
+        orderNumber: scannedOrderForVolumes.number,
+        scannedBy,
+        success: true,
+        note: `Produto liberado com ${volumes} volume(s) via scanner`,
+      });
+
+      setScanResult({
+        success: true,
+        message: `✅ Pedido ${scannedOrderForVolumes.number} liberado com ${volumes} volume(s)!`,
+        orderNumber: scannedOrderForVolumes.number,
+      });
+
+      // Fechar diálogo e limpar
+      setShowVolumesDialog(false);
+      setScannedOrderForVolumes(null);
+      setVolumesInput('1');
+
+      // Refresh para atualizar lista
+      setTimeout(() => loadFromSupabase(), 200);
+    } catch (err: any) {
+      console.error('[handleConfirmVolumes] Erro:', err);
+      setScanResult({ success: false, message: `❌ Erro ao liberar: ${err.message}` });
+    }
+  }, [scannedOrderForVolumes, volumesInput, user, updateOrderStatus, addBarcodeScan, loadFromSupabase]);
 
   const startCamera = useCallback(async () => {
     setCameraError(null);
@@ -1149,6 +1197,95 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
         )}
     </div>
   );
+
+  // Modal de Volume para Liberação
+  if (showVolumesDialog && scannedOrderForVolumes) {
+    return (
+      <div className="space-y-6 animate-scale-in">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <h1 className="page-header">Definir Quantidade de Volumes</h1>
+            <p className="page-subtitle">Informar quantas caixas/volumes tem este pedido</p>
+          </div>
+          <button onClick={() => { setShowVolumesDialog(false); setScannedOrderForVolumes(null); setVolumesInput('1'); }} className="btn-modern bg-muted text-foreground shadow-none text-xs">
+            <X className="w-4 h-4" /> Fechar
+          </button>
+        </div>
+
+        <div className="max-w-md mx-auto">
+          <div className="card-section p-8 space-y-6">
+            <div className="text-center py-4">
+              <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-producao/20 to-producao/5 flex items-center justify-center mx-auto mb-4">
+                <Package className="w-10 h-10 text-producao" />
+              </div>
+              <h2 className="text-xl font-bold text-foreground">Pedido {scannedOrderForVolumes.number}</h2>
+              <p className="text-sm text-muted-foreground mt-1">{scannedOrderForVolumes.clientName}</p>
+              <p className="text-lg font-bold text-producao mt-2">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(scannedOrderForVolumes.total)}</p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-bold text-foreground block">
+                Quantidade de Volumes / Caixas <span className="text-muted-foreground text-xs">(opcional)</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setVolumesInput(Math.max(1, parseInt(volumesInput) - 1).toString())}
+                  className="w-12 h-12 rounded-lg bg-muted hover:bg-muted/80 flex items-center justify-center font-bold text-lg"
+                >
+                  −
+                </button>
+                <input
+                  type="number"
+                  min="1"
+                  value={volumesInput}
+                  onChange={e => setVolumesInput(Math.max(1, parseInt(e.target.value) || 1).toString())}
+                  className="input-modern text-center text-2xl font-bold flex-1 py-3"
+                />
+                <button
+                  onClick={() => setVolumesInput((parseInt(volumesInput) + 1).toString())}
+                  className="w-12 h-12 rounded-lg bg-muted hover:bg-muted/80 flex items-center justify-center font-bold text-lg"
+                >
+                  +
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                💡 Se este pedido tem 2 caixas, aparecerá duplicado na entrega (1 por volume)
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-producao/5 border border-producao/20 space-y-2">
+              <p className="text-sm font-bold text-foreground">Resumo:</p>
+              <p className="text-xs text-muted-foreground">
+                • Pedido: <span className="font-bold text-foreground">{scannedOrderForVolumes.number}</span>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                • Volumes: <span className="font-bold text-producao">{volumesInput === '1' ? '1 volume (padrão)' : `${volumesInput} volumes`}</span>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                • Status: <span className="font-bold text-success">Será liberado para entrega</span>
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setShowVolumesDialog(false); setScannedOrderForVolumes(null); setVolumesInput('1'); }}
+                className="btn-modern bg-muted text-foreground shadow-none flex-1"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmVolumes}
+                disabled={!volumesInput || parseInt(volumesInput) < 1}
+                className="btn-primary flex-1 gap-2"
+              >
+                <CheckCircle className="w-4 h-4" /> Confirmar Liberação
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 };
 
 export default PedidosProducaoPage;

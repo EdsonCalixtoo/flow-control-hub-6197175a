@@ -37,9 +37,6 @@ const FinanceiroDashboard: React.FC = () => {
   const [showInstallations, setShowInstallations] = useState(false);
   const [showRetiradas, setShowRetiradas] = useState(false);
   const [showRecebido, setShowRecebido] = useState(false);
-  const [showAguardandoAprovacao, setShowAguardandoAprovacao] = useState(false);
-  const [showAReceber, setShowAReceber] = useState(false);
-  const [showAguardandoProducao, setShowAguardandoProducao] = useState(false);
   const [showReject, setShowReject] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
   // Pagamentos parciais (consignado)
@@ -115,20 +112,6 @@ const FinanceiroDashboard: React.FC = () => {
 
   const aguardandoLiberacao = ordersVisiveisFinanceiro.filter(o => o.status === 'aprovado_financeiro').length;
   const aguardandoFinanceiro = ordersVisiveisFinanceiro.filter(o => o.status === 'aguardando_financeiro').length;
-
-  const pedidosAguardandoAprovacao = useMemo(() => ordersVisiveisFinanceiro.filter(o => o.status === 'aguardando_financeiro'), [ordersVisiveisFinanceiro]);
-  const pedidosAguardandoProducao = useMemo(() => ordersVisiveisFinanceiro.filter(o => o.status === 'aprovado_financeiro'), [ordersVisiveisFinanceiro]);
-
-  const pedidosAReceberNormal = useMemo(() => {
-    return ordersVisiveisFinanceiro
-      .filter(o => o.status !== 'rejeitado_financeiro')
-      .filter(o => {
-        if (o.isConsigned !== undefined) return !o.isConsigned;
-        const client = clients.find(c => c.id === o.clientId) || clients.find(c => c.name === o.clientName);
-        return !client?.consignado;
-      })
-      .filter(o => getSaldoDevedor(o.id, o.total) > 0);
-  }, [ordersVisiveisFinanceiro, clients, financialEntries]);
 
   // Pedidos de clientes consignados
   const consignadosOrders = useMemo(() => ordersVisiveisFinanceiro.filter(o => {
@@ -869,18 +852,12 @@ const FinanceiroDashboard: React.FC = () => {
 
       {/* Cards animados */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 stagger-children">
-        <div onClick={() => setShowAguardandoAprovacao(true)} className="cursor-pointer">
-          <StatCard title="Aguard. Aprovação" value={aguardandoFinanceiro} icon={Clock} color="text-warning" />
-        </div>
-        <div onClick={() => setShowAReceber(true)} className="cursor-pointer">
-          <StatCard title="A Receber" value={formatCurrency(totalPendenteNormal)} icon={DollarSign} color="text-warning" />
-        </div>
+        <StatCard title="Aguard. Aprovação" value={aguardandoFinanceiro} icon={Clock} color="text-warning" />
+        <StatCard title="A Receber" value={formatCurrency(totalPendenteNormal)} icon={DollarSign} color="text-warning" />
         <div onClick={() => setShowRecebido(true)} className="cursor-pointer">
           <StatCard title="Recebido" value={formatCurrency(totalRecebido)} icon={TrendingUp} color="text-success" />
         </div>
-        <div onClick={() => setShowAguardandoProducao(true)} className="cursor-pointer">
-          <StatCard title="Aguard. Produção" value={aguardandoLiberacao} icon={Send} color="text-info" />
-        </div>
+        <StatCard title="Aguard. Produção" value={aguardandoLiberacao} icon={Send} color="text-info" />
         <div onClick={() => setShowConsignados(true)} className="cursor-pointer">
           <StatCard title="Consignados" value={formatCurrency(totalConsignadoOwed)} icon={Star} color="text-amber-500" />
         </div>
@@ -1143,133 +1120,8 @@ const FinanceiroDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Modal Aguardando Aprovação */}
-      {showAguardandoAprovacao && (
-        <div className="card-section p-6 space-y-5 animate-scale-in">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Clock className="w-5 h-5 text-warning" />
-              <h2 className="font-bold text-foreground text-lg">Aguardando Aprovação</h2>
-              <span className="px-2 py-1 rounded-full bg-warning/20 text-warning text-xs font-bold">{pedidosAguardandoAprovacao.length}</span>
-            </div>
-            <button onClick={() => setShowAguardandoAprovacao(false)} className="btn-modern bg-muted text-foreground shadow-none text-xs">
-              <ArrowLeft className="w-3.5 h-3.5" /> Voltar
-            </button>
-          </div>
-          <div className="space-y-3">
-            {pedidosAguardandoAprovacao.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground text-sm">Nenhum pedido aguardando aprovação</div>
-            ) : (
-              pedidosAguardandoAprovacao.map(order => (
-                <div key={order.id} className="card-section p-4 flex items-center justify-between flex-wrap gap-3 bg-warning/5 border border-warning/20">
-                  <div className="flex-1 min-w-[200px]">
-                    <p className="font-bold text-foreground text-sm">{order.number}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{order.clientName} • Pedido em: {new Date(order.createdAt).toLocaleDateString('pt-BR')}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-foreground text-sm">{formatCurrency(order.total)}</p>
-                    <button
-                      onClick={() => { setSelectedOrder(order); setShowAguardandoAprovacao(false); }}
-                      className="mt-2 w-7 h-7 rounded-lg bg-warning text-white flex items-center justify-center hover:opacity-90 transition-colors ml-auto"
-                      title="Ver Detalhes"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Modal A Receber Normal */}
-      {showAReceber && (
-        <div className="card-section p-6 space-y-5 animate-scale-in">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-warning" />
-              <h2 className="font-bold text-foreground text-lg">Contas a Receber (Venda Direta)</h2>
-              <span className="px-2 py-1 rounded-full bg-warning/20 text-warning text-xs font-bold">{pedidosAReceberNormal.length}</span>
-            </div>
-            <button onClick={() => setShowAReceber(false)} className="btn-modern bg-muted text-foreground shadow-none text-xs">
-              <ArrowLeft className="w-3.5 h-3.5" /> Voltar
-            </button>
-          </div>
-          <div className="space-y-3">
-            {pedidosAReceberNormal.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground text-sm">Nenhum valor a receber no momento</div>
-            ) : (
-              <>
-                {pedidosAReceberNormal.map(order => {
-                  const saldo = getSaldoDevedor(order.id, order.total);
-                  return (
-                    <div key={order.id} className="card-section p-4 flex items-center justify-between flex-wrap gap-3 bg-background border border-border/40">
-                      <div className="flex-1 min-w-[200px]">
-                        <p className="font-bold text-foreground text-sm">{order.number}</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">{order.clientName}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-foreground text-sm">{formatCurrency(order.total)}</p>
-                        <p className="text-[10px] font-extrabold text-destructive mb-1">SALDO: {formatCurrency(saldo)}</p>
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => { setSelectedOrder(order); setShowAReceber(false); }}
-                            className="w-7 h-7 rounded-lg bg-primary text-white flex items-center justify-center hover:opacity-90"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </>
-            )}
-            <div className="p-4 rounded-xl bg-warning/10 border border-warning/20 flex items-center justify-between">
-              <span className="font-semibold text-foreground">Total A Receber:</span>
-              <span className="text-lg font-extrabold text-warning">{formatCurrency(totalPendenteNormal)}</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Aguardando Produção */}
-      {showAguardandoProducao && (
-        <div className="card-section p-6 space-y-5 animate-scale-in">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Send className="w-5 h-5 text-info" />
-              <h2 className="font-bold text-foreground text-lg">Pedidos Aprovados / Aguardando Produção</h2>
-              <span className="px-2 py-1 rounded-full bg-info/20 text-info text-xs font-bold">{pedidosAguardandoProducao.length}</span>
-            </div>
-            <button onClick={() => setShowAguardandoProducao(false)} className="btn-modern bg-muted text-foreground shadow-none text-xs">
-              <ArrowLeft className="w-3.5 h-3.5" /> Voltar
-            </button>
-          </div>
-          <div className="space-y-3">
-            {pedidosAguardandoProducao.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground text-sm">Nenhum pedido aguardando produção</div>
-            ) : (
-              pedidosAguardandoProducao.map(order => (
-                <div key={order.id} className="card-section p-4 flex items-center justify-between flex-wrap gap-3 bg-info/5 border border-info/20">
-                  <div className="flex-1 min-w-[200px]">
-                    <p className="font-bold text-foreground text-sm">{order.number}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{order.clientName}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-foreground text-sm">{formatCurrency(order.total)}</p>
-                    <StatusBadge status={order.status} />
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Não mostrar Tabs se estiver num modal */}
-      {!showConsignados && !showInstallations && !showRetiradas && !showRecebido && !showAguardandoAprovacao && !showAReceber && !showAguardandoProducao && (
+      {/* Não mostrar Tabs se estiver vendo Consignados, Instalações ou Retiradas ou Recebido */}
+      {!showConsignados && !showInstallations && !showRetiradas && !showRecebido && (
         <>
           <div className="flex gap-2 border-b border-border/40">
             <button

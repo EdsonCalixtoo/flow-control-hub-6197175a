@@ -6,7 +6,7 @@ import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchClients, createClient as createClientSupabase, updateClient as updateClientSupabase, deleteClient as deleteClientSupabase } from '@/lib/clientServiceSupabase';
 import { fetchProducts, createProduct as createProductSupabase, updateProductSupabase, deleteProductSupabase } from '@/lib/productServiceSupabase';
-import { fetchOrders, createOrderSupabase, updateOrderSupabase, deleteOrderSupabase, fetchOrderById } from '@/lib/orderServiceSupabase';
+import { fetchOrders, createOrderSupabase, updateOrderSupabase, deleteOrderSupabase } from '@/lib/orderServiceSupabase';
 import {
   fetchFinancialEntries, createFinancialEntrySupabase,
   fetchDelayReports, createDelayReportSupabase, markDelayReportReadSupabase,
@@ -144,64 +144,75 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    const ERP_REALTME_VERSION = '2.1.0';
-    console.log(`%c[ERP Realtime v${ERP_REALTME_VERSION}] 📡 Iniciando sistema...`, 'color: #3b82f6; font-weight: bold;');
+    console.log('[ERP] 📡 Iniciando canais de tempo real...');
 
     const channel = supabase
-      .channel('db-changes')
+      .channel('schema-db-changes')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
         (payload) => {
-          const eventType = payload.eventType;
-          const newOrder = payload.new as any;
-          const oldOrder = payload.old as any;
-
-          console.log(`%c[REALTIME] EVENTO: ${eventType}`, 'background: #2563eb; color: white; padding: 2px 5px; border-radius: 3px;', newOrder?.number || oldOrder?.id || '');
-
-          // Sempre recarrega para manter tudo síncrono
-          loadFromSupabase();
-
-          if (eventType === 'INSERT' && newOrder) {
-            toast.success(`🔔 PEDIDO NOVO: ${newOrder.number}`, {
-              description: 'Atualizado em tempo real.',
-              duration: 8000,
-            });
-          } else if (eventType === 'UPDATE' && newOrder) {
-            toast.info(`📦 ATUALIZADO: PEDIDO ${newOrder.number}`, {
-              description: `O status mudou para: ${newOrder.status}`,
-              duration: 5000,
-            });
-          } else if (eventType === 'DELETE') {
-            toast.error('🗑️ Pedido excluído no banco de dados', {
-              description: 'A lista foi atualizada.',
-            });
+          console.log('[Realtime] Change in orders:', payload);
+          if (payload.eventType === 'INSERT') {
+            const newOrder = payload.new as any; // Need to map or just reload
+            // Simplest is to reload for now to ensure consistency, 
+            // but for performance we should map and update state.
+            loadFromSupabase();
+            toast.info(`Novo orçamento criado: ${newOrder.number}`);
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedOrder = payload.new as any;
+            loadFromSupabase();
+            toast.info(`Pedido ${updatedOrder.number} atualizado: ${updatedOrder.status}`);
+          } else if (payload.eventType === 'DELETE') {
+            loadFromSupabase();
           }
         }
       )
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'financial_entries' }, () => {
-        console.log('[REALTIME] Mudança no Financeiro');
-        loadFromSupabase();
-      })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'delay_reports' }, () => {
-        loadFromSupabase();
-        toast.warning('⚠️ NOVO ALERTA DE ATRASO!');
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'warranties' }, () => {
-        loadFromSupabase();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, () => {
-        loadFromSupabase();
-      })
-      .subscribe((status) => {
-        console.log(`[Realtime] Status do Canal:`, status);
-        if (status === 'SUBSCRIBED') {
-          console.log('%c[Realtime] ✅ CONECTADO COM SUCESSO AO BANCO DE DADOS', 'color: #10b981; font-weight: bold;');
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'financial_entries' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            loadFromSupabase();
+            const entry = payload.new as any;
+            toast.success(`Novo lançamento financeiro: ${entry.description}`);
+          }
         }
-      });
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'delay_reports' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            loadFromSupabase();
+            toast.warning('Novo alerta de atraso recebido!');
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'warranties' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            loadFromSupabase();
+            const w = payload.new as any;
+            toast.warning(`Nova solicitação de garantia: ${w.order_number}`);
+          } else if (payload.eventType === 'UPDATE') {
+            loadFromSupabase();
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'products' },
+        (payload) => {
+          console.log('[Realtime] Change in products:', payload);
+          loadFromSupabase();
+        }
+      )
+      .subscribe();
 
     return () => {
-      console.log('[ERP] 🔌 Finalizando canais de tempo real...');
       supabase.removeChannel(channel);
     };
   }, [isAuthenticated, loadFromSupabase]);

@@ -30,7 +30,6 @@ import { useThemeContext } from '@/contexts/ThemeContext';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { useERP } from '@/contexts/ERPContext';
-import { useOrderNotification } from '@/hooks/useOrderNotification';
 
 const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: string }[]> = {
   vendedor: [
@@ -83,16 +82,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { theme, toggleTheme } = useThemeContext();
-  const { unreadDelayReports, orders } = useERP();
-
-  // Ativa notificações em tempo real baseadas no cargo
-  useOrderNotification(
-    orders,
-    user.role === 'financeiro' ? ['aguardando_financeiro'] :
-      user.role === 'producao' ? ['aguardando_producao'] :
-        user.role === 'gestor' ? ['aguardando_gestor', 'aguardando_producao'] : [],
-    user.role.toUpperCase()
-  );
+  const { unreadDelayReports } = useERP();
 
   if (!user) return null;
 

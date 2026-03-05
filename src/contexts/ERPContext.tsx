@@ -151,31 +151,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
-        async (payload) => {
-          console.log('[Realtime] Change in orders:', payload.eventType, payload.new);
-
+        (payload) => {
+          console.log('[Realtime] Change in orders:', payload);
+          loadFromSupabase();
           if (payload.eventType === 'INSERT') {
-            // Ao invés de recarregar tudo, buscamos apenas esse novo pedido formatado
-            const newOrderRaw = payload.new as any;
-            const fullOrder = await fetchOrderById(newOrderRaw.id);
-            if (fullOrder) {
-              setOrders(prev => {
-                if (prev.find(o => o.id === fullOrder.id)) return prev;
-                return [fullOrder, ...prev];
-              });
-              toast.info(`Novo pedido recebido: ${fullOrder.number}`);
-            }
+            toast.info(`Novo pedido recebido`);
           } else if (payload.eventType === 'UPDATE') {
-            const updatedRaw = payload.new as any;
-            const fullOrder = await fetchOrderById(updatedRaw.id);
-            if (fullOrder) {
-              setOrders(prev => prev.map(o => o.id === fullOrder.id ? fullOrder : o));
-              // Notifica apenas se for uma mudança relevante de status ou se não fomos nós que mudamos
-              toast.info(`Pedido ${fullOrder.number} atualizado`);
-            }
-          } else if (payload.eventType === 'DELETE') {
-            const oldOrder = payload.old as any;
-            setOrders(prev => prev.filter(o => o.id !== oldOrder.id));
+            toast.info(`Pedido atualizado`);
           }
         }
       )

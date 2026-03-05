@@ -229,7 +229,7 @@ export const STATUS_COLORS: Record<OrderStatus, string> = {
   rascunho: 'bg-muted text-muted-foreground',
   enviado: 'bg-info/10 text-info',
   aprovado_cliente: 'bg-info/10 text-info',
-  aguardando_financeiro: 'bg-warning/10 text-warning',
+  aguardando_financeiro: 'bg-pink/10 text-pink',
   aprovado_financeiro: 'bg-success/10 text-success',
   rejeitado_financeiro: 'bg-destructive/10 text-destructive',
   aguardando_gestor: 'bg-warning/10 text-warning',

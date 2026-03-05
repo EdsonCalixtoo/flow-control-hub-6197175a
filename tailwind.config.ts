@@ -77,6 +77,10 @@ export default {
         financeiro: "hsl(var(--financeiro))",
         gestor: "hsl(var(--gestor))",
         producao: "hsl(var(--producao))",
+        pink: {
+          DEFAULT: "hsl(var(--pink))",
+          foreground: "hsl(var(--pink-foreground))",
+        },
         chart: {
           1: "hsl(var(--chart-1))",
           2: "hsl(var(--chart-2))",

@@ -202,6 +202,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'products' },
+        (payload) => {
+          console.log('[Realtime] Change in products:', payload);
+          loadFromSupabase();
+        }
+      )
       .subscribe();
 
     return () => {
@@ -311,8 +319,11 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
         if (isReserving) {
           console.log('[ERP] 📦 Deduzindo estoque (Reserva):', currentOrder.number);
+          // Busca produtos mais recentes para evitar desync de estoque
+          const latestProducts = await fetchProducts();
+
           for (const item of currentOrder.items) {
-            const product = products.find(p => p.name === item.product);
+            const product = latestProducts.find(p => p.name === item.product);
             if (product) {
               const newQuantity = Math.max(0, product.stockQuantity - item.quantity);
               await updateProduct({
@@ -320,6 +331,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                 stockQuantity: newQuantity,
                 status: newQuantity === 0 ? 'esgotado' : product.status
               });
+              // Atualiza o objeto local para o próximo item no loop (caso o mesmo produto apareça 2x)
+              product.stockQuantity = newQuantity;
             }
           }
           toast.success('Estoque reservado/deduzido com sucesso!');

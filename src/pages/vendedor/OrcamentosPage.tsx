@@ -67,6 +67,7 @@ const OrcamentosPage: React.FC = () => {
   const [newOrderType, setNewOrderType] = useState<'entrega' | 'instalacao' | 'retirada'>('entrega');
   const [newInstallationTime, setNewInstallationTime] = useState('');
   const [newInstallationPaymentType, setNewInstallationPaymentType] = useState<'pago' | 'pagar_na_hora'>('pago');
+  const [newCarrier, setNewCarrier] = useState('');
 
   // Abre pedido via URL (?view=ID)
   useEffect(() => {
@@ -161,6 +162,7 @@ const OrcamentosPage: React.FC = () => {
     setNewOrderType(order.orderType || 'entrega');
     setNewInstallationTime(order.installationTime || '');
     setNewInstallationPaymentType(order.installationPaymentType || 'pago');
+    setNewCarrier(order.carrier || '');
     setFormError('');
   };
 
@@ -175,6 +177,7 @@ const OrcamentosPage: React.FC = () => {
     setNewOrderType('entrega');
     setNewInstallationTime('');
     setNewInstallationPaymentType('pago');
+    setNewCarrier('');
     setFormError('');
   };
 
@@ -272,6 +275,7 @@ const OrcamentosPage: React.FC = () => {
           deliveryDate: newDeliveryDate || undefined,
           orderType: newOrderType,
           installationPaymentType: (newOrderType === 'instalacao' || newOrderType === 'retirada') ? newInstallationPaymentType : undefined,
+          carrier: newOrderType === 'entrega' ? newCarrier : undefined,
           isConsigned: client.consignado,
           updatedAt: now,
         };
@@ -367,6 +371,9 @@ const OrcamentosPage: React.FC = () => {
             order.installationDate = newDeliveryDate || undefined;
             order.installationTime = newInstallationTime || undefined;
             order.installationPaymentType = newInstallationPaymentType;
+          }
+          if (newOrderType === 'entrega') {
+            order.carrier = newCarrier;
           }
 
           await addOrder(order);
@@ -495,6 +502,15 @@ const OrcamentosPage: React.FC = () => {
       pdf.setFontSize(10);
       pdf.setTextColor(0, 0, 0);
       pdf.text(`${order.sellerName}`, 15, yPosition);
+
+      if (order.orderType === 'entrega' && order.carrier) {
+        pdf.setFontSize(11);
+        pdf.setTextColor(0, 51, 102);
+        pdf.text('TRANSPORTADORA', 120, yPosition - 6);
+        pdf.setFontSize(10);
+        pdf.setTextColor(0, 0, 0);
+        pdf.text(order.carrier, 120, yPosition);
+      }
 
       yPosition += 12;
       pdf.setDrawColor(200, 200, 200);
@@ -798,6 +814,38 @@ const OrcamentosPage: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Transportadora - aparece SOMENTE se for entrega */}
+          {newOrderType === 'entrega' && (
+            <div className="space-y-3 p-5 rounded-2xl bg-blue-500/5 border border-blue-500/20 animate-in fade-in duration-500">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
+                  <Check className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-foreground uppercase tracking-tight">Transportadora</h3>
+                  <p className="text-[10px] text-muted-foreground font-bold italic">Selecione o método de entrega para este pedido</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {['JADLOG', 'MOTOBOY', 'CLEYTON', 'LALAMOVE'].map(carrier => (
+                  <button
+                    key={carrier}
+                    type="button"
+                    onClick={() => setNewCarrier(prev => prev === carrier ? '' : carrier)}
+                    className={`flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all ${newCarrier === carrier
+                      ? 'bg-blue-500/10 border-blue-500 text-blue-500 scale-[1.02] shadow-md border-opacity-100 ring-2 ring-blue-500/10'
+                      : 'bg-muted/30 border-transparent text-muted-foreground grayscale hover:grayscale-0 hover:bg-muted/50'
+                      }`}
+                  >
+                    <span className="text-xs font-black uppercase tracking-wider">{carrier}</span>
+                    {newCarrier === carrier && <Check className="w-3 h-3" />}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Opções de Pagamento para RETIRADA */}
           {newOrderType === 'retirada' && (

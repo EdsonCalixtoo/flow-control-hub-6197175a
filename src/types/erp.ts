@@ -102,6 +102,7 @@ export interface Order {
   // chat
   chatMessages?: ChatMessage[];
   receiptUrls?: string[]; // Para múltiplos comprovantes
+  carrier?: string;      // Transportadora (JADLOG, MOTOBOY, etc)
 }
 
 export interface ChatMessage {

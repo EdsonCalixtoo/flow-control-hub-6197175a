@@ -26,6 +26,7 @@ export const supabaseToOrder = (data: any): Order => ({
     installationPaymentType: data.installation_payment_type || undefined,
     createdAt: data.created_at,
     updatedAt: data.updated_at,
+    carrier: data.carrier || undefined,
 });
 
 export const orderToSupabase = (order: Partial<Order>) => {
@@ -49,6 +50,7 @@ export const orderToSupabase = (order: Partial<Order>) => {
     if (order.installationDate !== undefined) data.installation_date = order.installationDate;
     if (order.installationTime !== undefined) data.installation_time = order.installationTime;
     if (order.installationPaymentType !== undefined) data.installation_payment_type = order.installationPaymentType;
+    if (order.carrier !== undefined) data.carrier = order.carrier;
 
     if (order.items) data.items = order.items;
     if (order.statusHistory) data.status_history = order.statusHistory;

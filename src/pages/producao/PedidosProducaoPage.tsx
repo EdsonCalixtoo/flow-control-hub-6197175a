@@ -192,7 +192,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
   <div class="header">
     ${logoDataUrl ? `<img src="${logoDataUrl}" class="header-logo" alt="Logo" />` : ''}
     <div class="header-info">
-      <div class="header-title">Etiqueta de Envio</div>
+      <div class="header-title">Etiqueta de Envio ${order.orderType === 'entrega' && (order as any).carrier ? `• ${(order as any).carrier}` : ''}</div>
       <div class="header-pedido">${order.number}</div>
     </div>
   </div>
@@ -1027,16 +1027,30 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
         </div>
 
         {/* Vendedor responsável */}
-        <div className="p-3 rounded-xl bg-muted/30 border border-border/30 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-vendedor/10 flex items-center justify-center">
-            <span className="text-[11px] font-extrabold text-vendedor">
-              {viewOrder.sellerName.split(' ').map(n => n[0]).join('').slice(0, 2)}
-            </span>
+        <div className="flex flex-col md:flex-row gap-3">
+          <div className="flex-1 p-3 rounded-xl bg-muted/30 border border-border/30 flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-vendedor/10 flex items-center justify-center">
+              <span className="text-[11px] font-extrabold text-vendedor">
+                {viewOrder.sellerName.split(' ').map(n => n[0]).join('').slice(0, 2)}
+              </span>
+            </div>
+            <div>
+              <p className="text-[10px] text-muted-foreground">Vendedor Responsável</p>
+              <p className="text-sm font-bold text-foreground">{viewOrder.sellerName}</p>
+            </div>
           </div>
-          <div>
-            <p className="text-[10px] text-muted-foreground">Vendedor Responsável</p>
-            <p className="text-sm font-bold text-foreground">{viewOrder.sellerName}</p>
-          </div>
+
+          {viewOrder.orderType === 'entrega' && viewOrder.carrier && (
+            <div className="flex-1 p-3 rounded-xl bg-primary/5 border border-primary/20 flex items-center gap-3 animate-in slide-in-from-right-2">
+              <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
+                <Truck className="w-4 h-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-[10px] text-primary uppercase font-bold tracking-tight">Transportadora</p>
+                <p className="text-sm font-black text-foreground uppercase italic">{viewOrder.carrier}</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Dados do cliente */}

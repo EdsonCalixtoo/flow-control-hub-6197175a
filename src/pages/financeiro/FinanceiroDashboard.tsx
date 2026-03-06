@@ -431,8 +431,8 @@ const FinanceiroDashboard: React.FC = () => {
                 {[
                   { label: 'Cliente', value: selectedOrder.clientName },
                   { label: 'Vendedor', value: selectedOrder.sellerName },
+                  { label: 'Transportadora', value: selectedOrder.carrier || 'Não informada' },
                   { label: 'Data Criação', value: new Date(selectedOrder.createdAt).toLocaleDateString('pt-BR') },
-                  { label: 'Última Atualização', value: new Date(selectedOrder.updatedAt).toLocaleDateString('pt-BR') },
                 ].map((item, i) => (
                   <div key={i} className="p-3 rounded-xl bg-muted/30 border border-border/30">
                     <span className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">{item.label}</span>

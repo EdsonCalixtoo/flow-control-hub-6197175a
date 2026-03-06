@@ -119,6 +119,14 @@ const AprovacoesPage: React.FC = () => {
                       <Calendar className="w-3.5 h-3.5" /> {formatDate(selectedOrder.deliveryDate)}
                     </span>
                   </div>
+                  {selectedOrder.orderType === 'entrega' && selectedOrder.carrier && (
+                    <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 animate-in slide-in-from-top-1">
+                      <span className="text-[10px] text-primary uppercase font-bold block mb-1">Transportadora</span>
+                      <span className="flex items-center gap-1.5 text-sm font-black text-foreground uppercase italic pb-0.5">
+                        <Truck className="w-3.5 h-3.5 text-primary" /> {selectedOrder.carrier}
+                      </span>
+                    </div>
+                  )}
                   <div className="p-3 rounded-xl bg-muted/30 border border-border/30">
                     <span className="text-[10px] text-muted-foreground block mb-1">Pagamento</span>
                     <span className={`text-sm font-semibold ${selectedOrder.paymentStatus === 'pago' ? 'text-success' : 'text-warning'}`}>

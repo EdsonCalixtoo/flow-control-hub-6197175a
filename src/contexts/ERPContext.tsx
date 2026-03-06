@@ -210,6 +210,32 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           loadFromSupabase();
         }
       )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'barcode_scans' },
+        (payload) => {
+          console.log('[Realtime] Change in barcode_scans:', payload);
+          loadFromSupabase();
+          if (payload.eventType === 'INSERT') {
+            const scan = payload.new as any;
+            if (scan.success) {
+              toast.success(`Nova leitura de código: ${scan.order_number}`);
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'delivery_pickups' },
+        (payload) => {
+          console.log('[Realtime] Change in delivery_pickups:', payload);
+          loadFromSupabase();
+          if (payload.eventType === 'INSERT') {
+            const pickup = payload.new as any;
+            toast.success(`Pedido retirado pelo entregador: ${pickup.order_number}`);
+          }
+        }
+      )
       .subscribe();
 
     return () => {

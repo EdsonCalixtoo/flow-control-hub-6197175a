@@ -20,6 +20,7 @@ import LancamentosPage from "@/pages/financeiro/LancamentosPage";
 import FluxoCaixaPage from "@/pages/financeiro/FluxoCaixaPage";
 import VendedoresControlPage from "@/pages/financeiro/VendedoresControlPage";
 import GarantiaFinanceiroPage from "@/pages/financeiro/GarantiasPage";
+import PedidosFinanceiroPage from "@/pages/financeiro/PedidosFinanceiroPage";
 import GestorDashboard from "@/pages/gestor/GestorDashboard";
 import ConferenciaPage from "@/pages/gestor/ConferenciaPage";
 import RelatoriosPage from "@/pages/gestor/RelatoriosPage";
@@ -84,6 +85,7 @@ const App = () => (
                 <Route path="/financeiro/fluxo" element={<ProtectedRoute role="financeiro"><FluxoCaixaPage /></ProtectedRoute>} />
                 <Route path="/financeiro/vendedores" element={<ProtectedRoute role="financeiro"><VendedoresControlPage /></ProtectedRoute>} />
                 <Route path="/financeiro/garantias" element={<ProtectedRoute role="financeiro"><GarantiaFinanceiroPage /></ProtectedRoute>} />
+                <Route path="/financeiro/pedidos" element={<ProtectedRoute role="financeiro"><PedidosFinanceiroPage /></ProtectedRoute>} />
 
                 {/* Gestor */}
                 <Route path="/gestor" element={<ProtectedRoute role="gestor"><GestorDashboard /></ProtectedRoute>} />

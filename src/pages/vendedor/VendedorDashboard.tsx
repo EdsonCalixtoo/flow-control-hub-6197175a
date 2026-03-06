@@ -45,11 +45,10 @@ const VendedorDashboard: React.FC = () => {
         <p className="page-subtitle">Acompanhe suas vendas e metas — {user?.name}</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 stagger-children">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 stagger-children">
         <StatCard title="Vendido no Mês" value={formatCurrency(totalVendas)} icon={ShoppingCart} color="text-vendedor" />
         <StatCard title="Pedidos Enviados" value={pedidosEnviados} icon={FileText} color="text-success" />
         <StatCard title="Orçam. Pendentes" value={orcamentosPendentes} icon={Clock} color="text-warning" />
-        <StatCard title="Comissão Estimada" value={formatCurrency(comissaoEstimada)} icon={Percent} color="text-financeiro" />
       </div>
 
       {/* Atalhos rápidos */}

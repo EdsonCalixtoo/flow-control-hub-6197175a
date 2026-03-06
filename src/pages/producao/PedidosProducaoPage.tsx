@@ -52,7 +52,6 @@ const PedidosProducaoPage: React.FC = () => {
   const [scannedOrderForVolumes, setScannedOrderForVolumes] = useState<any>(null);
   const [volumesInput, setVolumesInput] = useState('1');
   const [showVolumesDialog, setShowVolumesDialog] = useState(false);
-  const [recentlyScannedOrders, setRecentlyScannedOrders] = useState<Set<string>>(new Set());
   const barcodeRef = useRef<HTMLDivElement>(null);
 
   // Monitora em tempo real quando novos pedidos chegam para produção
@@ -231,7 +230,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
   };
 
   const allOrders = orders.filter(o =>
-    ['aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'].includes(o.status)
+    ['aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado', 'retirado_entregador'].includes(o.status)
   );
 
   const tipoFiltered = allOrders.filter(o => {
@@ -309,11 +308,16 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
     const now = new Date().toISOString();
 
     if (order) {
+      // Verificar se há scans RECENTES deste pedido nos últimos 60 segundos (aumentado para facilitar uso)
+      const recentScans = barcodeScans.filter(scan => {
+        if (scan.orderId !== order.id || !scan.success) return false;
+        const scanTime = new Date(scan.scannedAt).getTime();
+        const elapsed = Date.now() - scanTime;
+        return elapsed < 60000; // 60 segundos
+      });
+
       if (order.status === 'producao_finalizada') {
-        // Verificar se este pedido foi recentemente escaneado
-        const wasRecentlyScanned = recentlyScannedOrders.has(order.id);
-        
-        if (!wasRecentlyScanned) {
+        if (recentScans.length === 0) {
           // PRIMEIRO SCAN - Liberar direto com 1 volume
           try {
             await updateOrderStatus(
@@ -336,29 +340,20 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
               note: 'Produto liberado automaticamente com 1 volume',
             });
 
-            // Rastrear este pedido como recentemente escaneado (por 2 minutos)
-            setRecentlyScannedOrders(prev => new Set(prev).add(order.id));
-            setTimeout(() => {
-              setRecentlyScannedOrders(prev => {
-                const updated = new Set(prev);
-                updated.delete(order.id);
-                return updated;
-              });
-            }, 2 * 60 * 1000); // 2 minutos
-
             setScanResult({
               success: true,
               message: `✅ Pedido ${order.number} liberado automaticamente com 1 volume! Vai para entregadores.`,
               orderNumber: order.number,
             });
 
-            setTimeout(() => loadFromSupabase(), 200);
+            setTimeout(() => loadFromSupabase(), 300);
           } catch (err: any) {
             console.error('[Scanner] Erro ao liberar:', err);
             setScanResult({ success: false, message: `❌ Erro ao liberar: ${err.message}` });
           }
         } else {
-          // SEGUNDO SCAN - Abrir dialog para perguntar quantos volumes
+          // SEGUNDO+ SCAN - Abrir dialog para perguntar quantos volumes
+          console.log(`[Scanner] 🔄 Scan duplicado detectado! Scans recentes: ${recentScans.length}`);
           setScannedOrderForVolumes(order);
           setVolumesInput('1');
           setShowVolumesDialog(true);
@@ -368,15 +363,37 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
             orderNumber: order.number
           });
         }
-      } else if (order.status === 'produto_liberado' || order.status === 'retirado_entregador') {
+      } else if (order.status === 'produto_liberado') {
+        // Se já está liberado, mas foi escaneado recentemente, permite abrir o dialog de volumes de novo
+        if (recentScans.length > 0) {
+          console.log(`[Scanner] 🔄 Releitura rápida de pedido liberado. Abrindo dialog de volumes.`);
+          setScannedOrderForVolumes(order);
+          setVolumesInput(order.volumes?.toString() || '1');
+          setShowVolumesDialog(true);
+          setScanResult({
+            success: true,
+            message: `🔄 Pedido ${order.number} escaneado novamente! Você pode ajustar a quantidade de volumes.`,
+            orderNumber: order.number
+          });
+        } else {
+          await addBarcodeScan({
+            orderId: order.id,
+            orderNumber: order.number,
+            scannedBy,
+            success: true,
+            note: 'Releitura — produto já estava liberado',
+          });
+          setScanResult({ success: true, message: `ℹ️ Pedido ${order.number} já foi liberado anteriormente.`, orderNumber: order.number });
+        }
+      } else if (order.status === 'retirado_entregador') {
         await addBarcodeScan({
           orderId: order.id,
           orderNumber: order.number,
           scannedBy,
           success: true,
-          note: 'Releitura — produto já estava liberado',
+          note: 'Releitura — produto já foi retirado pelo entregador',
         });
-        setScanResult({ success: true, message: `ℹ️ Pedido ${order.number} já foi liberado anteriormente.`, orderNumber: order.number });
+        setScanResult({ success: true, message: `ℹ️ Pedido ${order.number} já foi retirado pelo entregador.`, orderNumber: order.number });
       } else if (!['aprovado_financeiro', 'aguardando_producao', 'em_producao', 'producao_finalizada'].includes(order.status)) {
         await addBarcodeScan({
           orderId: order.id,
@@ -403,7 +420,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
       setScanResult({ success: false, message: '❌ Código não encontrado. Verifique se o código é o número do pedido (ex: PED-001).' });
     }
     setScanInput('');
-  }, [orders, addBarcodeScan, updateOrderStatus, user, recentlyScannedOrders, loadFromSupabase]);
+  }, [orders, barcodeScans, addBarcodeScan, updateOrderStatus, user, loadFromSupabase]);
 
   const handleConfirmVolumes = useCallback(async () => {
     if (!scannedOrderForVolumes) return;
@@ -443,13 +460,6 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
         success: true,
         message: `✅ Pedido ${scannedOrderForVolumes.number} liberado com ${volumes} volume(s)! Vai para entregadores.`,
         orderNumber: scannedOrderForVolumes.number,
-      });
-
-      // Limpar o rastreamento do pedido recentemente escaneado para permitir novo scan
-      setRecentlyScannedOrders(prev => {
-        const updated = new Set(prev);
-        updated.delete(scannedOrderForVolumes.id);
-        return updated;
       });
 
       // Fechar diálogo e limpar

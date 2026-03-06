@@ -60,7 +60,7 @@ const OrcamentosPage: React.FC = () => {
 
   // Form state for new/edit order
   const [newClientId, setNewClientId] = useState(preSelectedClientId);
-  const [newItems, setNewItems] = useState<{ product: string; description: string; quantity: number; unitPrice: number; sensorType?: 'com_sensor' | 'sem_sensor' }[]>([{ product: '', description: '', quantity: 1, unitPrice: 0 }]);
+  const [newItems, setNewItems] = useState<{ product: string; description: string; quantity: number; unitPrice: string | number; sensorType?: 'com_sensor' | 'sem_sensor' }[]>([{ product: '', description: '', quantity: 1, unitPrice: '' }]);
   const [newNotes, setNewNotes] = useState('');
   const [newObservation, setNewObservation] = useState('');
   const [newDeliveryDate, setNewDeliveryDate] = useState('');
@@ -133,13 +133,16 @@ const OrcamentosPage: React.FC = () => {
     }
   };
 
-  const addItem = () => setNewItems(prev => [...prev, { product: '', description: '', quantity: 1, unitPrice: 0 }]);
+  const addItem = () => setNewItems(prev => [...prev, { product: '', description: '', quantity: 1, unitPrice: '' }]);
   const removeItem = (i: number) => setNewItems(prev => prev.filter((_, idx) => idx !== i));
   const updateItem = (i: number, field: string, value: string | number) => {
     setNewItems(prev => prev.map((item, idx) => idx === i ? { ...item, [field]: value } : item));
   };
 
-  const calcTotal = () => newItems.reduce((s, item) => s + (item.quantity * item.unitPrice), 0);
+  const calcTotal = () => newItems.reduce((s, item) => {
+    const price = typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) || 0 : item.unitPrice;
+    return s + (item.quantity * price);
+  }, 0);
 
   // Abre o formulário de edição para um orçamento existente
   const openEdit = (order: Order) => {
@@ -165,7 +168,7 @@ const OrcamentosPage: React.FC = () => {
     setEditingOrder(null);
     setShowCreate(false);
     setNewClientId('');
-    setNewItems([{ product: '', description: '', quantity: 1, unitPrice: 0 }]);
+    setNewItems([{ product: '', description: '', quantity: 1, unitPrice: '' }]);
     setNewNotes('');
     setNewObservation('');
     setNewDeliveryDate('');
@@ -205,7 +208,10 @@ const OrcamentosPage: React.FC = () => {
       return;
     }
 
-    if (newItems.some(i => !i.unitPrice || i.unitPrice <= 0)) {
+    if (newItems.some(i => {
+      const price = typeof i.unitPrice === 'string' ? parseFloat(i.unitPrice) : i.unitPrice;
+      return isNaN(price) || price <= 0;
+    })) {
       setFormError('⚠️ Todos os itens devem ter preço unitário maior que 0.');
       return;
     }
@@ -244,17 +250,20 @@ const OrcamentosPage: React.FC = () => {
           ...editingOrder,
           clientId: client.id,
           clientName: client.name,
-          items: newItems.map((item, i) => ({
-            id: editingOrder.items[i]?.id || `ni${i}`,
-            product: item.product,
-            description: item.description,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            discount: editingOrder.items[i]?.discount || 0,
-            discountType: editingOrder.items[i]?.discountType || 'percent',
-            total: item.quantity * item.unitPrice,
-            sensorType: item.sensorType,
-          })),
+          items: newItems.map((item, i) => {
+            const price = typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) || 0 : item.unitPrice;
+            return {
+              id: editingOrder.items[i]?.id || `ni${i}`,
+              product: item.product,
+              description: item.description,
+              quantity: item.quantity,
+              unitPrice: price,
+              discount: editingOrder.items[i]?.discount || 0,
+              discountType: editingOrder.items[i]?.discountType || 'percent',
+              total: item.quantity * price,
+              sensorType: item.sensorType,
+            };
+          }),
           subtotal,
           taxes: 0,
           total: subtotal,
@@ -320,17 +329,20 @@ const OrcamentosPage: React.FC = () => {
             clientName: client.name,
             sellerId: user?.id || '1',
             sellerName: user?.name || 'Vendedor',
-            items: newItems.map((item, i) => ({
-              id: `ni${i}`,
-              product: item.product,
-              description: item.description,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              discount: 0,
-              discountType: 'percent' as const,
-              total: item.quantity * item.unitPrice,
-              sensorType: item.sensorType || (item.product.toUpperCase().includes('KIT') ? 'com_sensor' : undefined),
-            })),
+            items: newItems.map((item, i) => {
+              const price = typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) || 0 : item.unitPrice;
+              return {
+                id: `ni${i}`,
+                product: item.product,
+                description: item.description,
+                quantity: item.quantity,
+                unitPrice: price,
+                discount: 0,
+                discountType: 'percent' as const,
+                total: item.quantity * price,
+                sensorType: item.sensorType || (item.product.toUpperCase().includes('KIT') ? 'com_sensor' : undefined),
+              };
+            }),
             subtotal,
             taxes: 0,
             total: subtotal,
@@ -697,10 +709,21 @@ const OrcamentosPage: React.FC = () => {
                   </div>
                   <div className="col-span-3">
                     <label className="text-[10px] text-muted-foreground block mb-1">Valor Unit.</label>
-                    <input type="number" value={item.unitPrice} onChange={e => updateItem(i, 'unitPrice', Number(e.target.value))} className="input-modern py-2 text-xs" min={0} step={0.01} />
+                    <input
+                      type="text"
+                      value={item.unitPrice}
+                      onChange={e => {
+                        const val = e.target.value.replace(',', '.');
+                        if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                          updateItem(i, 'unitPrice', val);
+                        }
+                      }}
+                      placeholder="0.00"
+                      className="input-modern py-2 text-xs"
+                    />
                   </div>
                   <div className="col-span-2 flex items-center justify-between">
-                    <span className="text-xs font-bold text-foreground">{formatCurrency(item.quantity * item.unitPrice)}</span>
+                    <span className="text-xs font-bold text-foreground">{formatCurrency(item.quantity * (typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) || 0 : item.unitPrice))}</span>
                     {newItems.length > 1 && (
                       <button onClick={() => removeItem(i)} className="w-7 h-7 rounded-lg bg-destructive/10 text-destructive inline-flex items-center justify-center hover:bg-destructive/20 transition-colors">
                         <Trash2 className="w-3 h-3" />

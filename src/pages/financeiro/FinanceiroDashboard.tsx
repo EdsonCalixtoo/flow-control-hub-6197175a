@@ -13,7 +13,7 @@ import type { Order, FinancialEntry } from '@/types/erp';
 // Fluxo simplificado: Financeiro aprova e envia direto para Produção (sem Gestor)
 const STATUS_VISIVEL_FINANCEIRO = [
   'aguardando_financeiro', 'aprovado_financeiro', 'rejeitado_financeiro',
-  'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'
+  'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado', 'retirado_entregador'
 ];
 
 type PaymentFilter = 'todos' | 'pago' | 'pendente' | 'vencido' | 'cancelado';
@@ -1209,7 +1209,7 @@ const FinanceiroDashboard: React.FC = () => {
             <div className="flex items-center gap-2">
               <DollarSign className="w-5 h-5 text-warning" />
               <h2 className="font-bold text-foreground text-lg">Pedidos A Receber</h2>
-              <span className="px-2 py-1 rounded-full bg-warning/20 text-warning text-xs font-bold">{orders.filter(o => (o.total - (o.paid || 0)) > 0).length}</span>
+              <span className="px-2 py-1 rounded-full bg-warning/20 text-warning text-xs font-bold">{orders.filter(o => getSaldoDevedor(o.id, o.total) > 0).length}</span>
             </div>
             <button onClick={() => setShowAReceber(false)} className="btn-modern bg-muted text-foreground shadow-none text-xs">
               <ArrowLeft className="w-3.5 h-3.5" /> Voltar
@@ -1217,13 +1217,14 @@ const FinanceiroDashboard: React.FC = () => {
           </div>
 
           <div className="space-y-3">
-            {orders.filter(o => (o.total - (o.paid || 0)) > 0).length === 0 ? (
+            {orders.filter(o => getSaldoDevedor(o.id, o.total) > 0).length === 0 ? (
               <div className="p-8 text-center text-muted-foreground text-sm">
                 Nenhum pedido a receber
               </div>
             ) : (
-              orders.filter(o => (o.total - (o.paid || 0)) > 0).map(order => {
-                const saldo = order.total - (order.paid || 0);
+              orders.filter(o => getSaldoDevedor(o.id, o.total) > 0).map(order => {
+                const saldo = getSaldoDevedor(order.id, order.total);
+                const pago = order.total - saldo;
                 return (
                   <div key={order.id} className="card-section p-4 flex items-center justify-between flex-wrap gap-3 bg-warning/5 border border-warning/20">
                     <div className="flex-1 min-w-[200px]">
@@ -1231,9 +1232,9 @@ const FinanceiroDashboard: React.FC = () => {
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {order.clientName} • {new Date(order.createdAt).toLocaleDateString('pt-BR')}
                       </p>
-                      {order.paid && order.paid > 0 && (
+                      {pago > 0 && (
                         <p className="text-[10px] text-amber-500 font-bold mt-1 uppercase tracking-wider">
-                          PAGO: {formatCurrency(order.paid)}
+                          PAGO: {formatCurrency(pago)}
                         </p>
                       )}
                     </div>

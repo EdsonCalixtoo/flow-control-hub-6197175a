@@ -22,7 +22,6 @@ const VendedoresControlPage: React.FC = () => {
       pedidosAprovados: number;
       pedidosEmProducao: number;
       pedidosEntregues: number;
-      comissaoEstimada: number;
       valorMedio: number;
       orders: Order[];
     }> = {};
@@ -39,7 +38,6 @@ const VendedoresControlPage: React.FC = () => {
           pedidosAprovados: 0,
           pedidosEmProducao: 0,
           pedidosEntregues: 0,
-          comissaoEstimada: 0,
           valorMedio: 0,
           orders: [],
         };
@@ -48,7 +46,6 @@ const VendedoresControlPage: React.FC = () => {
       stats[key].totalVendas += order.total;
       stats[key].qtdPedidos += 1;
       stats[key].orders.push(order);
-      stats[key].comissaoEstimada += order.total * 0.05; // 5% de comissão
 
       if (order.status === 'aguardando_financeiro') stats[key].pedidosAguardandoFinanceiro += 1;
       if (order.status === 'aprovado_financeiro') stats[key].pedidosAprovados += 1;
@@ -107,7 +104,7 @@ const VendedoresControlPage: React.FC = () => {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="page-header">{seller.name}</h1>
-            <p className="page-subtitle">Detalhes de vendas e comissões</p>
+            <p className="page-subtitle">Detalhes de vendas e pedidos</p>
           </div>
           <button onClick={() => setSelectedSeller(null)} className="btn-modern bg-muted text-foreground shadow-none text-xs">
             <ArrowLeft className="w-3.5 h-3.5" /> Voltar
@@ -120,7 +117,6 @@ const VendedoresControlPage: React.FC = () => {
             { label: 'Total Vendido', value: formatCurrency(seller.totalVendas), color: 'text-success' },
             { label: 'Qtd Pedidos', value: seller.qtdPedidos.toString(), color: 'text-primary' },
             { label: 'Valor Médio', value: formatCurrency(seller.valorMedio), color: 'text-info' },
-            { label: 'Comissão (5%)', value: formatCurrency(seller.comissaoEstimada), color: 'text-amber-500' },
             { label: 'Sinc. Financeiro', value: seller.pedidosAguardandoFinanceiro.toString(), color: 'text-warning' },
           ].map((card, i) => (
             <div key={i} className="stat-card">
@@ -169,13 +165,12 @@ const VendedoresControlPage: React.FC = () => {
                     <td className="text-sm">{new Date(order.createdAt).toLocaleDateString('pt-BR')}</td>
                     <td className="text-right font-bold text-foreground">{formatCurrency(order.total)}</td>
                     <td>
-                      <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${
-                        order.status === 'aguardando_financeiro' ? 'bg-warning/20 text-warning' :
+                      <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${order.status === 'aguardando_financeiro' ? 'bg-warning/20 text-warning' :
                         order.status === 'aprovado_financeiro' ? 'bg-success/20 text-success' :
-                        order.status === 'em_producao' ? 'bg-info/20 text-info' :
-                        order.status === 'produto_liberado' ? 'bg-primary/20 text-primary' :
-                        'bg-muted/30 text-muted-foreground'
-                      }`}>
+                          order.status === 'em_producao' ? 'bg-info/20 text-info' :
+                            order.status === 'produto_liberado' ? 'bg-primary/20 text-primary' :
+                              'bg-muted/30 text-muted-foreground'
+                        }`}>
                         {order.status.replace(/_/g, ' ').toUpperCase()}
                       </span>
                     </td>
@@ -195,7 +190,7 @@ const VendedoresControlPage: React.FC = () => {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="page-header">Controle por Vendedor</h1>
-          <p className="page-subtitle">Monitore vendas, comissões e performance</p>
+          <p className="page-subtitle">Monitore vendas e performance</p>
         </div>
       </div>
 
@@ -227,7 +222,6 @@ const VendedoresControlPage: React.FC = () => {
                   Total Vendido {sortBy === 'totalVendas' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </th>
                 <th className="text-right">Valor Médio</th>
-                <th className="text-right">Comissão (5%)</th>
                 <th className="text-center">Aguardando</th>
                 <th className="text-center">Aprovados</th>
                 <th className="text-center">Entregues</th>
@@ -241,31 +235,27 @@ const VendedoresControlPage: React.FC = () => {
                   <td className="text-right font-semibold text-foreground">{seller.qtdPedidos}</td>
                   <td className="text-right font-bold text-success">{formatCurrency(seller.totalVendas)}</td>
                   <td className="text-right text-foreground">{formatCurrency(seller.valorMedio)}</td>
-                  <td className="text-right font-bold text-amber-500">{formatCurrency(seller.comissaoEstimada)}</td>
                   <td className="text-center">
-                    <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${
-                      seller.pedidosAguardandoFinanceiro > 0
-                        ? 'bg-warning/20 text-warning'
-                        : 'bg-muted/30 text-muted-foreground'
-                    }`}>
+                    <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${seller.pedidosAguardandoFinanceiro > 0
+                      ? 'bg-warning/20 text-warning'
+                      : 'bg-muted/30 text-muted-foreground'
+                      }`}>
                       {seller.pedidosAguardandoFinanceiro}
                     </span>
                   </td>
                   <td className="text-center">
-                    <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${
-                      seller.pedidosAprovados > 0
-                        ? 'bg-success/20 text-success'
-                        : 'bg-muted/30 text-muted-foreground'
-                    }`}>
+                    <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${seller.pedidosAprovados > 0
+                      ? 'bg-success/20 text-success'
+                      : 'bg-muted/30 text-muted-foreground'
+                      }`}>
                       {seller.pedidosAprovados}
                     </span>
                   </td>
                   <td className="text-center">
-                    <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${
-                      seller.pedidosEntregues > 0
-                        ? 'bg-primary/20 text-primary'
-                        : 'bg-muted/30 text-muted-foreground'
-                    }`}>
+                    <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-semibold ${seller.pedidosEntregues > 0
+                      ? 'bg-primary/20 text-primary'
+                      : 'bg-muted/30 text-muted-foreground'
+                      }`}>
                       {seller.pedidosEntregues}
                     </span>
                   </td>
@@ -298,7 +288,6 @@ const VendedoresControlPage: React.FC = () => {
             { label: 'Total de Vendedores', value: sellerStats.length.toString(), color: 'text-primary' },
             { label: 'Total de Pedidos', value: orders.length.toString(), color: 'text-info' },
             { label: 'Total de Vendas', value: formatCurrency(orders.reduce((s, o) => s + o.total, 0)), color: 'text-success' },
-            { label: 'Comissões (5%)', value: formatCurrency(orders.reduce((s, o) => s + (o.total * 0.05), 0)), color: 'text-amber-500' },
             { label: 'Aguardando Financeiro', value: orders.filter(o => o.status === 'aguardando_financeiro').length.toString(), color: 'text-warning' },
           ].map((card, i) => (
             <div key={i} className="p-4 rounded-xl bg-muted/30 border border-border/30">

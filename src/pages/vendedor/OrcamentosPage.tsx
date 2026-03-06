@@ -672,7 +672,7 @@ const OrcamentosPage: React.FC = () => {
                           const selectedProduct = products.find(p => p.name === e.target.value);
                           const newItem = { ...item, product: e.target.value };
                           if (selectedProduct) {
-                            newItem.unitPrice = selectedProduct.unitPrice;
+                            // Removido auto-preenchimento de unitPrice a pedido do usuário
                             newItem.description = selectedProduct.description;
 
                             // Initialize sensorType for KITs
@@ -691,8 +691,7 @@ const OrcamentosPage: React.FC = () => {
                         <option value="">Selecione um produto...</option>
                         {products.map(p => (
                           <option key={p.id} value={p.name}>
-                            {p.name} — R$ {p.unitPrice.toFixed(2)}
-                            {` (Estoque: ${p.stockQuantity})`}
+                            {p.name}
                           </option>
                         ))}
                       </select>

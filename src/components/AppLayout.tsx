@@ -46,7 +46,6 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: 
     { label: 'Lançamentos', icon: BarChart3, path: '/financeiro/lancamentos' },
     { label: 'Fluxo de Caixa', icon: TrendingUp, path: '/financeiro/fluxo' },
     { label: 'Garantias', icon: Shield, path: '/financeiro/garantias' },
-    { label: 'Pedidos', icon: Package, path: '/financeiro/pedidos' },
   ],
   gestor: [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/gestor' },

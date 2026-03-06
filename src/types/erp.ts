@@ -104,6 +104,9 @@ export interface Order {
   receiptUrls?: string[]; // Para múltiplos comprovantes
   carrier?: string;      // Transportadora (JADLOG, MOTOBOY, etc)
   isCronograma?: boolean; // Pedido de cronograma (agendado com antecedência)
+  financeiroAprovado?: boolean;
+  statusPagamento?: 'pendente' | 'pago' | 'parcial';
+  statusProducao?: string;
 }
 
 export interface ChatMessage {

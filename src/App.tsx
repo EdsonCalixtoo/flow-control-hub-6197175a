@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ERPProvider } from "@/contexts/ERPContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
@@ -34,6 +34,9 @@ import PedidosProducaoPage from "@/pages/producao/PedidosProducaoPage";
 import TrackingPage from "@/pages/TrackingPage";
 import QRCodePage from "@/pages/QRCodePage";
 import NotFound from "./pages/NotFound";
+import { lazy, Suspense } from "react";
+
+const CronogramaProducaoPage = lazy(() => import('@/pages/producao/CronogramaPage'));
 
 const queryClient = new QueryClient();
 
@@ -102,6 +105,8 @@ const App = () => (
                 {/* Produção */}
                 <Route path="/producao" element={<ProtectedRoute role="producao"><ProducaoDashboard /></ProtectedRoute>} />
                 <Route path="/producao/pedidos" element={<ProtectedRoute role="producao"><PedidosProducaoPage /></ProtectedRoute>} />
+                <Route path="/producao/cronograma" element={<ProtectedRoute role="producao"><Suspense fallback={null}><CronogramaProducaoPage /></Suspense></ProtectedRoute>} />
+                <Route path="/producao/historico" element={<ProtectedRoute role="producao"><div className="p-8">Histórico da Produção</div></ProtectedRoute>} />
 
                 {/* QR Code & Tracking */}
                 <Route path="/qr/:orderId" element={<QRCodePage />} />

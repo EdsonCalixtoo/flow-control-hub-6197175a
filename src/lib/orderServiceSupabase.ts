@@ -28,6 +28,10 @@ export const supabaseToOrder = (data: any): Order => ({
     updatedAt: data.updated_at,
     carrier: data.carrier || undefined,
     isCronograma: data.is_cronograma || false,
+    financeiroAprovado: data.financeiro_aprovado || false,
+    statusPagamento: data.status_pagamento || 'pendente',
+    statusProducao: data.status_producao || '',
+    scheduledDate: data.scheduled_date || undefined,
 });
 
 export const orderToSupabase = (order: Partial<Order>) => {
@@ -53,6 +57,10 @@ export const orderToSupabase = (order: Partial<Order>) => {
     if (order.installationPaymentType !== undefined) data.installation_payment_type = order.installationPaymentType;
     if (order.carrier !== undefined) data.carrier = order.carrier;
     if (order.isCronograma !== undefined) data.is_cronograma = order.isCronograma;
+    if (order.financeiroAprovado !== undefined) data.financeiro_aprovado = order.financeiroAprovado;
+    if (order.statusPagamento !== undefined) data.status_pagamento = order.statusPagamento;
+    if (order.statusProducao !== undefined) data.status_producao = order.statusProducao;
+    if (order.scheduledDate !== undefined) data.scheduled_date = order.scheduledDate;
 
     if (order.items) data.items = order.items;
     if (order.statusHistory) data.status_history = order.statusHistory;

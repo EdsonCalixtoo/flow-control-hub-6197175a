@@ -66,6 +66,7 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: 
     { label: 'Instalação', icon: Wrench, path: '/producao/pedidos?tipo=instalacao' },
     { label: 'Retirada', icon: Package, path: '/producao/pedidos?tipo=retirada' },
     { label: 'Agendados', icon: CalendarClock, path: '/producao/pedidos?tipo=agendado' },
+    { label: 'Cronograma', icon: CalendarClock, path: '/producao/cronograma' },
     { label: 'Atrasados', icon: AlertTriangle, path: '/producao/pedidos?tipo=atrasado' },
   ],
 };

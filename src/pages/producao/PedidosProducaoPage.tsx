@@ -1196,12 +1196,35 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
             </button>
           )}
           {(viewOrder.status === 'producao_finalizada' || viewOrder.status === 'produto_liberado') && (
-            <button
-              onClick={() => { setGuia(viewOrder.id); setViewOrderId(null); }}
-              className="btn-modern flex-1 bg-primary/10 text-primary shadow-none justify-center py-3 text-sm hover:bg-primary/20"
-            >
-              <Printer className="w-5 h-5" /> Imprimir Etiqueta de Envio
-            </button>
+            <div className="flex-1 space-y-2">
+              <button
+                disabled={!(viewOrder.financeiroAprovado || ['pago', 'parcial'].includes(viewOrder.paymentStatus || ''))}
+                onClick={() => { setGuia(viewOrder.id); setViewOrderId(null); }}
+                className={`btn-modern w-full justify-center py-3 text-sm transition-all ${!(viewOrder.financeiroAprovado || ['pago', 'parcial'].includes(viewOrder.paymentStatus || ''))
+                    ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-50 border-transparent shadow-none'
+                    : 'bg-primary/10 text-primary hover:bg-primary/20 hover:shadow-lg border-primary/20'
+                  }`}
+              >
+                <Printer className="w-5 h-5" />
+                {!(viewOrder.financeiroAprovado || ['pago', 'parcial'].includes(viewOrder.paymentStatus || ''))
+                  ? 'Bloqueado pelo Financeiro'
+                  : 'Imprimir Etiqueta de Envio'
+                }
+              </button>
+
+              <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider mx-1 ${(viewOrder.financeiroAprovado || viewOrder.paymentStatus === 'pago') ? 'bg-success/10 text-success border border-success/20' :
+                  viewOrder.paymentStatus === 'parcial' ? 'bg-primary/10 text-primary border border-primary/20' :
+                    'bg-warning/10 text-warning border border-warning/20'
+                }`}>
+                <div className={`w-2 h-2 rounded-full ${(viewOrder.financeiroAprovado || viewOrder.paymentStatus === 'pago') ? 'bg-success shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
+                    viewOrder.paymentStatus === 'parcial' ? 'bg-primary' :
+                      'bg-warning animate-pulse'
+                  }`} />
+                {(viewOrder.financeiroAprovado || viewOrder.paymentStatus === 'pago') ? 'Liberado Final' :
+                  viewOrder.paymentStatus === 'parcial' ? 'Sinal Pago - Liberado' :
+                    'Aguardando Pagamento'}
+              </div>
+            </div>
           )}
         </div>
       </div>

@@ -1,11 +1,26 @@
 import React, { useState } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { CalendarClock, Plus, Search, X, Check, ArrowRight, User, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
-import { format, addDays, startOfToday, isBefore, isSameDay } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import {
+    CalendarClock,
+    Plus,
+    Search,
+    X,
+    Check,
+    ArrowRight,
+    User,
+    Package,
+    Clock,
+    Truck,
+    Info,
+    DollarSign
+} from 'lucide-react';
+import { format, startOfToday, isBefore } from 'date-fns';
+import { ptBR as localePtBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import type { Order } from '@/types/erp';
+import ModernCalendar from '@/components/shared/ModernCalendar';
+import { formatCurrency } from '@/components/shared/StatusBadge';
 
 const CronogramaVendedorPage: React.FC = () => {
     const { clients, products, addOrder, orders } = useERP();
@@ -17,7 +32,8 @@ const CronogramaVendedorPage: React.FC = () => {
     const [selectedClientId, setSelectedClientId] = useState('');
     const [loading, setLoading] = useState(false);
 
-    // Form state similar to OrcamentosPage but simplified
+    const cronogramaOrders = orders.filter(o => o.isCronograma && (o.sellerId === user?.id || !user?.id));
+
     const [items, setItems] = useState<{ product: string; description: string; quantity: number; unitPrice: string | number }[]>([{ product: '', description: '', quantity: 1, unitPrice: '' }]);
     const [observation, setObservation] = useState('');
 
@@ -96,6 +112,9 @@ const CronogramaVendedorPage: React.FC = () => {
                 deliveryDate: format(selectedDate, 'yyyy-MM-dd'),
                 scheduledDate: format(selectedDate, 'yyyy-MM-dd'),
                 isCronograma: true,
+                financeiroAprovado: false,
+                statusPagamento: 'pendente',
+                statusProducao: 'Aguardando',
                 observation,
                 createdAt: now,
                 updatedAt: now,
@@ -103,193 +122,170 @@ const CronogramaVendedorPage: React.FC = () => {
                     status: 'rascunho',
                     timestamp: now,
                     user: user?.name || 'Vendedor',
-                    note: 'Pedido de cronograma criado'
+                    note: 'Pedido de cronograma criado para o dia ' + format(selectedDate, 'dd/MM/yyyy')
                 }]
             };
 
             await addOrder(newOrder);
-            toast.success('Pedido cronograma criado com sucesso!');
+            toast.success('Pedido agendado com sucesso!');
             resetForm();
         } catch (err: any) {
-            toast.error('Erro ao criar: ' + err.message);
+            toast.error('Erro ao agendar: ' + err.message);
         } finally {
             setLoading(false);
         }
     };
-
-    // Calendar render logic
-    const days = Array.from({ length: 35 }, (_, i) => addDays(startOfToday(), i));
 
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="page-header flex items-center gap-2">
-                        <CalendarClock className="w-6 h-6 text-primary" /> Cronograma (Agendamento)
+                        <CalendarClock className="w-8 h-8 text-primary shadow-sm" /> Cronograma (Agendamento)
                     </h1>
-                    <p className="page-subtitle">Escolha uma data no calendário para agendar um novo pedido</p>
+                    <p className="page-subtitle">Selecione um dia no calendário para reservar um agendamento</p>
                 </div>
             </div>
 
-            <div className="card-section p-6">
-                <div className="grid grid-cols-7 gap-px bg-border/40 rounded-xl overflow-hidden border border-border/40">
-                    {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => (
-                        <div key={d} className="bg-muted/30 p-3 text-center text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                            {d}
-                        </div>
-                    ))}
-                    {days.map((day, i) => {
-                        const dayOrders = orders.filter(o => o.isCronograma && o.scheduledDate === format(day, 'yyyy-MM-dd'));
-                        return (
-                            <div
-                                key={i}
-                                onClick={() => handleDateClick(day)}
-                                className={`min-h-[120px] bg-card p-3 cursor-pointer hover:bg-primary/5 transition-colors group relative border-t border-l border-border/20 ${isSameDay(day, selectedDate) ? 'bg-primary/5 ring-2 ring-primary ring-inset' : ''}`}
-                            >
-                                <span className={`text-sm font-bold ${isSameDay(day, startOfToday()) ? 'text-primary' : 'text-foreground'}`}>
-                                    {format(day, 'd')}
-                                </span>
+            <ModernCalendar
+                orders={cronogramaOrders}
+                onDateClick={handleDateClick}
+                onOrderClick={(order) => {
+                    toast.info(`Pedido ${order.number} agendado para este dia.`);
+                }}
+                role="vendedor"
+            />
 
-                                <div className="mt-2 space-y-1">
-                                    {dayOrders.slice(0, 3).map(o => (
-                                        <div key={o.id} className="text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded border border-primary/20 truncate font-semibold">
-                                            {o.clientName.split(' ')[0]} - {o.number}
-                                        </div>
-                                    ))}
-                                    {dayOrders.length > 3 && (
-                                        <div className="text-[8px] text-muted-foreground font-bold pl-1">
-                                            +{dayOrders.length - 3} mais...
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="absolute inset-0 bg-primary/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                                    <Plus className="w-6 h-6 text-primary" />
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-
-            {/* Modal de Criação */}
             {showCreateModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 backdrop-blur-sm p-4">
-                    <div className="card-section p-0 w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-scale-in">
-                        <div className="p-4 border-b border-border/40 flex items-center justify-between bg-muted/20">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                                    <CalendarClock className="w-5 h-5" />
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 backdrop-blur-md p-4 animate-in fade-in duration-300">
+                    <div className="card-section p-0 w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl scale-100 ring-1 ring-border shadow-primary/20">
+                        <div className="p-6 border-b border-border/40 flex items-center justify-between bg-gradient-to-r from-primary/10 to-transparent">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center text-primary shadow-inner">
+                                    <CalendarClock className="w-6 h-6" />
                                 </div>
                                 <div>
-                                    <h3 className="font-bold text-foreground">Novo Agendamento</h3>
-                                    <p className="text-[10px] text-muted-foreground uppercase font-bold">{format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}</p>
+                                    <h3 className="text-lg font-black text-foreground">Novo Agendamento</h3>
+                                    <p className="text-[10px] text-primary uppercase font-black tracking-[0.2em]">{selectedDate && format(selectedDate, "dd 'de' MMMM 'de' yyyy", { locale: localePtBR })}</p>
                                 </div>
                             </div>
-                            <button onClick={resetForm} className="p-2 hover:bg-muted rounded-lg"><X className="w-5 h-5" /></button>
+                            <button onClick={resetForm} className="p-3 hover:bg-muted rounded-2xl transition-all shadow-sm"><X className="w-6 h-6 text-muted-foreground" /></button>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                            {/* Seleção de Cliente */}
+                        <div className="flex-1 overflow-y-auto p-8 space-y-8">
                             {!selectedClientId ? (
-                                <div className="space-y-4">
+                                <div className="space-y-6 animate-in slide-in-from-bottom-4">
                                     <div className="relative">
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground/50" />
                                         <input
                                             type="text"
-                                            placeholder="Buscar cliente..."
-                                            className="input-modern pl-10"
+                                            placeholder="Buscar cliente por nome ou CPF/CNPJ..."
+                                            className="input-modern pl-12 h-14 text-sm font-bold shadow-sm"
                                             value={searchClient}
                                             onChange={e => setSearchClient(e.target.value)}
+                                            autoFocus
                                         />
                                     </div>
-                                    <div className="grid grid-cols-1 gap-2">
+                                    <div className="space-y-2">
                                         {filteredClients.slice(0, 5).map(c => (
                                             <button
                                                 key={c.id}
                                                 onClick={() => setSelectedClientId(c.id)}
-                                                className="flex items-center justify-between p-3 rounded-xl border border-border/40 hover:bg-muted/30 transition-all group"
+                                                className="w-full flex items-center justify-between p-4 rounded-2xl border border-border/40 bg-card hover:bg-primary/5 hover:border-primary/30 transition-all group shadow-sm"
                                             >
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center text-muted-foreground group-hover:bg-primary/20 group-hover:text-primary"><User className="w-4 h-4" /></div>
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center text-muted-foreground group-hover:bg-primary/20 group-hover:text-primary transition-colors"><User className="w-5 h-5" /></div>
                                                     <div className="text-left">
-                                                        <p className="text-sm font-bold">{c.name}</p>
-                                                        <p className="text-[10px] text-muted-foreground font-medium">{c.cpfCnpj || 'Sem documento'}</p>
+                                                        <p className="text-sm font-black text-foreground group-hover:text-primary transition-colors">{c.name}</p>
+                                                        <p className="text-[10px] text-muted-foreground font-bold tracking-widest">{c.cpfCnpj || 'DOCUMENTO NÃO CADASTRADO'}</p>
                                                     </div>
                                                 </div>
-                                                <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                                                <ArrowRight className="w-4 h-4 text-primary opacity-0 group-hover:opacity-100 transition-opacity" />
                                             </button>
                                         ))}
                                     </div>
                                 </div>
                             ) : (
-                                <div className="space-y-6 animate-in slide-in-from-right-2">
-                                    <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <User className="w-5 h-5 text-primary" />
+                                <div className="space-y-8 animate-in slide-in-from-right-4">
+                                    <div className="p-5 rounded-2xl bg-primary/5 border border-primary/20 flex items-center justify-between shadow-inner">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center text-primary shadow-sm"><User className="w-6 h-6" /></div>
                                             <div>
-                                                <p className="text-xs font-bold text-primary">Cliente Selecionado</p>
-                                                <p className="text-sm font-black text-foreground">{clients.find(c => c.id === selectedClientId)?.name}</p>
+                                                <p className="text-[10px] font-black text-primary uppercase tracking-widest">Cliente Selecionado</p>
+                                                <p className="text-base font-black text-foreground">{clients.find(c => c.id === selectedClientId)?.name}</p>
                                             </div>
                                         </div>
-                                        <button onClick={() => setSelectedClientId('')} className="text-[10px] font-bold text-destructive uppercase hover:underline">Alterar</button>
+                                        <button onClick={() => setSelectedClientId('')} className="px-4 py-2 bg-background border border-border/40 rounded-xl text-[10px] font-black text-muted-foreground uppercase hover:bg-muted transition-all">Alterar</button>
                                     </div>
 
-                                    {/* Itens */}
-                                    <div className="space-y-3">
-                                        <div className="flex items-center justify-between">
-                                            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Produtos</p>
-                                            <button onClick={addItem} className="text-[10px] font-bold text-primary uppercase flex items-center gap-1"><Plus className="w-3 h-3" /> Adicionar</button>
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between px-1">
+                                            <p className="text-sm font-black text-foreground">Especificação do Pedido</p>
+                                            <button onClick={addItem} className="h-10 px-4 rounded-xl bg-foreground text-background text-[10px] font-black uppercase tracking-widest flex items-center gap-2"><Plus className="w-4 h-4" /> Item</button>
                                         </div>
-                                        {items.map((item, i) => (
-                                            <div key={i} className="grid grid-cols-12 gap-2 p-3 rounded-xl bg-muted/30 border border-border/30 relative group">
-                                                <div className="col-span-12 md:col-span-5">
-                                                    <select
-                                                        value={item.product}
-                                                        onChange={e => updateItem(i, 'product', e.target.value)}
-                                                        className="input-modern py-2 text-xs"
-                                                    >
-                                                        <option value="">Produto...</option>
-                                                        {products.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
-                                                    </select>
-                                                </div>
-                                                <div className="col-span-4 md:col-span-2">
-                                                    <input type="number" value={item.quantity} onChange={e => updateItem(i, 'quantity', Number(e.target.value))} className="input-modern py-2 text-xs" placeholder="Qtd" />
-                                                </div>
-                                                <div className="col-span-6 md:col-span-4">
-                                                    <div className="relative">
-                                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">R$</span>
-                                                        <input type="text" value={item.unitPrice} onChange={e => updateItem(i, 'unitPrice', e.target.value)} className="input-modern py-2 pl-7 text-xs" placeholder="Preço" />
+
+                                        <div className="space-y-3">
+                                            {items.map((item, i) => (
+                                                <div key={i} className="grid grid-cols-12 gap-3 p-4 rounded-2xl bg-muted/20 border border-border/20 relative group">
+                                                    <div className="col-span-12 md:col-span-5">
+                                                        <label className="text-[10px] font-black uppercase tracking-tighter text-muted-foreground mb-1 block">Produto</label>
+                                                        <select
+                                                            value={item.product}
+                                                            onChange={e => updateItem(i, 'product', e.target.value)}
+                                                            className="input-modern h-11 py-2 text-xs font-bold"
+                                                        >
+                                                            <option value="">Selecione...</option>
+                                                            {products.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                                                        </select>
+                                                    </div>
+                                                    <div className="col-span-4 md:col-span-2">
+                                                        <label className="text-[10px] font-black uppercase tracking-tighter text-muted-foreground mb-1 block">Quantidade</label>
+                                                        <input type="number" value={item.quantity} onChange={e => updateItem(i, 'quantity', Number(e.target.value))} className="input-modern h-11 py-2 text-xs font-bold text-center" />
+                                                    </div>
+                                                    <div className="col-span-8 md:col-span-4">
+                                                        <label className="text-[10px] font-black uppercase tracking-tighter text-muted-foreground mb-1 block">Preço Unitário</label>
+                                                        <div className="relative">
+                                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-black text-muted-foreground">R$</span>
+                                                            <input type="text" value={item.unitPrice} onChange={e => updateItem(i, 'unitPrice', e.target.value)} className="input-modern h-11 py-2 pl-9 text-xs font-black text-primary" placeholder="0,00" />
+                                                        </div>
+                                                    </div>
+                                                    <div className="col-span-12 flex items-center justify-end md:col-span-1 md:pt-6">
+                                                        <button onClick={() => removeItem(i)} className="p-2 text-destructive/40 hover:text-destructive transition-all"><X className="w-5 h-5" /></button>
                                                     </div>
                                                 </div>
-                                                <div className="col-span-2 md:col-span-1 flex items-center justify-end">
-                                                    <button onClick={() => removeItem(i)} className="text-destructive opacity-0 group-hover:opacity-100 transition-opacity"><X className="w-4 h-4" /></button>
-                                                </div>
-                                            </div>
-                                        ))}
+                                            ))}
+                                        </div>
                                     </div>
 
-                                    <div className="space-y-2">
-                                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Observações</p>
-                                        <textarea value={observation} onChange={e => setObservation(e.target.value)} className="input-modern min-h-[80px]" placeholder="Instruções para o financeiro/produção..." />
+                                    <div className="space-y-3">
+                                        <label className="text-sm font-black text-foreground px-1">Instruções</label>
+                                        <textarea
+                                            value={observation}
+                                            onChange={e => setObservation(e.target.value)}
+                                            className="input-modern min-h-[120px] p-4 text-sm resize-none"
+                                            placeholder="Detalhes importantes..."
+                                        />
                                     </div>
                                 </div>
                             )}
                         </div>
 
-                        <div className="p-4 border-t border-border/40 bg-muted/20 flex items-center justify-between">
-                            <div className="text-right">
-                                <p className="text-[10px] text-muted-foreground font-bold uppercase">Total Estimado</p>
-                                <p className="text-lg font-black text-foreground">R$ {calcTotal().toFixed(2)}</p>
+                        <div className="p-6 border-t border-border/40 bg-card flex flex-col md:flex-row items-center justify-between gap-6">
+                            <div className="flex items-center gap-4 p-4 rounded-2xl bg-muted/30 border border-border/20 w-full md:w-auto">
+                                <div className="p-3 rounded-xl bg-primary/10 text-primary"><DollarSign className="w-6 h-6" /></div>
+                                <div>
+                                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">Total</p>
+                                    <p className="text-2xl font-black text-foreground">{formatCurrency(calcTotal())}</p>
+                                </div>
                             </div>
-                            <div className="flex gap-2">
-                                <button onClick={resetForm} className="btn-modern bg-background text-foreground shadow-none">Cancelar</button>
+                            <div className="flex gap-3 w-full md:w-auto">
+                                <button onClick={resetForm} className="btn-modern h-14 px-8 bg-muted text-foreground border-none font-black text-xs uppercase tracking-widest">Cancelar</button>
                                 <button
                                     onClick={handleCreateScheduledOrder}
                                     disabled={loading || !selectedClientId}
-                                    className="btn-primary min-w-[140px] justify-center"
+                                    className="btn-primary h-14 min-w-[200px] justify-center text-xs font-black uppercase tracking-widest"
                                 >
-                                    {loading ? 'Criando...' : <><Check className="w-4 h-4" /> Agendar e Enviar</>}
+                                    {loading ? 'Processando...' : <><Check className="w-5 h-5 mr-3" /> Confirmar</>}
                                 </button>
                             </div>
                         </div>

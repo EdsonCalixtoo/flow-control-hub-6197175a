@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import type { Order } from '@/types/erp';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabaseToOrder } from '@/lib/orderServiceSupabase';
 
 interface RealtimeOrderEvent {
   type: 'INSERT' | 'UPDATE' | 'DELETE';
@@ -16,40 +17,6 @@ export function useRealtimeOrders(
 ) {
   const { user } = useAuth();
   const channelRef = useRef<any>(null);
-
-  // Função para converter dados do Supabase para Order
-  const supabaseToOrder = (data: any): Order | null => {
-    if (!data || !data.id) return null;
-    return {
-      id: data.id,
-      number: data.number,
-      clientId: data.client_id,
-      clientName: data.client_name,
-      sellerId: data.seller_id,
-      sellerName: data.seller_name,
-      items: data.items || [],
-      subtotal: data.subtotal || 0,
-      taxes: data.taxes || 0,
-      total: data.total || 0,
-      notes: data.notes,
-      observation: data.observation,
-      status: data.status,
-      deliveryDate: data.delivery_date,
-      orderType: data.order_type || 'entrega',
-      installationDate: data.installation_date,
-      installationTime: data.installation_time,
-      installationPaymentType: data.installation_payment_type,
-      isConsigned: data.is_consigned || false,
-      paymentStatus: data.payment_status || 'pendente',
-      paymentMethod: data.payment_method,
-      receiptUrls: data.receipt_urls,
-      createdAt: data.created_at,
-      updatedAt: data.updated_at,
-      statusHistory: data.status_history || [],
-      rejectionReason: data.rejection_reason,
-      scheduledDate: data.scheduled_date,
-    };
-  };
 
   // Refs para manter callbacks e estados sem reiniciar o efeito
   const callbackRef = useRef(onOrderChanged);
@@ -67,14 +34,14 @@ export function useRealtimeOrders(
     if (!user) return;
 
     // Se já estiver conectando ou conectado, não dobrar
-    if (channelRef.current && channelRef.current.state === 'joined') return;
+    if (channelRef.current && (channelRef.current.state === 'joined' || channelRef.current.state === 'joining')) return;
 
     // Limpar canal anterior se existir
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
     }
 
-    const channelName = `orders_realtime_${user.id}_${Date.now()}`;
+    const channelName = `orders_rt_${user.id}_${Date.now()}`;
     const channel = supabase.channel(channelName);
 
     channel
@@ -109,7 +76,7 @@ export function useRealtimeOrders(
             const updatedOrder = supabaseToOrder(payload.new);
             if (!updatedOrder) return;
 
-            const oldOrder = supabaseToOrder(payload.old);
+            const oldOrder = payload.old && (payload.old as any).id ? supabaseToOrder(payload.old) : null;
             // Se oldOrder for null (comum se não houver Full Replication), consideramos statusChanged como true se updatedOrder tem status
             const previousStatus = oldOrder?.status;
             const statusChanged = !previousStatus || previousStatus !== updatedOrder.status;
@@ -147,15 +114,17 @@ export function useRealtimeOrders(
             }
           }
           else if (payload.eventType === 'DELETE') {
+            const id = (payload.old as any).id;
+            console.log(`[Realtime Orders] Pedido deletado: ${id}`);
+
+            // Note: deleted order mapping might be incomplete if only ID is sent
             const deletedOrder = supabaseToOrder(payload.old);
-            if (!deletedOrder) return;
-
-            console.log(`[Realtime Orders] Pedido deletado: ${deletedOrder.number}`);
-
-            callbackRef.current?.({
-              type: 'DELETE',
-              order: deletedOrder,
-            });
+            if (deletedOrder) {
+              callbackRef.current?.({
+                type: 'DELETE',
+                order: deletedOrder,
+              });
+            }
           }
         }
       )
@@ -170,8 +139,7 @@ export function useRealtimeOrders(
       });
 
     channelRef.current = channel;
-  }, [user]); // Apenas depende de user agora
-
+  }, [user]);
 
   useEffect(() => {
     setupRealtimeListener();

@@ -6,7 +6,7 @@ import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useAuth } from '@/contexts/AuthContext';
 import { fetchClients, createClient as createClientSupabase, updateClient as updateClientSupabase, deleteClient as deleteClientSupabase } from '@/lib/clientServiceSupabase';
 import { fetchProducts, createProduct as createProductSupabase, updateProductSupabase, deleteProductSupabase } from '@/lib/productServiceSupabase';
-import { fetchOrders, createOrderSupabase, updateOrderSupabase, deleteOrderSupabase } from '@/lib/orderServiceSupabase';
+import { fetchOrders, createOrderSupabase, updateOrderSupabase, deleteOrderSupabase, supabaseToOrder } from '@/lib/orderServiceSupabase';
 import {
   fetchFinancialEntries, createFinancialEntrySupabase,
   fetchDelayReports, createDelayReportSupabase, markDelayReportReadSupabase,
@@ -152,19 +152,34 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         'postgres_changes',
         { event: '*', schema: 'public', table: 'orders' },
         (payload) => {
-          console.log('[Realtime] Change in orders:', payload);
+          console.log('[ERP] 📡 Realtime Order change:', payload.eventType, (payload.new as any)?.number || (payload.old as any)?.id);
+
           if (payload.eventType === 'INSERT') {
-            const newOrder = payload.new as any; // Need to map or just reload
-            // Simplest is to reload for now to ensure consistency, 
-            // but for performance we should map and update state.
-            loadFromSupabase();
+            const newOrder = supabaseToOrder(payload.new);
+            setOrders(prev => {
+              // Evitar duplicidade se já estiver na lista
+              if (prev.some(o => o.id === newOrder.id)) return prev;
+              return [newOrder, ...prev];
+            });
             toast.info(`Novo orçamento criado: ${newOrder.number}`);
-          } else if (payload.eventType === 'UPDATE') {
-            const updatedOrder = payload.new as any;
-            loadFromSupabase();
-            toast.info(`Pedido ${updatedOrder.number} atualizado: ${updatedOrder.status}`);
-          } else if (payload.eventType === 'DELETE') {
-            loadFromSupabase();
+            // Recarrega em breve para garantir consistência total (relações etc)
+            setTimeout(() => loadFromSupabase(), 2000);
+          }
+          else if (payload.eventType === 'UPDATE') {
+            const updatedOrder = supabaseToOrder(payload.new);
+            setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
+
+            // Notificações específicas de interesse geral
+            if (updatedOrder.status === 'aguardando_financeiro') {
+              toast.info(`Pedido ${updatedOrder.number} aguardando financeiro`);
+            }
+
+            setTimeout(() => loadFromSupabase(), 2000);
+          }
+          else if (payload.eventType === 'DELETE') {
+            const id = (payload.old as any).id;
+            setOrders(prev => prev.filter(o => o.id !== id));
+            setTimeout(() => loadFromSupabase(), 2000);
           }
         }
       )

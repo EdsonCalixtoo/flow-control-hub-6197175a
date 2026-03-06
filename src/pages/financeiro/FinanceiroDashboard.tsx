@@ -73,13 +73,11 @@ const FinanceiroDashboard: React.FC = () => {
     if (event.type === 'UPDATE' && event.previousStatus !== 'aguardando_financeiro' && event.order.status === 'aguardando_financeiro') {
       setNotificationCount(prev => prev + 1);
       console.log('[FinanceiroDashboard] 🔔 NOVO PEDIDO PARA APROVAÇÃO - Tempo Real');
-      // Força refresh imediato da lista
-      setTimeout(() => {
-        loadFromSupabase();
-        setLastUpdate(new Date());
-      }, 500); // 500ms delay to ensure DB consistency
+      // O ERPContext já atualiza a lista de 'orders', então o dashboard vai refletir automaticamente.
+      // Apenas forçamos um marcador de atualização se necessário.
+      setLastUpdate(new Date());
     }
-  }, [loadFromSupabase]);
+  }, []);
 
   const statusesWatch = useMemo(() => ['aguardando_financeiro'], []);
 

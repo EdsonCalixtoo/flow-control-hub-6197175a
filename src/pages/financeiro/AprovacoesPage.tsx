@@ -23,9 +23,8 @@ const AprovacoesPage: React.FC = () => {
     if (event.type === 'UPDATE' && event.previousStatus !== 'aguardando_financeiro' && event.order.status === 'aguardando_financeiro') {
       setNotificationCount(prev => prev + 1);
       console.log('[AprovacoesPage] 🔔 Novo pedido para aprovação recebido em TEMPO REAL');
-      setTimeout(() => loadFromSupabase(), 500);
     }
-  }, [loadFromSupabase]);
+  }, []);
 
   const statusesToWatch = useMemo(() => ['aguardando_financeiro'], []);
 

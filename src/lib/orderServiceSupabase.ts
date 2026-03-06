@@ -2,7 +2,7 @@ import { supabase } from './supabase';
 import type { Order, OrderStatus } from '@/types/erp';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-const supabaseToOrder = (data: any): Order => ({
+export const supabaseToOrder = (data: any): Order => ({
     id: data.id,
     number: data.number,
     clientId: data.client_id,
@@ -28,7 +28,7 @@ const supabaseToOrder = (data: any): Order => ({
     updatedAt: data.updated_at,
 });
 
-const orderToSupabase = (order: Partial<Order>) => {
+export const orderToSupabase = (order: Partial<Order>) => {
     const data: any = {};
     if (order.id) data.id = order.id;
     if (order.number) data.number = order.number;

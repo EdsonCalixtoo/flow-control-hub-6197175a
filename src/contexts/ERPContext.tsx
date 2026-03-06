@@ -144,117 +144,78 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (!isAuthenticated) return;
 
-    console.log('[ERP] 📡 Iniciando canais de tempo real...');
+    let retryTimer: any;
+    let channel: any;
 
-    const channel = supabase
-      .channel('schema-db-changes')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'orders' },
-        (payload) => {
-          console.log('[ERP] 📡 Realtime Order change:', payload.eventType, (payload.new as any)?.number || (payload.old as any)?.id);
+    const connectRealtime = () => {
+      console.log('[ERP] 📡 Conectando canais de tempo real...');
 
-          if (payload.eventType === 'INSERT') {
-            const newOrder = supabaseToOrder(payload.new);
-            setOrders(prev => {
-              // Evitar duplicidade se já estiver na lista
-              if (prev.some(o => o.id === newOrder.id)) return prev;
-              return [newOrder, ...prev];
-            });
-            toast.info(`Novo orçamento criado: ${newOrder.number}`);
-            // Recarrega em breve para garantir consistência total (relações etc)
-            setTimeout(() => loadFromSupabase(), 2000);
-          }
-          else if (payload.eventType === 'UPDATE') {
-            const updatedOrder = supabaseToOrder(payload.new);
-            setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
+      channel = supabase
+        .channel('db-realtime-sync')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'orders' },
+          (payload) => {
+            console.log(`[ERP Realtime] Pedido ${payload.eventType}:`, (payload.new as any)?.number || (payload.old as any)?.id);
 
-            // Notificações específicas de interesse geral
-            if (updatedOrder.status === 'aguardando_financeiro') {
-              toast.info(`Pedido ${updatedOrder.number} aguardando financeiro`);
+            if (payload.eventType === 'INSERT') {
+              const newOrder = supabaseToOrder(payload.new);
+              setOrders(prev => {
+                if (prev.some(o => o.id === newOrder.id)) return prev;
+                return [newOrder, ...prev];
+              });
+
+              // Notificação para todos
+              if (newOrder.status === 'aguardando_financeiro') {
+                toast.info(`📊 Novo pedido para aprovação: ${newOrder.number}`, {
+                  description: `Cliente: ${newOrder.clientName}`
+                });
+              }
+            }
+            else if (payload.eventType === 'UPDATE') {
+              const updatedOrder = supabaseToOrder(payload.new);
+              setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
+
+              // Se o status mudou para algo importante, avisar
+              if (updatedOrder.status === 'aguardando_financeiro') {
+                toast.info(`📊 Pedido ${updatedOrder.number} aguardando aprovação financeira`);
+              }
+            }
+            else if (payload.eventType === 'DELETE') {
+              const id = (payload.old as any).id;
+              setOrders(prev => prev.filter(o => o.id !== id));
             }
 
-            setTimeout(() => loadFromSupabase(), 2000);
+            // Sincroniza fundo após um tempo para garantir relações (cliente, etc)
+            clearTimeout(retryTimer);
+            retryTimer = setTimeout(() => {
+              loadFromSupabase();
+            }, 3000);
           }
-          else if (payload.eventType === 'DELETE') {
-            const id = (payload.old as any).id;
-            setOrders(prev => prev.filter(o => o.id !== id));
-            setTimeout(() => loadFromSupabase(), 2000);
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'financial_entries' },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
+        )
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'financial_entries' },
+          (payload) => {
             loadFromSupabase();
             const entry = payload.new as any;
             toast.success(`Novo lançamento financeiro: ${entry.description}`);
           }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'delay_reports' },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            loadFromSupabase();
-            toast.warning('Novo alerta de atraso recebido!');
+        )
+        .subscribe((status) => {
+          console.log(`[ERP Realtime] Status: ${status}`);
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.error('[ERP Realtime] Erro na conexão. Tentando reconectar em 5s...');
+            setTimeout(connectRealtime, 5000);
           }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'warranties' },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            loadFromSupabase();
-            const w = payload.new as any;
-            toast.warning(`Nova solicitação de garantia: ${w.order_number}`);
-          } else if (payload.eventType === 'UPDATE') {
-            loadFromSupabase();
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'products' },
-        (payload) => {
-          console.log('[Realtime] Change in products:', payload);
-          loadFromSupabase();
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'barcode_scans' },
-        (payload) => {
-          console.log('[Realtime] Change in barcode_scans:', payload);
-          loadFromSupabase();
-          if (payload.eventType === 'INSERT') {
-            const scan = payload.new as any;
-            if (scan.success) {
-              toast.success(`Nova leitura de código: ${scan.order_number}`);
-            }
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'delivery_pickups' },
-        (payload) => {
-          console.log('[Realtime] Change in delivery_pickups:', payload);
-          loadFromSupabase();
-          if (payload.eventType === 'INSERT') {
-            const pickup = payload.new as any;
-            toast.success(`Pedido retirado pelo entregador: ${pickup.order_number}`);
-          }
-        }
-      )
-      .subscribe();
+        });
+    };
+
+    connectRealtime();
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) supabase.removeChannel(channel);
+      clearTimeout(retryTimer);
     };
   }, [isAuthenticated, loadFromSupabase]);
 

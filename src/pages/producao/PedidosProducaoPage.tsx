@@ -708,98 +708,98 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
             </div>
           )}
         </div>
-      </div>
 
-      {/* Modal de Volumes sobreposto durante scanner */}
-      {showVolumesDialog && scannedOrderForVolumes && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 backdrop-blur-sm">
-          <div className="card-section p-6 w-96 space-y-4 animate-scale-in shadow-2xl">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-foreground text-lg">Quantos volumes?</h3>
-              <button
-                onClick={() => {
-                  setShowVolumesDialog(false);
-                  setScannedOrderForVolumes(null);
-                  setVolumesInput('1');
-                  setScanResult(null);
-                }}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="text-center py-3 border-b border-border/30">
-              <p className="text-sm font-bold text-foreground">{scannedOrderForVolumes.number}</p>
-              <p className="text-xs text-muted-foreground">{scannedOrderForVolumes.clientName}</p>
-            </div>
-
-            <div className="space-y-3">
-              <label className="text-sm font-bold text-foreground block">
-                Quantidade de Volumes / Caixas
-              </label>
-              <div className="flex items-center gap-2 justify-center">
+        {/* Modal de Volumes sobreposto durante scanner */}
+        {showVolumesDialog && scannedOrderForVolumes && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 backdrop-blur-sm">
+            <div className="card-section p-6 w-96 space-y-4 animate-scale-in shadow-2xl">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-foreground text-lg">Quantos volumes?</h3>
                 <button
-                  onClick={() => setVolumesInput(Math.max(1, parseInt(volumesInput) - 1).toString())}
-                  className="w-10 h-10 rounded-lg bg-muted hover:bg-muted/80 flex items-center justify-center font-bold text-lg"
+                  onClick={() => {
+                    setShowVolumesDialog(false);
+                    setScannedOrderForVolumes(null);
+                    setVolumesInput('1');
+                    setScanResult(null);
+                  }}
+                  className="text-muted-foreground hover:text-foreground"
                 >
-                  −
-                </button>
-                <input
-                  type="number"
-                  min="1"
-                  value={volumesInput}
-                  onChange={e => setVolumesInput(Math.max(1, parseInt(e.target.value) || 1).toString())}
-                  className="input-modern text-center text-3xl font-bold w-24 py-2"
-                  autoFocus
-                />
-                <button
-                  onClick={() => setVolumesInput((parseInt(volumesInput) + 1).toString())}
-                  className="w-10 h-10 rounded-lg bg-muted hover:bg-muted/80 flex items-center justify-center font-bold text-lg"
-                >
-                  +
+                  <X className="w-4 h-4" />
                 </button>
               </div>
-              <p className="text-xs text-muted-foreground text-center">
-                💡 Escanear 2 vezes = {volumesInput} {parseInt(volumesInput) === 1 ? "volume" : "volumes"}
-              </p>
-            </div>
 
-            <div className="p-3 rounded-xl bg-producao/5 border border-producao/20 space-y-1">
-              <p className="text-xs text-muted-foreground">
-                ✓ Pedido <span className="font-bold text-foreground">{scannedOrderForVolumes.number}</span>
-              </p>
-              <p className="text-xs text-muted-foreground">
-                ✓ Será liberado com <span className="font-bold text-producao">{volumesInput} {parseInt(volumesInput) === 1 ? "volume" : "volumes"}</span>
-              </p>
-              <p className="text-xs text-muted-foreground">
-                ✓ Seguirá para <span className="font-bold text-success">entregadores</span>
-              </p>
-            </div>
+              <div className="text-center py-3 border-b border-border/30">
+                <p className="text-sm font-bold text-foreground">{scannedOrderForVolumes.number}</p>
+                <p className="text-xs text-muted-foreground">{scannedOrderForVolumes.clientName}</p>
+              </div>
 
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowVolumesDialog(false);
-                  setScannedOrderForVolumes(null);
-                  setVolumesInput('1');
-                  setScanResult(null);
-                }}
-                className="btn-modern bg-muted text-foreground shadow-none flex-1"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleConfirmVolumes}
-                disabled={!volumesInput || parseInt(volumesInput) < 1}
-                className="btn-primary flex-1 gap-2"
-              >
-                <CheckCircle className="w-4 h-4" /> Confirmar
-              </button>
+              <div className="space-y-3">
+                <label className="text-sm font-bold text-foreground block">
+                  Quantidade de Volumes / Caixas
+                </label>
+                <div className="flex items-center gap-2 justify-center">
+                  <button
+                    onClick={() => setVolumesInput(Math.max(1, parseInt(volumesInput) - 1).toString())}
+                    className="w-10 h-10 rounded-lg bg-muted hover:bg-muted/80 flex items-center justify-center font-bold text-lg"
+                  >
+                    −
+                  </button>
+                  <input
+                    type="number"
+                    min="1"
+                    value={volumesInput}
+                    onChange={e => setVolumesInput(Math.max(1, parseInt(e.target.value) || 1).toString())}
+                    className="input-modern text-center text-3xl font-bold w-24 py-2"
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => setVolumesInput((parseInt(volumesInput) + 1).toString())}
+                    className="w-10 h-10 rounded-lg bg-muted hover:bg-muted/80 flex items-center justify-center font-bold text-lg"
+                  >
+                    +
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground text-center">
+                  💡 Escanear 2 vezes = {volumesInput} {parseInt(volumesInput) === 1 ? "volume" : "volumes"}
+                </p>
+              </div>
+
+              <div className="p-3 rounded-xl bg-producao/5 border border-producao/20 space-y-1">
+                <p className="text-xs text-muted-foreground">
+                  ✓ Pedido <span className="font-bold text-foreground">{scannedOrderForVolumes.number}</span>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  ✓ Será liberado com <span className="font-bold text-producao">{volumesInput} {parseInt(volumesInput) === 1 ? "volume" : "volumes"}</span>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  ✓ Seguirá para <span className="font-bold text-success">entregadores</span>
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowVolumesDialog(false);
+                    setScannedOrderForVolumes(null);
+                    setVolumesInput('1');
+                    setScanResult(null);
+                  }}
+                  className="btn-modern bg-muted text-foreground shadow-none flex-1"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={handleConfirmVolumes}
+                  disabled={!volumesInput || parseInt(volumesInput) < 1}
+                  className="btn-primary flex-1 gap-2"
+                >
+                  <CheckCircle className="w-4 h-4" /> Confirmar
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     );
   }
 

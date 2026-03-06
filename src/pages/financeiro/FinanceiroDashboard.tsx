@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useERP } from '@/contexts/ERPContext';
@@ -69,7 +69,7 @@ const FinanceiroDashboard: React.FC = () => {
   }, [orders]);
 
   // 📡 Monitora em tempo real quando novos pedidos chegam para financeiro
-  useRealtimeOrders((event) => {
+  const handleOrderRealtime = useCallback((event: any) => {
     if (event.type === 'UPDATE' && event.previousStatus !== 'aguardando_financeiro' && event.order.status === 'aguardando_financeiro') {
       setNotificationCount(prev => prev + 1);
       console.log('[FinanceiroDashboard] 🔔 NOVO PEDIDO PARA APROVAÇÃO - Tempo Real');
@@ -77,9 +77,13 @@ const FinanceiroDashboard: React.FC = () => {
       setTimeout(() => {
         loadFromSupabase();
         setLastUpdate(new Date());
-      }, 100);
+      }, 500); // 500ms delay to ensure DB consistency
     }
-  }, ['aguardando_financeiro']);
+  }, [loadFromSupabase]);
+
+  const statusesWatch = useMemo(() => ['aguardando_financeiro'], []);
+
+  useRealtimeOrders(handleOrderRealtime, statusesWatch);
 
   const totalRecebido = useMemo(() =>
     financialEntries.filter(e => e.type === 'receita' && e.status === 'pago').reduce((s, e) => s + e.amount, 0)

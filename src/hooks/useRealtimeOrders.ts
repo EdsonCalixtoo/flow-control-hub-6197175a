@@ -18,7 +18,8 @@ export function useRealtimeOrders(
   const channelRef = useRef<any>(null);
 
   // Função para converter dados do Supabase para Order
-  const supabaseToOrder = (data: any): Order => {
+  const supabaseToOrder = (data: any): Order | null => {
+    if (!data || !data.id) return null;
     return {
       id: data.id,
       number: data.number,
@@ -50,16 +51,33 @@ export function useRealtimeOrders(
     };
   };
 
+  // Refs para manter callbacks e estados sem reiniciar o efeito
+  const callbackRef = useRef(onOrderChanged);
+  const statusesRef = useRef(statusesToWatch);
+
+  useEffect(() => {
+    callbackRef.current = onOrderChanged;
+  }, [onOrderChanged]);
+
+  useEffect(() => {
+    statusesRef.current = statusesToWatch;
+  }, [statusesToWatch]);
+
   const setupRealtimeListener = useCallback(() => {
     if (!user) return;
+
+    // Se já estiver conectando ou conectado, não dobrar
+    if (channelRef.current && channelRef.current.state === 'joined') return;
 
     // Limpar canal anterior se existir
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
     }
 
-    const channel = supabase
-      .channel(`orders_realtime_${user.id}_${Date.now()}`)
+    const channelName = `orders_realtime_${user.id}_${Date.now()}`;
+    const channel = supabase.channel(channelName);
+
+    channel
       .on(
         'postgres_changes',
         {
@@ -68,30 +86,36 @@ export function useRealtimeOrders(
           table: 'orders',
         },
         (payload) => {
-          console.log('[Realtime Orders] Evento recebido:', payload.eventType, (payload.new as any)?.number);
+          console.log('[Realtime Orders] Evento recebido:', payload.eventType, (payload.new as any)?.number || (payload.old as any)?.number);
 
           if (payload.eventType === 'INSERT') {
             const newOrder = supabaseToOrder(payload.new);
+            if (!newOrder) return;
 
             // Notifica se é um status que deve ser monitorado
-            if (!statusesToWatch || statusesToWatch.includes(newOrder.status)) {
+            const watchList = statusesRef.current;
+            if (!watchList || watchList.includes(newOrder.status)) {
               toast.success(`✅ Novo pedido criado: ${newOrder.number}`, {
                 description: `Cliente: ${newOrder.clientName}`,
               });
-              
-              onOrderChanged?.({
+
+              callbackRef.current?.({
                 type: 'INSERT',
                 order: newOrder,
               });
             }
-          } 
+          }
           else if (payload.eventType === 'UPDATE') {
             const updatedOrder = supabaseToOrder(payload.new);
+            if (!updatedOrder) return;
+
             const oldOrder = supabaseToOrder(payload.old);
-            const statusChanged = oldOrder.status !== updatedOrder.status;
+            // Se oldOrder for null (comum se não houver Full Replication), consideramos statusChanged como true se updatedOrder tem status
+            const previousStatus = oldOrder?.status;
+            const statusChanged = !previousStatus || previousStatus !== updatedOrder.status;
 
             if (statusChanged) {
-              console.log(`[Realtime Orders] Status mudou: ${oldOrder.status} → ${updatedOrder.status}`);
+              console.log(`[Realtime Orders] Status mudou: ${previousStatus || 'unknown'} → ${updatedOrder.status}`);
 
               // Notificações específicas por status
               if (updatedOrder.status === 'aguardando_financeiro') {
@@ -99,12 +123,12 @@ export function useRealtimeOrders(
                   description: `Cliente: ${updatedOrder.clientName} | Valor: R$ ${updatedOrder.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
                   duration: 8000,
                 });
-              } 
+              }
               else if (updatedOrder.status === 'aprovado_financeiro') {
                 toast.success(`✅ Pedido ${updatedOrder.number} aprovado para produção!`, {
                   description: `Enviando para produção...`,
                 });
-              } 
+              }
               else if (updatedOrder.status === 'rejeitado_financeiro') {
                 toast.error(`❌ Pedido ${updatedOrder.number} foi rejeitado`, {
                   description: updatedOrder.rejectionReason || 'Verifique os detalhes',
@@ -112,20 +136,23 @@ export function useRealtimeOrders(
               }
 
               // Notifica callback se for status monitorado
-              if (!statusesToWatch || statusesToWatch.includes(updatedOrder.status)) {
-                onOrderChanged?.({
+              const watchList = statusesRef.current;
+              if (!watchList || watchList.includes(updatedOrder.status)) {
+                callbackRef.current?.({
                   type: 'UPDATE',
                   order: updatedOrder,
-                  previousStatus: oldOrder.status,
+                  previousStatus: previousStatus,
                 });
               }
             }
           }
           else if (payload.eventType === 'DELETE') {
             const deletedOrder = supabaseToOrder(payload.old);
+            if (!deletedOrder) return;
+
             console.log(`[Realtime Orders] Pedido deletado: ${deletedOrder.number}`);
-            
-            onOrderChanged?.({
+
+            callbackRef.current?.({
               type: 'DELETE',
               order: deletedOrder,
             });
@@ -134,16 +161,17 @@ export function useRealtimeOrders(
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          console.log('[Realtime Orders] ✅ Conectado ao stream de pedidos em tempo real');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('[Realtime Orders] ❌ Erro ao conectar ao stream');
-          // Tentar reconectar em 5 segundos
+          console.log('[Realtime Orders] ✅ Conectado ao stream');
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error(`[Realtime Orders] ❌ Erro no canal: ${status}`);
+          // Tentar reconectar após intervalo
           setTimeout(() => setupRealtimeListener(), 5000);
         }
       });
 
     channelRef.current = channel;
-  }, [user, onOrderChanged, statusesToWatch]);
+  }, [user]); // Apenas depende de user agora
+
 
   useEffect(() => {
     setupRealtimeListener();

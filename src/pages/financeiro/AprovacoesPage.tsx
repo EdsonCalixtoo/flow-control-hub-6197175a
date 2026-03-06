@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
@@ -19,13 +19,17 @@ const AprovacoesPage: React.FC = () => {
   const [notificationCount, setNotificationCount] = useState(0);
 
   // Monitora mudanças de pedidos em tempo real
-  useRealtimeOrders((event) => {
+  const handleRealtime = useCallback((event: any) => {
     if (event.type === 'UPDATE' && event.previousStatus !== 'aguardando_financeiro' && event.order.status === 'aguardando_financeiro') {
       setNotificationCount(prev => prev + 1);
       console.log('[AprovacoesPage] 🔔 Novo pedido para aprovação recebido em TEMPO REAL');
-      setTimeout(() => loadFromSupabase(), 100);
+      setTimeout(() => loadFromSupabase(), 500);
     }
-  }, ['aguardando_financeiro']);
+  }, [loadFromSupabase]);
+
+  const statusesToWatch = useMemo(() => ['aguardando_financeiro'], []);
+
+  useRealtimeOrders(handleRealtime, statusesToWatch);
 
   const pendentes = orders.filter(o => o.status === 'aguardando_financeiro');
 

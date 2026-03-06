@@ -36,6 +36,9 @@ const CronogramaVendedorPage: React.FC = () => {
 
     const [items, setItems] = useState<{ product: string; description: string; quantity: number; unitPrice: string | number }[]>([{ product: '', description: '', quantity: 1, unitPrice: '' }]);
     const [observation, setObservation] = useState('');
+    const [internalNotes, setInternalNotes] = useState('');
+    const [orderType, setOrderType] = useState<'entrega' | 'retirada'>('entrega');
+    const [carrier, setCarrier] = useState('');
 
     const filteredClients = clients.filter(c =>
         c.name.toLowerCase().includes(searchClient.toLowerCase()) ||
@@ -68,6 +71,9 @@ const CronogramaVendedorPage: React.FC = () => {
         setSearchClient('');
         setItems([{ product: '', description: '', quantity: 1, unitPrice: '' }]);
         setObservation('');
+        setInternalNotes('');
+        setOrderType('entrega');
+        setCarrier('');
     };
 
     const handleCreateScheduledOrder = async () => {
@@ -107,7 +113,7 @@ const CronogramaVendedorPage: React.FC = () => {
                 total: subtotal,
                 taxes: 0,
                 status: 'aguardando_financeiro',
-                notes: '',
+                notes: internalNotes,
                 paymentStatus: 'pendente',
                 deliveryDate: format(selectedDate, 'yyyy-MM-dd'),
                 scheduledDate: format(selectedDate, 'yyyy-MM-dd'),
@@ -116,6 +122,8 @@ const CronogramaVendedorPage: React.FC = () => {
                 statusPagamento: 'pendente',
                 statusProducao: 'Aguardando',
                 observation,
+                orderType,
+                carrier: orderType === 'entrega' ? carrier : undefined,
                 createdAt: now,
                 updatedAt: now,
                 statusHistory: [{
@@ -257,14 +265,64 @@ const CronogramaVendedorPage: React.FC = () => {
                                         </div>
                                     </div>
 
-                                    <div className="space-y-3">
-                                        <label className="text-sm font-black text-foreground px-1">Instruções</label>
-                                        <textarea
-                                            value={observation}
-                                            onChange={e => setObservation(e.target.value)}
-                                            className="input-modern min-h-[120px] p-4 text-sm resize-none"
-                                            placeholder="Detalhes importantes..."
-                                        />
+                                    {/* Tipo de Pedido e Transportadora */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="space-y-3">
+                                            <label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground px-1">Tipo do Pedido</label>
+                                            <div className="flex p-1 bg-muted/30 rounded-xl border border-border/40">
+                                                <button
+                                                    onClick={() => setOrderType('entrega')}
+                                                    className={`flex-1 py-3 rounded-lg text-[10px] font-black uppercase transition-all flex items-center justify-center gap-2 ${orderType === 'entrega' ? 'bg-primary text-primary-foreground shadow-lg' : 'text-muted-foreground hover:bg-background'}`}
+                                                >
+                                                    <Truck className="w-4 h-4" /> Entrega
+                                                </button>
+                                                <button
+                                                    onClick={() => { setOrderType('retirada'); setCarrier(''); }}
+                                                    className={`flex-1 py-3 rounded-lg text-[10px] font-black uppercase transition-all flex items-center justify-center gap-2 ${orderType === 'retirada' ? 'bg-primary text-primary-foreground shadow-lg' : 'text-muted-foreground hover:bg-background'}`}
+                                                >
+                                                    <Package className="w-4 h-4" /> Retirada
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {orderType === 'entrega' && (
+                                            <div className="space-y-3 animate-in fade-in slide-in-from-left-4">
+                                                <label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground px-1">Transportadora</label>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {['JADLOG', 'MOTOBOY', 'CLEYTON', 'LALAMOVE'].map(c => (
+                                                        <button
+                                                            key={c}
+                                                            onClick={() => setCarrier(c)}
+                                                            className={`py-2 px-3 rounded-xl text-[9px] font-black uppercase border transition-all ${carrier === c ? 'bg-primary/10 border-primary text-primary shadow-sm' : 'border-border/40 hover:border-primary/30 text-muted-foreground'}`}
+                                                        >
+                                                            {c}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="space-y-4 pt-4">
+                                        <div className="space-y-3">
+                                            <label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground px-1">Observação (Financeiro e Produção)</label>
+                                            <textarea
+                                                value={observation}
+                                                onChange={e => setObservation(e.target.value)}
+                                                className="input-modern min-h-[100px] p-4 text-sm resize-none bg-muted/20"
+                                                placeholder="Detalhes que aparecerão para o financeiro e produção..."
+                                            />
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            <label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground px-1">Notas Internas (Opcional)</label>
+                                            <textarea
+                                                value={internalNotes}
+                                                onChange={e => setInternalNotes(e.target.value)}
+                                                className="input-modern min-h-[100px] p-4 text-sm resize-none bg-muted/20 border-dashed"
+                                                placeholder="Anotações internas sobre o orçamento..."
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             )}

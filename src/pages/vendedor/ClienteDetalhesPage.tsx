@@ -5,8 +5,9 @@ import { useThemeContext } from '@/contexts/ThemeContext';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import {
     ArrowLeft, User, Phone, Mail, MapPin, Star, ShoppingCart,
-    History, ExternalLink, MessageCircle, Edit
+    History, ExternalLink, MessageCircle, Edit, FileUp, Loader2, CheckCircle2
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const ClienteDetalhesPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -14,6 +15,8 @@ const ClienteDetalhesPage: React.FC = () => {
     const { theme } = useThemeContext();
     const navigate = useNavigate();
     const isDark = theme === 'dark';
+    const { updateOrderStatus } = useERP();
+    const [uploadingOrderId, setUploadingOrderId] = React.useState<string | null>(null);
 
     const client = clients.find(c => c.id === id);
 
@@ -30,6 +33,38 @@ const ClienteDetalhesPage: React.FC = () => {
             </div>
         );
     }
+
+    const handleFileUpload = async (orderId: string, file: File) => {
+        setUploadingOrderId(orderId);
+        try {
+            const reader = new FileReader();
+            const base64Promise = new Promise<string>((resolve, reject) => {
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+
+            const base64 = await base64Promise;
+            const order = orders.find(o => o.id === orderId);
+            if (!order) return;
+
+            const updatedReceipts = [...(order.receiptUrls || []), base64];
+
+            await updateOrderStatus(
+                orderId,
+                order.status, // manter status atual
+                { receiptUrls: updatedReceipts },
+                'Vendedor',
+                'Comprovante adicionado via Detalhes do Cliente'
+            );
+
+            toast.success('Comprovante enviado com sucesso!');
+        } catch (err: any) {
+            toast.error('Erro ao enviar comprovante: ' + err.message);
+        } finally {
+            setUploadingOrderId(null);
+        }
+    };
 
     const clientOrders = orders
         .filter(o => o.clientId === client.id)
@@ -160,12 +195,65 @@ const ClienteDetalhesPage: React.FC = () => {
                                             </p>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-3">
-                                        <div className="hidden sm:flex flex-col items-end mr-2">
-                                            <span className="text-[10px] font-bold text-muted-foreground uppercase opacity-0 group-hover:opacity-100 transition-opacity">Ver Detalhes</span>
+
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex flex-col items-end mr-2">
+                                            {order.receiptUrls && order.receiptUrls.length > 0 && (
+                                                <div className="flex -space-x-2 mb-1">
+                                                    {order.receiptUrls.slice(0, 3).map((_, idx) => (
+                                                        <div key={idx} className="w-5 h-5 rounded-full bg-success flex items-center justify-center ring-2 ring-background">
+                                                            <CheckCircle2 className="w-3 h-3 text-white" />
+                                                        </div>
+                                                    ))}
+                                                    {order.receiptUrls.length > 3 && (
+                                                        <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[8px] font-bold ring-2 ring-background">
+                                                            +{order.receiptUrls.length - 3}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
-                                        <div className="w-8 h-8 rounded-lg bg-muted/50 flex items-center justify-center text-muted-foreground group-hover:bg-vendedor group-hover:text-white transition-all">
-                                            <ExternalLink className="w-4 h-4" />
+
+                                        <div className="flex items-center gap-2">
+                                            <input
+                                                type="file"
+                                                id={`file-${order.id}`}
+                                                className="hidden"
+                                                accept="image/*,.pdf"
+                                                onChange={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file) handleFileUpload(order.id, file);
+                                                }}
+                                            />
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    document.getElementById(`file-${order.id}`)?.click();
+                                                }}
+                                                disabled={uploadingOrderId === order.id}
+                                                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${uploadingOrderId === order.id
+                                                        ? 'bg-muted animate-pulse'
+                                                        : 'bg-primary/10 text-primary hover:bg-primary hover:text-white'
+                                                    }`}
+                                                title="Anexar Comprovante"
+                                            >
+                                                {uploadingOrderId === order.id ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                ) : (
+                                                    <FileUp className="w-4 h-4" />
+                                                )}
+                                            </button>
+
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    navigate(`/vendedor/orcamentos?view=${order.id}`);
+                                                }}
+                                                className="w-8 h-8 rounded-lg bg-muted/50 flex items-center justify-center text-muted-foreground hover:bg-vendedor hover:text-white transition-all shadow-sm"
+                                                title="Ver Detalhes"
+                                            >
+                                                <ExternalLink className="w-4 h-4" />
+                                            </button>
                                         </div>
                                     </div>
                                 </div>

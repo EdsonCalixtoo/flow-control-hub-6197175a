@@ -157,15 +157,17 @@ const PedidosFinanceiroPage: React.FC = () => {
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Info principal */}
                     <div className="lg:col-span-2 space-y-6">
                         <div className="card-section p-6">
                             <h3 className="font-bold text-foreground mb-4 text-sm uppercase tracking-wider">Informações do Pedido</h3>
+
                             <div className="grid grid-cols-2 gap-3 mb-3">
                                 {[
                                     { label: 'Cliente', value: selectedOrder.clientName },
                                     { label: 'Vendedor', value: selectedOrder.sellerName },
                                     { label: 'Data Criação', value: new Date(selectedOrder.createdAt).toLocaleDateString('pt-BR') },
-                                    { label: 'Status Atual', value: selectedOrder.status.replace('_', ' ').toUpperCase() },
+                                    { label: 'Última Atualização', value: new Date(selectedOrder.updatedAt).toLocaleDateString('pt-BR') },
                                 ].map((item, i) => (
                                     <div key={i} className="p-3 rounded-xl bg-muted/30 border border-border/30">
                                         <span className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">{item.label}</span>
@@ -173,7 +175,38 @@ const PedidosFinanceiroPage: React.FC = () => {
                                     </div>
                                 ))}
                             </div>
+
+                            {/* Endereço de Entrega */}
+                            {(() => {
+                                const client = clients.find(c => c.id === selectedOrder.clientId) || clients.find(c => c.name === selectedOrder.clientName);
+                                if (!client) return null;
+                                return (
+                                    <div className="space-y-2">
+                                        <div className="p-3 rounded-xl bg-primary/5 border border-primary/20">
+                                            <span className="text-[10px] text-primary uppercase tracking-wider font-bold block mb-1">📍 Endereço de Entrega / Instalação</span>
+                                            <p className="text-sm font-semibold text-foreground">
+                                                {client.address}, {client.bairro ? `${client.bairro}, ` : ''}{client.city} - {client.state}
+                                            </p>
+                                            <p className="text-xs text-muted-foreground mt-0.5">CEP: {client.cep}</p>
+                                        </div>
+                                        {client.cpfCnpj && (
+                                            <div className="p-3 rounded-xl bg-success/5 border border-success/20">
+                                                <span className="text-[10px] text-success uppercase tracking-wider font-bold block mb-1">🪪 CPF / CNPJ</span>
+                                                <p className="text-sm font-semibold font-mono text-foreground">{client.cpfCnpj}</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })()}
                         </div>
+
+                        {/* Observação do orçamento */}
+                        {selectedOrder.observation && (
+                            <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-500 mb-1">📋 Observação do Vendedor</p>
+                                <p className="text-sm text-foreground">{selectedOrder.observation}</p>
+                            </div>
+                        )}
 
                         <div className="card-section">
                             <div className="card-section-header">
@@ -183,59 +216,155 @@ const PedidosFinanceiroPage: React.FC = () => {
                                 <thead>
                                     <tr>
                                         <th>Produto</th>
+                                        <th>Descrição</th>
                                         <th className="text-right">Qtd</th>
+                                        <th className="text-right hidden sm:table-cell">Unitário</th>
                                         <th className="text-right">Total</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {selectedOrder.items.map(item => (
                                         <tr key={item.id}>
-                                            <td className="text-foreground font-medium">{item.product}</td>
+                                            <td className="text-foreground font-medium">
+                                                {item.product}
+                                                {item.sensorType && (
+                                                    <span className="ml-2 text-xs font-semibold px-2 py-1 rounded-full bg-primary/20 text-primary">
+                                                        {item.sensorType === 'com_sensor' ? '✅ COM SENSOR' : '⚪ SEM SENSOR'}
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="text-muted-foreground text-xs">{item.description || '—'}</td>
                                             <td className="text-right text-foreground">{item.quantity}</td>
+                                            <td className="text-right text-foreground hidden sm:table-cell">{formatCurrency(item.unitPrice)}</td>
                                             <td className="text-right font-bold text-foreground">{formatCurrency(item.total)}</td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
-                            <div className="px-5 py-4 border-t border-border/40 flex justify-end items-center">
+                            <div className="px-5 py-4 border-t border-border/40 flex justify-between items-center">
+                                <span className="text-xs text-muted-foreground">Subtotal: {formatCurrency(selectedOrder.subtotal)} • Impostos: {formatCurrency(selectedOrder.taxes)}</span>
                                 <span className="text-lg font-extrabold text-foreground">{formatCurrency(selectedOrder.total)}</span>
                             </div>
                         </div>
                     </div>
 
+                    {/* Sidebar de status e ações */}
                     <div className="space-y-4">
                         <div className="card-section p-6 space-y-4">
-                            <h3 className="font-bold text-foreground text-sm uppercase tracking-wider">Ações</h3>
-                            {selectedOrder.status === 'aguardando_financeiro' && (
-                                <div className="space-y-3">
-                                    <button
-                                        onClick={() => aprovarEEnviarProducao(selectedOrder.id)}
-                                        className="btn-primary w-full justify-center"
-                                    >
-                                        <CheckCircle className="w-4 h-4" /> Aprovar e Enviar Produção
-                                    </button>
+                            <h3 className="font-bold text-foreground text-sm uppercase tracking-wider">Status Financeiro</h3>
+                            <div className="space-y-3">
+                                <div className="p-3 rounded-xl bg-muted/30 border border-border/30">
+                                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Status do Pedido</span>
+                                    <StatusBadge status={selectedOrder.status} />
                                 </div>
-                            )}
-                            {selectedOrder.status === 'aprovado_financeiro' && (
+                                <div className="p-3 rounded-xl bg-muted/30 border border-border/30">
+                                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Pagamento</span>
+                                    <div className="flex items-center justify-between">
+                                        <span className={`text-sm font-bold ${selectedOrder.paymentStatus === 'pago' ? 'text-success' : 'text-warning'}`}>
+                                            {selectedOrder.paymentStatus === 'pago' ? '✓ Pago' : '⏳ Pendente'}
+                                        </span>
+                                    </div>
+                                </div>
+                                {selectedOrder.paymentMethod && (
+                                    <div className="p-3 rounded-xl bg-muted/30 border border-border/30">
+                                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">Forma de Pagamento</span>
+                                        <span className="text-sm font-semibold text-foreground">{selectedOrder.paymentMethod}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Ações Progressivas */}
+                        <div className="card-section p-6 space-y-4 shadow-lg border-primary/20 bg-primary/5">
+                            <h3 className="font-bold text-primary text-sm uppercase tracking-wider">Ações do Pedido</h3>
+                            <div className="space-y-3">
+                                {selectedOrder.status === 'aguardando_financeiro' && (
+                                    <>
+                                        {showReject ? (
+                                            <div className="space-y-3 animate-fade-in">
+                                                <textarea
+                                                    value={rejectReason}
+                                                    onChange={e => setRejectReason(e.target.value)}
+                                                    placeholder="Motivo da rejeição..."
+                                                    className="input-modern min-h-[80px] text-sm"
+                                                />
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => {
+                                                            updateOrderStatus(selectedOrder.id, 'rejeitado_financeiro', { rejectionReason: rejectReason }, 'Financeiro', `Rejeitado: ${rejectReason}`);
+                                                            setSelectedOrder(null);
+                                                            setShowReject(false);
+                                                        }}
+                                                        disabled={!rejectReason.trim()}
+                                                        className="btn-modern bg-destructive text-white flex-1 text-xs justify-center"
+                                                    >
+                                                        Confirmar
+                                                    </button>
+                                                    <button onClick={() => setShowReject(false)} className="btn-modern bg-muted text-foreground px-4 text-xs">Voltar</button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col gap-2">
+                                                <button
+                                                    onClick={() => aprovarEEnviarProducao(selectedOrder.id)}
+                                                    className="btn-primary w-full justify-center py-3"
+                                                >
+                                                    <CheckCircle className="w-5 h-5" /> Aprovar e Enviar Produção
+                                                </button>
+                                                <button
+                                                    onClick={() => setShowReject(true)}
+                                                    className="btn-modern bg-destructive/10 text-destructive hover:bg-destructive/20 w-full justify-center text-xs"
+                                                >
+                                                    Rejeitar Pedido
+                                                </button>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
+                                {(selectedOrder.status === 'aprovado_financeiro' || selectedOrder.status === 'aguardando_producao') && (
+                                    <button
+                                        onClick={() => updateOrderStatus(selectedOrder.id, 'em_producao', undefined, 'Financeiro', 'Liberado para produção')}
+                                        className="btn-modern bg-financeiro text-white w-full justify-center py-3 shadow-md"
+                                    >
+                                        <Send className="w-5 h-5 text-white" /> Liberar para Produção
+                                    </button>
+                                )}
+
                                 <button
-                                    onClick={() => updateOrderStatus(selectedOrder.id, 'aguardando_producao', undefined, 'Financeiro', 'Liberado para produção')}
-                                    className="btn-modern bg-financeiro text-white w-full justify-center"
+                                    onClick={() => navigate(`/financeiro?view=${selectedOrder.id}`)}
+                                    className="btn-modern bg-muted text-foreground w-full justify-center text-xs"
                                 >
-                                    <Send className="w-4 h-4" /> Liberar para Produção
+                                    <Eye className="w-4 h-4" /> Ver no Financeiro Completo
                                 </button>
-                            )}
-                            <button
-                                onClick={() => navigate(`/financeiro?view=${selectedOrder.id}`)}
-                                className="btn-modern bg-muted text-foreground w-full justify-center"
-                            >
-                                <Eye className="w-4 h-4" /> Ver no Dashboard Completo
-                            </button>
+                            </div>
+                        </div>
+
+                        {/* Histórico Simplificado */}
+                        <div className="card-section p-6 space-y-4">
+                            <h3 className="font-bold text-foreground text-sm uppercase tracking-wider">Histórico Recente</h3>
+                            <div className="space-y-3">
+                                {[
+                                    { label: 'Criado', date: selectedOrder.createdAt, color: 'bg-muted-foreground' },
+                                    ...(selectedOrder.status !== 'rascunho' ? [{ label: 'Enviado ao Financeiro', date: selectedOrder.updatedAt, color: 'bg-warning' }] : []),
+                                    ...(selectedOrder.paymentStatus === 'pago' ? [{ label: 'Pagamento confirmado', date: selectedOrder.updatedAt, color: 'bg-success' }] : []),
+                                ].map((item, i) => (
+                                    <div key={i} className="flex items-start gap-3">
+                                        <div className={`w-2 h-2 rounded-full ${item.color} mt-1.5 shrink-0`} />
+                                        <div>
+                                            <p className="text-xs font-semibold text-foreground">{item.label}</p>
+                                            <p className="text-[10px] text-muted-foreground">{new Date(item.date).toLocaleString('pt-BR')}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         );
     }
+
 
     return (
         <div className="space-y-6">

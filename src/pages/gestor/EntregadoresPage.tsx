@@ -606,57 +606,37 @@ const EntregadoresPage: React.FC = () => {
     };
 
     return (
-        <div className="space-y-6 pb-24">
+        <div className="space-y-4 md:space-y-5 pb-24">
             {/* Header */}
-            <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex flex-col gap-3 md:gap-4">
                 <div>
-                    <h1 className="page-header flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                            <Truck className="w-6 h-6 text-primary" />
+                    <h1 className="page-header flex items-center gap-2 text-lg md:text-3xl">
+                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                            <Truck className="w-5 h-5 md:w-6 md:h-6 text-primary" />
                         </div>
                         Entregadores
                     </h1>
-                    <p className="page-subtitle">Gerencie a retirada de pedidos e colete assinaturas dos entregadores</p>
-                </div>
-                <div className="flex bg-muted/50 p-1 rounded-xl border border-border/30">
-                    <button
-                        onClick={() => setFilterStatus('pendente')}
-                        className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${filterStatus === 'pendente' ? 'bg-white text-primary shadow-sm border border-border/20' : 'text-muted-foreground hover:text-foreground'}`}
-                    >
-                        ⏳ Pendentes ({pendingCount})
-                    </button>
-                    <button
-                        onClick={() => setFilterStatus('retirado')}
-                        className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${filterStatus === 'retirado' ? 'bg-white text-primary shadow-sm border border-border/20' : 'text-muted-foreground hover:text-foreground'}`}
-                    >
-                        ✅ Retirados ({doneCount})
-                    </button>
-                    <button
-                        onClick={() => setFilterStatus('todos')}
-                        className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${filterStatus === 'todos' ? 'bg-white text-primary shadow-sm border border-border/20' : 'text-muted-foreground hover:text-foreground'}`}
-                    >
-                        📦 Todos
-                    </button>
+                    <p className="page-subtitle text-xs md:text-sm mt-1">Gerencie retirada de pedidos</p>
                 </div>
             </div>
 
-            {/* Stats Summary */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="card-section p-4 bg-amber-500/[0.03] border-amber-500/20">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-amber-500/70 mb-1">Aguardando Retirada</p>
-                    <p className="text-2xl font-black text-amber-500">{pendingCount}</p>
+            {/* Stats Summary - Responsivo para tablets */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
+                <div className="card-section p-3 md:p-4 bg-amber-500/[0.03] border-amber-500/20">
+                    <p className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider text-amber-500/70 mb-1">Aguardando</p>
+                    <p className="text-xl md:text-2xl font-black text-amber-500">{pendingCount}</p>
                 </div>
-                <div className="card-section p-4 bg-success/[0.03] border-success/20">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-success/70 mb-1">Pedidos Retirados</p>
-                    <p className="text-2xl font-black text-success">{doneCount}</p>
+                <div className="card-section p-3 md:p-4 bg-success/[0.03] border-success/20">
+                    <p className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider text-success/70 mb-1">Retirados</p>
+                    <p className="text-xl md:text-2xl font-black text-success">{doneCount}</p>
                 </div>
-                <div className="card-section p-4 bg-primary/[0.03] border-primary/20">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-primary/70 mb-1">Total Mapeado</p>
-                    <p className="text-2xl font-black text-primary">{groups.length}</p>
+                <div className="card-section p-3 md:p-4 bg-primary/[0.03] border-primary/20">
+                    <p className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider text-primary/70 mb-1">Total</p>
+                    <p className="text-xl md:text-2xl font-black text-primary">{groups.length}</p>
                 </div>
-                <div className="card-section p-4 bg-secondary/[0.03] border-secondary/20">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-secondary-foreground/70 mb-1">Novas Leituras</p>
-                    <p className="text-2xl font-black text-secondary-foreground">{barcodeScans.length}</p>
+                <div className="card-section p-3 md:p-4 bg-secondary/[0.03] border-secondary/20">
+                    <p className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider text-secondary-foreground/70 mb-1">Leituras</p>
+                    <p className="text-xl md:text-2xl font-black text-secondary-foreground">{barcodeScans.length}</p>
                 </div>
             </div>
 
@@ -673,14 +653,14 @@ const EntregadoresPage: React.FC = () => {
             )}
 
             {/* Batch mode button + Filter tabs */}
-            <div className="flex gap-2 items-center flex-wrap">
+            <div className="space-y-3">
+                {/* Batch mode button */}
                 {pendingCount > 0 && (
                     <button
                         onClick={() => {
                             const newMode = !confirmingBatchMode;
                             setConfirmingBatchMode(newMode);
                             if (newMode) {
-                                // Auto-seleciona todos os pendentes no lote
                                 const newMap = new Map();
                                 filtered.forEach(g => { if (!g.alreadyPickedUp) newMap.set(g.orderId, true); });
                                 setSelectedGroupIds(newMap);
@@ -689,50 +669,52 @@ const EntregadoresPage: React.FC = () => {
                             }
                             setConfirmingId(null);
                         }}
-                        className={`px-4 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 ${confirmingBatchMode
+                        className={`w-full px-3 py-2.5 md:py-3 rounded-lg text-xs md:text-sm font-semibold transition-colors flex items-center justify-center md:justify-start gap-2 ${confirmingBatchMode
                             ? 'bg-warning/20 text-warning border border-warning/40'
                             : 'bg-gradient-to-r from-primary/20 to-primary/10 text-primary border border-primary/20 hover:border-primary/40'
                             }`}
                     >
-                        <ClipboardList className="w-4 h-4" />
-                        {confirmingBatchMode ? `Modo Lote Ativo: Todos Pendentes Selecionados` : 'Modo Lote (Confirmar Tudo)'}
+                        <ClipboardList className="w-4 h-4 shrink-0" />
+                        <span className="hidden md:inline">{confirmingBatchMode ? `Modo Lote Ativo (${pendingCount})` : 'Modo Lote'}</span>
+                        <span className="md:hidden">{confirmingBatchMode ? 'Lote' : 'Modo'}</span>
                     </button>
                 )}
 
                 {confirmingBatchMode && pendingCount > 0 && (
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
                         <button
                             onClick={() => {
                                 const newMap = new Map();
                                 filtered.forEach(g => { if (!g.alreadyPickedUp) newMap.set(g.orderId, true); });
                                 setSelectedGroupIds(newMap);
                             }}
-                            className="px-4 py-2 rounded-lg text-xs font-semibold bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20"
+                            className="flex-1 min-w-[100px] px-3 py-2 rounded-lg text-xs font-semibold bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20"
                         >
-                            Refiltrar Pendentes
+                            Refiltrar
                         </button>
                         <button
                             onClick={() => setSelectedGroupIds(new Map())}
-                            className="px-4 py-2 rounded-lg text-xs font-semibold bg-muted text-foreground border border-border/40 hover:bg-muted/80"
+                            className="flex-1 min-w-[100px] px-3 py-2 rounded-lg text-xs font-semibold bg-muted text-foreground border border-border/40 hover:bg-muted/80"
                         >
-                            Limpar Lote
+                            Limpar
                         </button>
                     </div>
                 )}
 
                 {/* Filter tabs */}
-                <div className="flex gap-2">
+                <div className="flex gap-1.5 md:gap-2 flex-wrap">
                     {([
-                        { key: 'pendente', label: `⏳ Aguardando (${pendingCount})` },
-                        { key: 'retirado', label: `✅ Retirados (${doneCount})` },
-                        { key: 'todos', label: `📦 Todos (${groups.length})` },
-                    ] as { key: typeof filterStatus; label: string }[]).map(f => (
+                        { key: 'pendente', label: '⏳ Aguard.', count: pendingCount },
+                        { key: 'retirado', label: '✅ Retir.', count: doneCount },
+                        { key: 'todos', label: '📦 Todos', count: groups.length },
+                    ] as { key: typeof filterStatus; label: string; count: number }[]).map(f => (
                         <button
                             key={f.key}
                             onClick={() => setFilterStatus(f.key)}
-                            className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${filterStatus === f.key ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}
+                            className={`flex-1 md:flex-none px-2.5 md:px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${filterStatus === f.key ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}
                         >
-                            {f.label}
+                            <span className="hidden md:inline">{f.label} ({f.count})</span>
+                            <span className="md:hidden">{f.label}</span>
                         </button>
                     ))}
                 </div>
@@ -740,87 +722,96 @@ const EntregadoresPage: React.FC = () => {
 
             {/* Batch confirmation panel */}
             {confirmingBatchMode && Array.from(selectedGroupIds.values()).filter(v => v).length > 0 && (
-                <div className="card-section p-6 border-primary/30 bg-primary/5 space-y-5 sticky top-4 z-20">
-                    <div className="flex items-center justify-between gap-3 flex-wrap">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                                <ClipboardList className="w-5 h-5 text-primary" />
+                <div className="card-section p-4 md:p-6 border-primary/30 bg-primary/5 space-y-4 md:space-y-5 sticky top-0 md:top-4 z-20 max-h-[95vh] overflow-y-auto">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 md:gap-3 min-w-0">
+                            <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+                                <ClipboardList className="w-4 h-4 md:w-5 md:h-5 text-primary" />
                             </div>
-                            <div>
-                                <p className="font-bold text-foreground">Confirmar Lote</p>
-                                <p className="text-xs text-muted-foreground">{Array.from(selectedGroupIds.values()).filter(v => v).length} pedido(s) selecionado(s)</p>
+                            <div className="min-w-0">
+                                <p className="font-bold text-foreground text-sm md:text-base">Confirmar Lote</p>
+                                <p className="text-xs text-muted-foreground">{Array.from(selectedGroupIds.values()).filter(v => v).length} pedidos</p>
                             </div>
                         </div>
                         <button
                             onClick={() => { setConfirmingBatchMode(false); setSelectedGroupIds(new Map()); }}
-                            className="btn-modern bg-muted text-foreground shadow-none px-3"
+                            className="btn-modern bg-muted text-foreground shadow-none p-2 md:px-3 shrink-0"
                         >
                             <X className="w-4 h-4" />
                         </button>
                     </div>
 
-                    {/* Name */}
-                    <div className="space-y-1">
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                            <User className="w-3 h-3" /> Nome do Entregador *
-                        </label>
-                        <input
-                            type="text"
-                            value={delivererName}
-                            onChange={e => setDelivererName(e.target.value)}
-                            placeholder="Nome completo do entregador"
-                            className="input-modern w-full text-sm"
-                        />
-                    </div>
+                    {/* Form grid - Responsivo */}
+                    <div className="space-y-4">
+                        {/* Name - Full width */}
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                                <User className="w-3 h-3" /> Nome *
+                            </label>
+                            <input
+                                type="text"
+                                value={delivererName}
+                                onChange={e => setDelivererName(e.target.value)}
+                                placeholder="Nome do entregador"
+                                className="input-modern w-full text-sm"
+                            />
+                        </div>
 
-                    {/* Camera */}
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                            <Camera className="w-3 h-3" /> Foto do Rosto *
-                        </label>
-                        <CameraCapture
-                            onCapture={setPhoto}
-                            captured={photo}
-                            onClear={() => setPhoto(null)}
-                        />
-                    </div>
+                        {/* Camera and Signature side-by-side em tablets */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                                    <Camera className="w-3 h-3" /> Foto *
+                                </label>
+                                <div className="max-h-32 md:max-h-40 overflow-y-auto">
+                                    <CameraCapture
+                                        onCapture={setPhoto}
+                                        captured={photo}
+                                        onClear={() => setPhoto(null)}
+                                    />
+                                </div>
+                            </div>
 
-                    {/* Signature */}
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                            <PenLine className="w-3 h-3" /> Assinatura Digital *
-                        </label>
-                        <SignatureCanvas
-                            onCapture={setSignature}
-                            captured={signature}
-                            onClear={() => setSignature(null)}
-                        />
+                            <div className="space-y-2">
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                                    <PenLine className="w-3 h-3" /> Assinatura *
+                                </label>
+                                <div className="max-h-40 md:max-h-48 overflow-y-auto">
+                                    <SignatureCanvas
+                                        onCapture={setSignature}
+                                        captured={signature}
+                                        onClear={() => setSignature(null)}
+                                    />
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Missing fields hint */}
                     {!canConfirm && (
                         <div className="p-3 rounded-xl bg-warning/10 border border-warning/20">
                             <p className="text-[10px] font-semibold text-warning">
-                                {!delivererName.trim() && '• Informe o nome do entregador. '}
-                                {!photo && '• Tire uma foto do rosto. '}
-                                {!signature && '• Assine digitalmente.'}
+                                {!delivererName.trim() && '• Nome. '}
+                                {!photo && '• Foto. '}
+                                {!signature && '• Assinatura.'}
                             </p>
                         </div>
                     )}
 
                     {/* Confirm button */}
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-col md:flex-row pt-2 md:pt-4 border-t border-primary/20">
                         <button
                             onClick={() => handleBatchConfirm()}
                             disabled={!canConfirm || submitting}
-                            className="btn-modern flex-1 justify-center py-3 text-sm font-bold bg-gradient-to-r from-success to-success/80 text-success-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="btn-modern flex-1 justify-center py-2.5 md:py-3 text-xs md:text-sm font-bold bg-gradient-to-r from-success to-success/80 text-success-foreground disabled:opacity-40 disabled:cursor-not-allowed"
                         >
-                            <CheckCircle className="w-5 h-5" />
-                            {submitting ? 'Confirmando Lote...' : `Confirmar ${Array.from(selectedGroupIds.values()).filter(v => v).length} Pedido(s)`}
+                            <CheckCircle className="w-4 h-4 md:w-5 md:h-5" />
+                            <span className="hidden md:inline">{submitting ? 'Confirmando...' : `Confirmar ${Array.from(selectedGroupIds.values()).filter(v => v).length}`}</span>
+                            <span className="md:hidden">{submitting ? '...' : 'OK'}</span>
                         </button>
                         <button
                             onClick={() => { setConfirmingBatchMode(false); setSelectedGroupIds(new Map()); setPhoto(null); setSignature(null); setDelivererName(''); }}
-                            className="btn-modern bg-muted text-foreground shadow-none px-4"
+                            className="btn-modern bg-muted text-foreground shadow-none px-3 md:px-4 py-2.5 md:py-3"
                         >
                             <X className="w-4 h-4" />
                         </button>

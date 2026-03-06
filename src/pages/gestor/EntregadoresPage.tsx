@@ -26,6 +26,7 @@ interface OrderGroup {
         photoUrl: string;
         signatureUrl: string;
     };
+    carrier?: string;
 }
 
 /* ─────────────────────────────────────────────
@@ -416,6 +417,7 @@ const EntregadoresPage: React.FC = () => {
     const [submitting, setSubmitting] = useState(false);
     const [success, setSuccess] = useState<string | null>(null);
     const [filterStatus, setFilterStatus] = useState<'pendente' | 'retirado' | 'todos'>('pendente');
+    const [selectedCarrier, setSelectedCarrier] = useState<string>('TODOS');
     const [loadingInitial, setLoadingInitial] = useState(true);
 
     // Sincroniza data ao montar - resolve "entregadores precisa atualizar página para ver pedidos"
@@ -465,6 +467,7 @@ const EntregadoresPage: React.FC = () => {
                         alreadyPickedUp: !!pickup,
                         volumeIndex,
                         totalVolumes: volumes,
+                        carrier: order.carrier || 'SEM TRANSPORTADORA',
                         pickupInfo: pickup ? {
                             delivererName: pickup.delivererName,
                             pickedUpAt: pickup.pickedUpAt,
@@ -488,10 +491,22 @@ const EntregadoresPage: React.FC = () => {
     }, [barcodeScans, orders, deliveryPickups]);
 
     const filtered = groups.filter(g => {
-        if (filterStatus === 'pendente') return !g.alreadyPickedUp;
-        if (filterStatus === 'retirado') return g.alreadyPickedUp;
-        return true;
+        let matchStatus = true;
+        if (filterStatus === 'pendente') matchStatus = !g.alreadyPickedUp;
+        if (filterStatus === 'retirado') matchStatus = g.alreadyPickedUp;
+
+        const matchCarrier = selectedCarrier === 'TODOS' || g.carrier === selectedCarrier;
+
+        return matchStatus && matchCarrier;
     });
+
+    const carriers = React.useMemo(() => {
+        const set = new Set<string>();
+        groups.forEach(g => {
+            if (g.carrier) set.add(g.carrier);
+        });
+        return ['TODOS', ...Array.from(set)];
+    }, [groups]);
 
     const pendingCount = groups.filter(g => !g.alreadyPickedUp).length;
     const doneCount = groups.filter(g => g.alreadyPickedUp).length;
@@ -702,21 +717,40 @@ const EntregadoresPage: React.FC = () => {
                 )}
 
                 {/* Filter tabs */}
-                <div className="flex gap-1.5 md:gap-2 flex-wrap">
-                    {([
-                        { key: 'pendente', label: '⏳ Aguard.', count: pendingCount },
-                        { key: 'retirado', label: '✅ Retir.', count: doneCount },
-                        { key: 'todos', label: '📦 Todos', count: groups.length },
-                    ] as { key: typeof filterStatus; label: string; count: number }[]).map(f => (
-                        <button
-                            key={f.key}
-                            onClick={() => setFilterStatus(f.key)}
-                            className={`flex-1 md:flex-none px-2.5 md:px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${filterStatus === f.key ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}
-                        >
-                            <span className="hidden md:inline">{f.label} ({f.count})</span>
-                            <span className="md:hidden">{f.label}</span>
-                        </button>
-                    ))}
+                <div className="space-y-3">
+                    <div className="flex gap-1.5 md:gap-2 flex-wrap">
+                        {([
+                            { key: 'pendente', label: '⏳ Aguard.', count: groups.filter(g => !g.alreadyPickedUp).length },
+                            { key: 'retirado', label: '✅ Retir.', count: groups.filter(g => g.alreadyPickedUp).length },
+                            { key: 'todos', label: '📦 Todos', count: groups.length },
+                        ] as { key: typeof filterStatus; label: string; count: number }[]).map(f => (
+                            <button
+                                key={f.key}
+                                onClick={() => setFilterStatus(f.key)}
+                                className={`flex-1 md:flex-none px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm ${filterStatus === f.key ? 'bg-primary text-primary-foreground transform scale-105' : 'bg-muted/50 text-muted-foreground hover:bg-muted'}`}
+                            >
+                                {f.label} ({f.count})
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Carrier Tabs */}
+                    {carriers.length > 2 && (
+                        <div className="flex gap-1.5 md:gap-2 flex-wrap p-1.5 bg-muted/30 rounded-2xl border border-border/40">
+                            {carriers.map(c => (
+                                <button
+                                    key={c}
+                                    onClick={() => setSelectedCarrier(c)}
+                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedCarrier === c
+                                        ? 'bg-background text-primary shadow-[0_2px_10px_rgba(0,0,0,0.05)] ring-1 ring-primary/20'
+                                        : 'text-muted-foreground hover:bg-background/50'
+                                        }`}
+                                >
+                                    {c}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -860,6 +894,11 @@ const EntregadoresPage: React.FC = () => {
                                                         </span>
                                                     )}
                                                     {order && <StatusBadge status={order.status} />}
+                                                    {group.carrier && (
+                                                        <span className="status-badge bg-primary/10 text-primary text-[9px] font-black uppercase italic border border-primary/20 flex items-center gap-1">
+                                                            <Truck className="w-3 h-3" /> {group.carrier}
+                                                        </span>
+                                                    )}
                                                     {group.alreadyPickedUp && (
                                                         <span className="status-badge bg-success/10 text-success text-[9px]">
                                                             ✓ RETIRADO

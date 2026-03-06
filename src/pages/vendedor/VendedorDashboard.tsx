@@ -13,8 +13,12 @@ const VendedorDashboard: React.FC = () => {
   // ✅ Filtra SOMENTE os pedidos do vendedor logado
   const myOrders = orders.filter(o => o.sellerId === user?.id);
 
-  // Pedidos que foram enviados (não são rascunho)
-  const pedidosEnviados = myOrders.filter(o => o.status !== 'rascunho').length;
+  // Pedidos que foram enviados (não são rascunho nem rejeitados)
+  const pedidosEnviados = myOrders.filter(o =>
+    o.status !== 'rascunho' &&
+    o.status !== 'rejeitado_financeiro' &&
+    o.status !== 'rejeitado_gestor'
+  ).length;
 
   // Orçamentos pendentes: rascunho ou enviado ao cliente
   const orcamentosPendentes = myOrders.filter(o =>
@@ -24,7 +28,7 @@ const VendedorDashboard: React.FC = () => {
   // Total vendido: apenas pedidos que passaram do rascunho (enviados ao financeiro ou além)
   // Fluxo: Vendedor → Financeiro → Produção (sem etapa de Gestor)
   const statusesQueContam: string[] = [
-    'aguardando_financeiro', 'aprovado_financeiro', 'rejeitado_financeiro',
+    'aguardando_financeiro', 'aprovado_financeiro',
     'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'
   ];
   const totalVendas = myOrders

@@ -73,11 +73,7 @@ const FinanceiroDashboard: React.FC = () => {
     if (event.type === 'UPDATE' && event.previousStatus !== 'aguardando_financeiro' && event.order.status === 'aguardando_financeiro') {
       setNotificationCount(prev => prev + 1);
       console.log('[FinanceiroDashboard] 🔔 NOVO PEDIDO PARA APROVAÇÃO - Tempo Real');
-      // Força refresh imediato da lista
-      setTimeout(() => {
-        loadFromSupabase();
-        setLastUpdate(new Date());
-      }, 100);
+      setLastUpdate(new Date());
     }
   }, ['aguardando_financeiro']);
 
@@ -95,7 +91,7 @@ const FinanceiroDashboard: React.FC = () => {
 
   const totalPendenteNormal = useMemo(() => {
     return ordersVisiveisFinanceiro
-      .filter(o => o.status !== 'rejeitado_financeiro') // ✅ Ignora rejeitados no 'A Receber'
+      .filter(o => !['rejeitado_financeiro', 'rejeitado_gestor'].includes(o.status)) // ✅ Ignora rejeitados no 'A Receber'
       .filter(o => {
         if (o.isConsigned !== undefined) return !o.isConsigned;
         const client = clients.find(c => c.id === o.clientId) || clients.find(c => c.name === o.clientName);
@@ -106,7 +102,7 @@ const FinanceiroDashboard: React.FC = () => {
 
   const totalConsignadoOwed = useMemo(() => {
     return ordersVisiveisFinanceiro
-      .filter(o => o.status !== 'rejeitado_financeiro') // ✅ Ignora rejeitados
+      .filter(o => !['rejeitado_financeiro', 'rejeitado_gestor'].includes(o.status)) // ✅ Ignora rejeitados
       .filter(o => {
         if (o.isConsigned !== undefined) return o.isConsigned;
         const client = clients.find(c => c.id === o.clientId) || clients.find(c => c.name === o.clientName);
@@ -117,14 +113,14 @@ const FinanceiroDashboard: React.FC = () => {
 
   const totalInstallationsOwed = useMemo(() => {
     return ordersVisiveisFinanceiro
-      .filter(o => o.status !== 'rejeitado_financeiro') // ✅ Ignora rejeitados
+      .filter(o => !['rejeitado_financeiro', 'rejeitado_gestor'].includes(o.status)) // ✅ Ignora rejeitados
       .filter(o => o.orderType === 'instalacao')
       .reduce((s, o) => s + getSaldoDevedor(o.id, o.total), 0);
   }, [ordersVisiveisFinanceiro, financialEntries]);
 
   const totalRetiradasOwed = useMemo(() => {
     return ordersVisiveisFinanceiro
-      .filter(o => o.status !== 'rejeitado_financeiro') // ✅ Ignora rejeitados
+      .filter(o => !['rejeitado_financeiro', 'rejeitado_gestor'].includes(o.status)) // ✅ Ignora rejeitados
       .filter(o => o.orderType === 'retirada')
       .reduce((s, o) => s + getSaldoDevedor(o.id, o.total), 0);
   }, [ordersVisiveisFinanceiro, financialEntries]);
@@ -181,6 +177,9 @@ const FinanceiroDashboard: React.FC = () => {
     }> = {};
 
     for (const order of periodOrders) {
+      const isRejected = order.status === 'rejeitado_financeiro' || order.status === 'rejeitado_gestor';
+      if (isRejected) continue;
+
       const key = order.sellerId || order.sellerName;
       if (!stats[key]) {
         stats[key] = {

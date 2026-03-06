@@ -27,9 +27,6 @@ const VendedoresControlPage: React.FC = () => {
     }> = {};
 
     orders.forEach(order => {
-      const isRejected = order.status === 'rejeitado_financeiro' || order.status === 'rejeitado_gestor';
-      const isDraftOrSent = order.status === 'rascunho' || order.status === 'enviado';
-
       const key = order.sellerId || order.sellerName;
       if (!stats[key]) {
         stats[key] = {
@@ -46,12 +43,8 @@ const VendedoresControlPage: React.FC = () => {
         };
       }
 
-      // Só conta no total de vendas se não estiver rejeitado e não for rascunho/enviado
-      if (!isRejected && !isDraftOrSent) {
-        stats[key].totalVendas += order.total;
-        stats[key].qtdPedidos += 1;
-      }
-
+      stats[key].totalVendas += order.total;
+      stats[key].qtdPedidos += 1;
       stats[key].orders.push(order);
 
       if (order.status === 'aguardando_financeiro') stats[key].pedidosAguardandoFinanceiro += 1;
@@ -293,8 +286,8 @@ const VendedoresControlPage: React.FC = () => {
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           {[
             { label: 'Total de Vendedores', value: sellerStats.length.toString(), color: 'text-primary' },
-            { label: 'Total de Pedidos', value: orders.filter(o => !['rascunho', 'enviado', 'rejeitado_financeiro', 'rejeitado_gestor'].includes(o.status)).length.toString(), color: 'text-info' },
-            { label: 'Total de Vendas', value: formatCurrency(orders.filter(o => !['rascunho', 'enviado', 'rejeitado_financeiro', 'rejeitado_gestor'].includes(o.status)).reduce((s, o) => s + o.total, 0)), color: 'text-success' },
+            { label: 'Total de Pedidos', value: orders.length.toString(), color: 'text-info' },
+            { label: 'Total de Vendas', value: formatCurrency(orders.reduce((s, o) => s + o.total, 0)), color: 'text-success' },
             { label: 'Aguardando Financeiro', value: orders.filter(o => o.status === 'aguardando_financeiro').length.toString(), color: 'text-warning' },
           ].map((card, i) => (
             <div key={i} className="p-4 rounded-xl bg-muted/30 border border-border/30">

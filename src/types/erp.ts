@@ -103,6 +103,7 @@ export interface Order {
   chatMessages?: ChatMessage[];
   receiptUrls?: string[]; // Para múltiplos comprovantes
   carrier?: string;      // Transportadora (JADLOG, MOTOBOY, etc)
+  isCronograma?: boolean; // Pedido de cronograma (agendado com antecedência)
 }
 
 export interface ChatMessage {

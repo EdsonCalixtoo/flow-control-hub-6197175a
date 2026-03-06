@@ -55,7 +55,7 @@ const FinanceiroDashboard: React.FC = () => {
   // ✅ Filtra APENAS pedidos que foram enviados ao financeiro
   // Rascunhos e orçamentos não enviados NÃO aparecem aqui
   const ordersVisiveisFinanceiro = useMemo(
-    () => orders.filter(o => STATUS_VISIVEL_FINANCEIRO.includes(o.status)),
+    () => orders.filter(o => STATUS_VISIVEL_FINANCEIRO.includes(o.status) && !o.isCronograma),
     [orders]
   );
 

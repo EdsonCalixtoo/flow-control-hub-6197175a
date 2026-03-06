@@ -30,7 +30,7 @@ const AprovacoesPage: React.FC = () => {
 
   useRealtimeOrders(handleRealtime, statusesToWatch);
 
-  const pendentes = orders.filter(o => o.status === 'aguardando_financeiro');
+  const pendentes = orders.filter(o => o.status === 'aguardando_financeiro' && !o.isCronograma);
 
   const aprovar = async (orderId: string) => {
     const order = orders.find(o => o.id === orderId);

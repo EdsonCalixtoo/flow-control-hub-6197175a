@@ -20,6 +20,8 @@ import LancamentosPage from "@/pages/financeiro/LancamentosPage";
 import FluxoCaixaPage from "@/pages/financeiro/FluxoCaixaPage";
 import VendedoresControlPage from "@/pages/financeiro/VendedoresControlPage";
 import GarantiaFinanceiroPage from "@/pages/financeiro/GarantiasPage";
+import CronogramaVendedorPage from "@/pages/vendedor/CronogramaPage";
+import CronogramaFinanceiroPage from "@/pages/financeiro/CronogramaPage";
 import PedidosFinanceiroPage from "@/pages/financeiro/PedidosFinanceiroPage";
 import GestorDashboard from "@/pages/gestor/GestorDashboard";
 import ConferenciaPage from "@/pages/gestor/ConferenciaPage";
@@ -76,6 +78,7 @@ const App = () => (
                 <Route path="/vendedor/clientes/:id" element={<ProtectedRoute role="vendedor"><ClienteDetalhesPage /></ProtectedRoute>} />
                 <Route path="/vendedor/orcamentos" element={<ProtectedRoute role="vendedor"><OrcamentosPage /></ProtectedRoute>} />
                 <Route path="/vendedor/garantias" element={<ProtectedRoute role="vendedor"><GarantiaVendedorPage /></ProtectedRoute>} />
+                <Route path="/vendedor/cronograma" element={<ProtectedRoute role="vendedor"><CronogramaVendedorPage /></ProtectedRoute>} />
 
                 {/* Financeiro */}
                 <Route path="/financeiro" element={<ProtectedRoute role="financeiro"><FinanceiroDashboard /></ProtectedRoute>} />
@@ -85,6 +88,7 @@ const App = () => (
                 <Route path="/financeiro/fluxo" element={<ProtectedRoute role="financeiro"><FluxoCaixaPage /></ProtectedRoute>} />
                 <Route path="/financeiro/vendedores" element={<ProtectedRoute role="financeiro"><VendedoresControlPage /></ProtectedRoute>} />
                 <Route path="/financeiro/garantias" element={<ProtectedRoute role="financeiro"><GarantiaFinanceiroPage /></ProtectedRoute>} />
+                <Route path="/financeiro/cronograma" element={<ProtectedRoute role="financeiro"><CronogramaFinanceiroPage /></ProtectedRoute>} />
                 <Route path="/financeiro/pedidos" element={<ProtectedRoute role="financeiro"><PedidosFinanceiroPage /></ProtectedRoute>} />
 
                 {/* Gestor */}

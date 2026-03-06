@@ -27,6 +27,7 @@ export const supabaseToOrder = (data: any): Order => ({
     createdAt: data.created_at,
     updatedAt: data.updated_at,
     carrier: data.carrier || undefined,
+    isCronograma: data.is_cronograma || false,
 });
 
 export const orderToSupabase = (order: Partial<Order>) => {
@@ -51,6 +52,7 @@ export const orderToSupabase = (order: Partial<Order>) => {
     if (order.installationTime !== undefined) data.installation_time = order.installationTime;
     if (order.installationPaymentType !== undefined) data.installation_payment_type = order.installationPaymentType;
     if (order.carrier !== undefined) data.carrier = order.carrier;
+    if (order.isCronograma !== undefined) data.is_cronograma = order.isCronograma;
 
     if (order.items) data.items = order.items;
     if (order.statusHistory) data.status_history = order.statusHistory;

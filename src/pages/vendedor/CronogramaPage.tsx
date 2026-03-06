@@ -32,7 +32,7 @@ const CronogramaVendedorPage: React.FC = () => {
     const [selectedClientId, setSelectedClientId] = useState('');
     const [loading, setLoading] = useState(false);
 
-    const cronogramaOrders = orders.filter(o => o.isCronograma && (o.sellerId === user?.id || !user?.id));
+    const cronogramaOrders = orders.filter(o => o.isCronograma && o.orderType !== 'instalacao' && (o.sellerId === user?.id || !user?.id));
 
     const [items, setItems] = useState<{ product: string; description: string; quantity: number; unitPrice: string | number }[]>([{ product: '', description: '', quantity: 1, unitPrice: '' }]);
     const [observation, setObservation] = useState('');

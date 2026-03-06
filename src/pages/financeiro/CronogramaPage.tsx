@@ -29,7 +29,7 @@ const CronogramaFinanceiroPage: React.FC = () => {
     const [showDayDetails, setShowDayDetails] = useState(false);
     const [loading, setLoading] = useState(false);
 
-    const cronogramaOrders = orders.filter(o => o.isCronograma);
+    const cronogramaOrders = orders.filter(o => o.isCronograma && o.orderType !== 'instalacao');
 
     const handleDateClick = (date: Date) => {
         setSelectedDate(date);

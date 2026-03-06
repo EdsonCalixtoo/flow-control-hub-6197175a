@@ -14,7 +14,7 @@ import {
     Clock,
     CheckCircle2
 } from 'lucide-react';
-import { format, isSameDay, ptBR } from 'date-fns';
+import { format, isSameDay } from 'date-fns';
 import { ptBR as localePtBR } from 'date-fns/locale';
 import { StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
 import { OrderPipeline } from '@/components/shared/OrderTimeline';
@@ -30,8 +30,10 @@ const CronogramaProducaoPage: React.FC = () => {
     const [loading, setLoading] = useState(false);
 
     // Na produção, mostramos apenas pedidos que já passaram pelo financeiro ou estão em produção
+    // IMPORTANTE: Excluímos 'instalacao' conforme solicitado pelo usuário
     const producaoOrders = orders.filter(o =>
-        (o.isCronograma || o.scheduledDate || o.orderType === 'instalacao') &&
+        (o.isCronograma || o.scheduledDate) &&
+        o.orderType !== 'instalacao' &&
         ['aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'].includes(o.status)
     );
 

@@ -754,9 +754,9 @@ const EntregadoresPage: React.FC = () => {
                 </div>
             </div>
 
-            {/* Batch confirmation panel */}
+            {/* Batch confirmation panel - REMOVIDO STICKY PARA EVITAR SOBREPOSIÇÃO */}
             {confirmingBatchMode && Array.from(selectedGroupIds.values()).filter(v => v).length > 0 && (
-                <div className="card-section p-4 md:p-6 border-primary/30 bg-primary/5 space-y-4 md:space-y-5 sticky top-0 md:top-4 z-20 max-h-[95vh] overflow-y-auto">
+                <div className="card-section p-4 md:p-8 border-2 border-primary/40 bg-primary/5 space-y-6 shadow-xl animate-in slide-in-from-top-4 duration-500">
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2 md:gap-3 min-w-0">
                             <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">

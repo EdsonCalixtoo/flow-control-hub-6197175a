@@ -7,6 +7,7 @@ import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
 import { RealtimeNotificationHandler } from '@/components/shared/RealtimeNotificationHandler';
 import { DollarSign, TrendingUp, Clock, AlertTriangle, Search, Filter, ChevronDown, ChevronLeft, ChevronRight, Eye, CheckCircle, XCircle, Send, ArrowLeft, Users2, BarChart3, Radio, Star, Plus, Trash2, Inbox, Bell } from 'lucide-react';
 import { useRealtimeOrders } from '@/hooks/useRealtimeOrders';
+import { toast } from 'sonner';
 import type { Order, FinancialEntry } from '@/types/erp';
 
 // Status que devem aparecer no financeiro (apenas quando o vendedor clicou em Enviar)
@@ -140,6 +141,34 @@ const FinanceiroDashboard: React.FC = () => {
     const client = clients.find(c => c.id === o.clientId) || clients.find(c => c.name === o.clientName);
     return client?.consignado === true;
   }), [ordersVisiveisFinanceiro, clients]);
+
+  // --- ⏰ LÓGICA DE NOTIFICAÇÃO DE ATRASO DE PAGAMENTO ---
+  const calcularDiasAtraso = (dataCriacao: string) => {
+    const criada = new Date(dataCriacao);
+    const hoje = new Date();
+    const diffTime = Math.abs(hoje.getTime() - criada.getTime());
+    return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  };
+
+  // Notifica automaticamente quando o componente monta ou novos pedidos chegam
+  useEffect(() => {
+    const pedidosAtrasados = ordersVisiveisFinanceiro.filter(o => {
+      const saldo = getSaldoDevedor(o.id, o.total);
+      if (saldo <= 0) return false;
+      const dias = calcularDiasAtraso(o.createdAt);
+      return dias >= 3; // Exemplo: 3 dias devendo
+    });
+
+    if (pedidosAtrasados.length > 0) {
+      pedidosAtrasados.forEach(o => {
+        const dias = calcularDiasAtraso(o.createdAt);
+        toast.warning(`⚠️ ALERTA DE PAGAMENTO: ${o.clientName}`, {
+          description: `Pedido ${o.number} está há ${dias} dias com saldo devedor de ${formatCurrency(getSaldoDevedor(o.id, o.total))}`,
+          duration: 10000,
+        });
+      });
+    }
+  }, [ordersVisiveisFinanceiro.length]); // Apenas quando a lista de pedidos mudar
 
   // Pedidos de instalação
   const installationOrders = useMemo(() => ordersVisiveisFinanceiro.filter(o => o.orderType === 'instalacao'), [ordersVisiveisFinanceiro]);
@@ -433,10 +462,16 @@ const FinanceiroDashboard: React.FC = () => {
                   { label: 'Vendedor', value: selectedOrder.sellerName },
                   { label: 'Transportadora', value: selectedOrder.carrier || 'Não informada' },
                   { label: 'Data Criação', value: new Date(selectedOrder.createdAt).toLocaleDateString('pt-BR') },
+                  {
+                    label: 'Tempo de Pendência',
+                    value: getSaldoDevedor(selectedOrder.id, selectedOrder.total) > 0
+                      ? `${calcularDiasAtraso(selectedOrder.createdAt)} dias em aberto`
+                      : 'Quitado'
+                  },
                 ].map((item, i) => (
-                  <div key={i} className="p-3 rounded-xl bg-muted/30 border border-border/30">
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">{item.label}</span>
-                    <span className="text-sm font-semibold text-foreground">{item.value}</span>
+                  <div key={i} className={`p-3 rounded-xl border border-border/30 ${item.label === 'Tempo de Pendência' && getSaldoDevedor(selectedOrder.id, selectedOrder.total) > 0 ? 'bg-destructive/10 border-destructive/20 text-destructive' : 'bg-muted/30'}`}>
+                    <span className={`text-[10px] uppercase tracking-wider block mb-1 ${item.label === 'Tempo de Pendência' && getSaldoDevedor(selectedOrder.id, selectedOrder.total) > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>{item.label}</span>
+                    <span className="text-sm font-semibold">{item.value}</span>
                   </div>
                 ))}
               </div>
@@ -935,10 +970,16 @@ const FinanceiroDashboard: React.FC = () => {
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {order.clientName} • {new Date(order.createdAt).toLocaleDateString('pt-BR')}
                         </p>
-                        {saldo < order.total && saldo > 0 && (
-                          <p className="text-[10px] text-amber-500 font-bold mt-1 uppercase tracking-wider">
-                            PAGO: {formatCurrency(order.total - saldo)}
-                          </p>
+                        <p className="text-[10px] text-amber-500 font-bold mt-1 uppercase tracking-wider">
+                          PAGO: {formatCurrency(order.total - saldo)}
+                        </p>
+                        {saldo > 0 && (
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <Clock className="w-3 h-3 text-destructive" />
+                            <span className="text-[10px] font-bold text-destructive uppercase">
+                              Pendente há {calcularDiasAtraso(order.createdAt)} dias
+                            </span>
+                          </div>
                         )}
                       </div>
                       <div className="text-right">
@@ -1006,6 +1047,14 @@ const FinanceiroDashboard: React.FC = () => {
                         <p className="text-[10px] text-producao font-bold mt-1 uppercase tracking-wider">
                           Status: {order.installationPaymentType === 'pago' ? '✓ PAGO' : '💰 PAGAR NA HORA'}
                         </p>
+                        {saldo > 0 && (
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <Clock className="w-3 h-3 text-destructive" />
+                            <span className="text-[10px] font-bold text-destructive uppercase">
+                              Pendente há {calcularDiasAtraso(order.createdAt)} dias
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <div className="text-right">
                         <p className="font-bold text-foreground text-sm">{formatCurrency(order.total)}</p>
@@ -1071,6 +1120,14 @@ const FinanceiroDashboard: React.FC = () => {
                         <p className="text-[10px] text-amber-500 font-bold mt-1 uppercase tracking-wider">
                           Status Pagam.: {order.installationPaymentType === 'pago' ? '✓ PAGO' : '💰 COBRAR NO LOCAL'}
                         </p>
+                        {saldo > 0 && (
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <Clock className="w-3 h-3 text-destructive" />
+                            <span className="text-[10px] font-bold text-destructive uppercase">
+                              Pendente há {calcularDiasAtraso(order.createdAt)} dias
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <div className="text-right">
                         <p className="font-bold text-foreground text-sm">{formatCurrency(order.total)}</p>

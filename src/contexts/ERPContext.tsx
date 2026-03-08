@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useCallback, useEffect, useMemo } from 'react';
 import type { Order, Client, FinancialEntry, Product, OrderStatus, StatusHistoryEntry, DelayReport, ChatMessage, OrderReturn, ProductionError, BarcodeScan, DeliveryPickup, Warranty } from '@/types/erp';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -24,6 +24,7 @@ interface ERPContextType {
   products: Product[];
   delayReports: DelayReport[];
   unreadDelayReports: number;
+  overduePaymentsCount: number;
   loading: boolean;
   // chat
   chatMessages: Record<string, ChatMessage[]>;
@@ -527,6 +528,33 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const unreadDelayReports = delayReports.filter(r => !r.readAt).length;
 
+  const overduePaymentsCount = useMemo(() => {
+    return orders.filter(o => {
+      // Apenas status que o financeiro controla
+      const STATUS_FINANCEIRO = [
+        'aguardando_financeiro', 'aprovado_financeiro',
+        'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado', 'retirado_entregador'
+      ];
+      if (!STATUS_FINANCEIRO.includes(o.status)) return false;
+
+      // Calcula saldo devedor
+      const pagos = financialEntries
+        .filter(e => e.orderId === o.id && e.type === 'receita' && e.status === 'pago')
+        .reduce((s, e) => s + e.amount, 0);
+      const saldo = Math.max(0, o.total - pagos);
+
+      if (saldo <= 0) return false;
+
+      // Calcula dias de atraso (3 dias ou mais)
+      const criada = new Date(o.createdAt);
+      const hoje = new Date();
+      const diffTime = Math.abs(hoje.getTime() - criada.getTime());
+      const dias = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+      return dias >= 3;
+    }).length;
+  }, [orders, financialEntries]);
+
   // ── CHAT ─────────────────────────────────────────────────────
   const loadChat = useCallback(async (orderId: string) => {
     // Placeholder - sem backend
@@ -665,7 +693,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   return (
     <ERPContext.Provider value={{
-      orders, clients, financialEntries, products, delayReports, unreadDelayReports, loading,
+      orders, clients, financialEntries, products, delayReports, unreadDelayReports, overduePaymentsCount, loading,
       chatMessages, sendMessage, loadChat, markChatAsRead, getUnreadCount,
       orderReturns, addOrderReturn,
       productionErrors, addProductionError, resolveError,

@@ -10,83 +10,122 @@ import { TrendingUp, TrendingDown, Wallet, ArrowUpRight, ArrowDownRight } from '
 const MONTHS = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
 const FluxoCaixaPage: React.FC = () => {
-    const { financialEntries, orders } = useERP();
+    const { financialEntries, orders, clients } = useERP();
     const [period, setPeriod] = useState<'6m' | '12m'>('12m');
 
-    // Calcula dados reais baseado em pedidos aprovados e lançamentos financeiros
+    // Calcula dados reais baseado em pedidos aprovados e lançamentos financeiros categorizados
     const monthlyDataReal = useMemo(() => {
-        const data: Record<number, { entradas: number; saidas: number }> = {};
-        
+        const data: Record<number, { entradas: number; saidas: number; consignado: number; instalacao: number; retirada: number }> = {};
+
         // Inicializa todos os meses
         for (let i = 0; i < 12; i++) {
-            data[i] = { entradas: 0, saidas: 0 };
+            data[i] = { entradas: 0, saidas: 0, consignado: 0, instalacao: 0, retirada: 0 };
         }
 
-        // Adiciona lançamentos financeiros reais
-        financialEntries.forEach(entry => {
+        // Adiciona lançamentos financeiros reais (apenas os PAGOS)
+        financialEntries.filter(e => e.status === 'pago').forEach(entry => {
             const date = new Date(entry.date);
             const month = date.getMonth();
-            if (!data[month]) data[month] = { entradas: 0, saidas: 0 };
-            
+            if (!data[month]) data[month] = { entradas: 0, saidas: 0, consignado: 0, instalacao: 0, retirada: 0 };
+
             if (entry.type === 'receita') {
                 data[month].entradas += entry.amount;
+
+                // Tenta categorizar o lançamento com base no pedido vinculado
+                const order = orders.find(o => o.id === entry.orderId || (o.number && entry.description?.includes(o.number)));
+                if (order) {
+                    const client = clients.find(c => c.id === order.clientId) || clients.find(c => c.name === order.clientName);
+                    const isConsigned = order.isConsigned || client?.consignado;
+
+                    if (isConsigned) {
+                        data[month].consignado += entry.amount;
+                    } else if (order.orderType === 'instalacao') {
+                        data[month].instalacao += entry.amount;
+                    } else if (order.orderType === 'retirada') {
+                        data[month].retirada += entry.amount;
+                    }
+                }
             } else {
                 data[month].saidas += entry.amount;
             }
         });
 
-        // Adiciona pedidos aprovados como receitas (se não houver lançamento já)
+        // Adiciona pedidos pagos como receitas (apenas se NÃO houver lançamento individual vinculado)
         orders.forEach(order => {
-            if ((order.status === 'produto_liberado' || order.paymentStatus === 'pago') && order.createdAt) {
+            const isPaid = order.paymentStatus === 'pago' || order.status === 'produto_liberado';
+            if (isPaid && order.createdAt) {
                 const date = new Date(order.createdAt);
                 const month = date.getMonth();
-                if (!data[month]) data[month] = { entradas: 0, saidas: 0 };
-                
-                // Verifica se já existe lançamento financeiro para este pedido
+                if (!data[month]) data[month] = { entradas: 0, saidas: 0, consignado: 0, instalacao: 0, retirada: 0 };
+
                 const temLancamento = financialEntries.some(
-                    e => e.description?.includes(order.number) || e.description?.includes(order.id)
+                    e => e.orderId === order.id || (order.number && e.description?.includes(order.number))
                 );
-                
+
                 if (!temLancamento) {
                     data[month].entradas += order.total;
+
+                    const client = clients.find(c => c.id === order.clientId) || clients.find(c => c.name === order.clientName);
+                    const isConsigned = order.isConsigned || client?.consignado;
+
+                    if (isConsigned) {
+                        data[month].consignado += order.total;
+                    } else if (order.orderType === 'instalacao') {
+                        data[month].instalacao += order.total;
+                    } else if (order.orderType === 'retirada') {
+                        data[month].retirada += order.total;
+                    }
                 }
             }
         });
 
         return data;
-    }, [financialEntries, orders]);
+    }, [financialEntries, orders, clients]);
 
-    // Mescla dados reais com dados históricos para contexto
+    // Mescla dados reais com dados de exibição
     const monthlyData = MONTHS.map((mes, idx) => {
-        const real = monthlyDataReal[idx] || { entradas: 0, saidas: 0 };
+        const real = monthlyDataReal[idx] || { entradas: 0, saidas: 0, consignado: 0, instalacao: 0, retirada: 0 };
         return {
             mes,
-            entradas: real.entradas > 0 ? real.entradas : 15000 + Math.random() * 20000, // Valor mínimo se vazio
-            saidas: real.saidas > 0 ? real.saidas : 8000 + Math.random() * 12000,
+            entradas: real.entradas,
+            saidas: real.saidas,
+            consignado: real.consignado,
+            instalacao: real.instalacao,
+            retirada: real.retirada,
             saldo: real.entradas - real.saidas,
         };
     });
 
-    const totalReceitas = financialEntries.filter(e => e.type === 'receita').reduce((s, e) => s + e.amount, 0)
-        + orders.filter(o => o.paymentStatus === 'pago' && !financialEntries.some(e => e.description?.includes(o.number)))
+    const totalReceitas = financialEntries
+        .filter(e => e.type === 'receita' && e.status === 'pago')
+        .reduce((s, e) => s + e.amount, 0)
+        + orders
+            .filter(o => (o.paymentStatus === 'pago' || o.status === 'produto_liberado') && !financialEntries.some(e => e.orderId === o.id || (o.number && e.description?.includes(o.number))))
             .reduce((s, o) => s + o.total, 0);
-    
-    const totalDespesas = financialEntries.filter(e => e.type === 'despesa').reduce((s, e) => s + e.amount, 0);
+
+    const totalDespesas = financialEntries.filter(e => e.type === 'despesa' && e.status === 'pago').reduce((s, e) => s + e.amount, 0);
     const saldoAtual = totalReceitas - totalDespesas;
-    const mediaReceitas = totalReceitas > 0 ? totalReceitas / 6 : 0;
 
-    // Categories breakdown from real data
-    const categoryBreakdown = financialEntries.reduce((acc, e) => {
-        const key = e.category || 'Sem categoria';
-        if (!acc[key]) acc[key] = { receita: 0, despesa: 0 };
-        acc[key][e.type] += e.amount;
-        return acc;
-    }, {} as Record<string, { receita: number; despesa: number }>);
+    // Média baseada nos meses passados do ano atual
+    const currentMonthIndex = new Date().getMonth();
+    const monthsPassed = currentMonthIndex + 1;
+    const mediaReceitas = totalReceitas > 0 ? totalReceitas / monthsPassed : 0;
 
-    // Adiciona pedidos aprovados por categoria
+    // Categories breakdown from real data (Paid only)
+    const categoryBreakdown = financialEntries
+        .filter(e => e.status === 'pago')
+        .reduce((acc, e) => {
+            const key = e.category || 'Sem categoria';
+            if (!acc[key]) acc[key] = { receita: 0, despesa: 0 };
+            acc[key][e.type] += e.amount;
+            return acc;
+        }, {} as Record<string, { receita: number; despesa: number }>);
+
+    // Adiciona pedidos pagos por categoria (se sem lançamento individual)
     orders.forEach(order => {
-        if (order.paymentStatus === 'pago' && !financialEntries.some(e => e.description?.includes(order.number))) {
-            const key = 'Vendas';
+        const isPaid = order.paymentStatus === 'pago' || order.status === 'produto_liberado';
+        if (isPaid && !financialEntries.some(e => e.orderId === order.id || (order.number && e.description?.includes(order.number)))) {
+            const key = 'Vendas de Produtos';
             if (!categoryBreakdown[key]) categoryBreakdown[key] = { receita: 0, despesa: 0 };
             categoryBreakdown[key].receita += order.total;
         }
@@ -139,19 +178,23 @@ const FluxoCaixaPage: React.FC = () => {
                 ))}
             </div>
 
-            {/* Area chart */}
+            {/* Evolution chart */}
             <div className="card-section p-6">
-                <h2 className="card-section-title mb-6">Evolução de Entradas vs Saídas</h2>
+                <h2 className="card-section-title mb-6">Evolução por Tipo de Pedido</h2>
                 <ResponsiveContainer width="100%" height={280}>
                     <AreaChart data={displayData}>
                         <defs>
-                            <linearGradient id="colorEntradas" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="hsl(var(--success))" stopOpacity={0.3} />
-                                <stop offset="95%" stopColor="hsl(var(--success))" stopOpacity={0} />
+                            <linearGradient id="colorConsignado" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                                <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                             </linearGradient>
-                            <linearGradient id="colorSaidas" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="hsl(var(--destructive))" stopOpacity={0.3} />
-                                <stop offset="95%" stopColor="hsl(var(--destructive))" stopOpacity={0} />
+                            <linearGradient id="colorInstalacao" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} />
+                                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} />
+                            </linearGradient>
+                            <linearGradient id="colorRetirada" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3} />
+                                <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
                             </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
@@ -159,8 +202,9 @@ const FluxoCaixaPage: React.FC = () => {
                         <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} tickFormatter={v => `R$${(v / 1000).toFixed(0)}k`} axisLine={false} tickLine={false} />
                         <Tooltip formatter={(v: number) => formatCurrency(v)} contentStyle={{ borderRadius: '12px', border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))' }} />
                         <Legend wrapperStyle={{ fontSize: '11px' }} />
-                        <Area type="monotone" dataKey="entradas" stroke="hsl(var(--success))" strokeWidth={2.5} fill="url(#colorEntradas)" name="Entradas" />
-                        <Area type="monotone" dataKey="saidas" stroke="hsl(var(--destructive))" strokeWidth={2.5} fill="url(#colorSaidas)" name="Saídas" />
+                        <Area type="monotone" dataKey="consignado" stroke="hsl(var(--primary))" strokeWidth={2.5} fill="url(#colorConsignado)" name="Consignado" />
+                        <Area type="monotone" dataKey="instalacao" stroke="#8b5cf6" strokeWidth={2.5} fill="url(#colorInstalacao)" name="Instalação" />
+                        <Area type="monotone" dataKey="retirada" stroke="#f59e0b" strokeWidth={2.5} fill="url(#colorRetirada)" name="Retirada" />
                     </AreaChart>
                 </ResponsiveContainer>
             </div>

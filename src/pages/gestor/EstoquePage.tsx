@@ -31,7 +31,7 @@ const EstoquePage: React.FC = () => {
     const [statusFilter, setStatusFilter] = useState('todos');
     const [sortField, setSortField] = useState<'name' | 'stockQuantity' | 'unitPrice'>('name');
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
-    const [showModal, setShowModal] = useState(false);
+    const [showForm, setShowForm] = useState(false);
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
     const [form, setForm] = useState(emptyProduct);
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -72,7 +72,9 @@ const EstoquePage: React.FC = () => {
     const openCreate = () => {
         setEditingProduct(null);
         setForm(emptyProduct);
-        setShowModal(true);
+        setShowForm(true);
+        // Scroll to form if needed
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const openEdit = (p: Product) => {
@@ -90,12 +92,13 @@ const EstoquePage: React.FC = () => {
             supplier: p.supplier,
             status: p.status,
         });
-        setShowModal(true);
+        setShowForm(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const handleSave = () => {
         setSaveError('');
-        
+
         // Validação
         if (!form.name.trim()) {
             setSaveError('Nome do produto é obrigatório');
@@ -135,7 +138,7 @@ const EstoquePage: React.FC = () => {
                     updatedAt: now,
                 });
             }
-            setShowModal(false);
+            setShowForm(false);
             setForm(emptyProduct);
             setEditingProduct(null);
             setSavingProduct(false);
@@ -168,10 +171,97 @@ const EstoquePage: React.FC = () => {
                     <h1 className="page-header">Estoque</h1>
                     <p className="page-subtitle">Gerencie seus produtos e controle de estoque</p>
                 </div>
-                <button onClick={openCreate} className="btn-modern bg-gradient-to-r from-gestor to-gestor/80 text-primary-foreground">
-                    <Plus className="w-4 h-4" /> Novo Produto
+                <button onClick={() => showForm ? setShowForm(false) : openCreate()} className={`btn-modern ${showForm ? 'bg-muted text-foreground' : 'bg-gradient-to-r from-gestor to-gestor/80 text-primary-foreground'}`}>
+                    {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                    {showForm ? 'Cancelar' : 'Novo Produto'}
                 </button>
             </div>
+
+            {/* Form Inline (Em vez de Modal) - MOVIDO PARA O TOPO */}
+            {showForm && (
+                <div className="card-section p-0 overflow-hidden border-2 border-gestor/20 animate-in fade-in slide-in-from-top-4 duration-300">
+                    <div className="bg-gestor/5 border-b border-gestor/10 px-6 py-4 flex items-center justify-between">
+                        <div>
+                            <h2 className="text-sm font-extrabold text-foreground">{editingProduct ? 'Editar Produto' : 'Novo Produto'}</h2>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">{editingProduct ? 'Atualize os dados e clique em salvar' : 'Preencha os campos abaixo para cadastrar'}</p>
+                        </div>
+                        <button onClick={() => { setShowForm(false); setEditingProduct(null); }} className="w-7 h-7 rounded-lg bg-background/50 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
+                            <X className="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+
+                    <div className="p-6 space-y-5">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5 ml-1">SKU *</label>
+                                <input type="text" value={form.sku} onChange={e => setForm(f => ({ ...f, sku: e.target.value.toUpperCase() }))} className="input-modern font-mono text-sm" placeholder="SKU-001" />
+                            </div>
+                            <div className="md:col-span-2">
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5 ml-1">Nome do Produto *</label>
+                                <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="input-modern text-sm" placeholder="Ex: Kit Sprinter com Sensor" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5 ml-1">Descrição</label>
+                            <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className="input-modern text-sm" placeholder="Breve descrição do produto..." />
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div>
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5 ml-1">Categoria</label>
+                                <input type="text" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} className="input-modern text-sm" list="category-list" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5 ml-1">Unidade</label>
+                                <select value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))} className="input-modern text-sm">
+                                    {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5 ml-1">Custo (R$)</label>
+                                <input type="number" step="0.01" value={form.costPrice || ''} onChange={e => setForm(f => ({ ...f, costPrice: parseFloat(e.target.value) || 0 }))} className="input-modern text-sm" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5 ml-1">Venda (R$)</label>
+                                <input type="number" step="0.01" value={form.unitPrice || ''} onChange={e => setForm(f => ({ ...f, unitPrice: parseFloat(e.target.value) || 0 }))} className="input-modern text-sm" />
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            <div>
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5 ml-1">Qtd Atual</label>
+                                <input type="number" value={form.stockQuantity || ''} onChange={e => setForm(f => ({ ...f, stockQuantity: parseInt(e.target.value) || 0 }))} className="input-modern text-sm" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5 ml-1">Estoque Mín</label>
+                                <input type="number" value={form.minStock || ''} onChange={e => setForm(f => ({ ...f, minStock: parseInt(e.target.value) || 0 }))} className="input-modern text-sm" />
+                            </div>
+                            <div className="col-span-2 md:col-span-1">
+                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5 ml-1">Fornecedor</label>
+                                <input type="text" value={form.supplier} onChange={e => setForm(f => ({ ...f, supplier: e.target.value }))} className="input-modern text-sm" />
+                            </div>
+                        </div>
+
+                        {saveError && (
+                            <div className="bg-destructive/5 border border-destructive/20 rounded-xl p-3">
+                                <p className="text-[11px] text-destructive font-bold flex items-center gap-2">
+                                    <AlertTriangle className="w-3.5 h-3.5" /> {saveError}
+                                </p>
+                            </div>
+                        )}
+
+                        <div className="pt-2 flex justify-end gap-3 border-t border-border/40">
+                            <button onClick={() => { setShowForm(false); setEditingProduct(null); setSaveError(''); }} className="px-5 py-2 rounded-xl bg-muted text-muted-foreground text-xs font-bold hover:bg-muted/80 transition-all">
+                                Cancelar
+                            </button>
+                            <button onClick={handleSave} disabled={savingProduct || !form.name.trim() || !form.sku.trim()} className="px-6 py-2 rounded-xl bg-gradient-to-r from-gestor to-gestor/80 text-primary-foreground text-xs font-bold shadow-lg shadow-gestor/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50">
+                                {savingProduct ? 'Salvando...' : editingProduct ? 'Salvar Alterações' : 'Cadastrar Produto'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Stats */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -333,139 +423,6 @@ const EstoquePage: React.FC = () => {
                 </div>
             )}
 
-            {/* Modal */}
-            {showModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-foreground/30 backdrop-blur-sm" onClick={() => setShowModal(false)} />
-                    <div className="relative bg-card border border-border/60 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-in">
-                        <div className="sticky top-0 bg-card border-b border-border/40 px-6 py-4 flex items-center justify-between rounded-t-2xl">
-                            <div>
-                                <h2 className="text-lg font-extrabold text-foreground">{editingProduct ? 'Editar Produto' : 'Novo Produto'}</h2>
-                                <p className="text-xs text-muted-foreground mt-0.5">{editingProduct ? 'Atualize os dados do produto' : 'Cadastre um novo produto no estoque'}</p>
-                            </div>
-                            <button onClick={() => setShowModal(false)} className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
-                                <X className="w-4 h-4" />
-                            </button>
-                        </div>
-
-                        <div className="p-6 space-y-5">
-                            {/* Row 1: SKU + Name */}
-                            <div className="grid grid-cols-3 gap-4">
-                                <div>
-                                    <label className="text-xs font-semibold text-muted-foreground block mb-1.5">SKU *</label>
-                                    <input type="text" value={form.sku} onChange={e => setForm(f => ({ ...f, sku: e.target.value.toUpperCase() }))} className="input-modern font-mono" placeholder="SRV-001" />
-                                </div>
-                                <div className="col-span-2">
-                                    <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Nome do Produto *</label>
-                                    <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="input-modern" placeholder="Nome do produto" />
-                                </div>
-                            </div>
-
-                            {/* Description */}
-                            <div>
-                                <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Descrição</label>
-                                <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className="input-modern min-h-[70px] resize-none" placeholder="Descrição detalhada do produto" />
-                            </div>
-
-                            {/* Row 2: Category + Unit + Supplier */}
-                            <div className="grid grid-cols-3 gap-4">
-                                <div>
-                                    <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Categoria</label>
-                                    <input
-                                        type="text"
-                                        value={form.category}
-                                        onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                                        className="input-modern"
-                                        placeholder="Ex: Geral, Peças, Serviços..."
-                                        list="category-list"
-                                    />
-                                    <datalist id="category-list">
-                                        {[...new Set(['Geral', 'Eletrônico Vendedor', 'Outros', ...products.map(p => p.category)])].map(c => (
-                                            <option key={c} value={c} />
-                                        ))}
-                                    </datalist>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Unidade</label>
-                                    <select value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))} className="input-modern">
-                                        {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Fornecedor</label>
-                                    <input type="text" value={form.supplier} onChange={e => setForm(f => ({ ...f, supplier: e.target.value }))} className="input-modern" placeholder="Nome do fornecedor" />
-                                </div>
-                            </div>
-
-                            {/* Row 3: Prices */}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Preço de Custo (R$)</label>
-                                    <input type="number" step="0.01" min="0" value={form.costPrice || ''} onChange={e => setForm(f => ({ ...f, costPrice: parseFloat(e.target.value) || 0 }))} className="input-modern" placeholder="0,00" />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Preço de Venda (R$)</label>
-                                    <input type="number" step="0.01" min="0" value={form.unitPrice || ''} onChange={e => setForm(f => ({ ...f, unitPrice: parseFloat(e.target.value) || 0 }))} className="input-modern" placeholder="0,00" />
-                                </div>
-                            </div>
-
-                            {form.costPrice > 0 && form.unitPrice > 0 && (
-                                <div className="px-3 py-2 rounded-xl bg-success/5 border border-success/20">
-                                    <p className="text-xs text-success font-semibold">
-                                        Margem de Lucro: {(((form.unitPrice - form.costPrice) / form.costPrice) * 100).toFixed(1)}% — Lucro unitário: {formatCurrency(form.unitPrice - form.costPrice)}
-                                    </p>
-                                </div>
-                            )}
-
-                            {/* Row 4: Stock */}
-                            <div className="grid grid-cols-3 gap-4">
-                                <div>
-                                    <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Quantidade em Estoque</label>
-                                    <input type="number" min="0" value={form.stockQuantity || ''} onChange={e => setForm(f => ({ ...f, stockQuantity: parseInt(e.target.value) || 0 }))} className="input-modern" placeholder="0" />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Estoque Mínimo</label>
-                                    <input type="number" min="0" value={form.minStock || ''} onChange={e => setForm(f => ({ ...f, minStock: parseInt(e.target.value) || 0 }))} className="input-modern" placeholder="0" />
-                                </div>
-                                <div>
-                                    <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Status</label>
-                                    <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value as Product['status'] }))} className="input-modern">
-                                        <option value="ativo">Ativo</option>
-                                        <option value="inativo">Inativo</option>
-                                        <option value="esgotado">Esgotado</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            {form.stockQuantity > 0 && form.stockQuantity <= form.minStock && (
-                                <div className="px-3 py-2 rounded-xl bg-warning/5 border border-warning/20 flex items-center gap-2">
-                                    <AlertTriangle className="w-4 h-4 text-warning shrink-0" />
-                                    <p className="text-xs text-warning font-semibold">
-                                        Atenção: A quantidade está abaixo do estoque mínimo ({form.minStock} {form.unit})
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-
-                        {saveError && (
-                            <div className="bg-destructive/5 border border-destructive/20 rounded-xl p-3 mx-6 mb-4">
-                                <p className="text-xs text-destructive font-semibold flex items-center gap-2">
-                                    <AlertTriangle className="w-4 h-4" /> {saveError}
-                                </p>
-                            </div>
-                        )}
-
-                        <div className="sticky bottom-0 bg-card border-t border-border/40 px-6 py-4 flex justify-end gap-3 rounded-b-2xl">
-                            <button onClick={() => { setShowModal(false); setSaveError(''); }} className="btn-modern bg-muted text-foreground shadow-none text-sm">
-                                Cancelar
-                            </button>
-                            <button onClick={handleSave} disabled={!form.name.trim() || !form.sku.trim() || savingProduct} className="btn-modern bg-gradient-to-r from-gestor to-gestor/80 text-primary-foreground text-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                                <Package className="w-4 h-4" /> {savingProduct ? 'Salvando...' : editingProduct ? 'Salvar Alterações' : 'Cadastrar Produto'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

@@ -85,7 +85,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { theme, toggleTheme } = useThemeContext();
-  const { unreadDelayReports } = useERP();
+  const { unreadDelayReports, overduePaymentsCount } = useERP();
 
   if (!user) return null;
 
@@ -193,23 +193,27 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             </button>
             <button
               onClick={() => {
-                // Navega para o dashboard do role atual
                 if (user?.role === 'gestor') navigate('/gestor');
                 else if (user?.role === 'producao') navigate('/producao');
                 else if (user?.role === 'vendedor') navigate('/vendedor');
                 else if (user?.role === 'financeiro') navigate('/financeiro');
               }}
               className="relative w-10 h-10 rounded-xl bg-muted/50 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-200"
-              title={unreadDelayReports > 0 ? `${unreadDelayReports} alerta(s) nao lido(s)` : 'Notificacoes'}
+              title={(() => {
+                const total = user.role === 'financeiro' ? overduePaymentsCount : unreadDelayReports;
+                return total > 0 ? `${total} alerta(s) pendente(s)` : 'Notificações';
+              })()}
             >
               <Bell className="w-4 h-4" />
-              {unreadDelayReports > 0 ? (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 rounded-full bg-destructive text-white text-[9px] font-extrabold flex items-center justify-center px-1 animate-pulse">
-                  {unreadDelayReports > 9 ? '9+' : unreadDelayReports}
-                </span>
-              ) : (
-                <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-muted-foreground/30" />
-              )}
+              {(() => {
+                const total = user.role === 'financeiro' ? overduePaymentsCount : unreadDelayReports;
+                if (total <= 0) return <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-muted-foreground/30" />;
+                return (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 rounded-full bg-destructive text-white text-[9px] font-extrabold flex items-center justify-center px-1 animate-pulse">
+                    {total > 9 ? '9+' : total}
+                  </span>
+                );
+              })()}
             </button>
           </div>
         </header>

@@ -127,9 +127,9 @@ const SignatureCanvas: React.FC<{
             <div className="rounded-xl overflow-hidden border-2 border-dashed border-border/60 bg-white/50 touch-none">
                 <canvas
                     ref={canvasRef}
-                    width={600}
-                    height={160}
-                    className="w-full h-32 cursor-crosshair"
+                    width={800}
+                    height={320}
+                    className="w-full h-56 md:h-64 cursor-crosshair bg-white"
                     onMouseDown={startDraw}
                     onMouseMove={draw}
                     onMouseUp={stopDraw}
@@ -311,8 +311,8 @@ const CameraCapture: React.FC<{
     if (captured) {
         return (
             <div className="space-y-3">
-                <div className="relative rounded-xl overflow-hidden border-2 border-success/40">
-                    <img src={captured} alt="Foto do entregador" className="w-full h-96 object-cover" />
+                <div className="relative rounded-xl overflow-hidden border-2 border-success/40 bg-black/5">
+                    <img src={captured} alt="Foto do entregador" className="w-full h-auto max-h-[500px] object-contain mx-auto" />
                     <div className="absolute top-3 right-3 w-8 h-8 rounded-full bg-success flex items-center justify-center">
                         <CheckCircle className="w-5 h-5 text-white" />
                     </div>
@@ -335,17 +335,17 @@ const CameraCapture: React.FC<{
 
             {/* Container com video - sempre responsivo */}
             {streaming ? (
-                <div className="relative w-full bg-black rounded-xl overflow-hidden border-2 border-primary/40 aspect-video flex items-stretch">
+                <div className="relative w-full bg-black rounded-xl overflow-hidden border-2 border-primary/40 aspect-video md:aspect-[16/9] flex items-stretch shadow-inner">
                     <video
                         ref={videoRef}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-contain"
                         playsInline
                         autoPlay
                         muted
                     />
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <div className="w-32 h-32 sm:w-40 sm:h-40 md:w-48 md:h-48 border-3 border-yellow-400/70 rounded-full shadow-lg" />
-                        <p className="absolute bottom-4 left-0 right-0 text-center text-white text-xs sm:text-sm font-semibold bg-black/50 py-2 px-2">
+                        <div className="w-48 h-48 md:w-64 md:h-64 border-4 border-yellow-400/50 rounded-full shadow-[0_0_0_9999px_rgba(0,0,0,0.4)]" />
+                        <p className="absolute bottom-6 left-0 right-0 text-center text-white text-xs md:text-sm font-black bg-black/60 py-2 px-4 backdrop-blur-sm mx-auto w-fit rounded-full border border-white/20">
                             Posicione seu rosto dentro do círculo
                         </p>
                     </div>
@@ -791,13 +791,13 @@ const EntregadoresPage: React.FC = () => {
                             />
                         </div>
 
-                        {/* Camera and Signature side-by-side em tablets */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                        {/* Photo and Signature areas - Vertical on everything for maximum usability */}
+                        <div className="flex flex-col gap-6">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
                                     <Camera className="w-3 h-3" /> Foto *
                                 </label>
-                                <div className="max-h-32 md:max-h-40 overflow-y-auto">
+                                <div className="w-full">
                                     <CameraCapture
                                         onCapture={setPhoto}
                                         captured={photo}
@@ -810,7 +810,7 @@ const EntregadoresPage: React.FC = () => {
                                 <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
                                     <PenLine className="w-3 h-3" /> Assinatura *
                                 </label>
-                                <div className="max-h-40 md:max-h-48 overflow-y-auto">
+                                <div className="w-full">
                                     <SignatureCanvas
                                         onCapture={setSignature}
                                         captured={signature}

@@ -50,7 +50,7 @@ const FinanceiroDashboard: React.FC = () => {
   const [novoPagComprovantes, setNovoPagComprovantes] = useState<string[]>([]);
   const [novoPagDescricao, setNovoPagDescricao] = useState('');
   const [salvandoPag, setSalvandoPag] = useState(false);
-  const itemsPerPage = 5;
+  const itemsPerPage = 50;
 
   // ✅ Filtra APENAS pedidos que foram enviados ao financeiro
   // Rascunhos e orçamentos não enviados NÃO aparecem aqui

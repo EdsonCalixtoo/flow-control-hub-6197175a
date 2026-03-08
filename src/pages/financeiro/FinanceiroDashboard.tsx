@@ -171,7 +171,7 @@ const FinanceiroDashboard: React.FC = () => {
   const sellerStats = useMemo(() => {
     // Para o financeiro, as vendas por vendedor mostram apenas pedidos enviados
     const periodOrders = ordersVisiveisFinanceiro.filter(o =>
-      filterByPeriod(o.createdAt, sellerPeriod)
+      filterByPeriod(o.createdAt, sellerPeriod) && o.status !== 'rejeitado_financeiro'
     );
 
     const stats: Record<string, {

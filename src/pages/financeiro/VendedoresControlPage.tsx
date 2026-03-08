@@ -27,6 +27,9 @@ const VendedoresControlPage: React.FC = () => {
     }> = {};
 
     orders.forEach(order => {
+      // ✅ Apenas conta vendas reais (ignora rascunhos, orçamentos e rejeitados)
+      if (['rascunho', 'orcamento', 'rejeitado_financeiro'].includes(order.status)) return;
+
       const key = order.sellerId || order.sellerName;
       if (!stats[key]) {
         stats[key] = {

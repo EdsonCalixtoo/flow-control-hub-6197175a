@@ -999,7 +999,7 @@ const OrcamentosPage: React.FC = () => {
   // ── Detalhe do orçamento selecionado ────────────────────────
   if (selectedOrder) {
     const podeEditar = !STATUS_BLOQUEIAM_EDICAO.includes(selectedOrder.status);
-    const podeEnviarFinanceiro = selectedOrder.status === 'rascunho' || selectedOrder.status === 'enviado' || selectedOrder.status === 'aprovado_cliente';
+    const podeEnviarFinanceiro = ['rascunho', 'enviado', 'aprovado_cliente', 'rejeitado_financeiro', 'aguardando_financeiro'].includes(selectedOrder.status);
 
     return (
       <div ref={detailRef} className="card-section p-6 space-y-5 animate-scale-in">
@@ -1121,6 +1121,7 @@ const OrcamentosPage: React.FC = () => {
           const clienteConsignado = !!clients.find(c => c.id === selectedOrder.clientId)?.consignado;
           const isInstalacao = selectedOrder.orderType === 'instalacao';
           const isRetirada = selectedOrder.orderType === 'retirada';
+          const isWaiting = selectedOrder.status === 'aguardando_financeiro';
           const temComprovante = (comprovantesAttached.length > 0) || (selectedOrder.receiptUrls && selectedOrder.receiptUrls.length > 0);
 
           // Consignado, Instalação ou Retirada: pode enviar sem comprovante. Normal: precisa de comprovante.
@@ -1164,10 +1165,10 @@ const OrcamentosPage: React.FC = () => {
                 )}
                 <button
                   onClick={() => enviarFinanceiro(selectedOrder.id)}
-                  disabled={!podeEnviar || sendingToFinance}
+                  disabled={(!podeEnviar && !isWaiting) || sendingToFinance}
                   className="btn-modern bg-gradient-to-r from-vendedor to-vendedor/80 text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed flex-1"
                 >
-                  <Send className="w-4 h-4" /> {sendingToFinance ? '⏳ Enviando...' : '🟢 Enviar para Financeiro'}
+                  <Send className="w-4 h-4" /> {sendingToFinance ? '⏳ Enviando...' : isWaiting ? '🔄 Atualizar Comprovantes' : '🟢 Enviar para Financeiro'}
                 </button>
               </div>
 

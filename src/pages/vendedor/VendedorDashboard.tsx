@@ -1,9 +1,9 @@
 import React from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { StatCard, StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
+import { StatCard, formatCurrency } from '@/components/shared/StatusBadge';
 import { OrderPipeline } from '@/components/shared/OrderTimeline';
-import { ShoppingCart, FileText, Clock, Percent, Eye, Package, TrendingUp } from 'lucide-react';
+import { ShoppingCart, FileText, Clock, Eye, Package } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useMemo } from 'react';
 
@@ -23,47 +23,33 @@ const VendedorDashboard: React.FC = () => {
   ).length;
 
   // Total vendido: apenas pedidos que passaram do rascunho (enviados ao financeiro ou além)
-  // Fluxo: Vendedor → Financeiro → Produção (sem etapa de Gestor)
   const statusesQueContam: string[] = [
     'aguardando_financeiro', 'aprovado_financeiro', 'rejeitado_financeiro',
-    'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'
+    'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado',
+    'retirado_entregador'
   ];
+
   const totalVendas = myOrders
     .filter(o => statusesQueContam.includes(o.status))
     .reduce((s, o) => s + o.total, 0);
 
-  const comissaoEstimada = totalVendas * 0.05;
-
-  // ✅ Histórico REAL e DETALHADO de itens vendidos
-  const produtosVendidos = useMemo(() => {
-    const list: {
-      orderId: string;
-      orderNumber: string;
-      clientName: string;
-      product: string;
-      quantity: number;
-      sensorType?: string;
-      date: string;
-    }[] = [];
+  // ✅ Resumo de produtos vendidos agrupados (como na imagem)
+  const produtosVendidosAgrupados = useMemo(() => {
+    const map = new Map<string, { product: string; quantity: number; sensorType?: string; totalValue: number }>();
 
     myOrders
       .filter(o => statusesQueContam.includes(o.status))
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .forEach(order => {
         order.items.forEach(item => {
-          list.push({
-            orderId: order.id,
-            orderNumber: order.number,
-            clientName: order.clientName,
-            product: item.product,
-            quantity: item.quantity,
-            sensorType: item.sensorType,
-            date: order.createdAt
-          });
+          const key = `${item.product}-${item.sensorType || ''}`;
+          const current = map.get(key) || { product: item.product, quantity: 0, sensorType: item.sensorType, totalValue: 0 };
+          current.quantity += item.quantity;
+          current.totalValue += (item.quantity * item.unitPrice);
+          map.set(key, current);
         });
       });
 
-    return list;
+    return Array.from(map.values()).sort((a, b) => b.quantity - a.quantity);
   }, [myOrders]);
 
   // Pedidos recentes para exibir no acompanhamento (não rascunho)
@@ -82,7 +68,7 @@ const VendedorDashboard: React.FC = () => {
         <StatCard title="Vendido no Mês" value={formatCurrency(totalVendas)} icon={ShoppingCart} color="text-vendedor" />
         <StatCard title="Pedidos Enviados" value={pedidosEnviados} icon={FileText} color="text-success" />
         <StatCard title="Orçam. Pendentes" value={orcamentosPendentes} icon={Clock} color="text-warning" />
-        <StatCard title="Itens Vendidos" value={produtosVendidos.reduce((acc, p) => acc + p.quantity, 0)} icon={Package} color="text-primary" />
+        <StatCard title="Itens Vendidos" value={produtosVendidosAgrupados.reduce((acc, p) => acc + p.quantity, 0)} icon={Package} color="text-primary" />
       </div>
 
       {/* Atalhos rápidos */}
@@ -122,56 +108,89 @@ const VendedorDashboard: React.FC = () => {
         </Link>
       </div>
 
-      {/* Últimos pedidos com pipeline */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Histórico Detalhado de ITENS Vendidos */}
-        <div className="card-section h-fit">
-          <div className="card-section-header">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-primary" />
-              <h2 className="card-section-title">Controle de Itens Vendidos</h2>
+        {/* Tabela de Controle de Produtos (Estilo Excel/Relatório conforme imagem) */}
+        <div className="card-section overflow-hidden h-fit">
+          <div className="card-section-header bg-muted/20 border-b border-border/40 py-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white font-black text-xs shadow-lg shadow-primary/20 uppercase">
+                {user?.name?.split(' ').map(n => n[0]).join('').slice(0, 2)}
+              </div>
+              <div>
+                <h2 className="text-sm font-black text-foreground uppercase tracking-tight">{user?.name}</h2>
+                <p className="text-[10px] text-muted-foreground font-bold">{pedidosEnviados} pedido(s)</p>
+              </div>
             </div>
-            <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
-              Total Itens: {produtosVendidos.reduce((acc, p) => acc + p.quantity, 0)}
-            </span>
+            <div className="text-right">
+              <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">Total de Vendas</p>
+              <p className="text-lg font-black text-success">{formatCurrency(totalVendas)}</p>
+            </div>
           </div>
-          <div className="p-0 overflow-hidden">
-            {produtosVendidos.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground text-sm">
-                Nenhum item vendido ainda.
-              </div>
-            ) : (
-              <div className="divide-y divide-border/40 max-h-[500px] overflow-y-auto custom-scrollbar">
-                {produtosVendidos.map((prod, idx) => (
-                  <div key={idx} className="p-4 hover:bg-muted/30 transition-colors">
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1">
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-muted/10 border-b border-border/30">
+                  <th className="px-5 py-4 text-[10px] font-black text-muted-foreground uppercase tracking-widest text-left">Produto</th>
+                  <th className="px-5 py-4 text-[10px] font-black text-muted-foreground uppercase tracking-widest text-center">Quantidade</th>
+                  <th className="px-5 py-4 text-[10px] font-black text-muted-foreground uppercase tracking-widest text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/30">
+                {produtosVendidosAgrupados.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="px-5 py-12 text-center text-muted-foreground text-sm italic">
+                      Nenhuma venda registrada para este período.
+                    </td>
+                  </tr>
+                ) : (
+                  produtosVendidosAgrupados.map((prod, idx) => (
+                    <tr key={idx} className="hover:bg-muted/20 transition-colors group">
+                      <td className="px-5 py-4">
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-black bg-muted px-1.5 py-0.5 rounded text-muted-foreground">{prod.orderNumber}</span>
-                          <p className="text-sm font-bold text-foreground leading-tight">{prod.product}</p>
+                          <span className="text-xs font-black text-foreground group-hover:text-primary transition-colors uppercase">{prod.product}</span>
+                          {prod.sensorType && (
+                            <span className={`inline-flex items-center text-[8px] font-black px-1.5 py-0.5 rounded-full border ${prod.sensorType === 'com_sensor'
+                                ? 'bg-success/10 border-success/20 text-success'
+                                : 'bg-muted border-border/40 text-muted-foreground'
+                              }`}>
+                              {prod.sensorType === 'com_sensor' ? '✓ COM SENSOR' : '⚡ SEM SENSOR'}
+                            </span>
+                          )}
                         </div>
-                        <p className="text-[11px] text-muted-foreground">
-                          {prod.clientName} • {new Date(prod.date).toLocaleDateString('pt-BR')}
-                        </p>
-                        {prod.sensorType && (
-                          <p className="text-[10px] text-primary/70 font-bold uppercase">
-                            {prod.sensorType === 'com_sensor' ? '📡 Com Sensor' : '🔌 Sem Sensor'}
-                          </p>
-                        )}
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-base font-black text-foreground">{prod.quantity}</p>
-                        <p className="text-[9px] text-muted-foreground uppercase font-black">Unid.</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                      </td>
+                      <td className="px-5 py-4 text-center">
+                        <span className="inline-flex items-center justify-center px-2 py-1 min-w-[32px] rounded-lg bg-primary/10 text-primary font-black text-xs">
+                          {prod.quantity}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <span className="text-[11px] font-black text-foreground">{formatCurrency(prod.totalValue)}</span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+              {produtosVendidosAgrupados.length > 0 && (
+                <tfoot>
+                  <tr className="bg-muted/10 border-t-2 border-border/40">
+                    <td className="px-5 py-4 text-[10px] font-black text-foreground uppercase tracking-widest">Total Geral</td>
+                    <td className="px-5 py-4 text-center">
+                      <span className="text-sm font-black text-foreground font-mono">
+                        {produtosVendidosAgrupados.reduce((acc, p) => acc + p.quantity, 0)}
+                      </span>
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      <span className="text-base font-black text-success">{formatCurrency(totalVendas)}</span>
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
+            </table>
           </div>
         </div>
 
-        {/* Acompanhamento em Tempo Real */}
+        {/* Acompanhamento em Tempo Real (Status dos Pedidos) */}
         <div className="card-section">
           <div className="card-section-header">
             <div className="flex items-center gap-2">
@@ -180,7 +199,7 @@ const VendedorDashboard: React.FC = () => {
             </div>
             <Link to="/vendedor/orcamentos" className="text-xs font-semibold text-primary hover:underline">Ver todos →</Link>
           </div>
-          <div className="divide-y divide-border/40">
+          <div className="divide-y divide-border/40 max-h-[600px] overflow-y-auto custom-scrollbar">
             {pedidosRecentes.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground text-sm">
                 Você ainda não possui pedidos enviados. <Link to="/vendedor/orcamentos" className="text-primary underline">Criar orçamento</Link>
@@ -196,12 +215,6 @@ const VendedorDashboard: React.FC = () => {
                     <span className="font-semibold text-foreground text-sm">{formatCurrency(order.total)}</span>
                   </div>
                   <OrderPipeline order={order} compact />
-                  {order.statusHistory.length > 0 && (
-                    <p className="text-[10px] text-muted-foreground">
-                      Última atualização: {new Date(order.statusHistory[order.statusHistory.length - 1].timestamp).toLocaleString('pt-BR')}
-                      {' • '}{order.statusHistory[order.statusHistory.length - 1].user}
-                    </p>
-                  )}
                 </div>
               ))
             )}

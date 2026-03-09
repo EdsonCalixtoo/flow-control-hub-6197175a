@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatCard, StatusBadge, formatCurrency, formatDate } from '@/components/shared/StatusBadge';
-import { ShoppingCart, Factory, CheckCircle, AlertTriangle, Package, Send, Truck, Wrench, Calendar, Bell, X, ExternalLink, RotateCcw, Bug, ClipboardList, Plus } from 'lucide-react';
-import type { OrderStatus, ProductionError } from '@/types/erp';
+import { ShoppingCart, Factory, CheckCircle, AlertTriangle, Package, Send, Truck, Wrench, Calendar, Bell, X, ExternalLink, RotateCcw, Bug, ClipboardList, Plus, ShieldCheck, XCircle } from 'lucide-react';
+import type { Order, OrderStatus, ProductionError } from '@/types/erp';
 import { STATUS_LABELS } from '@/types/erp';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-type GestorTab = 'dashboard' | 'problemas' | 'devolvidos' | 'erros';
+type GestorTab = 'dashboard' | 'problemas' | 'devolvidos' | 'erros' | 'extravios' | 'garantias';
 
 const SEVERITY_LABELS: Record<string, string> = {
   baixa: 'Baixa', media: 'Média', alta: 'Alta', critica: 'Crítica',
@@ -20,7 +20,7 @@ const SEVERITY_COLORS: Record<string, string> = {
 };
 
 const GestorDashboard: React.FC = () => {
-  const { orders, products, updateOrderStatus, delayReports, unreadDelayReports, markDelayReportRead, orderReturns, addOrderReturn, productionErrors, addProductionError, resolveError } = useERP();
+  const { orders, products, updateOrderStatus, delayReports, unreadDelayReports, markDelayReportRead, orderReturns, addOrderReturn, productionErrors, addProductionError, resolveError, warranties, updateWarrantyStatus } = useERP();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -45,6 +45,12 @@ const GestorDashboard: React.FC = () => {
   const [newReturnOrder, setNewReturnOrder] = useState('');
   const [newReturnReason, setNewReturnReason] = useState('');
   const [addingReturn, setAddingReturn] = useState(false);
+
+  // Form: extravio
+  const [extravioOrderNum, setExtravioOrderNum] = useState('');
+  const [extravioNote, setExtravioNote] = useState('');
+  const [searchingExtravio, setSearchingExtravio] = useState(false);
+
   const [seeding, setSeeding] = useState(false);
 
   const handleSeedProducts = async () => {
@@ -191,6 +197,8 @@ const GestorDashboard: React.FC = () => {
           { key: 'dashboard', label: '📊 Dashboard', badge: 0 },
           { key: 'problemas', label: '⚠️ Problemas na Produção', badge: unreadErrors },
           { key: 'devolvidos', label: '🔁 Pedidos Devolvidos', badge: unreadReturns },
+          { key: 'extravios', label: '📦 Extravios', badge: 0 },
+          { key: 'garantias', label: '🛡️ Garantias', badge: warranties.filter(w => w.status === 'Garantia criada').length },
           { key: 'erros', label: '📋 Relatórios de Erros', badge: 0 },
         ] as { key: GestorTab; label: string; badge: number }[]).map(tab => (
           <button
@@ -741,6 +749,235 @@ const GestorDashboard: React.FC = () => {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Tab: Extravios */}
+      {activeTab === 'extravios' && (
+        <div className="space-y-6 animate-fade-in">
+          <div>
+            <h2 className="text-lg font-bold text-foreground">Gestão de Extravios</h2>
+            <p className="text-sm text-muted-foreground">Registre extravios e solicite refação para a produção</p>
+          </div>
+
+          <div className="card-section p-6 space-y-6">
+            <div className="max-w-md space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Número do Pedido</label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <ShoppingCart className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
+                    <input
+                      type="text"
+                      value={extravioOrderNum}
+                      onChange={e => setExtravioOrderNum(e.target.value.toUpperCase())}
+                      placeholder="PED-1234"
+                      className="input-modern pl-10 h-12"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Observação do Extravio</label>
+                <textarea
+                  value={extravioNote}
+                  onChange={e => setExtravioNote(e.target.value)}
+                  placeholder="Descreva o que aconteceu (ex: Extraviado pela transportadora JADLOG)"
+                  className="input-modern min-h-[80px] p-3 text-sm"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={async () => {
+                    if (!extravioOrderNum.trim()) return;
+                    const order = orders.find(o => o.number === extravioOrderNum.trim());
+                    if (!order) {
+                      alert('❌ Pedido não encontrado. Verifique o número.');
+                      return;
+                    }
+                    if (window.confirm(`Confirmar o registro de EXTRAVIO para o pedido ${order.number}?`)) {
+                      await updateOrderStatus(
+                        order.id,
+                        'extraviado',
+                        undefined,
+                        userName,
+                        `PEDIDO EXTRAVIADO: ${extravioNote}`
+                      );
+                      alert(`✅ Pedido ${order.number} marcado como EXTRAVIADO.`);
+                    }
+                  }}
+                  disabled={!extravioOrderNum.trim()}
+                  className="btn-modern bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/20 flex-1 h-12 text-xs font-bold"
+                >
+                  <AlertTriangle className="w-4 h-4 mr-2" /> Registrar Extravio
+                </button>
+
+                <button
+                  onClick={async () => {
+                    const order = orders.find(o => o.number === extravioOrderNum.trim());
+                    if (!order) {
+                      alert('❌ Pedido não encontrado.');
+                      return;
+                    }
+                    if (order.status !== 'extraviado' && !window.confirm('Este pedido ainda não está marcado como extraviado. Deseja enviar para produção mesmo assim?')) {
+                      return;
+                    }
+
+                    await updateOrderStatus(
+                      order.id,
+                      'aguardando_producao',
+                      undefined,
+                      userName,
+                      `REFAÇÃO POR EXTRAVIO: ${extravioNote}`
+                    );
+                    alert(`🚀 Pedido ${order.number} enviado para PRODUÇÃO.`);
+                    setExtravioOrderNum('');
+                    setExtravioNote('');
+                  }}
+                  disabled={!extravioOrderNum.trim()}
+                  className="btn-primary flex-1 h-12 text-xs font-bold"
+                >
+                  <Factory className="w-4 h-4 mr-2" /> Enviar para Produção
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-1">Pedidos Extraviados Recentemente</h3>
+            <div className="grid grid-cols-1 gap-3">
+              {orders.filter(o => o.status === 'extraviado').length === 0 ? (
+                <div className="p-12 text-center card-section border-dashed">
+                  <Package className="w-10 h-10 text-muted-foreground/20 mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">Nenhum pedido com status "Extraviado" no momento.</p>
+                </div>
+              ) : (
+                orders.filter(o => o.status === 'extraviado').map(order => (
+                  <div key={order.id} className="card-section p-4 flex items-center justify-between group">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-destructive/10 flex items-center justify-center text-destructive">
+                        <AlertTriangle className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-extrabold text-foreground">{order.number}</span>
+                          <span className="text-xs text-muted-foreground">{order.clientName}</span>
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">
+                          Última atualização: {new Date(order.updatedAt).toLocaleDateString('pt-BR')} às {new Date(order.updatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setExtravioOrderNum(order.number)}
+                      className="btn-modern bg-muted text-foreground opacity-0 group-hover:opacity-100 transition-all text-[10px] font-bold uppercase tracking-tighter"
+                    >
+                      Selecionar
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Garantias (Aprovação) */}
+      {activeTab === 'garantias' && (
+        <div className="space-y-6 animate-fade-in">
+          <div>
+            <h2 className="text-lg font-bold text-foreground">Aprovação de Garantias</h2>
+            <p className="text-sm text-muted-foreground">Analise as solicitações de garantia enviadas pelos vendedores</p>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4">
+            {warranties.filter(w => ['Garantia criada', 'Garantia aprovada'].includes(w.status)).length === 0 ? (
+              <div className="card-section p-20 text-center">
+                <ShieldCheck className="w-12 h-12 text-muted-foreground/20 mx-auto mb-3" />
+                <p className="text-muted-foreground font-medium">Nenhuma garantia aguardando ação.</p>
+              </div>
+            ) : (
+              warranties.filter(w => ['Garantia criada', 'Garantia aprovada'].includes(w.status)).map(w => (
+                <div key={w.id} className="card-section p-6 space-y-4 border-primary/10">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-lg text-foreground">{w.orderNumber}</span>
+                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${w.status === 'Garantia criada' ? 'bg-warning/10 text-warning' : 'bg-success/10 text-success'
+                          }`}>
+                          {w.status === 'Garantia criada' ? 'Aguardando Análise' : 'Aprovada - Aguardando Produção'}
+                        </span>
+                      </div>
+                      <p className="text-sm font-bold text-foreground">{w.clientName}</p>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Vendedor: {w.sellerName || '---'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase">{new Date(w.createdAt).toLocaleDateString('pt-BR')}</p>
+                    </div>
+                  </div>
+
+                  <div className="bg-muted/30 p-4 rounded-xl border border-border/50">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-2">Descrição do Problema</p>
+                    <p className="text-sm text-foreground italic">"{w.description}"</p>
+                  </div>
+
+                  {w.receiptUrls && w.receiptUrls.length > 0 && (
+                    <div className="flex gap-2">
+                      {w.receiptUrls.map((url, i) => (
+                        <a key={i} href={url} target="_blank" rel="noreferrer" className="w-16 h-16 rounded-lg bg-muted border border-border flex items-center justify-center overflow-hidden hover:opacity-80 transition-opacity">
+                          <img src={url} alt="Comprovante" className="w-full h-full object-cover" />
+                        </a>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex gap-3 pt-2">
+                    {w.status === 'Garantia criada' ? (
+                      <>
+                        <button
+                          onClick={async () => {
+                            if (window.confirm('Aprovar esta garantia?')) {
+                              await updateWarrantyStatus(w.id, 'Garantia aprovada', undefined, userName, 'Garantia aprovada pelo gestor');
+                              alert('Garantia APROVADA!');
+                            }
+                          }}
+                          className="btn-primary bg-success hover:bg-success/90 border-none flex-1 h-11 text-xs font-bold"
+                        >
+                          <CheckCircle className="w-4 h-4 mr-2" /> Aprovar Garantia
+                        </button>
+                        <button
+                          onClick={async () => {
+                            const reason = prompt('Motivo da reprovação:');
+                            if (reason) {
+                              await updateWarrantyStatus(w.id, 'rejeitado', undefined, userName, `Reprovado: ${reason}`);
+                              alert('Garantia REPROVADA.');
+                            }
+                          }}
+                          className="btn-modern bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/20 flex-1 h-11 text-xs font-bold"
+                        >
+                          <XCircle className="w-4 h-4 mr-2" /> Reprovar
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={async () => {
+                          if (window.confirm('Enviar este pedido de garantia para a produção?')) {
+                            await updateWarrantyStatus(w.id, 'Em produção', undefined, userName, 'Enviado para produção');
+                            alert('Garantia enviada para PRODUÇÃO!');
+                          }
+                        }}
+                        className="btn-primary w-full h-11 text-xs font-bold"
+                      >
+                        <Factory className="w-4 h-4 mr-2" /> Enviar para Produção
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       )}
 

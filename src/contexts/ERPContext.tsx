@@ -48,7 +48,7 @@ interface ERPContextType {
   // warrantries
   warranties: Warranty[];
   addWarranty: (warranty: Omit<Warranty, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
-  updateWarrantyStatus: (id: string, status: Warranty['status'], resolution?: string) => Promise<void>;
+  updateWarrantyStatus: (id: string, status: Warranty['status'], resolution?: string, userName?: string, note?: string) => Promise<void>;
   // order ops
   addOrder: (order: Order) => Promise<void>;
   deleteOrder: (orderId: string) => Promise<void>;
@@ -663,16 +663,33 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  const updateWarrantyStatus = useCallback(async (id: string, status: Warranty['status'], resolution?: string) => {
+  const updateWarrantyStatus = useCallback(async (id: string, status: Warranty['status'], resolution?: string, userName?: string, note?: string) => {
     try {
-      const updated = await updateWarrantySupabase(id, { status, resolution });
+      const current = warranties.find(w => w.id === id);
+      if (!current) return;
+
+      const now = new Date().toISOString();
+      const historyEntry = {
+        status,
+        timestamp: now,
+        user: userName || 'Sistema',
+        note
+      };
+
+      const updated = await updateWarrantySupabase(id, {
+        status,
+        resolution,
+        history: [...(current.history || []), historyEntry],
+        updatedAt: now
+      });
+
       if (updated) {
         setWarranties(prev => prev.map(w => w.id === id ? updated : w));
       }
     } catch (err: any) {
       console.error('[ERP] Erro ao atualizar garantia:', err.message);
     }
-  }, []);
+  }, [warranties]);
 
   // ── CLEAR ALL ────────────────────────────────────────────────
   const clearAll = useCallback(async () => {

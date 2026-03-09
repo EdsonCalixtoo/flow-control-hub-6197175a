@@ -52,7 +52,8 @@ export type OrderStatus =
   | 'em_producao'
   | 'producao_finalizada'
   | 'produto_liberado'
-  | 'retirado_entregador';
+  | 'retirado_entregador'
+  | 'extraviado';
 
 export type ProductionStatus = 'em_producao' | 'agendado' | 'atrasado' | 'finalizado';
 
@@ -229,6 +230,7 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
   producao_finalizada: 'Produção Finalizada',
   produto_liberado: 'Produto Liberado',
   retirado_entregador: 'Retirado pelo Entregador',
+  extraviado: 'Extraviado',
 };
 
 export const STATUS_COLORS: Record<OrderStatus, string> = {
@@ -246,6 +248,7 @@ export const STATUS_COLORS: Record<OrderStatus, string> = {
   producao_finalizada: 'bg-success/10 text-success',
   produto_liberado: 'bg-success/10 text-success',
   retirado_entregador: 'bg-primary/10 text-primary',
+  extraviado: 'bg-destructive/10 text-destructive font-bold',
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = {
@@ -291,17 +294,36 @@ export interface DelayReport {
   sentBy: string;
 }
 
+export type WarrantyStatus =
+  | 'Garantia criada'
+  | 'Aguardando aprovação do gestor'
+  | 'Garantia aprovada'
+  | 'Em produção'
+  | 'Garantia finalizada'
+  | 'rejeitado';
+
+export interface WarrantyHistory {
+  status: WarrantyStatus;
+  timestamp: string;
+  user: string;
+  note?: string;
+}
+
 export interface Warranty {
   id: string;
   orderId?: string;
   orderNumber?: string;
   clientId?: string;
   clientName: string;
+  sellerId?: string;
+  sellerName?: string;
   product?: string;
   description: string;
-  status: 'pendente' | 'aprovado' | 'rejeitado' | 'concluido';
+  status: WarrantyStatus;
   receiptUrls?: string[];
   resolution?: string;
   createdAt: string;
   updatedAt: string;
+  carrier?: string;
+  history?: WarrantyHistory[];
 }

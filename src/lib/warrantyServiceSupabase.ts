@@ -7,6 +7,8 @@ const supabaseToWarranty = (data: any): Warranty => ({
     orderNumber: data.order_number,
     clientId: data.client_id,
     clientName: data.client_name,
+    sellerId: data.seller_id,
+    sellerName: data.seller_name,
     product: data.product,
     description: data.description,
     status: data.status,
@@ -14,6 +16,8 @@ const supabaseToWarranty = (data: any): Warranty => ({
     createdAt: data.created_at,
     updatedAt: data.updated_at,
     resolution: data.resolution || undefined,
+    carrier: data.carrier || undefined,
+    history: data.history || [],
 });
 
 const warrantyToSupabase = (w: Partial<Warranty>) => {
@@ -22,11 +26,15 @@ const warrantyToSupabase = (w: Partial<Warranty>) => {
     if (w.orderNumber) data.order_number = w.orderNumber;
     if (w.clientId) data.client_id = w.clientId;
     if (w.clientName) data.client_name = w.clientName;
+    if (w.sellerId) data.seller_id = w.sellerId;
+    if (w.sellerName) data.seller_name = w.sellerName;
     if (w.product) data.product = w.product;
     if (w.description) data.description = w.description;
     if (w.status) data.status = w.status;
     if (w.receiptUrls) data.receipt_urls = w.receiptUrls;
     if (w.resolution) data.resolution = w.resolution;
+    if (w.carrier) data.carrier = w.carrier;
+    if (w.history) data.history = w.history;
     return data;
 };
 

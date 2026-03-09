@@ -6,7 +6,7 @@ import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
 import { RealtimeNotificationHandler } from '@/components/shared/RealtimeNotificationHandler';
 import { useRealtimeOrders } from '@/hooks/useRealtimeOrders';
 import OrderChat from '@/components/shared/OrderChat';
-import { Play, CheckCircle, Printer, Package, ArrowLeft, Search, ScanLine, X, Eye, Truck, Wrench, Calendar, Clock, AlertTriangle, CalendarClock, Send, Camera, StopCircle, History, RefreshCw, Filter, ShieldAlert, DollarSign } from 'lucide-react';
+import { Play, CheckCircle, Printer, Package, ArrowLeft, Search, ScanLine, X, Eye, Truck, Wrench, Calendar, Clock, AlertTriangle, CalendarClock, Send, Camera, StopCircle, History as HistoryIcon, RefreshCw, Filter, ShieldAlert, DollarSign } from 'lucide-react';
 import BarcodeComponent from 'react-barcode';
 import { useSearchParams } from 'react-router-dom';
 import type { ProductionStatus } from '@/types/erp';
@@ -28,7 +28,7 @@ const PRODUCTION_STATUS_OPTS: { value: ProductionStatus; label: string; cls: str
 ];
 
 const PedidosProducaoPage: React.FC = () => {
-  const { orders, clients, barcodeScans, updateOrderStatus, addBarcodeScan, updateOrder, addDelayReport, loadFromSupabase, loading } = useERP();
+  const { orders, clients, barcodeScans, updateOrderStatus, addBarcodeScan, updateOrder, addDelayReport, loadFromSupabase, loading, warranties, updateWarrantyStatus } = useERP();
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const tipoFiltro = searchParams.get('tipo') || '';
@@ -696,7 +696,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
           {recentScans.length > 0 && (
             <div className="card-section p-4 space-y-3">
               <div className="flex items-center gap-2">
-                <History className="w-4 h-4 text-muted-foreground" />
+                <HistoryIcon className="w-4 h-4 text-muted-foreground" />
                 <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Últimas leituras</p>
               </div>
               {recentScans.map(scan => (
@@ -1113,6 +1113,33 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
           </div>
         )}
 
+        {/* Histórico de Garantia - Se houver */}
+        {warranties.filter(w => w.orderId === viewOrder.id).length > 0 && (
+          <div className="card-section p-5 space-y-4 border-primary/10">
+            <div className="flex items-center gap-2">
+              <HistoryIcon className="w-4 h-4 text-primary" />
+              <p className="text-xs font-bold uppercase tracking-wider text-primary">Histórico de Garantia</p>
+            </div>
+            <div className="space-y-4 relative before:absolute before:inset-0 before:ml-3 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-primary/20 before:via-border before:to-transparent">
+              {warranties.filter(w => w.orderId === viewOrder.id).flatMap(w => w.history || []).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).map((h, i) => (
+                <div key={i} className="relative flex items-start gap-3">
+                  <div className="shrink-0 w-6 h-6 rounded-full bg-background border-2 border-primary/30 flex items-center justify-center z-10">
+                    <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                  </div>
+                  <div className="flex-1 bg-muted/20 rounded-xl p-3 border border-border/40">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] font-black uppercase text-foreground">{h.status}</span>
+                      <span className="text-[9px] text-muted-foreground">{fmtDate(h.timestamp)}</span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">Por: <b>{h.user}</b></p>
+                    {h.note && <p className="text-xs font-medium text-foreground mt-1 italic">"{h.note}"</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
 
 
         {/* Envio de ocorrência */}
@@ -1201,8 +1228,8 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                 disabled={!(viewOrder.financeiroAprovado || ['pago', 'parcial'].includes(viewOrder.paymentStatus || ''))}
                 onClick={() => { setGuia(viewOrder.id); setViewOrderId(null); }}
                 className={`btn-modern w-full justify-center py-3 text-sm transition-all ${!(viewOrder.financeiroAprovado || ['pago', 'parcial'].includes(viewOrder.paymentStatus || ''))
-                    ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-50 border-transparent shadow-none'
-                    : 'bg-primary/10 text-primary hover:bg-primary/20 hover:shadow-lg border-primary/20'
+                  ? 'bg-muted text-muted-foreground cursor-not-allowed opacity-50 border-transparent shadow-none'
+                  : 'bg-primary/10 text-primary hover:bg-primary/20 hover:shadow-lg border-primary/20'
                   }`}
               >
                 <Printer className="w-5 h-5" />
@@ -1213,12 +1240,12 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
               </button>
 
               <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider mx-1 ${(viewOrder.financeiroAprovado || viewOrder.paymentStatus === 'pago') ? 'bg-success/10 text-success border border-success/20' :
-                  viewOrder.paymentStatus === 'parcial' ? 'bg-primary/10 text-primary border border-primary/20' :
-                    'bg-warning/10 text-warning border border-warning/20'
+                viewOrder.paymentStatus === 'parcial' ? 'bg-primary/10 text-primary border border-primary/20' :
+                  'bg-warning/10 text-warning border border-warning/20'
                 }`}>
                 <div className={`w-2 h-2 rounded-full ${(viewOrder.financeiroAprovado || viewOrder.paymentStatus === 'pago') ? 'bg-success shadow-[0_0_8px_rgba(34,197,94,0.5)]' :
-                    viewOrder.paymentStatus === 'parcial' ? 'bg-primary' :
-                      'bg-warning animate-pulse'
+                  viewOrder.paymentStatus === 'parcial' ? 'bg-primary' :
+                    'bg-warning animate-pulse'
                   }`} />
                 {(viewOrder.financeiroAprovado || viewOrder.paymentStatus === 'pago') ? 'Liberado Final' :
                   viewOrder.paymentStatus === 'parcial' ? 'Sinal Pago - Liberado' :
@@ -1284,6 +1311,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
             { value: 'producao_finalizada', label: 'Finalizado' },
             { value: 'produto_liberado', label: 'Liberado' },
             { value: 'atrasado', label: '⚠ Atrasados' },
+            { value: 'garantias', label: '🛡️ Garantias' },
           ].map(tab => (
             <button
               key={tab.value}
@@ -1297,7 +1325,44 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
       </div>
 
       {
-        filteredOrders.length === 0 ? (
+        statusFilter === 'garantias' ? (
+          <div className="space-y-3">
+            {warranties.filter(w => w.status === 'Em produção').length === 0 ? (
+              <div className="card-section p-12 text-center text-muted-foreground">Nenhuma garantia em produção</div>
+            ) : (
+              warranties.filter(w => w.status === 'Em produção').map(w => (
+                <div key={w.id} className="card-section p-5 border-primary/20">
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                        <HistoryIcon className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-extrabold text-foreground">{w.orderNumber}</span>
+                          <span className="status-badge bg-primary/10 text-primary text-[9px]">EM PRODUÇÃO</span>
+                        </div>
+                        <p className="text-sm font-bold text-foreground">{w.clientName}</p>
+                        <p className="text-xs text-muted-foreground italic mt-1 font-medium">"{w.description}"</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (window.confirm('Marcar esta garantia como FINALIZADA?')) {
+                          await updateWarrantyStatus(w.id, 'Garantia finalizada', undefined, user?.name || 'Produção', 'Garantia concluída pela produção');
+                          alert('Garantia concluída!');
+                        }
+                      }}
+                      className="btn-modern bg-success/10 text-success hover:bg-success/20 text-xs font-bold py-2 px-4 border border-success/20"
+                    >
+                      <CheckCircle className="w-4 h-4 mr-2" /> Finalizar
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        ) : filteredOrders.length === 0 ? (
           <div className="card-section p-12 text-center">
             <div className="w-16 h-16 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-4">
               <Package className="w-8 h-8 text-muted-foreground" />

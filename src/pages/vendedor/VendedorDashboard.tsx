@@ -3,8 +3,9 @@ import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatCard, StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
 import { OrderPipeline } from '@/components/shared/OrderTimeline';
-import { ShoppingCart, FileText, Clock, Percent, Eye } from 'lucide-react';
+import { ShoppingCart, FileText, Clock, Percent, Eye, Package, TrendingUp } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useMemo } from 'react';
 
 const VendedorDashboard: React.FC = () => {
   const { orders } = useERP();
@@ -32,6 +33,24 @@ const VendedorDashboard: React.FC = () => {
     .reduce((s, o) => s + o.total, 0);
 
   const comissaoEstimada = totalVendas * 0.05;
+
+  // ✅ Histórico de produtos vendidos
+  const produtosVendidos = useMemo(() => {
+    const map = new Map<string, { product: string; quantity: number; sensorType?: string }>();
+
+    myOrders
+      .filter(o => statusesQueContam.includes(o.status))
+      .forEach(order => {
+        order.items.forEach(item => {
+          const key = `${item.product}-${item.sensorType || ''}`;
+          const current = map.get(key) || { product: item.product, quantity: 0, sensorType: item.sensorType };
+          current.quantity += item.quantity;
+          map.set(key, current);
+        });
+      });
+
+    return Array.from(map.values()).sort((a, b) => b.quantity - a.quantity);
+  }, [myOrders]);
 
   // Pedidos recentes para exibir no acompanhamento (não rascunho)
   const pedidosRecentes = myOrders
@@ -89,36 +108,83 @@ const VendedorDashboard: React.FC = () => {
       </div>
 
       {/* Últimos pedidos com pipeline */}
-      <div className="card-section">
-        <div className="card-section-header">
-          <h2 className="card-section-title">Acompanhamento em Tempo Real</h2>
-          <Link to="/vendedor/orcamentos" className="text-xs font-semibold text-primary hover:underline">Ver todos →</Link>
-        </div>
-        <div className="divide-y divide-border/40">
-          {pedidosRecentes.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground text-sm">
-              Você ainda não possui pedidos enviados. <Link to="/vendedor/orcamentos" className="text-primary underline">Criar orçamento</Link>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Histórico de Produtos Vendidos */}
+        <div className="card-section h-fit">
+          <div className="card-section-header">
+            <div className="flex items-center gap-2">
+              <TrendingUp className="w-4 h-4 text-primary" />
+              <h2 className="card-section-title">Produtos mais Vendidos</h2>
             </div>
-          ) : (
-            pedidosRecentes.map(order => (
-              <div key={order.id} className="p-4 md:p-5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="font-bold text-foreground text-sm">{order.number}</span>
-                    <span className="text-muted-foreground text-xs ml-2">{order.clientName}</span>
-                  </div>
-                  <span className="font-semibold text-foreground text-sm">{formatCurrency(order.total)}</span>
-                </div>
-                <OrderPipeline order={order} compact />
-                {order.statusHistory.length > 0 && (
-                  <p className="text-[10px] text-muted-foreground">
-                    Última atualização: {new Date(order.statusHistory[order.statusHistory.length - 1].timestamp).toLocaleString('pt-BR')}
-                    {' • '}{order.statusHistory[order.statusHistory.length - 1].user}
-                  </p>
-                )}
+          </div>
+          <div className="p-0 overflow-hidden">
+            {produtosVendidos.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground text-sm">
+                Nenhum produto vendido ainda.
               </div>
-            ))
-          )}
+            ) : (
+              <div className="divide-y divide-border/40 max-h-[400px] overflow-y-auto custom-scrollbar">
+                {produtosVendidos.map((prod, idx) => (
+                  <div key={idx} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-xs shrink-0">
+                        {idx + 1}º
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-foreground leading-tight">{prod.product}</p>
+                        {prod.sensorType && (
+                          <p className="text-[10px] text-muted-foreground uppercase font-semibold">
+                            {prod.sensorType === 'com_sensor' ? '📡 Com Sensor' : '🔌 Sem Sensor'}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-black text-foreground">{prod.quantity}</p>
+                      <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Unidades</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Acompanhamento em Tempo Real */}
+        <div className="card-section">
+          <div className="card-section-header">
+            <div className="flex items-center gap-2">
+              <Package className="w-4 h-4 text-producao" />
+              <h2 className="card-section-title">Status dos Pedidos</h2>
+            </div>
+            <Link to="/vendedor/orcamentos" className="text-xs font-semibold text-primary hover:underline">Ver todos →</Link>
+          </div>
+          <div className="divide-y divide-border/40">
+            {pedidosRecentes.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground text-sm">
+                Você ainda não possui pedidos enviados. <Link to="/vendedor/orcamentos" className="text-primary underline">Criar orçamento</Link>
+              </div>
+            ) : (
+              pedidosRecentes.map(order => (
+                <div key={order.id} className="p-4 md:p-5 space-y-3 hover:bg-muted/30 transition-colors">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-bold text-foreground text-sm">{order.number}</span>
+                      <span className="text-muted-foreground text-xs ml-2">{order.clientName}</span>
+                    </div>
+                    <span className="font-semibold text-foreground text-sm">{formatCurrency(order.total)}</span>
+                  </div>
+                  <OrderPipeline order={order} compact />
+                  {order.statusHistory.length > 0 && (
+                    <p className="text-[10px] text-muted-foreground">
+                      Última atualização: {new Date(order.statusHistory[order.statusHistory.length - 1].timestamp).toLocaleString('pt-BR')}
+                      {' • '}{order.statusHistory[order.statusHistory.length - 1].user}
+                    </p>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
     </div>

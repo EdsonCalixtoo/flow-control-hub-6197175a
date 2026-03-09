@@ -34,22 +34,36 @@ const VendedorDashboard: React.FC = () => {
 
   const comissaoEstimada = totalVendas * 0.05;
 
-  // ✅ Histórico de produtos vendidos
+  // ✅ Histórico REAL e DETALHADO de itens vendidos
   const produtosVendidos = useMemo(() => {
-    const map = new Map<string, { product: string; quantity: number; sensorType?: string }>();
+    const list: {
+      orderId: string;
+      orderNumber: string;
+      clientName: string;
+      product: string;
+      quantity: number;
+      sensorType?: string;
+      date: string;
+    }[] = [];
 
     myOrders
       .filter(o => statusesQueContam.includes(o.status))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .forEach(order => {
         order.items.forEach(item => {
-          const key = `${item.product}-${item.sensorType || ''}`;
-          const current = map.get(key) || { product: item.product, quantity: 0, sensorType: item.sensorType };
-          current.quantity += item.quantity;
-          map.set(key, current);
+          list.push({
+            orderId: order.id,
+            orderNumber: order.number,
+            clientName: order.clientName,
+            product: item.product,
+            quantity: item.quantity,
+            sensorType: item.sensorType,
+            date: order.createdAt
+          });
         });
       });
 
-    return Array.from(map.values()).sort((a, b) => b.quantity - a.quantity);
+    return list;
   }, [myOrders]);
 
   // Pedidos recentes para exibir no acompanhamento (não rascunho)
@@ -64,10 +78,11 @@ const VendedorDashboard: React.FC = () => {
         <p className="page-subtitle">Acompanhe suas vendas e metas — {user?.name}</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 stagger-children">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 stagger-children">
         <StatCard title="Vendido no Mês" value={formatCurrency(totalVendas)} icon={ShoppingCart} color="text-vendedor" />
         <StatCard title="Pedidos Enviados" value={pedidosEnviados} icon={FileText} color="text-success" />
         <StatCard title="Orçam. Pendentes" value={orcamentosPendentes} icon={Clock} color="text-warning" />
+        <StatCard title="Itens Vendidos" value={produtosVendidos.reduce((acc, p) => acc + p.quantity, 0)} icon={Package} color="text-primary" />
       </div>
 
       {/* Atalhos rápidos */}
@@ -109,39 +124,45 @@ const VendedorDashboard: React.FC = () => {
 
       {/* Últimos pedidos com pipeline */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Histórico de Produtos Vendidos */}
+        {/* Histórico Detalhado de ITENS Vendidos */}
         <div className="card-section h-fit">
           <div className="card-section-header">
             <div className="flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-primary" />
-              <h2 className="card-section-title">Produtos mais Vendidos</h2>
+              <h2 className="card-section-title">Controle de Itens Vendidos</h2>
             </div>
+            <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">
+              Total Itens: {produtosVendidos.reduce((acc, p) => acc + p.quantity, 0)}
+            </span>
           </div>
           <div className="p-0 overflow-hidden">
             {produtosVendidos.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground text-sm">
-                Nenhum produto vendido ainda.
+                Nenhum item vendido ainda.
               </div>
             ) : (
-              <div className="divide-y divide-border/40 max-h-[400px] overflow-y-auto custom-scrollbar">
+              <div className="divide-y divide-border/40 max-h-[500px] overflow-y-auto custom-scrollbar">
                 {produtosVendidos.map((prod, idx) => (
-                  <div key={idx} className="p-4 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-xs shrink-0">
-                        {idx + 1}º
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-foreground leading-tight">{prod.product}</p>
+                  <div key={idx} className="p-4 hover:bg-muted/30 transition-colors">
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black bg-muted px-1.5 py-0.5 rounded text-muted-foreground">{prod.orderNumber}</span>
+                          <p className="text-sm font-bold text-foreground leading-tight">{prod.product}</p>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          {prod.clientName} • {new Date(prod.date).toLocaleDateString('pt-BR')}
+                        </p>
                         {prod.sensorType && (
-                          <p className="text-[10px] text-muted-foreground uppercase font-semibold">
+                          <p className="text-[10px] text-primary/70 font-bold uppercase">
                             {prod.sensorType === 'com_sensor' ? '📡 Com Sensor' : '🔌 Sem Sensor'}
                           </p>
                         )}
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-black text-foreground">{prod.quantity}</p>
-                      <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Unidades</p>
+                      <div className="text-right shrink-0">
+                        <p className="text-base font-black text-foreground">{prod.quantity}</p>
+                        <p className="text-[9px] text-muted-foreground uppercase font-black">Unid.</p>
+                      </div>
                     </div>
                   </div>
                 ))}

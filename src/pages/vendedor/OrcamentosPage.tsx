@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
 import { OrderPipeline, OrderHistory } from '@/components/shared/OrderTimeline';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
-import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check, Download, Link2, DollarSign } from 'lucide-react';
+import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check, Download, Link2, DollarSign, CheckCircle } from 'lucide-react';
 import type { Order, QuoteItem } from '@/types/erp';
 import { useLocation, useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
@@ -68,6 +68,7 @@ const OrcamentosPage: React.FC = () => {
   const [newInstallationTime, setNewInstallationTime] = useState('');
   const [newInstallationPaymentType, setNewInstallationPaymentType] = useState<'pago' | 'pagar_na_hora'>('pago');
   const [newCarrier, setNewCarrier] = useState('');
+  const [newRequiresInvoice, setNewRequiresInvoice] = useState(false);
 
   // Abre pedido via URL (?view=ID)
   useEffect(() => {
@@ -163,6 +164,7 @@ const OrcamentosPage: React.FC = () => {
     setNewInstallationTime(order.installationTime || '');
     setNewInstallationPaymentType(order.installationPaymentType || 'pago');
     setNewCarrier(order.carrier || '');
+    setNewRequiresInvoice(order.requiresInvoice || false);
     setFormError('');
   };
 
@@ -178,6 +180,7 @@ const OrcamentosPage: React.FC = () => {
     setNewInstallationTime('');
     setNewInstallationPaymentType('pago');
     setNewCarrier('');
+    setNewRequiresInvoice(false);
     setFormError('');
   };
 
@@ -277,6 +280,7 @@ const OrcamentosPage: React.FC = () => {
           installationPaymentType: (newOrderType === 'instalacao' || newOrderType === 'retirada') ? newInstallationPaymentType : undefined,
           carrier: newOrderType === 'entrega' ? newCarrier : undefined,
           isConsigned: client.consignado,
+          requiresInvoice: newRequiresInvoice,
           updatedAt: now,
         };
 
@@ -357,6 +361,7 @@ const OrcamentosPage: React.FC = () => {
             deliveryDate: newDeliveryDate || undefined,
             orderType: newOrderType,
             isConsigned: client.consignado,
+            requiresInvoice: newRequiresInvoice,
             createdAt: now,
             updatedAt: now,
             statusHistory: [{
@@ -669,6 +674,36 @@ const OrcamentosPage: React.FC = () => {
             )}
           </div>
 
+          {/* NOTA FISCAL - POSIÇÃO DE DESTAQUE NO TOPO */}
+          <div className={`p-4 rounded-2xl border-2 transition-all duration-300 ${newRequiresInvoice ? 'bg-primary/10 border-primary ring-4 ring-primary/5' : 'bg-muted/30 border-border/40'}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg transition-all duration-500 ${newRequiresInvoice ? 'bg-primary rotate-0 scale-110' : 'bg-muted-foreground/30 scale-100'}`}>
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className={`text-sm font-black uppercase tracking-tight transition-colors ${newRequiresInvoice ? 'text-primary' : 'text-foreground'}`}>Com Nota Fiscal?</h3>
+                  <p className="text-[10px] text-muted-foreground font-bold italic">Ative se este pedido precisa de emissão de NF</p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setNewRequiresInvoice(!newRequiresInvoice)}
+                className={`relative inline-flex h-7 w-14 items-center rounded-full transition-all focus:outline-none ring-offset-2 shadow-inner ${newRequiresInvoice ? 'bg-primary ring-2 ring-primary/20' : 'bg-muted-foreground/20 ring-0'}`}
+              >
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-300 ${newRequiresInvoice ? 'translate-x-8' : 'translate-x-1'}`} />
+              </button>
+            </div>
+
+            {newRequiresInvoice && (
+              <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-white/50 border border-primary/20 animate-in slide-in-from-top-2 duration-300">
+                <CheckCircle className="w-4 h-4 text-primary" />
+                <span className="text-[11px] font-black text-primary uppercase tracking-wider">Atenção: Este pedido será enviado ao financeiro com exigência de NF</span>
+              </div>
+            )}
+          </div>
+
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Produtos</label>
@@ -937,6 +972,7 @@ const OrcamentosPage: React.FC = () => {
               )}
             </div>
           )}
+
 
           {/* Observações */}
           <div className="space-y-1">

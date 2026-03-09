@@ -294,7 +294,14 @@ const GestorDashboard: React.FC = () => {
                                 )}
                               </div>
                             </td>
-                            <td className="text-foreground">{order.clientName}</td>
+                            <td className="text-foreground">
+                              <div className="flex items-center gap-1.5">
+                                {order.clientName}
+                                {order.requiresInvoice && (
+                                  <span className="inline-flex items-center font-black text-[8px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full border border-primary/30">NF</span>
+                                )}
+                              </div>
+                            </td>
                             <td className="hidden md:table-cell">
                               <span className={`inline-flex items-center gap-1 text-[10px] font-semibold ${order.orderType === 'instalacao' ? 'text-producao' : 'text-primary'}`}>
                                 {order.orderType === 'instalacao' ? <Wrench className="w-3 h-3" /> : <Truck className="w-3 h-3" />}

@@ -33,6 +33,7 @@ export const supabaseToOrder = (data: any): Order => ({
     statusProducao: data.status_producao || '',
     scheduledDate: data.scheduled_date || undefined,
     volumes: data.volumes || 1,
+    requiresInvoice: data.requires_invoice || false,
 });
 
 export const orderToSupabase = (order: Partial<Order>) => {
@@ -63,6 +64,7 @@ export const orderToSupabase = (order: Partial<Order>) => {
     if (order.statusProducao !== undefined) data.status_producao = order.statusProducao;
     if (order.scheduledDate !== undefined) data.scheduled_date = order.scheduledDate;
     if (order.volumes !== undefined) data.volumes = order.volumes;
+    if (order.requiresInvoice !== undefined) data.requires_invoice = order.requiresInvoice;
 
     if (order.items) data.items = order.items;
     if (order.statusHistory) data.status_history = order.statusHistory;

@@ -5,7 +5,7 @@ import { useERP } from '@/contexts/ERPContext';
 import { StatCard, StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
 import { RealtimeNotificationHandler } from '@/components/shared/RealtimeNotificationHandler';
-import { DollarSign, TrendingUp, Clock, AlertTriangle, Search, Filter, ChevronDown, ChevronLeft, ChevronRight, Eye, CheckCircle, XCircle, Send, ArrowLeft, Users2, BarChart3, Radio, Star, Plus, Trash2, Inbox, Bell } from 'lucide-react';
+import { DollarSign, TrendingUp, Clock, AlertTriangle, Search, Filter, ChevronDown, ChevronLeft, ChevronRight, Eye, CheckCircle, XCircle, Send, ArrowLeft, Users2, BarChart3, Radio, Star, Plus, Trash2, Inbox, Bell, FileText } from 'lucide-react';
 import { useRealtimeOrders } from '@/hooks/useRealtimeOrders';
 import { toast } from 'sonner';
 import type { Order, FinancialEntry } from '@/types/erp';
@@ -455,6 +455,19 @@ const FinanceiroDashboard: React.FC = () => {
                   </div>
                 ) : null;
               })()}
+
+              {/* Alerta Nota Fiscal */}
+              {selectedOrder.requiresInvoice && (
+                <div className="flex items-center gap-3 p-4 rounded-xl bg-primary/10 border-2 border-primary mb-4 animate-pulse">
+                  <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-white shrink-0">
+                    <FileText className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-black text-primary uppercase tracking-tighter">🔔 EMISSÃO DE NOTA FISCAL SOLICITADA</p>
+                    <p className="text-[11px] text-primary/80 font-bold">Este pedido deve ser faturado com Nota Fiscal. Verifique os dados do cliente para emissão.</p>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3 mb-3">
                 {[
@@ -1601,11 +1614,16 @@ const FinanceiroDashboard: React.FC = () => {
                         <tr key={order.id}>
                           <td className="font-bold text-foreground">{order.number}</td>
                           <td className="text-foreground">
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex flex-wrap items-center gap-1.5">
                               {order.clientName}
                               {(order.isConsigned || clients.find(c => c.id === order.clientId)?.consignado) && (
                                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 text-[9px] font-bold border border-amber-500/20" title="Cliente Consignado">
                                   ⭐ CONSIG.
+                                </span>
+                              )}
+                              {order.requiresInvoice && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-primary/15 text-primary text-[9px] font-bold border border-primary/20 animate-pulse" title="Necessita Nota Fiscal">
+                                  📄 NF
                                 </span>
                               )}
                             </div>

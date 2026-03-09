@@ -108,6 +108,7 @@ export interface Order {
   financeiroAprovado?: boolean;
   statusPagamento?: 'pendente' | 'pago' | 'parcial';
   statusProducao?: string;
+  requiresInvoice?: boolean;
 }
 
 export interface ChatMessage {

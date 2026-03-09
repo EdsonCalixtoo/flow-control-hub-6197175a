@@ -94,13 +94,6 @@ const OrcamentosPage: React.FC = () => {
 
   // Envia para o financeiro — apenas via botão explícito
   const enviarFinanceiro = async (orderId: string) => {
-    // Validação de valor zero
-    const orderToSend = orders.find(o => o.id === orderId);
-    if (!orderToSend || orderToSend.total <= 0) {
-      alert('⚠️ Não é possível enviar um orçamento com valor total R$ 0,00.');
-      return;
-    }
-
     try {
       setSendingToFinance(true);
       const receipts = comprovantesAttached.length > 0 ? comprovantesAttached : (selectedOrder?.receiptUrls || []);
@@ -220,15 +213,15 @@ const OrcamentosPage: React.FC = () => {
 
     if (newItems.some(i => {
       const price = typeof i.unitPrice === 'string' ? parseFloat(i.unitPrice) : i.unitPrice;
-      return isNaN(price) || price <= 0;
+      return isNaN(price) || price < 0;
     })) {
-      setFormError('⚠️ Todos os itens devem ter preço unitário maior que 0.');
+      setFormError('⚠️ Todos os itens devem ter preço unitário válido (0 ou maior).');
       return;
     }
 
     const subtotal = calcTotal();
-    if (subtotal <= 0) {
-      setFormError('⚠️ O valor total do orçamento deve ser maior que R$ 0,00.');
+    if (subtotal < 0) {
+      setFormError('⚠️ O valor total do orçamento deve ser maior ou igual a R$ 0,00.');
       return;
     }
 
@@ -1172,7 +1165,7 @@ const OrcamentosPage: React.FC = () => {
                 )}
                 <button
                   onClick={() => enviarFinanceiro(selectedOrder.id)}
-                  disabled={(!podeEnviar && !isWaiting) || sendingToFinance || selectedOrder.total <= 0}
+                  disabled={(!podeEnviar && !isWaiting) || sendingToFinance}
                   className="btn-modern bg-gradient-to-r from-vendedor to-vendedor/80 text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed flex-1"
                 >
                   <Send className="w-4 h-4" /> {sendingToFinance ? '⏳ Enviando...' : isWaiting ? '🔄 Atualizar Comprovantes' : '🟢 Enviar para Financeiro'}

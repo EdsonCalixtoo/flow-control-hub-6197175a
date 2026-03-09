@@ -88,15 +88,15 @@ const CronogramaVendedorPage: React.FC = () => {
 
         if (items.some(i => {
             const price = typeof i.unitPrice === 'string' ? parseFloat(i.unitPrice) : i.unitPrice;
-            return isNaN(price) || price <= 0;
+            return isNaN(price) || price < 0;
         })) {
-            toast.error('Todos os itens devem ter preço unitário maior que 0.');
+            toast.error('Todos os itens devem ter preço unitário válido (0 ou maior).');
             return;
         }
 
         const subtotal = calcTotal();
-        if (subtotal <= 0) {
-            toast.error('O valor total do pedido deve ser maior que R$ 0,00.');
+        if (subtotal < 0) {
+            toast.error('O valor total do pedido deve ser maior ou igual a R$ 0,00.');
             return;
         }
 

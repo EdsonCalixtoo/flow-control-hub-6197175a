@@ -7,6 +7,7 @@ import type { Warranty, Order, WarrantyStatus } from '@/types/erp';
 import { formatCurrency, StatusBadge } from '@/components/shared/StatusBadge';
 import { addMonths, isAfter, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { toast } from 'sonner';
 
 type Tab = 'pedidos' | 'solicitacoes';
 
@@ -68,10 +69,14 @@ const GarantiasPage: React.FC = () => {
     };
 
     const handleCreate = async () => {
-        if (!selectedOrder || !description || !reason) {
-            alert('Preencha o motivo e a descrição do problema.');
+        if (!selectedOrder || !description.trim() || !reason.trim()) {
+            toast.warning('Atenção', {
+                description: 'Preencha o motivo e a descrição do problema.'
+            });
             return;
         }
+
+        console.log('[Garantia] Período de criação iniciado:', selectedOrder.number);
 
         try {
             setLoading(true);
@@ -104,9 +109,14 @@ const GarantiasPage: React.FC = () => {
             setReceiptUrls([]);
             setWarrantyItems([]);
             setCarrier('');
-            alert('Garantia criada com sucesso e enviada para análise!');
+            toast.success('Garantia criada com sucesso!', {
+                description: 'A solicitação foi enviada para análise do gestor.'
+            });
         } catch (err: any) {
-            alert('Erro ao criar garantia: ' + err.message);
+            console.error('[Garantia] Erro ao criar:', err);
+            toast.error('Erro ao criar garantia', {
+                description: err.message || 'Tente novamente depois'
+            });
         } finally {
             setLoading(false);
         }
@@ -295,8 +305,8 @@ const GarantiasPage: React.FC = () => {
 
                         <button
                             onClick={handleCreate}
-                            disabled={loading || !description || !reason}
-                            className="btn-primary w-full h-12 justify-center font-bold"
+                            disabled={loading || !description.trim() || !reason.trim()}
+                            className="btn-primary w-full h-12 justify-center font-bold disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale"
                         >
                             <Send className="w-4 h-4" /> {loading ? 'Sincronizando...' : 'Enviar para Gestor'}
                         </button>

@@ -38,6 +38,7 @@ const OrcamentosPage: React.FC = () => {
 
   // Se navegado desde a ficha do cliente, abre o form já com cliente pré-selecionado
   const preSelectedClientId: string = (location.state as any)?.clientId ?? '';
+  const preSelectedReward: any = (location.state as any)?.reward ?? null;
 
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [search, setSearch] = useState('');
@@ -60,7 +61,9 @@ const OrcamentosPage: React.FC = () => {
 
   // Form state for new/edit order
   const [newClientId, setNewClientId] = useState(preSelectedClientId);
-  const [newItems, setNewItems] = useState<{ product: string; description: string; quantity: number; unitPrice: string | number; sensorType?: 'com_sensor' | 'sem_sensor' }[]>([{ product: '', description: '', quantity: 1, unitPrice: '' }]);
+  const [newItems, setNewItems] = useState<{ product: string; description: string; quantity: number; unitPrice: string | number; sensorType?: 'com_sensor' | 'sem_sensor'; isReward?: boolean; rewardId?: string }[]>(
+    [{ product: '', description: '', quantity: 1, unitPrice: '' }]
+  );
   const [newNotes, setNewNotes] = useState('');
   const [newObservation, setNewObservation] = useState('');
   const [newDeliveryDate, setNewDeliveryDate] = useState('');
@@ -87,6 +90,47 @@ const OrcamentosPage: React.FC = () => {
       setShowCreate(true);
     }
   }, [preSelectedClientId]);
+
+  // Se vier um prêmio pelo estado, inicializa o item premiado
+  useEffect(() => {
+    if (preSelectedReward && !editingOrder && products.length > 0) {
+      const rewardId = preSelectedReward.id;
+      const type = preSelectedReward.type;
+
+      let rewardProduct = '';
+      let rewardDescription = 'ITEM PREMIADO';
+
+      if (type === 'tier_1') {
+        const prod = products.find(p => p.name.toUpperCase().includes('PLAQUINHA') && p.name.toUpperCase().includes('NYLON'));
+        rewardProduct = prod ? prod.name : '';
+        rewardDescription = 'RESGATE DE PRÊMIO: 5 KITS COMPRADOS';
+      } else if (type === 'tier_2') {
+        rewardDescription = 'RESGATE DE PRÊMIO: 7 KITS (VALOR CHEIO)';
+      } else if (type === 'tier_3') {
+        rewardDescription = 'RESGATE DE PRÊMIO: 10 KITS (VALOR PROMO)';
+      }
+
+      setNewItems([{
+        product: rewardProduct,
+        description: rewardDescription,
+        quantity: 1,
+        unitPrice: 0,
+        isReward: true,
+        rewardId: rewardId
+      }]);
+      setNewObservation(`PEDIDO COM RESGATE DE PRÊMIO: ${rewardDescription}`);
+      setShowCreate(true);
+
+      const helpMsg = type === 'tier_1'
+        ? 'Prêmio de 5 kits: Selecione o item (Kits desativados para este prêmio).'
+        : 'Prêmio de Meta de Kits: Selecione o modelo de KIT para o resgate.';
+
+      toast.success('Modo de resgate de prêmio!', {
+        description: helpMsg,
+        duration: 8000
+      });
+    }
+  }, [preSelectedReward, products, editingOrder]);
 
   const filtered = myOrders.filter(o =>
     String(o.number).toLowerCase().includes(search.toLowerCase()) ||
@@ -268,6 +312,8 @@ const OrcamentosPage: React.FC = () => {
               discountType: editingOrder.items[i]?.discountType || 'percent',
               total: item.quantity * price,
               sensorType: item.sensorType,
+              isReward: (item as any).isReward,
+              rewardId: (item as any).rewardId,
             };
           }),
           subtotal,
@@ -349,6 +395,8 @@ const OrcamentosPage: React.FC = () => {
                 discountType: 'percent' as const,
                 total: item.quantity * price,
                 sensorType: item.sensorType || (item.product.toUpperCase().includes('KIT') ? 'com_sensor' : undefined),
+                isReward: (item as any).isReward,
+                rewardId: (item as any).rewardId,
               };
             }),
             subtotal,
@@ -740,11 +788,27 @@ const OrcamentosPage: React.FC = () => {
                         className="input-modern py-2 text-xs"
                       >
                         <option value="">Selecione um produto...</option>
-                        {products.map(p => (
-                          <option key={p.id} value={p.name}>
-                            {p.name}
-                          </option>
-                        ))}
+                        {products
+                          .filter(p => {
+                            // Se não for o item do prêmio, mostra tudo
+                            if (!(item as any).isReward || !preSelectedReward) return true;
+
+                            const isKitProd = p.name.toUpperCase().includes('KIT');
+                            const rewardType = preSelectedReward.type;
+
+                            // 1ª Premiação (5 kits): NÃO pode ser KIT
+                            if (rewardType === 'tier_1') return !isKitProd;
+
+                            // 2ª e 3ª Premiação (Meta de Kits): TEM que ser KIT
+                            if (rewardType === 'tier_2' || rewardType === 'tier_3') return isKitProd;
+
+                            return true;
+                          })
+                          .map(p => (
+                            <option key={p.id} value={p.name}>
+                              {p.name}
+                            </option>
+                          ))}
                       </select>
                     ) : (
                       <>
@@ -761,7 +825,8 @@ const OrcamentosPage: React.FC = () => {
                     <label className="text-[10px] text-muted-foreground block mb-1">Valor Unit.</label>
                     <input
                       type="text"
-                      value={item.unitPrice}
+                      value={(item as any).isReward ? '0.00' : item.unitPrice}
+                      disabled={(item as any).isReward}
                       onChange={e => {
                         const val = e.target.value.replace(',', '.');
                         if (val === '' || /^\d*\.?\d*$/.test(val)) {
@@ -769,8 +834,11 @@ const OrcamentosPage: React.FC = () => {
                         }
                       }}
                       placeholder="0.00"
-                      className="input-modern py-2 text-xs"
+                      className={`input-modern py-2 text-xs ${(item as any).isReward ? 'bg-success/10 text-success font-bold border-success/30 cursor-not-allowed' : ''}`}
                     />
+                    {(item as any).isReward && (
+                      <p className="text-[9px] text-success font-black uppercase mt-1">Item Premiado (R$ 0,00)</p>
+                    )}
                   </div>
                   <div className="col-span-2 flex items-center justify-between">
                     <span className="text-xs font-bold text-foreground">{formatCurrency(item.quantity * (typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) || 0 : item.unitPrice))}</span>

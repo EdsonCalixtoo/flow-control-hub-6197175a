@@ -5,9 +5,12 @@ import { useThemeContext } from '@/contexts/ThemeContext';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import {
     ArrowLeft, User, Phone, Mail, MapPin, Star, ShoppingCart,
-    History, ExternalLink, MessageCircle, Edit, FileUp, Loader2, CheckCircle2
+    History, ExternalLink, MessageCircle, Edit, FileUp, Loader2, CheckCircle2, Trophy, Medal
 } from 'lucide-react';
 import { toast } from 'sonner';
+import ClientRewardTab from '@/components/Client/ClientRewardTab';
+import { calculateClientRanking } from '@/lib/rewardServiceSupabase';
+import type { ClientRanking } from '@/types/erp';
 
 const ClienteDetalhesPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -17,6 +20,14 @@ const ClienteDetalhesPage: React.FC = () => {
     const isDark = theme === 'dark';
     const { updateOrderStatus } = useERP();
     const [uploadingOrderId, setUploadingOrderId] = React.useState<string | null>(null);
+    const [activeTab, setActiveTab] = React.useState<'pedidos' | 'premiação'>('pedidos');
+    const [ranking, setRanking] = React.useState<ClientRanking | null>(null);
+
+    React.useEffect(() => {
+        if (id) {
+            calculateClientRanking(id).then(setRanking);
+        }
+    }, [id]);
 
     const client = clients.find(c => c.id === id);
 
@@ -116,6 +127,14 @@ const ClienteDetalhesPage: React.FC = () => {
                                     <Star className="w-3 h-3 fill-amber-500" /> Consignado
                                 </span>
                             )}
+                            {ranking && ranking.ranking !== 'Nenhum' && (
+                                <span className={`mt-2 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${ranking.ranking === 'Ouro' ? 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20' :
+                                    ranking.ranking === 'Prata' ? 'bg-slate-400/10 text-slate-500 border-slate-400/20' :
+                                        'bg-amber-700/10 text-amber-700 border-amber-700/20'
+                                    }`}>
+                                    <Medal className="w-3 h-3" /> Cliente {ranking.ranking}
+                                </span>
+                            )}
                         </div>
 
                         <div className="space-y-4">
@@ -150,115 +169,142 @@ const ClienteDetalhesPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Coluna Principal: Histórico de Pedidos */}
                 <div className="lg:col-span-2 space-y-6">
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-base font-bold text-foreground flex items-center gap-2">
-                            <History className="w-5 h-5 text-vendedor" /> Histórico de Pedidos
-                        </h3>
-                        <span className="text-xs text-muted-foreground font-medium">{clientOrders.length} pedido(s)</span>
+                    {/* Tabs Navigation */}
+                    <div className="flex items-center border-b border-border/40 gap-8">
+                        <button
+                            onClick={() => setActiveTab('pedidos')}
+                            className={`pb-4 text-sm font-bold transition-all relative ${activeTab === 'pedidos' ? 'text-vendedor' : 'text-muted-foreground hover:text-foreground'}`}
+                        >
+                            <div className="flex items-center gap-2">
+                                <History className="w-4 h-4" /> Histórico de Pedidos
+                            </div>
+                            {activeTab === 'pedidos' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-vendedor rounded-t-full" />}
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('premiação')}
+                            className={`pb-4 text-sm font-bold transition-all relative ${activeTab === 'premiação' ? 'text-vendedor' : 'text-muted-foreground hover:text-foreground'}`}
+                        >
+                            <div className="flex items-center gap-2">
+                                <Trophy className="w-4 h-4" /> Premiação do Cliente
+                            </div>
+                            {activeTab === 'premiação' && <div className="absolute bottom-0 left-0 right-0 h-1 bg-vendedor rounded-t-full" />}
+                        </button>
                     </div>
 
-                    {clientOrders.length === 0 ? (
-                        <div className="card-section p-12 text-center border-dashed">
-                            <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-4">
-                                <ShoppingCart className="w-8 h-8 text-muted-foreground/40" />
+                    {activeTab === 'pedidos' ? (
+                        <>
+                            <div className="flex items-center justify-between">
+                                <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                                    <ShoppingCart className="w-5 h-5 text-vendedor" /> Pedidos realizados
+                                </h3>
+                                <span className="text-xs text-muted-foreground font-medium">{clientOrders.length} pedido(s)</span>
                             </div>
-                            <p className="text-sm text-muted-foreground">Nenhum pedido realizado para este cliente ainda.</p>
-                            <button
-                                onClick={() => navigate('/vendedor/orcamentos', { state: { clientId: client.id } })}
-                                className="btn-modern bg-muted text-foreground mt-4 shadow-none"
-                            >
-                                Criar primeiro orçamento
-                            </button>
-                        </div>
-                    ) : (
-                        <div className="space-y-3">
-                            {clientOrders.map(order => (
-                                <div
-                                    key={order.id}
-                                    onClick={() => navigate(`/vendedor/orcamentos?view=${order.id}`)}
-                                    className="card-section p-4 flex items-center justify-between group cursor-pointer hover:border-vendedor/40 transition-all duration-300"
-                                >
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 rounded-2xl bg-muted/50 flex flex-col items-center justify-center text-[10px] font-black group-hover:bg-vendedor/10 group-hover:text-vendedor transition-colors">
-                                            <span>{new Date(order.createdAt).getDate()}</span>
-                                            <span className="uppercase opacity-60">{new Date(order.createdAt).toLocaleString('pt-BR', { month: 'short' }).replace('.', '')}</span>
-                                        </div>
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <span className="text-sm font-black text-foreground">#{order.number}</span>
-                                                <StatusBadge status={order.status} />
-                                            </div>
-                                            <p className="text-[11px] text-muted-foreground mt-0.5 font-medium">
-                                                {order.items.length} item(s) • Total: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(order.total)}
-                                            </p>
-                                        </div>
-                                    </div>
 
-                                    <div className="flex items-center gap-2">
-                                        <div className="flex flex-col items-end mr-2">
-                                            {order.receiptUrls && order.receiptUrls.length > 0 && (
-                                                <div className="flex -space-x-2 mb-1">
-                                                    {order.receiptUrls.slice(0, 3).map((_, idx) => (
-                                                        <div key={idx} className="w-5 h-5 rounded-full bg-success flex items-center justify-center ring-2 ring-background">
-                                                            <CheckCircle2 className="w-3 h-3 text-white" />
-                                                        </div>
-                                                    ))}
-                                                    {order.receiptUrls.length > 3 && (
-                                                        <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[8px] font-bold ring-2 ring-background">
-                                                            +{order.receiptUrls.length - 3}
+                            {clientOrders.length === 0 ? (
+                                <div className="card-section p-12 text-center border-dashed">
+                                    <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-4">
+                                        <ShoppingCart className="w-8 h-8 text-muted-foreground/40" />
+                                    </div>
+                                    <p className="text-sm text-muted-foreground">Nenhum pedido realizado para este cliente ainda.</p>
+                                    <button
+                                        onClick={() => navigate('/vendedor/orcamentos', { state: { clientId: client.id } })}
+                                        className="btn-modern bg-muted text-foreground mt-4 shadow-none"
+                                    >
+                                        Criar primeiro orçamento
+                                    </button>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {clientOrders.map(order => (
+                                        <div
+                                            key={order.id}
+                                            onClick={() => navigate(`/vendedor/orcamentos?view=${order.id}`)}
+                                            className="card-section p-4 flex items-center justify-between group cursor-pointer hover:border-vendedor/40 transition-all duration-300"
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-12 h-12 rounded-2xl bg-muted/50 flex flex-col items-center justify-center text-[10px] font-black group-hover:bg-vendedor/10 group-hover:text-vendedor transition-colors">
+                                                    <span>{new Date(order.createdAt).getDate()}</span>
+                                                    <span className="uppercase opacity-60">{new Date(order.createdAt).toLocaleString('pt-BR', { month: 'short' }).replace('.', '')}</span>
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-sm font-black text-foreground">#{order.number}</span>
+                                                        <StatusBadge status={order.status} />
+                                                    </div>
+                                                    <p className="text-[11px] text-muted-foreground mt-0.5 font-medium">
+                                                        {order.items.length} item(s) • Total: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(order.total)}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-2">
+                                                <div className="flex flex-col items-end mr-2">
+                                                    {order.receiptUrls && order.receiptUrls.length > 0 && (
+                                                        <div className="flex -space-x-2 mb-1">
+                                                            {order.receiptUrls.slice(0, 3).map((_, idx) => (
+                                                                <div key={idx} className="w-5 h-5 rounded-full bg-success flex items-center justify-center ring-2 ring-background">
+                                                                    <CheckCircle2 className="w-3 h-3 text-white" />
+                                                                </div>
+                                                            ))}
+                                                            {order.receiptUrls.length > 3 && (
+                                                                <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center text-[8px] font-bold ring-2 ring-background">
+                                                                    +{order.receiptUrls.length - 3}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>
-                                            )}
-                                        </div>
 
-                                        <div className="flex items-center gap-2">
-                                            <input
-                                                type="file"
-                                                id={`file-${order.id}`}
-                                                className="hidden"
-                                                accept="image/*,.pdf"
-                                                onChange={(e) => {
-                                                    const file = e.target.files?.[0];
-                                                    if (file) handleFileUpload(order.id, file);
-                                                }}
-                                            />
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    document.getElementById(`file-${order.id}`)?.click();
-                                                }}
-                                                disabled={uploadingOrderId === order.id}
-                                                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${uploadingOrderId === order.id
-                                                        ? 'bg-muted animate-pulse'
-                                                        : 'bg-primary/10 text-primary hover:bg-primary hover:text-white'
-                                                    }`}
-                                                title="Anexar Comprovante"
-                                            >
-                                                {uploadingOrderId === order.id ? (
-                                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                                ) : (
-                                                    <FileUp className="w-4 h-4" />
-                                                )}
-                                            </button>
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        type="file"
+                                                        id={`file-${order.id}`}
+                                                        className="hidden"
+                                                        accept="image/*,.pdf"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (file) handleFileUpload(order.id, file);
+                                                        }}
+                                                    />
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            document.getElementById(`file-${order.id}`)?.click();
+                                                        }}
+                                                        disabled={uploadingOrderId === order.id}
+                                                        className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${uploadingOrderId === order.id
+                                                            ? 'bg-muted animate-pulse'
+                                                            : 'bg-primary/10 text-primary hover:bg-primary hover:text-white'
+                                                            }`}
+                                                        title="Anexar Comprovante"
+                                                    >
+                                                        {uploadingOrderId === order.id ? (
+                                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                                        ) : (
+                                                            <FileUp className="w-4 h-4" />
+                                                        )}
+                                                    </button>
 
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    navigate(`/vendedor/orcamentos?view=${order.id}`);
-                                                }}
-                                                className="w-8 h-8 rounded-lg bg-muted/50 flex items-center justify-center text-muted-foreground hover:bg-vendedor hover:text-white transition-all shadow-sm"
-                                                title="Ver Detalhes"
-                                            >
-                                                <ExternalLink className="w-4 h-4" />
-                                            </button>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            navigate(`/vendedor/orcamentos?view=${order.id}`);
+                                                        }}
+                                                        className="w-8 h-8 rounded-lg bg-muted/50 flex items-center justify-center text-muted-foreground hover:bg-vendedor hover:text-white transition-all shadow-sm"
+                                                        title="Ver Detalhes"
+                                                    >
+                                                        <ExternalLink className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
-                                    </div>
+                                    ))}
                                 </div>
-                            ))}
-                        </div>
+                            )}
+                        </>
+                    ) : (
+                        <ClientRewardTab clientId={client.id} />
                     )}
                 </div>
             </div>

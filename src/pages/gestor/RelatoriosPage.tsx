@@ -1,7 +1,10 @@
 import React from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { formatCurrency, StatusBadge } from '@/components/shared/StatusBadge';
-import { Truck, Package, User, Camera, PenLine, ClipboardList } from 'lucide-react';
+import { Truck, Package, User, Camera, PenLine, ClipboardList, RefreshCw, Trophy, Loader2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
+import { updateClientRewardsAuto } from '@/lib/rewardServiceSupabase';
+import { toast } from 'sonner';
 
 const RelatoriosPage: React.FC = () => {
   const { financialEntries, orders, deliveryPickups } = useERP();
@@ -63,11 +66,46 @@ const RelatoriosPage: React.FC = () => {
     return Array.from(batchesMap.values());
   }, [deliveryPickups]);
 
+  const [migrating, setMigrating] = React.useState(false);
+
+  const handleMigrateRewards = async () => {
+    setMigrating(true);
+    toast.info('Iniciando recalculo de premiações para todos os clientes...');
+    try {
+      const { data: clients, error } = await supabase.from('clients').select('id, name');
+      if (error) throw error;
+
+      let count = 0;
+      for (const client of (clients || [])) {
+        await updateClientRewardsAuto(client.id);
+        count++;
+      }
+      toast.success(`Sucesso! Recalculado premiações para ${count} clientes.`);
+    } catch (err: any) {
+      console.error('Erro na migração:', err);
+      toast.error('Erro ao recalcular premiações: ' + err.message);
+    } finally {
+      setMigrating(false);
+    }
+  };
+
   return (
     <div className="space-y-10 pb-20">
-      <div>
-        <h1 className="page-header">Relatórios</h1>
-        <p className="page-subtitle">Análise financeira e operacional</p>
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="page-header">Relatórios</h1>
+          <p className="page-subtitle">Análise financeira e operacional</p>
+        </div>
+        <div className="flex gap-3">
+          <button
+            onClick={handleMigrateRewards}
+            disabled={migrating}
+            className="btn-modern bg-vendedor text-white border-none flex items-center gap-2 shadow-lg shadow-vendedor/20"
+          >
+            {migrating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            {migrating ? 'Recalculando...' : 'Recalcular Premiações (Geral)'}
+          </button>
+        </div>
       </div>
 
       {/* Relatório de Retiradas (Logística) */}

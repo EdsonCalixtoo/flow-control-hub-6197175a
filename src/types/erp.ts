@@ -36,6 +36,8 @@ export interface QuoteItem {
   discountType: 'percent' | 'value';
   total: number;
   sensorType?: 'com_sensor' | 'sem_sensor';  // para produtos KIT
+  isReward?: boolean;
+  rewardId?: string;
 }
 
 export type OrderStatus =
@@ -109,6 +111,34 @@ export interface Order {
   statusPagamento?: 'pendente' | 'pago' | 'parcial';
   statusProducao?: string;
   requiresInvoice?: boolean;
+}
+
+export type RewardStatus = 'pendente' | 'liberado' | 'resgatado';
+
+export interface ClientReward {
+  id: string;
+  clientId: string;
+  rewardType: 'tier_1' | 'tier_2' | 'tier_3';
+  kitsRequired: number;
+  kitsCompleted: number;
+  rewardStatus: RewardStatus;
+  rewardRedeemedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KitBreakdown {
+  product: string;
+  quantity: number;
+}
+
+export interface ClientRanking {
+  totalKits: number;
+  tier1Count: number;
+  tier2Count: number;
+  tier3Count: number;
+  ranking: 'Bronze' | 'Prata' | 'Ouro' | 'Nenhum';
+  breakdown: KitBreakdown[];
 }
 
 export interface ChatMessage {

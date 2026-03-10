@@ -47,7 +47,7 @@ interface ERPContextType {
   addDeliveryPickup: (pickup: Omit<DeliveryPickup, 'id' | 'pickedUpAt'>) => Promise<void>;
   // warrantries
   warranties: Warranty[];
-  addWarranty: (warranty: Omit<Warranty, 'id' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  addWarranty: (warranty: Omit<Warranty, 'id' | 'createdAt' | 'updatedAt'>) => Promise<any>;
   updateWarrantyStatus: (id: string, status: Warranty['status'], resolution?: string, userName?: string, note?: string) => Promise<void>;
   // order ops
   addOrder: (order: Order) => Promise<void>;
@@ -657,9 +657,11 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (newW) {
         setWarranties(prev => [newW, ...prev]);
         console.log('[ERP] Garantia criada no Supabase');
+        return newW;
       }
     } catch (err: any) {
       console.error('[ERP] Erro ao criar garantia:', err.message);
+      throw err;
     }
   }, []);
 

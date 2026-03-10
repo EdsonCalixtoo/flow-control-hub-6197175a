@@ -232,6 +232,11 @@ const PedidosFinanceiroPage: React.FC = () => {
                                                         {item.sensorType === 'com_sensor' ? '✅ COM SENSOR' : '⚪ SEM SENSOR'}
                                                     </span>
                                                 )}
+                                                {item.isReward && (
+                                                    <span className="ml-2 text-[10px] font-black px-2 py-0.5 rounded-full bg-success text-white animate-pulse">
+                                                        🎁 PREMIADO (R$ 0,00)
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="text-muted-foreground text-xs">{item.description || '—'}</td>
                                             <td className="text-right text-foreground">{item.quantity}</td>
@@ -476,6 +481,11 @@ const PedidosFinanceiroPage: React.FC = () => {
                                             {(order.isConsigned || clients.find(c => c.id === order.clientId)?.consignado) && (
                                                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 text-[9px] font-bold border border-amber-500/20">
                                                     ⭐
+                                                </span>
+                                            )}
+                                            {order.items.some(i => i.isReward) && (
+                                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-success/15 text-success text-[9px] font-bold border border-success/20 animate-pulse">
+                                                    🎁 PRÊMIO
                                                 </span>
                                             )}
                                         </div>

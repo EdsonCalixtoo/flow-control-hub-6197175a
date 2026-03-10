@@ -69,14 +69,21 @@ const GarantiasPage: React.FC = () => {
     };
 
     const handleCreate = async () => {
-        if (!selectedOrder || !description.trim() || !reason.trim()) {
-            toast.warning('Atenção', {
-                description: 'Preencha o motivo e a descrição do problema.'
+        console.log('[Garantia] Tentativa de envio:', {
+            hasOrder: !!selectedOrder,
+            reasonLength: reason.trim().length,
+            descriptionLength: description.trim().length
+        });
+
+        if (!selectedOrder || !reason.trim() || !description.trim()) {
+            console.warn('[Garantia] Validação falhou: Campos obrigatórios vazios');
+            toast.warning('Campos Obrigatórios', {
+                description: 'Por favor, preencha o Motivo e a Descrição Detalhada.'
             });
             return;
         }
 
-        console.log('[Garantia] Período de criação iniciado:', selectedOrder.number);
+        console.log('[Garantia] Sincronizando com Gestor...', selectedOrder.number);
 
         try {
             setLoading(true);
@@ -156,6 +163,34 @@ const GarantiasPage: React.FC = () => {
                             </div>
                         </div>
                     )}
+
+                    {/* CAMPOS OBRIGATÓRIOS NO TOPO PARA FACILITAR */}
+                    <div className="space-y-4 p-6 bg-primary/5 rounded-2xl border border-primary/10">
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-primary flex items-center gap-1">
+                                Motivo da Garantia <span className="text-destructive">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                className="input-modern bg-white"
+                                placeholder="Ex: Produto com defeito, Peça faltante..."
+                                value={reason}
+                                onChange={e => setReason(e.target.value)}
+                            />
+                        </div>
+
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-primary flex items-center gap-1">
+                                Descrição Detalhada do Problema <span className="text-destructive">*</span>
+                            </label>
+                            <textarea
+                                className="input-modern min-h-[100px] bg-white"
+                                placeholder="Relate o que o cliente informou..."
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                            />
+                        </div>
+                    </div>
 
                     {/* SELEÇÃO E EDIÇÃO DE PEÇAS / ITENS EM GARANTIA */}
                     <div className="space-y-4">
@@ -275,42 +310,25 @@ const GarantiasPage: React.FC = () => {
 
                     <div className="space-y-4">
                         <div className="space-y-1">
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Motivo da Garantia</label>
-                            <input
-                                type="text"
-                                className="input-modern"
-                                placeholder="Ex: Produto com defeito, Peça faltante..."
-                                value={reason}
-                                onChange={e => setReason(e.target.value)}
-                            />
-                        </div>
-
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Descrição Detalhada do Problema</label>
-                            <textarea
-                                className="input-modern min-h-[120px]"
-                                placeholder="Relate o que o cliente informou..."
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                            />
-                        </div>
-
-                        <div className="space-y-1">
                             <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Upload de Foto (Opcional)</label>
                             <ComprovanteUpload
                                 values={receiptUrls}
                                 onChange={setReceiptUrls}
                             />
                         </div>
-
-                        <button
-                            onClick={handleCreate}
-                            disabled={loading || !description.trim() || !reason.trim()}
-                            className="btn-primary w-full h-12 justify-center font-bold disabled:opacity-50 disabled:cursor-not-allowed disabled:grayscale"
-                        >
-                            <Send className="w-4 h-4" /> {loading ? 'Sincronizando...' : 'Enviar para Gestor'}
-                        </button>
                     </div>
+
+                    <button
+                        onClick={() => {
+                            console.log('[Garantia] Clique no botão Enviar detectado');
+                            handleCreate();
+                        }}
+                        disabled={loading}
+                        className={`btn-primary w-full h-12 justify-center font-bold transition-all ${loading ? 'opacity-50 cursor-not-allowed grayscale' : 'hover:scale-[1.01] active:scale-[0.99]'
+                            }`}
+                    >
+                        <Send className="w-4 h-4" /> {loading ? 'Sincronizando...' : 'Enviar para Gestor'}
+                    </button>
                 </div>
             </div>
         );

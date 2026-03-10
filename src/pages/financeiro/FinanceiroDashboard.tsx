@@ -301,7 +301,7 @@ const FinanceiroDashboard: React.FC = () => {
       await updateOrderStatus(
         orderId,
         'aguardando_producao',
-        { paymentStatus: order.paymentStatus || 'pendente' },
+        { paymentStatus: order.paymentStatus || 'pendente', statusPagamento: order.statusPagamento || 'pendente', financeiroAprovado: true },
         'Financeiro',
         'Consignado: Aprovado para produção sem obrigatoriedade de pagamento imediato'
       );
@@ -310,7 +310,7 @@ const FinanceiroDashboard: React.FC = () => {
       await updateOrderStatus(
         orderId,
         'aguardando_producao',
-        { paymentStatus: order.paymentStatus || 'pendente' },
+        { paymentStatus: order.paymentStatus || 'pendente', statusPagamento: order.statusPagamento || 'pendente', financeiroAprovado: true },
         'Financeiro',
         'Instalação: Aprovado para produção. Pagamento será controlado pelo financeiro.'
       );
@@ -319,7 +319,7 @@ const FinanceiroDashboard: React.FC = () => {
       await updateOrderStatus(
         orderId,
         'aguardando_producao',
-        { paymentStatus: order.paymentStatus || 'pendente' },
+        { paymentStatus: order.paymentStatus || 'pendente', statusPagamento: order.statusPagamento || 'pendente', financeiroAprovado: true },
         'Financeiro',
         'Retirada: Aprovado para produção. Pagamento será controlado pelo financeiro.'
       );
@@ -342,7 +342,7 @@ const FinanceiroDashboard: React.FC = () => {
       };
 
       await addFinancialEntry(entry);
-      await updateOrderStatus(orderId, 'aguardando_producao', { paymentStatus: 'pago' }, 'Financeiro', 'Pagamento aprovado - Enviando para produção');
+      await updateOrderStatus(orderId, 'aguardando_producao', { paymentStatus: 'pago', statusPagamento: 'pago', financeiroAprovado: true }, 'Financeiro', 'Pagamento aprovado - Enviando para produção');
     }
 
     setSelectedOrder(null);
@@ -406,15 +406,15 @@ const FinanceiroDashboard: React.FC = () => {
       const novoTotal = totalPago + valor;
       if (novoTotal >= order.total) {
         if (order.status === 'aguardando_financeiro') {
-          await updateOrderStatus(order.id, 'aguardando_producao', { paymentStatus: 'pago' }, 'Financeiro', 'Valor total quitado — enviando para produção');
+          await updateOrderStatus(order.id, 'aguardando_producao', { paymentStatus: 'pago', statusPagamento: 'pago', financeiroAprovado: true }, 'Financeiro', 'Valor total quitado — enviando para produção');
         } else {
           // Se já estava em outro status (ex: já em produção), apenas marca como pago
-          await updateOrderStatus(order.id, order.status, { paymentStatus: 'pago' }, 'Financeiro', 'Valor total quitado');
+          await updateOrderStatus(order.id, order.status, { paymentStatus: 'pago', statusPagamento: 'pago', financeiroAprovado: true }, 'Financeiro', 'Valor total quitado');
         }
         setSelectedOrder(null);
       } else {
         // ✅ Atualiza status para PARCIAL se ainda não quitou
-        await updateOrderStatus(order.id, order.status, { paymentStatus: 'parcial' }, 'Financeiro', `Pagamento parcial de ${formatCurrency(valor)} recebido`);
+        await updateOrderStatus(order.id, order.status, { paymentStatus: 'parcial', statusPagamento: 'parcial' }, 'Financeiro', `Pagamento parcial de ${formatCurrency(valor)} recebido`);
       }
     } catch (err: any) {
       alert('Erro ao registrar pagamento: ' + (err?.message || 'Tente novamente'));
@@ -794,8 +794,22 @@ const FinanceiroDashboard: React.FC = () => {
                     {selectedOrder.paymentStatus !== 'pago' && getSaldoDevedor(selectedOrder.id, selectedOrder.total) <= 0 && (
                       <button
                         onClick={async () => {
-                          await updateOrderStatus(selectedOrder.id, selectedOrder.status, { paymentStatus: 'pago' }, 'Financeiro', 'Baixa manual de pagamento confirmada');
-                          setSelectedOrder({ ...selectedOrder, paymentStatus: 'pago' });
+                          const newStatus = selectedOrder.status === 'aguardando_financeiro' ? 'aguardando_producao' : selectedOrder.status;
+                          await updateOrderStatus(
+                            selectedOrder.id,
+                            newStatus,
+                            { paymentStatus: 'pago', statusPagamento: 'pago', financeiroAprovado: true },
+                            'Financeiro',
+                            'Baixa manual de pagamento confirmada'
+                          );
+                          setSelectedOrder({
+                            ...selectedOrder,
+                            status: newStatus,
+                            paymentStatus: 'pago',
+                            statusPagamento: 'pago',
+                            financeiroAprovado: true
+                          });
+                          toast.success('Quitação confirmada com sucesso!');
                         }}
                         className="text-[10px] bg-success/20 text-success px-2 py-1 rounded-lg border border-success/30 hover:bg-success/30 font-bold"
                       >

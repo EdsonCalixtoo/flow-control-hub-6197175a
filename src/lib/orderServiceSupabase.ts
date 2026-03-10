@@ -30,6 +30,7 @@ export const supabaseToOrder = (data: any): Order => ({
     isCronograma: data.is_cronograma || false,
     financeiroAprovado: data.financeiro_aprovado || false,
     statusPagamento: data.status_pagamento || 'pendente',
+    paymentStatus: data.status_pagamento || 'pendente',
     statusProducao: data.status_producao || '',
     scheduledDate: data.scheduled_date || undefined,
     volumes: data.volumes || 1,
@@ -61,6 +62,7 @@ export const orderToSupabase = (order: Partial<Order>) => {
     if (order.isCronograma !== undefined) data.is_cronograma = order.isCronograma;
     if (order.financeiroAprovado !== undefined) data.financeiro_aprovado = order.financeiroAprovado;
     if (order.statusPagamento !== undefined) data.status_pagamento = order.statusPagamento;
+    if (order.paymentStatus !== undefined) data.status_pagamento = order.paymentStatus;
     if (order.statusProducao !== undefined) data.status_producao = order.statusProducao;
     if (order.scheduledDate !== undefined) data.scheduled_date = order.scheduledDate;
     if (order.volumes !== undefined) data.volumes = order.volumes;

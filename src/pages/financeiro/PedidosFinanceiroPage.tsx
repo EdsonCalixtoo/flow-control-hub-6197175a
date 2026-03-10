@@ -53,7 +53,7 @@ const PedidosFinanceiroPage: React.FC = () => {
             await updateOrderStatus(
                 orderId,
                 'aguardando_producao',
-                { paymentStatus: order.paymentStatus || 'pendente' },
+                { paymentStatus: order.paymentStatus || 'pendente', statusPagamento: order.statusPagamento || 'pendente', financeiroAprovado: true },
                 'Financeiro',
                 'Consignado: Aprovado para produção sem obrigatoriedade de pagamento imediato'
             );
@@ -61,7 +61,7 @@ const PedidosFinanceiroPage: React.FC = () => {
             await updateOrderStatus(
                 orderId,
                 'aguardando_producao',
-                { paymentStatus: order.paymentStatus || 'pendente' },
+                { paymentStatus: order.paymentStatus || 'pendente', statusPagamento: order.statusPagamento || 'pendente', financeiroAprovado: true },
                 'Financeiro',
                 'Instalação: Aprovado para produção. Pagamento será controlado pelo financeiro.'
             );
@@ -69,7 +69,7 @@ const PedidosFinanceiroPage: React.FC = () => {
             await updateOrderStatus(
                 orderId,
                 'aguardando_producao',
-                { paymentStatus: order.paymentStatus || 'pendente' },
+                { paymentStatus: order.paymentStatus || 'pendente', statusPagamento: order.statusPagamento || 'pendente', financeiroAprovado: true },
                 'Financeiro',
                 'Retirada: Aprovado para produção. Pagamento será controlado pelo financeiro.'
             );
@@ -91,7 +91,7 @@ const PedidosFinanceiroPage: React.FC = () => {
             };
 
             await addFinancialEntry(entry);
-            await updateOrderStatus(orderId, 'aguardando_producao', { paymentStatus: 'pago' }, 'Financeiro', 'Pagamento aprovado - Enviando para produção');
+            await updateOrderStatus(orderId, 'aguardando_producao', { paymentStatus: 'pago', statusPagamento: 'pago', financeiroAprovado: true }, 'Financeiro', 'Pagamento aprovado - Enviando para produção');
         }
 
         setSelectedOrder(null);

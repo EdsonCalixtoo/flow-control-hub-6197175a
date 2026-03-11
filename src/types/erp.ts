@@ -276,7 +276,7 @@ export const STATUS_COLORS: Record<OrderStatus, string> = {
   rejeitado_gestor: 'bg-destructive/10 text-destructive',
   aguardando_producao: 'bg-warning/10 text-warning',
   em_producao: 'bg-producao/10 text-producao',
-  producao_finalizada: 'bg-success/10 text-success',
+  producao_finalizada: 'bg-info/10 text-info',
   produto_liberado: 'bg-success/10 text-success',
   retirado_entregador: 'bg-primary/10 text-primary',
   extraviado: 'bg-destructive/10 text-destructive font-bold',

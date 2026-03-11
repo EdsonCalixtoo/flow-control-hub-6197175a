@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useERP } from '@/contexts/ERPContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency } from '@/components/shared/StatusBadge';
 import {
     Package, Plus, Search, Edit2, Trash2, X, Archive,
@@ -26,6 +27,7 @@ const emptyProduct: Omit<Product, 'id' | 'createdAt' | 'updatedAt'> = {
 
 const ProdutosPage: React.FC = () => {
     const { products, addProduct, updateProduct, deleteProduct } = useERP();
+    const { user } = useAuth();
     const [search, setSearch] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('todos');
     const [showModal, setShowModal] = useState(false);
@@ -37,6 +39,9 @@ const ProdutosPage: React.FC = () => {
 
     // Filtering
     const filtered = products.filter(p => {
+        if (p.category === 'Carenagem' && user?.email !== 'higorfeerreira9@gmail.com') {
+            return false;
+        }
         const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
             p.sku.toLowerCase().includes(search.toLowerCase());
         const matchCategory = categoryFilter === 'todos' || p.category === categoryFilter;

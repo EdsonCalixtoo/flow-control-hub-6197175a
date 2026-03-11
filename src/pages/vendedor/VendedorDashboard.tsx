@@ -151,8 +151,8 @@ const VendedorDashboard: React.FC = () => {
                           <span className="text-xs font-black text-foreground group-hover:text-primary transition-colors uppercase">{prod.product}</span>
                           {prod.sensorType && (
                             <span className={`inline-flex items-center text-[8px] font-black px-1.5 py-0.5 rounded-full border ${prod.sensorType === 'com_sensor'
-                                ? 'bg-success/10 border-success/20 text-success'
-                                : 'bg-muted border-border/40 text-muted-foreground'
+                              ? 'bg-success/10 border-success/20 text-success'
+                              : 'bg-muted border-border/40 text-muted-foreground'
                               }`}>
                               {prod.sensorType === 'com_sensor' ? '✓ COM SENSOR' : '⚡ SEM SENSOR'}
                             </span>

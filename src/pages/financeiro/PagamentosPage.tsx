@@ -11,16 +11,26 @@ const METHOD_ICONS: Record<string, React.ReactNode> = {
 };
 
 const PagamentosPage: React.FC = () => {
-  const { orders, updateOrderStatus } = useERP();
+  const { orders, products, updateOrderStatus } = useERP();
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<'todos' | 'pendente' | 'pago'>('todos');
 
-  const relevantOrders = orders.filter(o =>
-    o.status === 'aguardando_financeiro' ||
-    o.status === 'aprovado_financeiro' ||
-    o.paymentStatus === 'pago' ||
-    o.paymentStatus === 'pendente'
-  );
+  const relevantOrders = orders.filter(o => {
+    // Excluir produtos de Carenagem aqui (Robusto)
+    const isCarenagem = o.items?.some(item => {
+      const productName = (item.product || '').trim().toLowerCase();
+      const product = (products || []).find(p => p.name.trim().toLowerCase() === productName || p.sku.trim().toLowerCase() === productName);
+      if (product?.category === 'Carenagem' || (product?.sku || item.product || '').toUpperCase().startsWith('SS-')) return true;
+      const keywords = ['side skirt', 'carenagem', 'saia lateral'];
+      return keywords.some(k => productName.includes(k) || (item.description || '').toLowerCase().includes(k));
+    });
+    if (isCarenagem) return false;
+
+    return o.status === 'aguardando_financeiro' ||
+      o.status === 'aprovado_financeiro' ||
+      o.paymentStatus === 'pago' ||
+      o.paymentStatus === 'pendente';
+  });
 
   const totalPago = relevantOrders.filter(o => o.paymentStatus === 'pago').reduce((s, o) => s + o.total, 0);
   const totalPendente = relevantOrders.filter(o => o.paymentStatus !== 'pago').reduce((s, o) => s + o.total, 0);

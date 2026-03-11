@@ -5,7 +5,7 @@ import { useERP } from '@/contexts/ERPContext';
 import { StatCard, StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
 import { RealtimeNotificationHandler } from '@/components/shared/RealtimeNotificationHandler';
-import { DollarSign, TrendingUp, Clock, AlertTriangle, Search, Filter, ChevronDown, ChevronLeft, ChevronRight, Eye, CheckCircle, XCircle, Send, ArrowLeft, Users2, BarChart3, Radio, Star, Plus, Trash2, Inbox, Bell, FileText } from 'lucide-react';
+import { DollarSign, TrendingUp, Clock, AlertTriangle, Search, Filter, ChevronDown, ChevronLeft, ChevronRight, Eye, CheckCircle, XCircle, Send, ArrowLeft, Users2, BarChart3, Radio, Star, Plus, Trash2, Inbox, Bell, FileText, Package } from 'lucide-react';
 import { useRealtimeOrders } from '@/hooks/useRealtimeOrders';
 import { toast } from 'sonner';
 import type { Order, FinancialEntry } from '@/types/erp';
@@ -21,12 +21,16 @@ type PaymentFilter = 'todos' | 'pago' | 'pendente' | 'vencido' | 'cancelado';
 type PeriodFilter = 'hoje' | '7dias' | '30dias' | 'personalizado' | 'todos';
 type Tab = 'pedidos' | 'vendedores';
 
-const FinanceiroDashboard: React.FC = () => {
+interface FinanceiroDashboardProps {
+  defaultTab?: 'pedidos' | 'vendedores' | 'carenagem';
+}
+
+const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 'pedidos' }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
-  const { orders, clients, financialEntries, updateOrderStatus, addFinancialEntry, loadFromSupabase } = useERP();
-  const [activeTab, setActiveTab] = useState<Tab>('pedidos');
+  const { orders, clients, financialEntries, products, updateOrderStatus, addFinancialEntry, loadFromSupabase } = useERP();
+  const [activeTab, setActiveTab] = useState<'pedidos' | 'vendedores' | 'carenagem'>(defaultTab);
   const [statusFilter, setStatusFilter] = useState<PaymentFilter>('todos');
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('todos');
   const [paymentMethodFilter, setPaymentMethodFilter] = useState('todos');
@@ -56,7 +60,7 @@ const FinanceiroDashboard: React.FC = () => {
   // ✅ Filtra APENAS pedidos que foram enviados ao financeiro
   // Rascunhos e orçamentos não enviados NÃO aparecem aqui
   const ordersVisiveisFinanceiro = useMemo(
-    () => orders.filter(o => STATUS_VISIVEL_FINANCEIRO.includes(o.status) && !o.isCronograma),
+    () => orders.filter(o => STATUS_VISIVEL_FINANCEIRO.includes(o.status)),
     [orders]
   );
 
@@ -96,27 +100,63 @@ const FinanceiroDashboard: React.FC = () => {
     return Math.max(0, orderTotal - pagos);
   };
 
+  const isOrderCarenagem = useCallback((order: Order) => {
+    if (!order.items || order.items.length === 0) return false;
+    return order.items.some(item => {
+      // 1. Busca por categoria no produto (robusto)
+      const productName = (item.product || '').trim().toLowerCase();
+      const product = (products || []).find(p =>
+        p.name.trim().toLowerCase() === productName ||
+        p.sku.trim().toLowerCase() === productName ||
+        (item.description && p.description?.toLowerCase() === item.description.toLowerCase())
+      );
+
+      if (product?.category === 'Carenagem') return true;
+
+      // 2. Fallback: Palavras-chave no nome do produto ou descrição
+      const keywords = ['side skirt', 'carenagem', 'saia lateral'];
+      const hasKeyword = keywords.some(k =>
+        productName.includes(k) ||
+        (item.description || '').toLowerCase().includes(k)
+      );
+
+      if (hasKeyword) return true;
+
+      // 3. Fallback: SKU começando com SS (Side Skirt)
+      const sku = (product?.sku || item.product || '').toUpperCase();
+      if (sku.startsWith('SS-')) return true;
+
+      return false;
+    });
+  }, [products]);
+
   const totalPendenteNormal = useMemo(() => {
     return ordersVisiveisFinanceiro
-      .filter(o => o.status !== 'rejeitado_financeiro') // ✅ Ignora rejeitados no 'A Receber'
+      .filter(o => !o.isCronograma && o.status !== 'rejeitado_financeiro') // ✅ Ignora rejeitados no 'A Receber'
       .filter(o => {
+        // Excluir produtos de Carenagem aqui
+        if (isOrderCarenagem(o)) return false;
+
         if (o.isConsigned !== undefined) return !o.isConsigned;
         const client = clients.find(c => c.id === o.clientId) || clients.find(c => c.name === o.clientName);
         return !client?.consignado;
       })
       .reduce((s, o) => s + getSaldoDevedor(o.id, o.total), 0);
-  }, [ordersVisiveisFinanceiro, financialEntries, clients]);
+  }, [ordersVisiveisFinanceiro, financialEntries, clients, products]);
 
   const totalConsignadoOwed = useMemo(() => {
     return ordersVisiveisFinanceiro
       .filter(o => o.status !== 'rejeitado_financeiro') // ✅ Ignora rejeitados
       .filter(o => {
+        // Excluir produtos de Carenagem aqui
+        if (isOrderCarenagem(o)) return false;
+
         if (o.isConsigned !== undefined) return o.isConsigned;
         const client = clients.find(c => c.id === o.clientId) || clients.find(c => c.name === o.clientName);
         return client?.consignado;
       })
       .reduce((s, o) => s + getSaldoDevedor(o.id, o.total), 0);
-  }, [ordersVisiveisFinanceiro, financialEntries, clients]);
+  }, [ordersVisiveisFinanceiro, financialEntries, clients, products]);
 
   const totalInstallationsOwed = useMemo(() => {
     return ordersVisiveisFinanceiro
@@ -132,8 +172,9 @@ const FinanceiroDashboard: React.FC = () => {
       .reduce((s, o) => s + getSaldoDevedor(o.id, o.total), 0);
   }, [ordersVisiveisFinanceiro, financialEntries]);
 
-  const aguardandoLiberacao = ordersVisiveisFinanceiro.filter(o => o.status === 'aprovado_financeiro').length;
-  const aguardandoFinanceiro = ordersVisiveisFinanceiro.filter(o => o.status === 'aguardando_financeiro').length;
+
+  const aguardandoLiberacao = ordersVisiveisFinanceiro.filter(o => o.status === 'aprovado_financeiro' && !isOrderCarenagem(o)).length;
+  const aguardandoFinanceiro = ordersVisiveisFinanceiro.filter(o => o.status === 'aguardando_financeiro' && !isOrderCarenagem(o)).length;
 
   // Pedidos de clientes consignados
   const consignadosOrders = useMemo(() => ordersVisiveisFinanceiro.filter(o => {
@@ -175,6 +216,17 @@ const FinanceiroDashboard: React.FC = () => {
 
   // Pedidos de retirada
   const retiradaOrders = useMemo(() => ordersVisiveisFinanceiro.filter(o => o.orderType === 'retirada'), [ordersVisiveisFinanceiro]);
+
+  // Pedidos de CARENAGEM
+  const carenagemOrders = useMemo(() => ordersVisiveisFinanceiro.filter(isOrderCarenagem), [ordersVisiveisFinanceiro, products]);
+
+  const totalCarenagemOwed = useMemo(() => {
+    return carenagemOrders
+      .filter(o => o.status !== 'rejeitado_financeiro')
+      .reduce((s, o) => s + getSaldoDevedor(o.id, o.total), 0);
+  }, [carenagemOrders, financialEntries]);
+
+  const [showCarenagem, setShowCarenagem] = useState(defaultTab === 'carenagem');
 
   // ── Filtro por período ─────────────────────────────────────
   const filterByPeriod = (date: string, period: PeriodFilter): boolean => {
@@ -359,12 +411,49 @@ const FinanceiroDashboard: React.FC = () => {
     }
   };
 
-  const rejeitarPedido = (orderId: string) => {
+  const rejeitarPedido = async (orderId: string) => {
     if (!rejectReason.trim()) return;
-    updateOrderStatus(orderId, 'rejeitado_financeiro', { rejectionReason: rejectReason }, 'Financeiro', `Rejeitado: ${rejectReason}`);
-    setSelectedOrder(null);
+    updateOrderStatus(orderId, 'rejeitado_financeiro', {}, 'Financeiro', `Rejeitado: ${rejectReason}`);
+    toast.info('Pedido rejeitado');
     setShowReject(false);
     setRejectReason('');
+  };
+
+  const handleAprovarCarenagem = async (orderId: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+
+    const nextStatus = 'produto_liberado';
+    const note = 'Carenagem: Aprovado e Liberado (Sem Produção)';
+
+    const client = clients.find(c => c.id === order.clientId);
+    const isConsignado = client?.consignado === true;
+    const extra: Partial<Order> = {};
+    if (!isConsignado && order.orderType !== 'instalacao' && order.orderType !== 'retirada') {
+      extra.paymentStatus = 'pago';
+    }
+
+    try {
+      await updateOrderStatus(orderId, nextStatus, extra, 'Financeiro', note);
+      toast.success(`Pedido ${order.number} aprovado!`);
+    } catch (error) {
+      toast.error('Erro ao aprovar pedido');
+    }
+  };
+
+  const handleRejeitarCarenagem = async (orderId: string, reason: string) => {
+    if (!reason) {
+      toast.error('Informe o motivo da rejeição');
+      return;
+    }
+    try {
+      await updateOrderStatus(orderId, 'rejeitado_financeiro', {}, 'Financeiro', `Rejeitado: ${reason}`);
+      toast.info('Pedido rejeitado');
+      setShowReject(false);
+      setRejectReason('');
+    } catch (error) {
+      toast.error('Erro ao rejeitar');
+    }
   };
 
   // ── Pagamentos Parciais (Consignado) ──────────────────────────
@@ -965,6 +1054,9 @@ const FinanceiroDashboard: React.FC = () => {
         <div onClick={() => setShowRetiradas(true)} className="cursor-pointer">
           <StatCard title="Retiradas" value={formatCurrency(totalRetiradasOwed)} icon={Inbox} color="text-amber-500" />
         </div>
+        <div onClick={() => setShowCarenagem(true)} className="cursor-pointer">
+          <StatCard title="Carenagem" value={formatCurrency(totalCarenagemOwed)} icon={Package} color="text-primary" />
+        </div>
       </div>
 
       {/* Modal de Consignados */}
@@ -1396,8 +1488,71 @@ const FinanceiroDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* Modal de Carenagem */}
+      {showCarenagem && (
+        <div className="card-section p-6 space-y-5 animate-scale-in">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Package className="w-5 h-5 text-primary" />
+              <h2 className="font-bold text-foreground text-lg">Produtos de Carenagem</h2>
+              <span className="px-2 py-1 rounded-full bg-primary/20 text-primary text-xs font-bold">{carenagemOrders.length}</span>
+            </div>
+            <button onClick={() => setShowCarenagem(false)} className="btn-modern bg-muted text-foreground shadow-none text-xs">
+              <ArrowLeft className="w-3.5 h-3.5" /> Voltar
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {carenagemOrders.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground text-sm">
+                Nenhum pedido de carenagem registrado
+              </div>
+            ) : (
+              <>
+                {carenagemOrders.map(order => {
+                  const saldo = getSaldoDevedor(order.id, order.total);
+                  return (
+                    <div key={order.id} className="card-section p-4 flex items-center justify-between flex-wrap gap-3 bg-primary/5 border border-primary/20">
+                      <div className="flex-1 min-w-[200px]">
+                        <p className="font-bold text-foreground text-sm">{order.number}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {order.clientName} • {new Date(order.createdAt).toLocaleDateString('pt-BR')}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="font-bold text-foreground text-sm">{formatCurrency(order.total)}</p>
+                        <p className={`text-[10px] font-extrabold mb-1 ${saldo > 0 ? 'text-destructive' : 'text-success'}`}>
+                          SALDO: {formatCurrency(saldo)}
+                        </p>
+                        <div className="flex items-center justify-end gap-2">
+                          <StatusBadge status={order.status} />
+                          <button
+                            onClick={() => { setSelectedOrder(order); setShowCarenagem(false); }}
+                            className="w-7 h-7 rounded-lg bg-primary text-white flex items-center justify-center hover:opacity-90 transition-colors"
+                            title="Ver Detalhes / Receber Pagamento"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="p-4 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] uppercase font-bold text-primary">Total em Aberto</span>
+                    <span className="font-semibold text-foreground">Saldo Carenagem:</span>
+                  </div>
+                  <span className="text-lg font-extrabold text-primary">{formatCurrency(totalCarenagemOwed)}</span>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Não mostrar Tabs se estiver vendo Consignados, Instalações ou Retiradas ou Recebido */}
-      {!showConsignados && !showInstallations && !showRetiradas && !showRecebido && !showAguardandoAprovacao && !showAReceber && !showAguardandoProducao && (
+      {!showConsignados && !showInstallations && !showRetiradas && !showRecebido && !showAguardandoAprovacao && !showAReceber && !showAguardandoProducao && !showCarenagem && (
         <>
           <div className="flex gap-2 border-b border-border/40">
             <button
@@ -1414,12 +1569,18 @@ const FinanceiroDashboard: React.FC = () => {
               <Users2 className="w-3.5 h-3.5 inline mr-1.5" />
               Controle por Vendedor
             </button>
+            <button
+              onClick={() => setActiveTab('carenagem')}
+              className={`px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors ${activeTab === 'carenagem' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            >
+              <Package className="w-3.5 h-3.5 inline mr-1.5" />
+              Carenagem
+            </button>
           </div>
 
           {/* Tab: Controle por Vendedor */}
           {activeTab === 'vendedores' && (
             <div className="space-y-4 animate-fade-in">
-              {/* Filtro de período */}
               <div className="card-section p-4">
                 <div className="flex items-center gap-3 flex-wrap">
                   <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Período:</p>
@@ -1506,7 +1667,6 @@ const FinanceiroDashboard: React.FC = () => {
                     </div>
                   ))}
 
-                  {/* Resumo geral */}
                   <div className="card-section p-5 bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
                     <div className="flex items-center justify-between flex-wrap gap-3">
                       <div>
@@ -1529,7 +1689,6 @@ const FinanceiroDashboard: React.FC = () => {
           {/* Tab: Pedidos */}
           {activeTab === 'pedidos' && (
             <div className="space-y-4 animate-fade-in">
-              {/* Barra de busca + filtros */}
               <div className="card-section p-4 space-y-4">
                 <div className="flex items-center gap-3 flex-wrap">
                   <div className="relative flex-1 min-w-[200px]">
@@ -1597,11 +1756,12 @@ const FinanceiroDashboard: React.FC = () => {
                 )}
               </div>
 
-              {/* Tabela moderna */}
               <div className="card-section">
                 <div className="card-section-header">
                   <h2 className="card-section-title">Pedidos</h2>
-                  <span className="text-xs font-medium text-muted-foreground bg-muted px-3 py-1 rounded-full">{filteredOrders.length} resultado(s)</span>
+                  <span className="text-xs font-medium text-muted-foreground bg-muted px-3 py-1 rounded-full">
+                    {filteredOrders.filter(o => !isOrderCarenagem(o)).length} resultado(s)
+                  </span>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="modern-table">
@@ -1624,7 +1784,7 @@ const FinanceiroDashboard: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {paginatedOrders.map(order => (
+                      {paginatedOrders.filter(o => !isOrderCarenagem(o)).map(order => (
                         <tr key={order.id}>
                           <td className="font-bold text-foreground">{order.number}</td>
                           <td className="text-foreground">
@@ -1693,7 +1853,6 @@ const FinanceiroDashboard: React.FC = () => {
                   </table>
                 </div>
 
-                {/* Paginação */}
                 {totalPages > 1 && (
                   <div className="px-5 py-4 border-t border-border/40 flex items-center justify-between">
                     <span className="text-xs text-muted-foreground">
@@ -1727,6 +1886,108 @@ const FinanceiroDashboard: React.FC = () => {
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Tab: Carenagem */}
+          {activeTab === 'carenagem' && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="card-section p-6">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
+                    <Package className="w-6 h-6 text-primary" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-foreground uppercase tracking-tighter">Controle de Carenagem</h2>
+                    <p className="text-xs text-muted-foreground">Gestão de pedidos específicos de Carenagem</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+                  <div className="p-4 rounded-2xl bg-muted/30 border border-border/40">
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Pedidos Totais</p>
+                    <p className="text-2xl font-black text-foreground">{carenagemOrders.length}</p>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-primary/5 border border-primary/20">
+                    <p className="text-[10px] font-bold text-primary uppercase tracking-widest mb-1">Total Pendente</p>
+                    <p className="text-2xl font-black text-primary">{formatCurrency(totalCarenagemOwed)}</p>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-success/5 border border-success/20">
+                    <p className="text-[10px] font-bold text-success uppercase tracking-widest mb-1">Aprovação Especial</p>
+                    <p className="text-sm font-bold text-foreground mt-1">Fluxo: Financeiro → Liberado</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-2">
+                    <Filter className="w-3 h-3" /> Listagem de Pedidos
+                  </h3>
+                  {carenagemOrders.length === 0 ? (
+                    <div className="p-12 text-center bg-muted/20 rounded-2xl border border-dashed border-border/60">
+                      <Inbox className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+                      <p className="text-sm font-medium text-muted-foreground">Nenhum pedido de carenagem encontrado</p>
+                    </div>
+                  ) : (
+                    carenagemOrders.map(order => {
+                      const saldo = getSaldoDevedor(order.id, order.total);
+                      return (
+                        <div key={order.id} className="group p-4 rounded-2xl bg-background border border-border/60 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/[0.03] transition-all duration-300 flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs ${saldo > 0 ? 'bg-warning/10 text-warning' : 'bg-success/10 text-success'}`}>
+                              {order.number.slice(-2)}
+                            </div>
+                            <div>
+                              <p className="font-bold text-foreground text-sm group-hover:text-primary transition-colors">{order.number} — {order.clientName}</p>
+                              <p className="text-[10px] text-muted-foreground flex items-center gap-2 mt-0.5">
+                                <span>{new Date(order.createdAt).toLocaleDateString('pt-BR')}</span>
+                                <span className="w-1 h-1 rounded-full bg-border" />
+                                <span>{order.sellerName}</span>
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-6">
+                            <div className="text-right hidden sm:block">
+                              <p className="text-xs font-bold text-foreground">{formatCurrency(order.total)}</p>
+                              <p className={`text-[9px] font-black uppercase ${saldo > 0 ? 'text-destructive' : 'text-success'}`}>
+                                {saldo > 0 ? `Pendente: ${formatCurrency(saldo)}` : '✓ Pago'}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <StatusBadge status={order.status} />
+
+                              {order.status === 'aguardando_financeiro' && (
+                                <>
+                                  <button
+                                    onClick={() => handleAprovarCarenagem(order.id)}
+                                    className="w-9 h-9 rounded-xl bg-success/10 text-success hover:bg-success hover:text-white flex items-center justify-center transition-all duration-300"
+                                    title="Aprovar"
+                                  >
+                                    <CheckCircle className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => { setSelectedOrder(order); setShowReject(true); }}
+                                    className="w-9 h-9 rounded-xl bg-destructive/10 text-destructive hover:bg-destructive hover:text-white flex items-center justify-center transition-all duration-300"
+                                    title="Rejeitar"
+                                  >
+                                    <XCircle className="w-4 h-4" />
+                                  </button>
+                                </>
+                              )}
+
+                              <button
+                                onClick={() => setSelectedOrder(order)}
+                                className="w-9 h-9 rounded-xl bg-primary/5 text-primary hover:bg-primary hover:text-white flex items-center justify-center transition-all duration-300"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             </div>
           )}

@@ -790,6 +790,10 @@ const OrcamentosPage: React.FC = () => {
                         <option value="">Selecione um produto...</option>
                         {products
                           .filter(p => {
+                            // Restrição para produtos de Carenagem
+                            if (p.category === 'Carenagem' && user?.email !== 'higorfeerreira9@gmail.com') {
+                              return false;
+                            }
                             // Se não for o item do prêmio, mostra tudo
                             if (!(item as any).isReward || !preSelectedReward) return true;
 

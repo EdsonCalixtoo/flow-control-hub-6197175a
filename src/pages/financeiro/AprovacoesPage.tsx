@@ -10,7 +10,7 @@ import { useRealtimeOrders } from '@/hooks/useRealtimeOrders';
 import type { Order } from '@/types/erp';
 
 const AprovacoesPage: React.FC = () => {
-  const { orders, clients, updateOrderStatus, loadFromSupabase } = useERP();
+  const { orders, clients, products, updateOrderStatus, loadFromSupabase } = useERP();
   const { user } = useAuth();
   const userName = user?.name || 'Financeiro';
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
@@ -30,7 +30,24 @@ const AprovacoesPage: React.FC = () => {
 
   useRealtimeOrders(handleRealtime, statusesToWatch);
 
-  const pendentes = orders.filter(o => o.status === 'aguardando_financeiro' && !o.isCronograma);
+  const isOrderCarenagem = useCallback((order: Order) => {
+    if (!order.items || order.items.length === 0) return false;
+    return order.items.some(item => {
+      const productName = (item.product || '').trim().toLowerCase();
+      const product = (products || []).find(p => p.name.trim().toLowerCase() === productName || p.sku.trim().toLowerCase() === productName);
+      if (product?.category === 'Carenagem') return true;
+      const keywords = ['side skirt', 'carenagem', 'saia lateral'];
+      if (keywords.some(k => productName.includes(k) || (item.description || '').toLowerCase().includes(k))) return true;
+      const sku = (product?.sku || item.product || '').toUpperCase();
+      if (sku.startsWith('SS-')) return true;
+      return false;
+    });
+  }, [products]);
+
+  const pendentes = orders.filter(o => {
+    if (o.status !== 'aguardando_financeiro' || o.isCronograma) return false;
+    return !isOrderCarenagem(o);
+  });
 
   const aprovar = async (orderId: string) => {
     const order = orders.find(o => o.id === orderId);
@@ -48,12 +65,20 @@ const AprovacoesPage: React.FC = () => {
     }
 
     // Fluxo: Financeiro aprova e envia direto para Produção (sem Gestor)
+    // Se for Carenagem, pula a produção e vai direto para 'produto_liberado'
+    const isCarenagem = isOrderCarenagem(order);
+
+    const nextStatus = isCarenagem ? 'produto_liberado' : 'aguardando_producao';
+    const finalNote = isCarenagem
+      ? 'Carenagem: Aprovado e Liberado (Sem Produção)'
+      : (isConsignado ? 'Consignado: Aprovado para produção' : (isInstalacao ? 'Instalação: Aprovado para produção' : (isRetirada ? 'Retirada: Aprovado para produção' : 'Pagamento aprovado - Enviando para produção')));
+
     await updateOrderStatus(
       orderId,
-      'aguardando_producao',
+      nextStatus,
       extra,
       userName,
-      isConsignado ? 'Consignado: Aprovado para produção' : (isInstalacao ? 'Instalação: Aprovado para produção' : (isRetirada ? 'Retirada: Aprovado para produção' : 'Pagamento aprovado - Enviando para produção'))
+      finalNote
     );
     setSelectedOrder(null);
   };

@@ -1,3 +1,4 @@
+// Versão Modernizada - 12/03/2026
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';

@@ -427,10 +427,35 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
     const note = 'Carenagem: Aprovado e Liberado (Sem Produção)';
 
     const client = clients.find(c => c.id === order.clientId);
-    const isConsignado = client?.consignado === true;
-    const extra: Partial<Order> = {};
+    const actualClient = client || clients.find(c => c.name === order.clientName);
+    const isConsignado = actualClient?.consignado === true;
+    
+    const extra: Partial<Order> = {
+      financeiroAprovado: true
+    };
+    
+    // Se não for consignado/instalação/retirada, marca como pago e gera lançamento
     if (!isConsignado && order.orderType !== 'instalacao' && order.orderType !== 'retirada') {
       extra.paymentStatus = 'pago';
+      extra.statusPagamento = 'pago';
+      
+      // Gera lançamento financeiro para não ficar com saldo devedor
+      const entry: FinancialEntry = {
+        id: crypto.randomUUID(),
+        type: 'receita',
+        description: `Pagamento total (Carenagem) - ${order.number} - ${order.clientName}`,
+        amount: order.total,
+        category: 'Venda de Produtos',
+        date: new Date().toISOString().split('T')[0],
+        status: 'pago',
+        orderId: order.id,
+        orderNumber: order.number,
+        clientId: order.clientId,
+        clientName: order.clientName,
+        paymentMethod: order.paymentMethod || 'Pix',
+        createdAt: new Date().toISOString(),
+      };
+      await addFinancialEntry(entry);
     }
 
     try {
@@ -880,7 +905,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                     <span className={`text-sm font-bold ${selectedOrder.paymentStatus === 'pago' ? 'text-success' : 'text-warning'}`}>
                       {selectedOrder.paymentStatus === 'pago' ? '✓ Pago' : '⏳ Pendente'}
                     </span>
-                    {selectedOrder.paymentStatus !== 'pago' && getSaldoDevedor(selectedOrder.id, selectedOrder.total) <= 0 && (
+                    {selectedOrder.paymentStatus !== 'pago' && (getSaldoDevedor(selectedOrder.id, selectedOrder.total) <= 0 || selectedOrder.total === 0) && (
                       <button
                         onClick={async () => {
                           const newStatus = selectedOrder.status === 'aguardando_financeiro' ? 'aguardando_producao' : selectedOrder.status;
@@ -893,14 +918,14 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                           );
                           setSelectedOrder({
                             ...selectedOrder,
-                            status: newStatus,
+                            status: newStatus as any,
                             paymentStatus: 'pago',
                             statusPagamento: 'pago',
                             financeiroAprovado: true
                           });
                           toast.success('Quitação confirmada com sucesso!');
                         }}
-                        className="text-[10px] bg-success/20 text-success px-2 py-1 rounded-lg border border-success/30 hover:bg-success/30 font-bold"
+                        className="text-[10px] bg-success/20 text-success px-2 py-1 rounded-lg border border-success/30 hover:bg-success/30 font-bold ml-2 animate-pulse"
                       >
                         Confirmar Quitação
                       </button>

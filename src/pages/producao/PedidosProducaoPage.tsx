@@ -1,4 +1,4 @@
-﻿import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatusBadge, formatDate as fmtDate } from '@/components/shared/StatusBadge';
@@ -9,6 +9,8 @@ import OrderChat from '@/components/shared/OrderChat';
 import { Play, CheckCircle, Printer, Package, ArrowLeft, Search, ScanLine, X, Eye, Truck, Wrench, Calendar, Clock, AlertTriangle, CalendarClock, Send, Camera, StopCircle, History as HistoryIcon, RefreshCw, Filter, ShieldAlert, DollarSign } from 'lucide-react';
 import BarcodeComponent from 'react-barcode';
 import { useSearchParams } from 'react-router-dom';
+import { toast } from 'sonner';
+import ModernCalendar from '@/components/shared/ModernCalendar';
 import type { ProductionStatus } from '@/types/erp';
 
 const REMETENTE = {
@@ -49,10 +51,18 @@ const PedidosProducaoPage: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [manualLate, setManualLate] = useState<Set<string>>(new Set());
   const [notificationCount, setNotificationCount] = useState(0);
+  const [carrierFilter, setCarrierFilter] = useState<string>('todos');
   const [scannedOrderForVolumes, setScannedOrderForVolumes] = useState<any>(null);
   const [volumesInput, setVolumesInput] = useState('1');
   const [showVolumesDialog, setShowVolumesDialog] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
   const barcodeRef = useRef<HTMLDivElement>(null);
+
+  const calendarProductionOrders = useMemo(() => orders.filter(o =>
+    (o.isCronograma || o.scheduledDate) &&
+    o.orderType !== 'instalacao' &&
+    ['aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado', 'planejamento'].includes(o.status)
+  ), [orders]);
 
   // Monitora em tempo real quando novos pedidos chegam para produção
   useRealtimeOrders((event) => {
@@ -230,7 +240,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
   };
 
   const allOrders = orders.filter(o =>
-    ['aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado', 'retirado_entregador'].includes(o.status)
+    ['aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado', 'retirado_entregador', 'planejamento'].includes(o.status)
   );
 
   const tipoFiltered = allOrders.filter(o => {
@@ -244,9 +254,19 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 
   const filteredOrders = tipoFiltered.filter(o => {
     const matchSearch = o.number.toLowerCase().includes(search.toLowerCase()) || o.clientName.toLowerCase().includes(search.toLowerCase());
-    if (statusFilter === 'atrasado') return matchSearch && isLate(o);
+    
+    // Filtro de Transportadora
+    const matchCarrier = carrierFilter === 'todos' || (o.carrier && o.carrier.toUpperCase() === carrierFilter.toUpperCase());
+    
+    if (statusFilter === 'atrasado') return matchSearch && isLate(o) && matchCarrier;
     const matchStatus = statusFilter === 'todos' || o.status === statusFilter;
-    return matchSearch && matchStatus;
+    
+    // Se estivermos na aba de Previsão/Planejamento e houver uma data selecionada no calendário
+    const matchDateForPlanning = (statusFilter === 'planejamento' && selectedDate) 
+      ? (o.scheduledDate === selectedDate || o.deliveryDate === selectedDate)
+      : true;
+
+    return matchSearch && matchStatus && matchCarrier && matchDateForPlanning;
   });
 
   const iniciarProducao = (orderId: string) => {
@@ -1262,14 +1282,19 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
     <div className="space-y-6">
       <RealtimeNotificationHandler />
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="page-header">{PAGE_TITLES[tipoFiltro] ?? 'Pedidos de Produção'}</h1>
-          <p className="page-subtitle">
-            {tipoFiltro === 'entrega' ? 'Pedidos de entrega em produção' :
-              tipoFiltro === 'instalacao' ? 'Todas as instalações agendadas' :
-                tipoFiltro === 'agendado' ? 'Pedidos com agendamento de produção' :
-                  tipoFiltro === 'atrasado' ? 'Pedidos com atraso na entrega' :
-                    'Gerencie a produção dos pedidos aprovados'}
+        <div className="relative">
+          <h1 className="text-3xl font-black tracking-tight text-foreground flex items-center gap-3">
+             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-producao to-producao/60 flex items-center justify-center text-white shadow-lg shadow-producao/20">
+                <Package className="w-6 h-6" />
+             </div>
+             <span className="gradient-text">{PAGE_TITLES[tipoFiltro] ?? 'Pedidos de Produção'}</span>
+          </h1>
+          <p className="page-subtitle ml-[3.75rem]">
+            {tipoFiltro === 'entrega' ? 'Pedidos aguardando envio' :
+              tipoFiltro === 'instalacao' ? 'Cronograma de campo' :
+                tipoFiltro === 'agendado' ? 'Pedidos com reserva de fábrica' :
+                  tipoFiltro === 'atrasado' ? 'Atenção necessária: pedidos pendentes' :
+                    'Controle e gestão da linha de montagem industrial'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1292,33 +1317,90 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
             <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing || loading ? 'animate-spin' : ''}`} />
             {isRefreshing || loading ? 'Sincronizando...' : 'Sincronizar'}
           </button>
+          <button
+            onClick={() => setShowCalendar(!showCalendar)}
+            className={`btn-modern gap-2 text-xs font-bold ${showCalendar ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary border-primary/20'}`}
+          >
+            <Calendar className="w-4 h-4" />
+            {showCalendar ? 'Ocultar Calendário' : 'Ver Calendário'}
+          </button>
           <button onClick={() => setShowScanner(true)} className="btn-modern bg-gradient-to-r from-producao to-producao/80 text-primary-foreground">
             <ScanLine className="w-4 h-4" /> Ler Código
           </button>
         </div>
       </div>
 
+      {showCalendar && (
+        <div className="card-section p-6 animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-black text-foreground flex items-center gap-2 uppercase tracking-widest">
+              <CalendarClock className="w-5 h-5 text-primary" /> Calendário de Previsão & Produção
+            </h2>
+            <p className="text-[10px] text-muted-foreground font-bold">Clique em um dia para filtrar os pedidos</p>
+          </div>
+          <ModernCalendar
+            orders={calendarProductionOrders}
+            onDateClick={(date) => {
+              const dateStr = date.toISOString().split('T')[0];
+              setSelectedDate(dateStr);
+              setStatusFilter('planejamento'); // Muda para a aba de previsões ao clicar no dia
+              setSearch(''); // Limpa busca para ver os do dia
+              toast.info(`Mostrando pedidos para ${date.toLocaleDateString('pt-BR')}`);
+            }}
+            onOrderClick={(order) => {
+              setViewOrderId(order.id);
+            }}
+            role="producao"
+          />
+        </div>
+      )}
+
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
           <input type="text" placeholder="Buscar pedido ou cliente..." value={search} onChange={e => setSearch(e.target.value)} className="input-modern pl-10 py-2.5" />
         </div>
-        <div className="flex gap-1.5 flex-wrap">
-          {[
+        <div className="flex gap-1.5 flex-wrap bg-muted/20 p-1.5 rounded-2xl border border-border/10">
+          {([
             { value: 'todos', label: 'Todos' },
-            { value: 'aguardando_producao', label: 'Aguardando' },
-            { value: 'em_producao', label: 'Em Produção' },
-            { value: 'producao_finalizada', label: 'Finalizado' },
-            { value: 'produto_liberado', label: 'Liberado' },
-            { value: 'atrasado', label: '⚠ Atrasados' },
-            { value: 'garantias', label: '🛡️ Garantias' },
-          ].map(tab => (
+            { value: 'aguardando_producao', label: 'Fábrica' },
+            { value: 'em_producao', label: 'Em curso' },
+            { value: 'producao_finalizada', label: 'Prontos' },
+            { value: 'produto_liberado', label: 'Expedidos' },
+            { value: 'atrasado', label: '⚠ Atrasados', color: 'text-destructive' },
+            { value: 'planejamento', label: '📝 Previsões', color: 'text-producao' },
+            { value: 'garantias', label: '🛡️ Garantias', color: 'text-primary' },
+          ] as const).map(tab => (
             <button
               key={tab.value}
               onClick={() => setStatusFilter(tab.value)}
-              className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${statusFilter === tab.value ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}
+              className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all duration-300 uppercase tracking-widest ${
+                statusFilter === tab.value 
+                  ? 'bg-card text-foreground shadow-lg shadow-black/5 ring-1 ring-border/50 scale-105' 
+                  : `text-muted-foreground hover:bg-card/50 hover:text-foreground ${(tab as any).color || ''}`
+              }`}
             >
               {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 bg-muted/20 p-3 rounded-2xl border border-border/20">
+        <div className="flex items-center gap-2">
+          <Truck className="w-4 h-4 text-muted-foreground" />
+          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Filtrar Entrega:</span>
+        </div>
+        <div className="flex gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+          {['TODOS', 'JADLOG', 'MOTOBOY', 'CLEYTON', 'LALAMOVE'].map(carrier => (
+            <button
+              key={carrier}
+              onClick={() => setCarrierFilter(carrier.toLowerCase())}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all border ${carrierFilter === carrier.toLowerCase() 
+                ? 'bg-primary/10 border-primary text-primary shadow-sm' 
+                : 'bg-background border-border/40 text-muted-foreground hover:border-primary/30'}`}
+            >
+              {carrier}
             </button>
           ))}
         </div>
@@ -1363,83 +1445,83 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
             )}
           </div>
         ) : filteredOrders.length === 0 ? (
-          <div className="card-section p-12 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-4">
-              <Package className="w-8 h-8 text-muted-foreground" />
+          <div className="card-section p-12 text-center bg-card/50 backdrop-blur-sm border-dashed border-2">
+            <div className="w-20 h-20 rounded-3xl bg-muted/50 flex items-center justify-center mx-auto mb-6 shadow-inner">
+              <Package className="w-10 h-10 text-muted-foreground/40" />
             </div>
-            <p className="text-foreground font-bold text-lg">Nenhum pedido encontrado</p>
-            <p className="text-sm text-muted-foreground mt-1">Aguardando pedidos aprovados</p>
+            <p className="text-foreground font-black text-xl uppercase tracking-widest">Nenhum pedido encontrado</p>
+            <p className="text-sm text-muted-foreground mt-2 font-medium">Aguardando novos fluxos da fábrica ou critérios de busca</p>
           </div>
         ) : (
-          <div className="space-y-3 stagger-children">
+          <div className="space-y-4 stagger-children">
             {filteredOrders.map(order => {
               const late = isLate(order);
               const scheduled = isScheduled(order);
               return (
-                <div key={order.id} className={`card-section p-5 hover:shadow-lg transition-all duration-300 ${late ? 'border-destructive/20' : 'hover:shadow-primary/[0.04]'}`}>
-                  <div className="flex items-center justify-between flex-wrap gap-3">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${late ? 'bg-destructive/10' : 'bg-gradient-to-br from-producao/20 to-producao/5'}`}>
-                        <Package className={`w-5 h-5 ${late ? 'text-destructive' : 'text-producao'}`} />
+                <div key={order.id} className={`glass-card p-6 hover:shadow-2xl hover:shadow-primary/10 transition-all duration-500 rounded-3xl relative overflow-hidden group border-border/20 ${late ? 'border-destructive/30 bg-destructive/[0.02]' : 'hover:border-primary/30'}`}>
+                  {late && <div className="absolute top-0 right-0 w-32 h-32 bg-destructive/10 blur-3xl rounded-full -mr-12 -mt-12" />}
+                  <div className="flex items-center justify-between flex-wrap gap-6 relative z-10">
+                    <div className="flex items-center gap-6">
+                      <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center shrink-0 shadow-inner group-hover:scale-110 transition-transform duration-500 ${late ? 'bg-destructive/10' : 'bg-gradient-to-br from-producao/30 to-producao/5'}`}>
+                        <Package className={`w-7 h-7 ${late ? 'text-destructive' : 'text-producao'}`} />
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-bold text-foreground text-sm">{order.number}</p>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <p className="font-extrabold text-foreground text-lg tracking-tight">{order.number}</p>
                           <StatusBadge status={order.status} />
                           {order.orderType === 'instalacao'
-                            ? <span className="status-badge bg-producao/10 text-producao text-[9px]"><Wrench className="w-2.5 h-2.5" /> Instalação</span>
-                            : <span className="status-badge bg-primary/10 text-primary text-[9px]"><Truck className="w-2.5 h-2.5" /> Entrega</span>
+                            ? <span className="status-badge bg-producao/10 text-producao text-[10px] ring-1 ring-producao/20 font-black"><Wrench className="w-3 h-3" /> Instalação</span>
+                            : <span className="status-badge bg-primary/10 text-primary text-[10px] ring-1 ring-primary/20 font-black"><Truck className="w-3 h-3" /> Entrega</span>
                           }
-                          {order.orderType === 'instalacao' && order.installationPaymentType && (
-                            <span className={`status-badge text-[9px] font-bold ${order.installationPaymentType === 'pago' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
-                              {order.installationPaymentType === 'pago' ? '💰 PAGO' : `💵 PAGAR: ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(order.total)}`}
-                            </span>
-                          )}
-                          {late && <span className="status-badge bg-destructive/10 text-destructive text-[9px]"><AlertTriangle className="w-2.5 h-2.5" /> ATRASADO</span>}
-                          {scheduled && !late && <span className="status-badge bg-primary/10 text-primary text-[9px]"><CalendarClock className="w-2.5 h-2.5" /> AGENDADO</span>}
+                          {late && <span className="status-badge bg-destructive/10 text-destructive text-[10px] animate-pulse ring-1 ring-destructive/20 font-black tracking-widest"><AlertTriangle className="w-3 h-3" /> ATRASADO</span>}
+                          {scheduled && !late && <span className="status-badge bg-primary/10 text-primary text-[10px] ring-1 ring-primary/20 font-black"><CalendarClock className="w-3 h-3" /> AGENDADO</span>}
                         </div>
                         {/* Nome do vendedor */}
-                        <p className="text-xs text-muted-foreground mt-1">
-                          <span className="font-semibold text-foreground">{order.clientName}</span>
-                          <span className="mx-1">•</span>
-                          <span>Vendedor: <span className="font-semibold">{order.sellerName}</span></span>
-                        </p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 px-3 py-1 rounded-xl w-fit border border-border/10">
+                          <span className="font-bold text-foreground">{order.clientName}</span>
+                          <span className="w-1 h-1 rounded-full bg-muted-foreground/30" />
+                          <span>Vendedor: <span className="font-bold text-foreground/80">{order.sellerName}</span></span>
+                        </div>
                         {/* Produtos com descrição */}
-                        <p className="text-[10px] text-muted-foreground mt-0.5">
-                          {order.items.map(i => `${i.product}${i.product.toUpperCase().includes('KIT') ? ` (${(!i.sensorType || i.sensorType === 'com_sensor') ? '✅ COM SENSOR' : '⚪ SEM SENSOR'})` : ''} x${i.quantity}${i.description ? ` (${i.description})` : ''}`).join(' | ')}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-2">
-                          <span>Criado: {new Date(order.createdAt).toLocaleDateString('pt-BR')}</span>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {order.items.map((i, idx) => (
+                            <span key={idx} className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-muted/40 text-muted-foreground border border-border/20">
+                              {i.product} {i.product.toUpperCase().includes('KIT') && ((!i.sensorType || i.sensorType === 'com_sensor') ? '✅' : '⚪')} x{i.quantity}
+                            </span>
+                          ))}
+                        </div>
+                        <p className="text-[10px] text-muted-foreground/60 mt-1 flex items-center gap-3 font-bold uppercase tracking-tighter">
+                          <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {new Date(order.createdAt).toLocaleDateString('pt-BR')}</span>
                           {order.deliveryDate && (
-                            <span className={late ? 'text-destructive font-semibold' : ''}>
-                              <Calendar className="w-2.5 h-2.5 inline" /> Entrega: {new Date(order.deliveryDate).toLocaleDateString('pt-BR')}
+                            <span className={`flex items-center gap-1 ${late ? 'text-destructive' : ''}`}>
+                              <Calendar className="w-3 h-3" /> Entrega: {new Date(order.deliveryDate).toLocaleDateString('pt-BR')}
                             </span>
                           )}
                           {order.scheduledDate && (
-                            <span className="text-primary">
-                              <CalendarClock className="w-2.5 h-2.5 inline" /> Agendado: {new Date(order.scheduledDate).toLocaleDateString('pt-BR')}
+                            <span className="flex items-center gap-1 text-primary">
+                              <CalendarClock className="w-3 h-3" /> Prev: {new Date(order.scheduledDate).toLocaleDateString('pt-BR')}
                             </span>
                           )}
                         </p>
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => setViewOrderId(order.id)} className="btn-modern bg-muted text-foreground shadow-none text-xs px-3 py-2 hover:bg-muted/80">
-                        <Eye className="w-3.5 h-3.5" /> Ver Pedido
+                      <button onClick={() => setViewOrderId(order.id)} className="btn-modern bg-muted text-foreground shadow-none text-xs px-4 py-2.5 hover:bg-muted/80 border border-border/20">
+                        <Eye className="w-4 h-4" /> Detalhes
                       </button>
                       {order.status === 'aguardando_producao' && (
-                        <button onClick={() => setViewOrderId(order.id)} className="btn-modern bg-gradient-to-r from-producao to-producao/80 text-primary-foreground text-xs px-4 py-2">
-                          <Play className="w-3.5 h-3.5" /> Iniciar
+                        <button onClick={() => setViewOrderId(order.id)} className="btn-primary from-producao to-producao/80 px-6 py-2.5">
+                          <Play className="w-4 h-4" /> Iniciar
                         </button>
                       )}
                       {order.status === 'em_producao' && (
-                        <button onClick={() => setViewOrderId(order.id)} className="btn-modern bg-gradient-to-r from-success to-success/80 text-success-foreground text-xs px-4 py-2">
-                          <CheckCircle className="w-3.5 h-3.5" /> Finalizar
+                        <button onClick={() => setViewOrderId(order.id)} className="btn-primary from-success to-success/80 px-6 py-2.5 shadow-lg shadow-success/20">
+                          <CheckCircle className="w-4 h-4" /> Finalizar
                         </button>
                       )}
                       {(order.status === 'producao_finalizada' || order.status === 'produto_liberado') && (
-                        <button onClick={() => setGuia(order.id)} className="btn-modern bg-primary/10 text-primary shadow-none text-xs px-4 py-2 hover:bg-primary/20">
-                          <Printer className="w-3.5 h-3.5" /> Ver Guia
+                        <button onClick={() => setGuia(order.id)} className="btn-modern bg-primary/10 text-primary shadow-none px-6 py-2.5 hover:bg-primary/20 border border-primary/20">
+                          <Printer className="w-4 h-4" /> Guia
                         </button>
                       )}
                     </div>

@@ -30,7 +30,9 @@ import {
     User,
     MoreVertical,
     Eye,
-    Info
+    Info,
+    Factory,
+    Package
 } from 'lucide-react';
 import type { Order } from '@/types/erp';
 import { formatCurrency } from '@/components/shared/StatusBadge';
@@ -147,46 +149,70 @@ const ModernCalendar: React.FC<ModernCalendarProps> = ({ orders, onDateClick, on
                 >
                     <div className="flex items-center justify-between mb-2">
                         <span className={`
-                text-xs font-black w-6 h-6 flex items-center justify-center rounded-lg
-                ${isToday(day) ? 'bg-primary text-primary-foreground shadow-lg' : 'text-foreground/80'}
+                text-xs font-black w-7 h-7 flex items-center justify-center rounded-xl transition-all duration-300
+                ${isToday(day) 
+                    ? 'bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/30 scale-110' 
+                    : 'text-foreground/80 group-hover:text-primary group-hover:scale-110'}
               `}>
-                            {format(day, 'd')}
+                             {format(day, 'd')}
                         </span>
 
                         {dayOrders.length > 0 && (
-                            <div className="flex gap-1">
-                                {paidCount > 0 && <span className="w-1.5 h-1.5 rounded-full bg-success shadow-sm" title={`${paidCount} pagos`} />}
-                                {pendingCount > 0 && <span className="w-1.5 h-1.5 rounded-full bg-warning shadow-sm animate-pulse" title={`${pendingCount} pendentes`} />}
+                            <div className="flex -space-x-1">
+                                {paidCount > 0 && (
+                                    <div className="w-2 h-2 rounded-full bg-success shadow-[0_0_8px_rgba(34,197,94,0.6)] ring-1 ring-background" title={`${paidCount} pagos`} />
+                                )}
+                                {pendingCount > 0 && (
+                                    <div className="w-2 h-2 rounded-full bg-warning shadow-[0_0_8px_rgba(234,179,8,0.6)] ring-1 ring-background animate-pulse" title={`${pendingCount} pendentes`} />
+                                )}
                             </div>
                         )}
                     </div>
 
-                    <div className="space-y-1 overflow-hidden h-[90px]">
-                        {dayOrders.slice(0, 3).map(order => (
-                            <div
-                                key={order.id}
-                                onClick={(e) => { e.stopPropagation(); onOrderClick(order); }}
-                                className={`
-                    px-2 py-1 rounded-lg text-[9px] font-bold border truncate transition-all flex items-center gap-1
-                    ${order.paymentStatus === 'pago' || order.statusPagamento === 'pago'
-                                        ? 'bg-success/10 text-success border-success/20 hover:bg-success/20'
-                                        : 'bg-warning/10 text-warning border-warning/20 hover:bg-warning/20'
-                                    }
-                  `}
-                            >
-                                <span className="shrink-0">{order.number.split('-').pop()}</span>
-                                <span className="truncate">{order.clientName}</span>
-                            </div>
-                        ))}
+                    <div className="space-y-1.5 overflow-hidden h-[95px] relative">
+                        {dayOrders.slice(0, 3).map(order => {
+                            const isPlanning = order.status === 'planejamento';
+                            return (
+                                <div
+                                    key={order.id}
+                                    onClick={(e) => { e.stopPropagation(); onOrderClick(order); }}
+                                    className={`
+                                        px-2.5 py-1.5 rounded-xl text-[9px] font-black border truncate transition-all flex items-center justify-between gap-2
+                                        backdrop-blur-sm shadow-sm hover:translate-x-1 hover:shadow-md active:scale-95
+                                        ${isPlanning 
+                                            ? 'bg-producao/5 text-producao border-producao/30 border-dashed'
+                                            : order.paymentStatus === 'pago' || order.statusPagamento === 'pago'
+                                                ? 'bg-success/5 text-success border-success/20'
+                                                : 'bg-warning/5 text-warning border-warning/20'
+                                        }
+                                    `}
+                                >
+                                    <div className="flex items-center gap-1.5 truncate">
+                                        <div className={`w-1 h-1 rounded-full shrink-0 ${isPlanning ? 'bg-producao' : (order.paymentStatus === 'pago' ? 'bg-success' : 'bg-warning')}`} />
+                                        <span className="shrink-0 opacity-70">#{order.number.split('-').pop()}</span>
+                                        <span className="truncate">{order.clientName}</span>
+                                    </div>
+                                    {order.carrier && (
+                                        <span className="text-[7px] font-black opacity-40 uppercase tracking-tighter shrink-0 bg-current/10 px-1 rounded-sm">
+                                            {order.carrier}
+                                        </span>
+                                    )}
+                                </div>
+                            );
+                        })}
                         {dayOrders.length > 3 && (
-                            <div className="text-[8px] font-black text-muted-foreground uppercase pl-1 bg-muted/20 rounded py-0.5 inline-block px-1.5 tracking-tighter">
-                                + {dayOrders.length - 3} pedidos
+                            <div className="text-[8px] font-black text-primary uppercase pl-2 bg-primary/5 rounded-lg py-1 mt-1 inline-flex items-center gap-1 border border-primary/10 tracking-widest">
+                                <Plus className="w-2 h-2" /> {dayOrders.length - 3} itens
                             </div>
                         )}
                     </div>
 
-                    <div className="absolute inset-0 bg-primary/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none border-2 border-primary/50 rounded-xl m-1">
-                        <Plus className="w-8 h-8 text-primary drop-shadow-md" />
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-500 pointer-events-none rounded-xl m-1 border border-primary/20 backdrop-blur-[1px]">
+                         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 scale-50 group-hover:scale-100 transition-transform duration-500">
+                             <div className="bg-primary text-primary-foreground p-3 rounded-2xl shadow-xl shadow-primary/30">
+                                <Plus className="w-6 h-6" />
+                             </div>
+                         </div>
                     </div>
                 </div>
             );
@@ -203,22 +229,29 @@ const ModernCalendar: React.FC<ModernCalendarProps> = ({ orders, onDateClick, on
     const renderStats = () => {
         const totalOrders = orders.length;
         const paidOrders = orders.filter(o => o.paymentStatus === 'pago' || o.statusPagamento === 'pago').length;
+        const planningOrders = orders.filter(o => o.status === 'planejamento').length;
 
         return (
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-8">
+            <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mt-8">
                 {[
-                    { label: 'Total Mês', value: totalOrders, color: 'primary', icon: CalendarIcon },
-                    { label: 'Pagos', value: paidOrders, color: 'success', icon: CheckCircle2 },
-                    { label: 'Pendentes', value: totalOrders - paidOrders, color: 'warning', icon: Clock },
-                    { label: 'Valor Total', value: formatCurrency(orders.reduce((s, o) => s + o.total, 0)), color: 'financeiro', icon: Info },
+                    { label: 'Total Geral', value: totalOrders, color: 'primary', icon: CalendarIcon, gradient: 'from-primary/20 to-primary/5' },
+                    { label: 'Confirmados', value: paidOrders, color: 'success', icon: CheckCircle2, gradient: 'from-success/20 to-success/5' },
+                    { label: 'Pendentes', value: totalOrders - paidOrders - planningOrders, color: 'warning', icon: Clock, gradient: 'from-warning/20 to-warning/5' },
+                    { label: 'Previsões', value: planningOrders, color: 'producao', icon: Factory, gradient: 'from-producao/20 to-producao/5' },
+                    { label: 'Valor Estimado', value: formatCurrency(orders.reduce((s, o) => s + (o.total || 0), 0)), color: 'financeiro', icon: Info, gradient: 'from-financeiro/20 to-financeiro/5' },
                 ].map((stat, i) => (
-                    <div key={i} className="p-4 rounded-2xl bg-card border border-border/40 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
-                        <div className={`w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-foreground shadow-inner`}>
-                            <stat.icon className="w-6 h-6" />
+                    <div key={i} className={`p-6 rounded-3xl bg-card border border-border/40 shadow-sm flex flex-col gap-4 hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 relative overflow-hidden group`}>
+                        <div className={`absolute inset-0 bg-gradient-to-br ${stat.gradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500`} />
+                        <div className="flex items-center justify-between relative z-10 w-full">
+                            <div className={`w-12 h-12 rounded-2xl bg-muted/50 flex items-center justify-center text-foreground shadow-inner group-hover:scale-110 transition-transform duration-500`}>
+                                {stat.icon === Factory ? <Package className="w-6 h-6 text-producao" /> : <stat.icon className="w-6 h-6" />}
+                            </div>
+                            <div className="text-right">
+                                <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest leading-none">{stat.label}</p>
+                            </div>
                         </div>
-                        <div>
-                            <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">{stat.label}</p>
-                            <p className="text-lg font-black text-foreground">{stat.value}</p>
+                        <div className="relative z-10">
+                            <p className="text-2xl font-black text-foreground tabular-nums group-hover:scale-105 origin-left transition-transform duration-500">{stat.value}</p>
                         </div>
                     </div>
                 ))}
@@ -229,7 +262,7 @@ const ModernCalendar: React.FC<ModernCalendarProps> = ({ orders, onDateClick, on
     return (
         <div className="animate-in fade-in duration-700">
             {renderHeader()}
-            <div className="bg-card p-2 rounded-3xl border border-border/40 shadow-xl">
+            <div className="bg-card/50 backdrop-blur-sm p-4 rounded-[2.5rem] border border-border/40 shadow-2xl shadow-primary/5">
                 {renderDays()}
                 {renderCells()}
             </div>

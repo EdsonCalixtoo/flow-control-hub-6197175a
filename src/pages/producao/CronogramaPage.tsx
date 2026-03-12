@@ -27,6 +27,7 @@ const CronogramaProducaoPage: React.FC = () => {
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [showDayDetails, setShowDayDetails] = useState(false);
+    const [carrierFilter, setCarrierFilter] = useState<string>('todos');
     const [loading, setLoading] = useState(false);
 
     // Na produção, mostramos apenas pedidos que já passaram pelo financeiro ou estão em produção
@@ -34,7 +35,8 @@ const CronogramaProducaoPage: React.FC = () => {
     const producaoOrders = orders.filter(o =>
         (o.isCronograma || o.scheduledDate) &&
         o.orderType !== 'instalacao' &&
-        ['aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'].includes(o.status)
+        ['aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado', 'planejamento'].includes(o.status) &&
+        (carrierFilter === 'todos' || o.carrier?.toLowerCase() === carrierFilter.toLowerCase())
     );
 
     const handleDateClick = (date: Date) => {
@@ -288,22 +290,46 @@ const CronogramaProducaoPage: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="page-header flex items-center gap-2 group">
-                        <Package className="w-8 h-8 text-producao group-hover:scale-110 transition-transform" />
-                        Cronograma de Produção
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="relative">
+                    <h1 className="text-3xl font-black tracking-tight text-foreground flex items-center gap-3">
+                         <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-producao to-producao/60 flex items-center justify-center text-white shadow-lg shadow-producao/20">
+                            <Package className="w-7 h-7" />
+                         </div>
+                         <span className="gradient-text">Cronograma de Produção</span>
                     </h1>
-                    <p className="page-subtitle">Acompanhe e execute os pedidos planejados para hoje e datas futuras</p>
+                    <p className="page-subtitle ml-[3.75rem]">Acompanhe e execute os pedidos planejados para hoje e datas futuras</p>
+                </div>
+
+                <div className="flex items-center gap-2 bg-muted/20 p-1.5 rounded-2xl border border-border/10 shadow-inner">
+                    <div className="flex items-center gap-2 px-3 py-1.5 text-muted-foreground">
+                        <Truck className="w-4 h-4" />
+                        <span className="text-[10px] font-black uppercase tracking-widest hidden lg:block">Logística:</span>
+                    </div>
+                    {['TODOS', 'JADLOG', 'MOTOBOY', 'CLEYTON', 'LALAMOVE'].map(c => (
+                        <button
+                            key={c}
+                            onClick={() => setCarrierFilter(c.toLowerCase())}
+                            className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all duration-300 uppercase tracking-widest ${
+                                carrierFilter === c.toLowerCase() 
+                                    ? 'bg-card text-foreground shadow-lg shadow-black/5 ring-1 ring-border/50 scale-105' 
+                                    : 'text-muted-foreground hover:bg-card/50 hover:text-foreground'
+                            }`}
+                        >
+                            {c}
+                        </button>
+                    ))}
                 </div>
             </div>
 
-            <ModernCalendar
-                orders={producaoOrders}
-                onDateClick={handleDateClick}
-                onOrderClick={handleOrderClick}
-                role="producao"
-            />
+            <div className="glass-card p-6 rounded-[2.5rem] border border-border/40 shadow-2xl shadow-primary/5">
+                <ModernCalendar
+                    orders={producaoOrders}
+                    onDateClick={handleDateClick}
+                    onOrderClick={handleOrderClick}
+                    role="producao"
+                />
+            </div>
 
             {showDayDetails && renderDayDetails()}
         </div>

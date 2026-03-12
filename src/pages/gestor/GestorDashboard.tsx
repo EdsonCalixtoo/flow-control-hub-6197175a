@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatCard, StatusBadge, formatCurrency, formatDate } from '@/components/shared/StatusBadge';
-import { ShoppingCart, Factory, CheckCircle, AlertTriangle, Package, Send, Truck, Wrench, Calendar, Bell, X, ExternalLink, RotateCcw, Bug, ClipboardList, Plus, ShieldCheck, XCircle } from 'lucide-react';
+import { ShoppingCart, Factory, CheckCircle, AlertTriangle, Package, Send, Truck, Wrench, Calendar, Bell, X, ExternalLink, RotateCcw, Bug, ClipboardList, Plus, ShieldCheck, XCircle, History as HistoryIcon, Share2 } from 'lucide-react';
 import type { Order, OrderStatus, ProductionError } from '@/types/erp';
 import { STATUS_LABELS } from '@/types/erp';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -50,6 +50,13 @@ const GestorDashboard: React.FC = () => {
   const [extravioOrderNum, setExtravioOrderNum] = useState('');
   const [extravioNote, setExtravioNote] = useState('');
   const [searchingExtravio, setSearchingExtravio] = useState(false);
+  const [viewingWarrantyHistory, setViewingWarrantyHistory] = useState<any | null>(null);
+
+  const handleCopyWarrantyTracking = (id: string) => {
+    const link = `${window.location.origin}/rastreio/garantia/${id}`;
+    navigator.clipboard.writeText(link);
+    alert('Link de rastreio copiado!');
+  };
 
   const [seeding, setSeeding] = useState(false);
 
@@ -940,6 +947,16 @@ const GestorDashboard: React.FC = () => {
                     </div>
                   )}
 
+                  <div className="flex items-center justify-between gap-4 pt-2">
+                    <button
+                      onClick={() => setViewingWarrantyHistory(w)}
+                      className="text-[10px] font-black uppercase text-primary flex items-center gap-1.5 hover:underline"
+                    >
+                      <HistoryIcon className="w-3 h-3" /> Ver Histórico Completo
+                    </button>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase">{w.carrier ? `Via: ${w.carrier}` : ''}</p>
+                  </div>
+
                   <div className="flex gap-3 pt-2">
                     {w.status === 'Garantia criada' ? (
                       <>
@@ -1041,6 +1058,72 @@ const GestorDashboard: React.FC = () => {
               ))}
             </div>
           )}
+        </div>
+      )}
+      {/* Modal: Histórico de Garantia */}
+      {viewingWarrantyHistory && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="card-section w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] shadow-2xl animate-in slide-in-from-bottom-4 border-primary/20 bg-background">
+            <div className="card-section-header border-b border-border/40 p-5 shrink-0 bg-muted/30">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center">
+                  <HistoryIcon className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-foreground tracking-tight">Histórico da Garantia</h2>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{viewingWarrantyHistory.orderNumber} • {viewingWarrantyHistory.clientName}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={() => handleCopyWarrantyTracking(viewingWarrantyHistory.id)}
+                  className="p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors flex items-center gap-2 text-[10px] font-black uppercase"
+                >
+                  <Share2 className="w-3.5 h-3.5" /> Copiar Rastreio
+                </button>
+                <button onClick={() => setViewingWarrantyHistory(null)} className="p-2 rounded-xl hover:bg-muted text-muted-foreground transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {!viewingWarrantyHistory.history || viewingWarrantyHistory.history.length === 0 ? (
+                <div className="text-center py-10 text-muted-foreground italic text-sm">
+                  Nenhum registro de histórico encontrado.
+                </div>
+              ) : (
+                <div className="relative space-y-8 before:absolute before:inset-0 before:ml-4 before:-translate-x-px before:h-full before:w-0.5 before:bg-gradient-to-b before:from-primary/20 before:via-border before:to-transparent">
+                  {viewingWarrantyHistory.history.map((h: any, i: number) => (
+                    <div key={i} className="relative flex items-start gap-4 animate-in slide-in-from-left-2" style={{ animationDelay: `${i * 100}ms` }}>
+                      <div className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center border-4 border-background z-10 ${h.status === viewingWarrantyHistory.status ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'bg-muted text-muted-foreground'
+                        }`}>
+                        <div className="w-2 h-2 rounded-full bg-current" />
+                      </div>
+                      <div className="flex-1 pt-0.5">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-black uppercase tracking-tighter text-foreground">{h.status}</span>
+                          <span className="text-[9px] font-bold text-muted-foreground">{new Date(h.timestamp).toLocaleString('pt-BR')}</span>
+                        </div>
+                        <div className="p-3 rounded-xl bg-muted/30 border border-border/40 space-y-1">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">
+                            Alterado por: <span className="text-foreground">{h.user}</span>
+                          </p>
+                          {h.note && <p className="text-xs text-foreground italic leading-relaxed text-muted-foreground">"{h.note}"</p>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="p-5 border-t border-border/40 bg-muted/30 shrink-0">
+              <button onClick={() => setViewingWarrantyHistory(null)} className="btn-modern bg-primary text-primary-foreground w-full justify-center h-12 font-bold shadow-lg shadow-primary/10">
+                Fechar Janela
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

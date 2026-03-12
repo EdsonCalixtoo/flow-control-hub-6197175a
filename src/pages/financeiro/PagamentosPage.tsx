@@ -3,6 +3,8 @@ import { useERP } from '@/contexts/ERPContext';
 import { formatCurrency } from '@/components/shared/StatusBadge';
 import { CheckCircle, Clock, AlertTriangle, Search, ExternalLink, CreditCard, Landmark, QrCode, Banknote } from 'lucide-react';
 
+import type { Order, FinancialEntry } from '@/types/erp';
+
 const METHOD_ICONS: Record<string, React.ReactNode> = {
   'Pix': <QrCode className="w-4 h-4" />,
   'Boleto': <Banknote className="w-4 h-4" />,
@@ -11,7 +13,7 @@ const METHOD_ICONS: Record<string, React.ReactNode> = {
 };
 
 const PagamentosPage: React.FC = () => {
-  const { orders, products, updateOrderStatus } = useERP();
+  const { orders, products, updateOrderStatus, addFinancialEntry } = useERP();
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<'todos' | 'pendente' | 'pago'>('todos');
 
@@ -26,7 +28,7 @@ const PagamentosPage: React.FC = () => {
     });
     if (isCarenagem) return false;
 
-    return o.status === 'aguardando_financeiro' ||
+    return o.status === 'aguardando_financeiro' || 
       o.status === 'aprovado_financeiro' ||
       o.paymentStatus === 'pago' ||
       o.paymentStatus === 'pendente';
@@ -42,8 +44,29 @@ const PagamentosPage: React.FC = () => {
     return matchSearch && matchTab;
   });
 
-  const confirmPayment = (orderId: string) => {
-    updateOrderStatus(orderId, 'aprovado_financeiro', { paymentStatus: 'pago' }, 'Financeiro', 'Pagamento confirmado');
+  const confirmPayment = async (orderId: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+
+    // Gera lançamento financeiro para não ficar com saldo devedor
+    const entry: FinancialEntry = {
+      id: crypto.randomUUID(),
+      type: 'receita',
+      description: `Pagamento Total (Confirmado Manual) - ${order.number} - ${order.clientName}`,
+      amount: order.total,
+      category: 'Venda de Produtos',
+      date: new Date().toISOString().split('T')[0],
+      status: 'pago',
+      orderId: order.id,
+      orderNumber: order.number,
+      clientId: order.clientId,
+      clientName: order.clientName,
+      paymentMethod: order.paymentMethod || 'Pix',
+      createdAt: new Date().toISOString(),
+    };
+    
+    await addFinancialEntry(entry);
+    await updateOrderStatus(orderId, 'aprovado_financeiro', { paymentStatus: 'pago', statusPagamento: 'pago', financeiroAprovado: true }, 'Financeiro', 'Pagamento confirmado manualmente');
   };
 
   return (

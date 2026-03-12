@@ -45,7 +45,7 @@ export const calculateClientRanking = async (clientId: string): Promise<ClientRa
 
         orders.forEach(order => {
             order.items.forEach(item => {
-                if (!isKit(item)) return;
+                if (!isKit(item) || item.isReward) return;
 
                 const qty = item.quantity;
                 const price = item.unitPrice;
@@ -98,6 +98,8 @@ export const fetchClientRewards = async (clientId: string): Promise<ClientReward
             rewardType: r.reward_type,
             kitsRequired: r.kits_required,
             kitsCompleted: r.kits_completed,
+            kitsConsumed: r.kits_consumed || 0,
+            kitsAdjustment: r.kits_adjustment || 0,
             rewardStatus: r.reward_status,
             rewardRedeemedAt: r.reward_redeemed_at,
             createdAt: r.created_at,
@@ -111,11 +113,21 @@ export const fetchClientRewards = async (clientId: string): Promise<ClientReward
 
 export const redeemReward = async (rewardId: string): Promise<boolean> => {
     try {
+        // Buscar dados atuais para saber quantos kits consumir
+        const { data: rewardData, error: fetchError } = await supabase
+            .from('client_rewards')
+            .select('*')
+            .eq('id', rewardId)
+            .single();
+
+        if (fetchError || !rewardData) throw fetchError || new Error('Prêmio não encontrado');
+
         const { error } = await supabase
             .from('client_rewards')
             .update({
                 reward_status: 'resgatado',
-                reward_redeemed_at: new Date().toISOString()
+                reward_redeemed_at: new Date().toISOString(),
+                kits_consumed: (rewardData.kits_consumed || 0) + rewardData.kits_required
             })
             .eq('id', rewardId);
 
@@ -140,39 +152,51 @@ export const updateClientRewardsAuto = async (clientId: string): Promise<void> =
 
         for (const tier of tiers) {
             const existing = existingRewards.find(r => r.rewardType === tier.type);
-
-            const newStatus = tier.current >= tier.required ? 'liberado' : 'pendente';
+            
+            // Lógica de Cálculo: (Vendas Reais + Ajuste Manual) - (Kits já Consumidos)
+            const consumed = existing?.kitsConsumed || 0;
+            const adjustment = existing?.kitsAdjustment || 0;
+            const currentEffectiveKits = Math.max(0, (tier.current + adjustment) - consumed);
+            const newStatus = currentEffectiveKits >= tier.required ? 'liberado' : 'pendente';
 
             if (existing) {
-                // Só atualizamos se o status não for 'resgatado'
-                if (existing.rewardStatus !== 'resgatado') {
+                // Atualiza o registro existente com o novo total efetivo
+                if (existing.rewardStatus === 'resgatado' && currentEffectiveKits >= tier.required) {
                     await supabase
                         .from('client_rewards')
                         .update({
-                            kits_completed: tier.current,
-                            reward_status: tier.current >= tier.required ? 'liberado' : 'pendente',
+                            kits_completed: currentEffectiveKits,
+                            reward_status: 'liberado',
                             updated_at: new Date().toISOString()
                         })
                         .eq('id', existing.id);
-                } else if (existing.kitsCompleted !== tier.current) {
-                    // Mesmo se já resgatado, podemos querer atualizar os kits completados para mostrar o progresso atual
+                } else if (existing.rewardStatus !== 'resgatado') {
                     await supabase
                         .from('client_rewards')
                         .update({
-                            kits_completed: tier.current,
+                            kits_completed: currentEffectiveKits,
+                            reward_status: newStatus,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', existing.id);
+                } else {
+                    await supabase
+                        .from('client_rewards')
+                        .update({
+                            kits_completed: currentEffectiveKits,
                             updated_at: new Date().toISOString()
                         })
                         .eq('id', existing.id);
                 }
             } else {
-                // Criar nova premiação
+                // Criar nova premiação (sem ajuste inicial por padrão via código, ajuste vem do SQL)
                 await supabase
                     .from('client_rewards')
                     .insert([{
                         client_id: clientId,
                         reward_type: tier.type,
                         kits_required: tier.required,
-                        kits_completed: tier.current,
+                        kits_completed: currentEffectiveKits,
                         reward_status: newStatus
                     }]);
             }

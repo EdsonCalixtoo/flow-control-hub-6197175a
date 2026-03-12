@@ -21,6 +21,7 @@ import FluxoCaixaPage from "@/pages/financeiro/FluxoCaixaPage";
 import VendedoresControlPage from "@/pages/financeiro/VendedoresControlPage";
 import GarantiaFinanceiroPage from "@/pages/financeiro/GarantiasPage";
 import CronogramaVendedorPage from "@/pages/vendedor/CronogramaPage";
+import CalendarioProducaoVendedorPage from "@/pages/vendedor/CalendarioProducaoPage";
 import CronogramaFinanceiroPage from "@/pages/financeiro/CronogramaPage";
 import PedidosFinanceiroPage from "@/pages/financeiro/PedidosFinanceiroPage";
 import GestorDashboard from "@/pages/gestor/GestorDashboard";
@@ -32,6 +33,7 @@ import EntregadoresPage from "@/pages/gestor/EntregadoresPage";
 import ProducaoDashboard from "@/pages/producao/ProducaoDashboard";
 import PedidosProducaoPage from "@/pages/producao/PedidosProducaoPage";
 import TrackingPage from "@/pages/TrackingPage";
+import WarrantyTrackingPage from "@/pages/WarrantyTrackingPage";
 import QRCodePage from "@/pages/QRCodePage";
 import NotFound from "./pages/NotFound";
 import { lazy, Suspense } from "react";
@@ -82,6 +84,7 @@ const App = () => (
                 <Route path="/vendedor/orcamentos" element={<ProtectedRoute role="vendedor"><OrcamentosPage /></ProtectedRoute>} />
                 <Route path="/vendedor/garantias" element={<ProtectedRoute role="vendedor"><GarantiaVendedorPage /></ProtectedRoute>} />
                 <Route path="/vendedor/cronograma" element={<ProtectedRoute role="vendedor"><CronogramaVendedorPage /></ProtectedRoute>} />
+                <Route path="/vendedor/calendario" element={<ProtectedRoute role="vendedor"><CalendarioProducaoVendedorPage /></ProtectedRoute>} />
 
                 {/* Financeiro */}
                 <Route path="/financeiro" element={<ProtectedRoute role="financeiro"><FinanceiroDashboard /></ProtectedRoute>} />
@@ -112,6 +115,7 @@ const App = () => (
                 {/* QR Code & Tracking */}
                 <Route path="/qr/:orderId" element={<QRCodePage />} />
                 <Route path="/rastreio/:orderId" element={<TrackingPage />} />
+                <Route path="/rastreio/garantia/:warrantyId" element={<WarrantyTrackingPage />} />
 
                 <Route path="*" element={<NotFound />} />
               </Routes>

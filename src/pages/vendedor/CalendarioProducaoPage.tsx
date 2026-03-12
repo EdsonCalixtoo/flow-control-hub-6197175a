@@ -1,49 +1,66 @@
 import React, { useState } from 'react';
 import { useERP } from '@/contexts/ERPContext';
-import { useAuth } from '@/contexts/AuthContext';
 import {
-    CalendarClock,
-    Plus,
-    Search,
+    CalendarDays,
+    ArrowLeft,
+    Factory,
+    Truck,
+    Package,
+    Warehouse,
+    Filter,
     X,
     Check,
     ArrowRight,
-    User,
-    Package,
-    Clock,
-    Truck,
-    Info,
+    Search,
     DollarSign,
-    Warehouse,
+    Plus,
+    User,
+    Clock,
+    Eye,
+    Info,
+    CalendarClock,
     AlertCircle,
-    CheckCircle2,
-    Eye
+    CheckCircle2
 } from 'lucide-react';
+import { toast } from 'sonner';
+import ModernCalendar from '@/components/shared/ModernCalendar';
+import { useAuth } from '@/contexts/AuthContext';
 import { format, startOfToday, isBefore } from 'date-fns';
 import { ptBR as localePtBR } from 'date-fns/locale';
-import { toast } from 'sonner';
-import type { Order } from '@/types/erp';
-import ModernCalendar from '@/components/shared/ModernCalendar';
 import { StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
+import type { Order } from '@/types/erp';
 
-const CronogramaVendedorPage: React.FC = () => {
+const CalendarioProducaoVendedorPage: React.FC = () => {
     const { clients, products, addOrder, orders } = useERP();
     const { user } = useAuth();
+    
+    // Estados para o calendário e filtros
+    const [carrierFilter, setCarrierFilter] = useState<string>('todos');
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
+    // Estados para o modal de agendamento
     const [selectedDate, setSelectedDate] = useState<Date>(startOfToday());
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [searchClient, setSearchClient] = useState('');
     const [selectedClientId, setSelectedClientId] = useState('');
     const [loading, setLoading] = useState(false);
-    const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
-    const cronogramaOrders = orders.filter(o => o.isCronograma && o.orderType !== 'instalacao' && (o.sellerId === user?.id || !user?.id));
-
+    // Estados do formulário de pedido
     const [items, setItems] = useState<{ product: string; description: string; quantity: number; unitPrice: string | number }[]>([{ product: '', description: '', quantity: 1, unitPrice: '' }]);
     const [observation, setObservation] = useState('');
     const [internalNotes, setInternalNotes] = useState('');
     const [orderType, setOrderType] = useState<'entrega' | 'retirada'>('entrega');
     const [carrier, setCarrier] = useState('');
+
+    // Filtramos apenas ordens que fazem parte da produção da empresa
+    const productionOrders = orders.filter(o =>
+        (o.isCronograma || o.scheduledDate) &&
+        o.orderType !== 'instalacao' &&
+        ['aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado', 'planejamento'].includes(o.status) &&
+        (carrierFilter === 'todos' || o.carrier?.toLowerCase() === carrierFilter.toLowerCase()) &&
+        (searchTerm === '' || o.clientName.toLowerCase().includes(searchTerm.toLowerCase()) || o.number.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
 
     const filteredClients = clients.filter(c =>
         c.name.toLowerCase().includes(searchClient.toLowerCase()) ||
@@ -56,6 +73,8 @@ const CronogramaVendedorPage: React.FC = () => {
             return;
         }
         setSelectedDate(date);
+        setSearchClient('');
+        setSelectedClientId('');
         setShowCreateModal(true);
     };
 
@@ -91,20 +110,6 @@ const CronogramaVendedorPage: React.FC = () => {
             return;
         }
 
-        if (items.some(i => {
-            const price = typeof i.unitPrice === 'string' ? parseFloat(i.unitPrice) : i.unitPrice;
-            return isNaN(price) || price < 0;
-        })) {
-            toast.error('Todos os itens devem ter preço unitário válido (0 ou maior).');
-            return;
-        }
-
-        const subtotal = calcTotal();
-        if (subtotal < 0) {
-            toast.error('O valor total do pedido deve ser maior ou igual a R$ 0,00.');
-            return;
-        }
-
         setLoading(true);
         try {
             const client = clients.find(c => c.id === selectedClientId);
@@ -128,10 +133,10 @@ const CronogramaVendedorPage: React.FC = () => {
                     discount: 0,
                     discountType: 'percent',
                 })),
-                subtotal,
-                total: subtotal,
+                total: 0,
+                subtotal: 0,
                 taxes: 0,
-                status: 'aguardando_financeiro',
+                status: 'planejamento',
                 notes: internalNotes,
                 paymentStatus: 'pendente',
                 deliveryDate: format(selectedDate, 'yyyy-MM-dd'),
@@ -139,22 +144,22 @@ const CronogramaVendedorPage: React.FC = () => {
                 isCronograma: true,
                 financeiroAprovado: false,
                 statusPagamento: 'pendente',
-                statusProducao: 'Aguardando',
+                statusProducao: 'Planejamento',
                 observation,
                 orderType,
                 carrier: orderType === 'entrega' ? carrier : undefined,
                 createdAt: now,
                 updatedAt: now,
                 statusHistory: [{
-                    status: 'rascunho',
+                    status: 'planejamento',
                     timestamp: now,
                     user: user?.name || 'Vendedor',
-                    note: 'Pedido de cronograma criado para o dia ' + format(selectedDate, 'dd/MM/yyyy')
+                    note: 'Planejamento de produção criado para o dia ' + format(selectedDate, 'dd/MM/yyyy')
                 }]
             };
 
             await addOrder(newOrder);
-            toast.success('Pedido agendado com sucesso!');
+            toast.success('Previsão enviada para a produção!');
             resetForm();
         } catch (err: any) {
             toast.error('Erro ao agendar: ' + err.message);
@@ -164,31 +169,72 @@ const CronogramaVendedorPage: React.FC = () => {
     };
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-in fade-in duration-500">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="relative">
                     <h1 className="text-3xl font-black tracking-tight text-foreground flex items-center gap-3">
-                         <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-white shadow-lg shadow-primary/20">
-                            <CalendarClock className="w-7 h-7" />
-                         </div>
-                         <span className="gradient-text">Cronograma (Agendamento)</span>
+                        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-producao to-producao/60 flex items-center justify-center text-white shadow-lg shadow-producao/20">
+                            <CalendarDays className="w-7 h-7" />
+                        </div>
+                        <span className="gradient-text">Calendário de Produção (Fábrica)</span>
                     </h1>
-                    <p className="page-subtitle ml-[3.75rem]">Selecione um dia no calendário para reservar um agendamento estratégico</p>
+                    <p className="page-subtitle ml-[3.75rem]">Acompanhe o status da linha de produção para alinhar prazos com clientes</p>
                 </div>
-                <div className="flex items-center gap-3 bg-muted/10 p-2 rounded-2xl border border-border/10 shadow-inner">
-                    <div className="flex items-center gap-2 px-3 py-1.5 text-muted-foreground">
-                        <Info className="w-4 h-4" />
-                        <span className="text-[10px] font-black uppercase tracking-widest">Reserva de Fábrica</span>
+
+                <div className="flex flex-col md:flex-row items-center gap-4">
+                    <div className="relative w-full md:w-64">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <input
+                            type="text"
+                            placeholder="Buscar no calendário..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="input-modern pl-9 py-2 text-xs"
+                        />
+                    </div>
+                    <div className="flex items-center gap-2 bg-muted/20 p-1.5 rounded-2xl border border-border/10 self-start shadow-inner">
+                        <div className="flex items-center gap-2 px-3 py-1.5 text-muted-foreground">
+                            <Truck className="w-4 h-4" />
+                            <span className="text-[10px] font-black uppercase tracking-widest hidden lg:block">Logística:</span>
+                        </div>
+                        {['TODOS', 'JADLOG', 'MOTOBOY', 'CLEYTON', 'LALAMOVE'].map(c => (
+                            <button
+                                key={c}
+                                onClick={() => setCarrierFilter(c.toLowerCase())}
+                                className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all duration-300 uppercase tracking-widest ${
+                                    carrierFilter === c.toLowerCase() 
+                                        ? 'bg-card text-foreground shadow-lg shadow-black/5 ring-1 ring-border/50 scale-105' 
+                                        : 'text-muted-foreground hover:bg-card/50 hover:text-foreground'
+                                }`}
+                            >
+                                {c}
+                            </button>
+                        ))}
                     </div>
                 </div>
             </div>
 
-            <div className="glass-card p-6 rounded-[2.5rem] border border-border/40 shadow-2xl shadow-primary/5">
+            <div className="glass-card p-6 rounded-[2.5rem] border border-border/40 shadow-2xl shadow-primary/5 flex flex-col gap-8">
+                <div className="flex items-center gap-8 px-4 bg-muted/10 w-fit p-3 rounded-2xl border border-border/10">
+                    <div className="flex items-center gap-3">
+                        <div className="w-2.5 h-2.5 rounded-full bg-success shadow-[0_0_10px_rgba(34,197,94,0.6)]" />
+                        <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Confirmado</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <div className="w-2.5 h-2.5 rounded-full bg-warning shadow-[0_0_10px_rgba(234,179,8,0.6)] animate-pulse" />
+                        <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Aguardando Pagam.</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <div className="w-2.5 h-2.5 rounded-full bg-producao shadow-[0_0_10px_rgba(255,127,0,0.6)] ring-1 ring-producao/30" />
+                        <span className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">Previsão</span>
+                    </div>
+                </div>
+
                 <ModernCalendar
-                    orders={cronogramaOrders}
+                    orders={productionOrders}
                     onDateClick={handleDateClick}
                     onOrderClick={(order) => setSelectedOrder(order)}
-                    role="vendedor"
+                    role="producao"
                 />
             </div>
 
@@ -202,7 +248,7 @@ const CronogramaVendedorPage: React.FC = () => {
                                     <Package className="w-7 h-7" />
                                 </div>
                                 <div>
-                                    <p className="text-[10px] font-black uppercase text-primary tracking-[0.2em] mb-1">Detalhes do Agendamento</p>
+                                    <p className="text-[10px] font-black uppercase text-primary tracking-[0.2em] mb-1">Detalhes do Planejamento</p>
                                     <h2 className="text-2xl font-black text-foreground flex items-center gap-3">
                                         {selectedOrder.number}
                                         <StatusBadge status={selectedOrder.status} />
@@ -241,7 +287,7 @@ const CronogramaVendedorPage: React.FC = () => {
                                             <tr className="bg-muted/20 border-b border-border/10">
                                                 <th className="p-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Produto</th>
                                                 <th className="p-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground text-center">Qtd</th>
-                                                <th className="p-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Valor</th>
+                                                <th className="p-4 text-[10px] font-black uppercase tracking-widest text-muted-foreground">Obs</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-border/5">
@@ -251,7 +297,7 @@ const CronogramaVendedorPage: React.FC = () => {
                                                     <td className="p-4 text-sm font-black text-foreground text-center bg-muted/20">
                                                         <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-lg">{item.quantity}</span>
                                                     </td>
-                                                    <td className="p-4 text-xs font-black text-primary">{formatCurrency(item.unitPrice)}</td>
+                                                    <td className="p-4 text-xs text-muted-foreground italic font-medium">{item.description || '—'}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -259,24 +305,12 @@ const CronogramaVendedorPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            {(selectedOrder.observation || selectedOrder.notes) && (
-                                <div className="space-y-4">
-                                    {selectedOrder.observation && (
-                                        <div className="p-6 rounded-[2rem] bg-orange-500/5 border border-orange-500/20 space-y-2">
-                                            <h4 className="text-[10px] font-black uppercase text-orange-500 tracking-widest flex items-center gap-2">
-                                                <Info className="w-4 h-4" /> Observação para Produção
-                                            </h4>
-                                            <p className="text-sm text-foreground/80 font-medium leading-relaxed">{selectedOrder.observation}</p>
-                                        </div>
-                                    )}
-                                    {selectedOrder.notes && (
-                                        <div className="p-6 rounded-[2rem] bg-primary/5 border border-primary/20 space-y-2">
-                                            <h4 className="text-[10px] font-black uppercase text-primary tracking-widest flex items-center gap-2">
-                                                <Info className="w-4 h-4" /> Notas Internas
-                                            </h4>
-                                            <p className="text-sm text-foreground/80 font-medium leading-relaxed">{selectedOrder.notes}</p>
-                                        </div>
-                                    )}
+                            {selectedOrder.observation && (
+                                <div className="p-6 rounded-[2rem] bg-orange-500/5 border border-orange-500/20 space-y-2">
+                                    <h4 className="text-[10px] font-black uppercase text-orange-500 tracking-widest flex items-center gap-2">
+                                        <Info className="w-4 h-4" /> Observação de Produção
+                                    </h4>
+                                    <p className="text-sm text-foreground/80 font-medium leading-relaxed">{selectedOrder.observation}</p>
                                 </div>
                             )}
 
@@ -292,38 +326,35 @@ const CronogramaVendedorPage: React.FC = () => {
                                     <Truck className="w-4 h-4 text-muted-foreground" />
                                     <div>
                                         <p className="text-[8px] font-black uppercase text-muted-foreground tracking-widest">Transporte</p>
-                                        <p className="text-[11px] font-bold text-foreground uppercase tracking-tighter">{selectedOrder.carrier || 'Retirada'}</p>
+                                        <p className="text-[11px] font-bold text-foreground uppercase tracking-tighter">{selectedOrder.carrier || 'Balcão / Retirada'}</p>
                                     </div>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="p-8 border-t border-border/10 bg-muted/5 flex items-center justify-between">
-                            <div className="flex flex-col">
-                                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Valor do Pedido</p>
-                                <p className="text-2xl font-black text-foreground">{formatCurrency(selectedOrder.total)}</p>
-                            </div>
+                        <div className="p-8 border-t border-border/10 bg-muted/5 flex justify-end">
                             <button 
                                 onClick={() => setSelectedOrder(null)}
                                 className="px-8 py-4 rounded-2xl bg-foreground text-background text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-foreground/10"
                             >
-                                Fechar
+                                Fechar Detalhes
                             </button>
                         </div>
                     </div>
                 </div>
             )}
 
+            {/* Modal de Agendamento */}
             {showCreateModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 backdrop-blur-md p-4 animate-in fade-in duration-300">
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-foreground/40 backdrop-blur-md p-4 animate-in fade-in duration-300">
                     <div className="card-section p-0 w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl scale-100 ring-1 ring-border shadow-primary/20">
                         <div className="p-6 border-b border-border/40 flex items-center justify-between bg-gradient-to-r from-primary/10 to-transparent">
                             <div className="flex items-center gap-4">
                                 <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center text-primary shadow-inner">
-                                    <CalendarClock className="w-6 h-6" />
+                                    <CalendarDays className="w-6 h-6" />
                                 </div>
                                 <div>
-                                    <h3 className="text-lg font-black text-foreground">Novo Agendamento</h3>
+                                    <h3 className="text-lg font-black text-foreground">Planejar Produção</h3>
                                     <p className="text-[10px] text-primary uppercase font-black tracking-[0.2em]">{selectedDate && format(selectedDate, "dd 'de' MMMM 'de' yyyy", { locale: localePtBR })}</p>
                                 </div>
                             </div>
@@ -415,7 +446,6 @@ const CronogramaVendedorPage: React.FC = () => {
                                         </div>
                                     </div>
 
-                                    {/* Tipo de Pedido e Transportadora */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-3">
                                             <label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground px-1">Tipo do Pedido</label>
@@ -455,22 +485,12 @@ const CronogramaVendedorPage: React.FC = () => {
 
                                     <div className="space-y-4 pt-4">
                                         <div className="space-y-3">
-                                            <label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground px-1">Observação (Financeiro e Produção)</label>
+                                            <label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground px-1">Observação (Produção)</label>
                                             <textarea
                                                 value={observation}
                                                 onChange={e => setObservation(e.target.value)}
                                                 className="input-modern min-h-[100px] p-4 text-sm resize-none bg-muted/20"
-                                                placeholder="Detalhes que aparecerão para o financeiro e produção..."
-                                            />
-                                        </div>
-
-                                        <div className="space-y-3">
-                                            <label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground px-1">Notas Internas (Opcional)</label>
-                                            <textarea
-                                                value={internalNotes}
-                                                onChange={e => setInternalNotes(e.target.value)}
-                                                className="input-modern min-h-[100px] p-4 text-sm resize-none bg-muted/20 border-dashed"
-                                                placeholder="Anotações internas sobre o orçamento..."
+                                                placeholder="Detalhes que aparecerão para a produção..."
                                             />
                                         </div>
                                     </div>
@@ -480,10 +500,10 @@ const CronogramaVendedorPage: React.FC = () => {
 
                         <div className="p-6 border-t border-border/40 bg-card flex flex-col md:flex-row items-center justify-between gap-6">
                             <div className="flex items-center gap-4 p-4 rounded-2xl bg-muted/30 border border-border/20 w-full md:w-auto">
-                                <div className="p-3 rounded-xl bg-primary/10 text-primary"><DollarSign className="w-6 h-6" /></div>
+                                <div className="p-3 rounded-xl bg-producao/10 text-producao"><Package className="w-6 h-6" /></div>
                                 <div>
-                                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">Total</p>
-                                    <p className="text-2xl font-black text-foreground">{formatCurrency(calcTotal())}</p>
+                                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">Atenção</p>
+                                    <p className="text-xs font-bold text-foreground leading-tight">Isto é apenas uma previsão para a fábrica</p>
                                 </div>
                             </div>
                             <div className="flex gap-3 w-full md:w-auto">
@@ -491,17 +511,48 @@ const CronogramaVendedorPage: React.FC = () => {
                                 <button
                                     onClick={handleCreateScheduledOrder}
                                     disabled={loading || !selectedClientId}
-                                    className="btn-primary h-14 min-w-[200px] justify-center text-xs font-black uppercase tracking-widest"
+                                    className="btn-primary bg-producao hover:bg-producao/90 h-14 min-w-[200px] justify-center text-xs font-black uppercase tracking-widest"
                                 >
-                                    {loading ? 'Processando...' : <><Check className="w-5 h-5 mr-3" /> Confirmar</>}
+                                    {loading ? 'Enviando...' : <><Check className="w-5 h-5 mr-3" /> Enviar para Fábrica</>}
                                 </button>
                             </div>
                         </div>
                     </div>
                 </div>
             )}
+
+            {/* Legenda de Fluxo */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4">
+                <div className="p-4 rounded-2xl bg-muted/20 border border-border/20 flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-producao/10 flex items-center justify-center text-producao">
+                        <Factory className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black uppercase text-muted-foreground">Em Produção</p>
+                        <p className="text-xs font-bold">Pedidos sendo fabricados</p>
+                    </div>
+                </div>
+                <div className="p-4 rounded-2xl bg-muted/20 border border-border/20 flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-success/10 flex items-center justify-center text-success">
+                        <Package className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black uppercase text-muted-foreground">Finalizados</p>
+                        <p className="text-xs font-bold">Aguardando coleta/entrega</p>
+                    </div>
+                </div>
+                <div className="p-4 rounded-2xl bg-muted/20 border border-border/20 flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                        <Truck className="w-5 h-5" />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black uppercase text-muted-foreground">Logística</p>
+                        <p className="text-xs font-bold">Identifique pela cor do selo</p>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };
 
-export default CronogramaVendedorPage;
+export default CalendarioProducaoVendedorPage;

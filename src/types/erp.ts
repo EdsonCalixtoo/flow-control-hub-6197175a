@@ -55,6 +55,7 @@ export type OrderStatus =
   | 'producao_finalizada'
   | 'produto_liberado'
   | 'retirado_entregador'
+  | 'planejamento'
   | 'extraviado';
 
 export type ProductionStatus = 'em_producao' | 'agendado' | 'atrasado' | 'finalizado';
@@ -121,6 +122,8 @@ export interface ClientReward {
   rewardType: 'tier_1' | 'tier_2' | 'tier_3';
   kitsRequired: number;
   kitsCompleted: number;
+  kitsConsumed?: number;
+  kitsAdjustment?: number;
   rewardStatus: RewardStatus;
   rewardRedeemedAt?: string;
   createdAt: string;
@@ -262,6 +265,7 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
   produto_liberado: 'Produto Liberado',
   retirado_entregador: 'Retirado pelo Entregador',
   extraviado: 'Extraviado',
+  planejamento: 'Previsão de Produção',
 };
 
 export const STATUS_COLORS: Record<OrderStatus, string> = {
@@ -280,6 +284,7 @@ export const STATUS_COLORS: Record<OrderStatus, string> = {
   produto_liberado: 'bg-success/10 text-success',
   retirado_entregador: 'bg-primary/10 text-primary',
   extraviado: 'bg-destructive/10 text-destructive font-bold',
+  planejamento: 'bg-producao/10 text-producao border-dashed border-producao/50',
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = {

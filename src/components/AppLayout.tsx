@@ -25,6 +25,7 @@ import {
   Users2,
   Shield,
   Tag,
+  Calendar,
 } from 'lucide-react';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -38,6 +39,7 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: 
     { label: 'Orçamentos', icon: FileText, path: '/vendedor/orcamentos' },
     { label: 'Garantias', icon: Shield, path: '/vendedor/garantias' },
     { label: 'Cronograma', icon: CalendarClock, path: '/vendedor/cronograma' },
+    { label: 'Calendário', icon: Calendar, path: '/vendedor/calendario' },
   ],
   financeiro: [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/financeiro' },

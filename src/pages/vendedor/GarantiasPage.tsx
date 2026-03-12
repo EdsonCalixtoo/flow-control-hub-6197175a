@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { Plus, Search, Eye, ArrowLeft, Send, CheckCircle, Clock, XCircle, ShieldCheck, ShieldAlert, History as HistoryIcon, User, X, Truck } from 'lucide-react';
+import { Plus, Search, Eye, ArrowLeft, Send, CheckCircle, Clock, XCircle, ShieldCheck, ShieldAlert, History as HistoryIcon, User, X, Truck, Share2, Factory, Info } from 'lucide-react';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
 import type { Warranty, Order, WarrantyStatus } from '@/types/erp';
 import { formatCurrency, StatusBadge } from '@/components/shared/StatusBadge';
@@ -127,6 +127,14 @@ const GarantiasPage: React.FC = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    const handleCopyTracking = (warrantyId: string) => {
+        const link = `${window.location.origin}/rastreio/garantia/${warrantyId}`;
+        navigator.clipboard.writeText(link);
+        toast.info('Link de rastreio copiado!', {
+            description: 'Envie este link para o cliente acompanhar.'
+        });
     };
 
     if (showCreate) {
@@ -485,13 +493,53 @@ const GarantiasPage: React.FC = () => {
                                     <HistoryIcon className="w-5 h-5 text-primary" />
                                 </div>
                                 <div>
-                                    <h2 className="text-lg font-black text-foreground tracking-tight">Histórico de Garantia</h2>
+                                    <h2 className="text-lg font-black text-foreground tracking-tight">Status da Assistência</h2>
                                     <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{viewingWarranty.orderNumber} • {viewingWarranty.clientName}</p>
                                 </div>
                             </div>
-                            <button onClick={() => setViewingWarranty(null)} className="p-2 rounded-xl hover:bg-muted text-muted-foreground transition-colors">
-                                <X className="w-5 h-5" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button 
+                                    onClick={() => handleCopyTracking(viewingWarranty.id)}
+                                    className="p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-colors flex items-center gap-2 text-[10px] font-black uppercase"
+                                    title="Copiar Link de Rastreio para Cliente"
+                                >
+                                    <Share2 className="w-3.5 h-3.5" /> Rastreio Cliente
+                                </button>
+                                <button onClick={() => setViewingWarranty(null)} className="p-2 rounded-xl hover:bg-muted text-muted-foreground transition-colors">
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="p-6 bg-primary/5 border-b border-border/40">
+                            <p className="text-[10px] font-bold text-primary uppercase tracking-widest mb-4">Pipeline de Atendimento</p>
+                            <div className="flex items-center justify-between relative px-2">
+                                <div className="absolute top-4 left-4 right-4 h-0.5 bg-slate-200 -z-0" />
+                                {[
+                                    { s: 'Garantia criada', i: Info },
+                                    { s: 'Garantia aprovada', i: ShieldCheck },
+                                    { s: 'Em produção', i: Factory },
+                                    { s: 'Garantia finalizada', i: Truck }
+                                ].map((step, idx) => {
+                                    const statuses = ['Garantia criada', 'Garantia aprovada', 'Em produção', 'Garantia finalizada'];
+                                    const currentIdx = statuses.indexOf(viewingWarranty.status);
+                                    const isDone = statuses.indexOf(step.s) <= currentIdx;
+                                    const isCurrent = step.s === viewingWarranty.status;
+                                    return (
+                                        <div key={idx} className="flex flex-col items-center gap-2 z-10">
+                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${
+                                                isCurrent ? 'bg-primary border-primary text-white scale-110 shadow-lg' :
+                                                isDone ? 'bg-emerald-500 border-emerald-500 text-white' : 'bg-white border-slate-200 text-slate-300'
+                                            }`}>
+                                                {isDone ? <CheckCircle className="w-4 h-4" /> : <Clock className="w-4 h-4" />}
+                                            </div>
+                                            <span className={`text-[8px] font-bold uppercase text-center max-w-[60px] ${isCurrent ? 'text-primary' : 'text-muted-foreground'}`}>
+                                                {step.s.replace('Garantia ', '')}
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-6 space-y-6">

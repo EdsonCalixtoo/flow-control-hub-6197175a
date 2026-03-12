@@ -95,7 +95,7 @@ export interface Order {
   receiptUrl?: string;
   deliveryDate?: string;
   scheduledDate?: string;        // data de agendamento da produção
-  orderType?: 'entrega' | 'instalacao' | 'retirada';
+  orderType?: 'entrega' | 'instalacao' | 'manutencao' | 'retirada';
   installationDate?: string;
   installationTime?: string;
   installationPaymentType?: 'pago' | 'pagar_na_hora';
@@ -321,7 +321,7 @@ export interface DelayReport {
   orderId: string;
   orderNumber: string;
   clientName: string;
-  orderType: 'entrega' | 'instalacao' | 'retirada';
+  orderType: 'entrega' | 'instalacao' | 'manutencao' | 'retirada';
   deliveryDate?: string;
   orderTotal: number;
   reason: string;

@@ -36,9 +36,13 @@ export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSe
         return appointments.some(app => app.time.substring(0, 5) === time);
     };
 
-    const getOccupantName = (time: string) => {
+    const getOccupantInfo = (time: string) => {
         const app = appointments.find(app => app.time.substring(0, 5) === time);
-        return app ? app.client_name : null;
+        if (!app) return null;
+        return {
+            name: app.client_name,
+            type: app.type || 'instalacao'
+        };
     };
 
     return (
@@ -62,7 +66,7 @@ export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSe
                 {TIMES.map(time => {
                     const occupied = isTimeOccupied(time);
                     const isSelected = selectedDate === format(currentDate, 'yyyy-MM-dd') && selectedTime === time;
-                    const occupant = getOccupantName(time);
+                    const info = getOccupantInfo(time);
 
                     return (
                         <button
@@ -78,14 +82,19 @@ export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSe
                                         ? 'bg-success/10 border-success text-success scale-105 shadow-lg shadow-success/10'
                                         : 'bg-card border-border/40 hover:border-primary/50 text-foreground'
                                 }
-              `}
+               `}
                         >
                             <Clock className={`w-4 h-4 ${isSelected ? 'animate-pulse' : ''}`} />
                             <span className="text-sm font-black tracking-tight">{time}</span>
                             {occupied && (
-                                <span className="text-[9px] font-bold uppercase truncate max-w-full italic">
-                                    Ocupado: {occupant || 'Indisponível'}
-                                </span>
+                                <div className="flex flex-col items-center gap-0.5">
+                                    <span className="text-[9px] font-bold uppercase truncate max-w-[80px] italic">
+                                        {info?.name || 'Indisponível'}
+                                    </span>
+                                    <span className={`text-[7px] font-black uppercase px-1 rounded-sm ${info?.type === 'manutencao' ? 'bg-indigo-500 text-white' : 'bg-producao text-white'}`}>
+                                        {info?.type === 'manutencao' ? 'Manutenção' : 'Instalação'}
+                                    </span>
+                                </div>
                             )}
                         </button>
                     );

@@ -8,6 +8,7 @@ export interface InstallationAppointment {
     date: string;
     time: string;
     payment_type: 'pago' | 'pagar_na_hora';
+    type?: 'instalacao' | 'manutencao';
     created_at?: string;
 }
 

@@ -67,7 +67,7 @@ const OrcamentosPage: React.FC = () => {
   const [newNotes, setNewNotes] = useState('');
   const [newObservation, setNewObservation] = useState('');
   const [newDeliveryDate, setNewDeliveryDate] = useState('');
-  const [newOrderType, setNewOrderType] = useState<'entrega' | 'instalacao' | 'retirada'>('entrega');
+  const [newOrderType, setNewOrderType] = useState<'entrega' | 'instalacao' | 'manutencao' | 'retirada'>('entrega');
   const [newInstallationTime, setNewInstallationTime] = useState('');
   const [newInstallationPaymentType, setNewInstallationPaymentType] = useState<'pago' | 'pagar_na_hora'>('pago');
   const [newCarrier, setNewCarrier] = useState('');
@@ -274,17 +274,17 @@ const OrcamentosPage: React.FC = () => {
 
     const now = new Date().toISOString();
 
-    // Validação extra para instalação
-    if (newOrderType === 'instalacao') {
+    // Validação extra para instalação/manutenção
+    if (newOrderType === 'instalacao' || newOrderType === 'manutencao') {
       if (!newDeliveryDate || !newInstallationTime) {
-        setFormError('⚠️ Informe a data e o horário da instalação.');
+        setFormError(`⚠️ Informe a data e o horário da ${newOrderType === 'instalacao' ? 'instalação' : 'manutenção'}.`);
         return;
       }
 
       // Verifica conflito de horário
       const hasConflict = await checkInstallationConflict(newDeliveryDate, newInstallationTime);
-      if (hasConflict && !editingOrder) { // Se estiver editando, pode ser o próprio compromisso anterior (precisaria checar ID, mas para simplificar vamos permitir se for o mesmo dia/hora do pedido original)
-        setFormError('⚠️ Este horário já está ocupado por outra instalação. Escolha outro.');
+      if (hasConflict && !editingOrder) { 
+        setFormError('⚠️ Este horário já está ocupado. Escolha outro.');
         return;
       }
     }
@@ -323,7 +323,7 @@ const OrcamentosPage: React.FC = () => {
           observation: newObservation,
           deliveryDate: newDeliveryDate || undefined,
           orderType: newOrderType,
-          installationPaymentType: (newOrderType === 'instalacao' || newOrderType === 'retirada') ? newInstallationPaymentType : undefined,
+          installationPaymentType: (newOrderType === 'instalacao' || newOrderType === 'manutencao' || newOrderType === 'retirada') ? newInstallationPaymentType : undefined,
           carrier: newOrderType === 'entrega' ? newCarrier : undefined,
           isConsigned: client.consignado,
           requiresInvoice: newRequiresInvoice,
@@ -333,8 +333,8 @@ const OrcamentosPage: React.FC = () => {
         console.log('[OrcamentosPage] 📝 Editando orçamento:', updatedOrder.number);
         await editOrderFull(updatedOrder);
 
-        // Se mudou para instalação ou alterou dados de instalação, atualiza agenda
-        if (newOrderType === 'instalacao') {
+        // Se mudou para instalação/manutenção ou alterou dados, atualiza agenda
+        if (newOrderType === 'instalacao' || newOrderType === 'manutencao') {
           await deleteInstallationByOrder(updatedOrder.id);
           await saveInstallation({
             order_id: updatedOrder.id,
@@ -342,9 +342,10 @@ const OrcamentosPage: React.FC = () => {
             client_name: client.name,
             date: newDeliveryDate,
             time: newInstallationTime,
-            payment_type: newInstallationPaymentType
+            payment_type: newInstallationPaymentType,
+            type: newOrderType
           });
-        } else if (editingOrder.orderType === 'instalacao' && newOrderType === 'entrega') {
+        } else if ((editingOrder.orderType === 'instalacao' || editingOrder.orderType === 'manutencao') && newOrderType === 'entrega') {
           await deleteInstallationByOrder(updatedOrder.id);
         }
 
@@ -420,7 +421,7 @@ const OrcamentosPage: React.FC = () => {
             }],
           };
 
-          if (newOrderType === 'instalacao' || newOrderType === 'retirada') {
+          if (newOrderType === 'instalacao' || newOrderType === 'manutencao' || newOrderType === 'retirada') {
             order.installationDate = newDeliveryDate || undefined;
             order.installationTime = newInstallationTime || undefined;
             order.installationPaymentType = newInstallationPaymentType;
@@ -431,14 +432,15 @@ const OrcamentosPage: React.FC = () => {
 
           await addOrder(order);
 
-          if (newOrderType === 'instalacao') {
+          if (newOrderType === 'instalacao' || newOrderType === 'manutencao') {
             await saveInstallation({
               order_id: order.id,
               seller_id: user?.id || '1',
               client_name: client.name,
               date: newDeliveryDate,
               time: newInstallationTime,
-              payment_type: newInstallationPaymentType
+              payment_type: newInstallationPaymentType,
+              type: newOrderType
             });
           }
 
@@ -474,7 +476,7 @@ const OrcamentosPage: React.FC = () => {
       let userMessage = 'Erro ao criar orçamento. Tente novamente.';
 
       if (errMsg.toLowerCase().includes('duplicate') || errMsg.toLowerCase().includes('unique') || errMsg.includes('409')) {
-        userMessage = '❌ Erro: Conflito de dados. O número do pedido ou o horário de instalação já existe.';
+        userMessage = '❌ Erro: Conflito de dados. O número do pedido ou o horário já existe.';
       } else if (errMsg.toLowerCase().includes('permission')) {
         userMessage = '❌ Erro de permissão. Verifique se você está logado.';
       } else if (errMsg.toLowerCase().includes('foreign key')) {
@@ -901,7 +903,7 @@ const OrcamentosPage: React.FC = () => {
             <div className="space-y-1">
               <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Tipo do Pedido</label>
               <div className="flex gap-2">
-                {(['entrega', 'instalacao', 'retirada'] as const).map(t => (
+                {(['entrega', 'instalacao', 'manutencao', 'retirada'] as const).map(t => (
                   <button
                     key={t}
                     type="button"
@@ -911,11 +913,13 @@ const OrcamentosPage: React.FC = () => {
                         ? 'bg-primary/10 border-primary text-primary'
                         : t === 'instalacao'
                           ? 'bg-producao/10 border-producao text-producao'
-                          : 'bg-amber-500/10 border-amber-500 text-amber-500'
+                          : t === 'manutencao'
+                            ? 'bg-indigo-500/10 border-indigo-500 text-indigo-500'
+                            : 'bg-amber-500/10 border-amber-500 text-amber-500'
                       : 'border-border/40 text-muted-foreground hover:border-primary/30'
                       }`}
                   >
-                    {t === 'entrega' ? '🚚 Entrega' : t === 'instalacao' ? '🔧 Instalação' : '📦 Retirada'}
+                    {t === 'entrega' ? '🚚 Entrega' : t === 'instalacao' ? '🔧 Instalação' : t === 'manutencao' ? '🛠️ Manutenção' : '📦 Retirada'}
                   </button>
                 ))}
               </div>
@@ -994,15 +998,15 @@ const OrcamentosPage: React.FC = () => {
             </div>
           )}
 
-          {/* Calendário de Instalação */}
-          {newOrderType === 'instalacao' && (
-            <div className="space-y-4 p-5 rounded-2xl bg-producao/5 border border-producao/20 animate-in fade-in duration-500">
+          {/* Calendário de Instalação / Manutenção */}
+          {(newOrderType === 'instalacao' || newOrderType === 'manutencao') && (
+            <div className={`space-y-4 p-5 rounded-2xl border animate-in fade-in duration-500 ${newOrderType === 'instalacao' ? 'bg-producao/5 border-producao/20' : 'bg-indigo-500/5 border-indigo-500/20'}`}>
               <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-lg bg-producao flex items-center justify-center text-white">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white ${newOrderType === 'instalacao' ? 'bg-producao' : 'bg-indigo-500'}`}>
                   <Check className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-foreground uppercase tracking-tight">Agendamento de Instalação</h3>
+                  <h3 className="text-sm font-black text-foreground uppercase tracking-tight">Agendamento de {newOrderType === 'instalacao' ? 'Instalação' : 'Manutenção'}</h3>
                   <p className="text-[10px] text-muted-foreground font-bold">Escolha um horário disponível para a equipe</p>
                 </div>
               </div>
@@ -1018,7 +1022,7 @@ const OrcamentosPage: React.FC = () => {
               />
 
               <div className="space-y-2 pt-4 border-t border-producao/10">
-                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Forma de Pagamento da Instalação</label>
+                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Forma de Pagamento da {newOrderType === 'instalacao' ? 'Instalação' : 'Manutenção'}</label>
                 <div className="flex gap-2">
                   {(['pago', 'pagar_na_hora'] as const).map(p => (
                     <button
@@ -1228,12 +1232,13 @@ const OrcamentosPage: React.FC = () => {
         {podeEnviarFinanceiro && (() => {
           const clienteConsignado = !!clients.find(c => c.id === selectedOrder.clientId)?.consignado;
           const isInstalacao = selectedOrder.orderType === 'instalacao';
+          const isManutencao = selectedOrder.orderType === 'manutencao';
           const isRetirada = selectedOrder.orderType === 'retirada';
           const isWaiting = selectedOrder.status === 'aguardando_financeiro';
           const temComprovante = (comprovantesAttached.length > 0) || (selectedOrder.receiptUrls && selectedOrder.receiptUrls.length > 0);
 
-          // Consignado, Instalação ou Retirada: pode enviar sem comprovante. Normal: precisa de comprovante.
-          const podeEnviar = (clienteConsignado || isInstalacao || isRetirada) ? true : temComprovante;
+          // Consignado, Instalação, Manutenção ou Retirada: pode enviar sem comprovante. Normal: precisa de comprovante.
+          const podeEnviar = (clienteConsignado || isInstalacao || isManutencao || isRetirada) ? true : temComprovante;
 
           return (
             <>
@@ -1253,6 +1258,11 @@ const OrcamentosPage: React.FC = () => {
                 {isInstalacao && !temComprovante && (
                   <p className="text-[10px] text-producao mt-2 flex items-center gap-1">
                     🔧 Pedido de Instalação — pode enviar sem comprovante (especialmente se for "Pagar na hora").
+                  </p>
+                )}
+                {isManutencao && !temComprovante && (
+                  <p className="text-[10px] text-indigo-500 mt-2 flex items-center gap-1">
+                    🛠️ Pedido de Manutenção — pode enviar sem comprovante (especialmente se for "Pagar na hora").
                   </p>
                 )}
                 {isRetirada && !temComprovante && (
@@ -1280,7 +1290,7 @@ const OrcamentosPage: React.FC = () => {
                 </button>
               </div>
 
-              {!clienteConsignado && !isInstalacao && !isRetirada && !temComprovante && (
+              {!clienteConsignado && !isInstalacao && !isManutencao && !isRetirada && !temComprovante && (
                 <p className="text-[10px] text-muted-foreground text-center">
                   ⚠️ Anexe o comprovante de pagamento para habilitar o envio ao financeiro
                 </p>

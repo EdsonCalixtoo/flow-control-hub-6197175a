@@ -1,15 +1,15 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
 import { OrderPipeline, OrderHistory } from '@/components/shared/OrderTimeline';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
-import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check, Download, Link2, DollarSign, CheckCircle } from 'lucide-react';
+import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check, Download, Link2, DollarSign, CheckCircle, Users, Package, Truck, CheckCircle2, XCircle, ChevronDown, Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Order, QuoteItem } from '@/types/erp';
 import { useLocation, useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import { format } from 'date-fns';
+import { format, addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, isSameMonth, isSameDay, addDays, eachDayOfInterval, isToday, parseISO } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { InstallationCalendar } from '@/components/shared/InstallationCalendar';
@@ -28,6 +28,224 @@ const getNextOrderNumber = (existingOrders: Order[]): number => {
 // Fluxo: Vendedor → Financeiro → Produção (sem etapa de Gestor)
 const STATUS_BLOQUEIAM_EDICAO = ['aguardando_financeiro', 'aprovado_financeiro', 'rejeitado_financeiro',
   'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'];
+
+const SearchableSelect = ({ 
+  value, 
+  options, 
+  onChange, 
+  placeholder = "Selecionar...", 
+  className = "",
+  icon: Icon
+}: { 
+  value: string; 
+  options: { id: string; label: string; sublabel?: string }[]; 
+  onChange: (val: string) => void;
+  placeholder?: string;
+  className?: string;
+  icon?: any;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const selectedOption = options.find(o => o.id === value);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter(o => 
+    o.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (o.sublabel && o.sublabel.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  return (
+    <div className={`relative ${className} ${isOpen ? 'z-[100]' : 'z-0'}`} ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full h-12 px-4 rounded-xl bg-white/50 border border-white/40 flex items-center justify-between text-sm font-semibold hover:bg-white/70 transition-all focus:ring-4 focus:ring-primary/10 overflow-hidden"
+      >
+        <div className="flex items-center gap-2 truncate">
+          {Icon && <Icon className="w-4 h-4 text-primary shrink-0" />}
+          <span className={selectedOption ? 'text-foreground' : 'text-muted-foreground'}>
+            {selectedOption ? selectedOption.label : placeholder}
+          </span>
+        </div>
+        <ChevronDown className={`w-4 h-4 text-muted-foreground shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 w-full mt-2 bg-white border border-white/40 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] z-[200] overflow-hidden animate-in fade-in zoom-in-95 duration-200 min-w-[300px]">
+          <div className="p-3 border-b border-border/40 bg-muted/20">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" />
+              <input
+                autoFocus
+                type="text"
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                placeholder="Pesquisar..."
+                className="w-full h-10 pl-10 pr-4 rounded-xl bg-background border-none text-xs font-bold focus:ring-2 focus:ring-primary/20 focus:outline-none"
+              />
+            </div>
+          </div>
+          <div className="max-h-60 overflow-y-auto p-2 scrollbar-thin scrollbar-thumb-primary/20 scrollbar-track-transparent">
+            {filteredOptions.length === 0 ? (
+              <div className="p-4 text-center text-muted-foreground text-[10px] font-black uppercase italic">Nenhum resultado</div>
+            ) : (
+              filteredOptions.map(opt => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => {
+                    onChange(opt.id);
+                    setIsOpen(false);
+                    setSearchTerm('');
+                  }}
+                  className={`w-full p-3 rounded-xl text-left transition-all flex flex-col gap-0.5 group ${
+                    value === opt.id ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'hover:bg-primary/10 text-foreground'
+                  }`}
+                >
+                  <span className="text-xs font-bold truncate">{opt.label}</span>
+                  {opt.sublabel && (
+                    <span className={`text-[9px] font-medium uppercase tracking-wider ${value === opt.id ? 'text-white/70' : 'text-muted-foreground'}`}>
+                      {opt.sublabel}
+                    </span>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ModernDatePicker = ({ 
+  value, 
+  onChange, 
+  placeholder = "Selecionar data..." 
+}: { 
+  value: string; 
+  onChange: (val: string) => void;
+  placeholder?: string;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(value ? parseISO(value) : new Date());
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const days = useMemo(() => {
+    const start = startOfWeek(startOfMonth(currentMonth));
+    const end = endOfWeek(endOfMonth(currentMonth));
+    return eachDayOfInterval({ start, end });
+  }, [currentMonth]);
+
+  const handleDateClick = (date: Date) => {
+    onChange(format(date, 'yyyy-MM-dd'));
+    setIsOpen(false);
+  };
+
+  return (
+    <div className={`relative ${isOpen ? 'z-[160]' : 'z-0'}`} ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full h-12 px-4 rounded-xl bg-white/50 border border-white/40 flex items-center justify-between text-sm font-bold hover:bg-white/70 transition-all focus:ring-4 focus:ring-primary/10 overflow-hidden"
+      >
+        <div className="flex items-center gap-2">
+          <CalendarIcon className="w-4 h-4 text-primary shrink-0" />
+          <span className={value ? 'text-foreground' : 'text-muted-foreground'}>
+            {value ? format(parseISO(value), "dd 'de' MMMM, yyyy", { locale: ptBR }) : placeholder}
+          </span>
+        </div>
+        <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 mt-2 bg-white border border-white/40 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] overflow-hidden z-[200] animate-in fade-in zoom-in-95 duration-200 min-w-[300px]">
+          <div className="p-4 border-b border-border/40 bg-muted/20 flex items-center justify-between">
+            <button type="button" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))} className="p-2 hover:bg-black/5 rounded-lg transition-colors">
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <h4 className="text-xs font-black uppercase tracking-widest text-foreground">
+              {format(currentMonth, 'MMMM yyyy', { locale: ptBR })}
+            </h4>
+            <button type="button" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))} className="p-2 hover:bg-black/5 rounded-lg transition-colors">
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+          
+          <div className="p-4">
+            <div className="grid grid-cols-7 gap-1 mb-2">
+              {['D', 'S', 'T', 'Q', 'Q', 'S', 'S'].map((d, i) => (
+                <div key={i} className="text-center text-[10px] font-black text-muted-foreground/60">{d}</div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {days.map((day, i) => {
+                const isSelected = value && isSameDay(day, parseISO(value));
+                const isCurrentMonth = isSameMonth(day, currentMonth);
+                const isTodayDate = isToday(day);
+                
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => handleDateClick(day)}
+                    className={`
+                      aspect-square rounded-lg text-xs font-bold transition-all flex items-center justify-center relative
+                      ${!isCurrentMonth ? 'text-muted-foreground/20' : 'text-foreground hover:bg-primary/10'}
+                      ${isSelected ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-110 z-10' : ''}
+                      ${isTodayDate && !isSelected ? 'text-primary' : ''}
+                    `}
+                  >
+                    {format(day, 'd')}
+                    {isTodayDate && !isSelected && <div className="absolute bottom-1 w-1 h-1 bg-primary rounded-full" />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          
+          <div className="p-3 border-t border-border/40 bg-muted/10 flex justify-between">
+            <button 
+              type="button" 
+              onClick={() => handleDateClick(new Date())} 
+              className="text-[10px] font-black uppercase text-primary hover:underline px-2"
+            >
+              Hoje
+            </button>
+            <button 
+              type="button" 
+              onClick={() => { onChange(''); setIsOpen(false); }} 
+              className="text-[10px] font-black uppercase text-destructive hover:underline px-2"
+            >
+              Limpar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 const OrcamentosPage: React.FC = () => {
   const { orders, addOrder, updateOrderStatus, editOrderFull, clients, products, deleteOrder } = useERP();
@@ -693,415 +911,383 @@ const OrcamentosPage: React.FC = () => {
   if (showCreate || editingOrder) {
     const isEdit = !!editingOrder;
     return (
-      <div className="space-y-6 animate-scale-in">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="page-header">{isEdit ? '✏️ Editar Orçamento' : 'Novo Orçamento'}</h1>
-            <p className="page-subtitle">
-              {isEdit ? `Editando ${editingOrder?.number} — Status: ${editingOrder?.status}` : 'Preencha os dados do orçamento'}
+      <div className="space-y-8 animate-scale-in pb-20">
+        <div className="flex items-center justify-between flex-wrap gap-4 px-2">
+          <div className="space-y-1">
+            <h1 className="page-header text-3xl flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-white shadow-xl shadow-primary/20 rotate-3 transition-transform hover:rotate-0">
+                {isEdit ? <Edit2 className="w-6 h-6" /> : <Plus className="w-6 h-6" />}
+              </div>
+              {isEdit ? `Editar Orçamento` : 'Novo Orçamento'}
+            </h1>
+            <p className="page-subtitle font-medium">
+              {isEdit ? `Ajustando detalhes do ${editingOrder?.number}` : 'Crie orçamentos profissionais em poucos segundos'}
             </p>
           </div>
-          <button onClick={resetForm} className="btn-modern bg-muted text-foreground shadow-none text-xs">
+          <button 
+            onClick={resetForm} 
+            className="btn-modern bg-destructive/10 text-destructive hover:bg-destructive/20 border border-destructive/20 shadow-none text-xs font-black uppercase tracking-widest px-6"
+          >
             <X className="w-4 h-4" /> Cancelar
           </button>
         </div>
 
-        <div className="card-section p-6 space-y-5">
-          <div className="space-y-1">
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Cliente</label>
-            <select value={newClientId} onChange={e => setNewClientId(e.target.value)} className="input-modern">
-              <option value="">Selecione um cliente...</option>
-              {myClients.map(c => <option key={c.id} value={c.id}>{c.name}{c.consignado ? ' ⭐ Consignado' : ''}</option>)}
-            </select>
-            {newClientId && clients.find(c => c.id === newClientId)?.consignado && (
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 mt-2">
-                <span className="text-xl">⭐</span>
-                <div>
-                  <p className="text-xs font-bold text-amber-400">Cliente Consignado</p>
-                  <p className="text-[11px] text-amber-400/70">Este cliente opera em regime de consignação. Verifique as condições especiais.</p>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="lg:col-span-2 space-y-8">
+            <div className="glass-card p-8 rounded-[2rem] space-y-8 border-white/40 shadow-2xl relative group focus-within:z-[50]">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -mr-32 -mt-32 blur-3xl group-hover:bg-primary/10 transition-colors duration-700" />
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+                    <Users className="w-3 h-3 text-primary" /> Cliente
+                  </label>
+                  <SearchableSelect
+                    value={newClientId}
+                    onChange={setNewClientId}
+                    placeholder="Selecione um cliente..."
+                    icon={Users}
+                    options={myClients.map(c => ({
+                      id: c.id,
+                      label: c.name,
+                      sublabel: c.consignado ? '⭐ Cliente Consignado' : undefined
+                    }))}
+                  />
                 </div>
-              </div>
-            )}
-          </div>
 
-          {/* NOTA FISCAL - POSIÇÃO DE DESTAQUE NO TOPO */}
-          <div className={`p-4 rounded-2xl border-2 transition-all duration-300 ${newRequiresInvoice ? 'bg-primary/10 border-primary ring-4 ring-primary/5' : 'bg-muted/30 border-border/40'}`}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg transition-all duration-500 ${newRequiresInvoice ? 'bg-primary rotate-0 scale-110' : 'bg-muted-foreground/30 scale-100'}`}>
-                  <FileText className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className={`text-sm font-black uppercase tracking-tight transition-colors ${newRequiresInvoice ? 'text-primary' : 'text-foreground'}`}>Com Nota Fiscal?</h3>
-                  <p className="text-[10px] text-muted-foreground font-bold italic">Ative se este pedido precisa de emissão de NF</p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setNewRequiresInvoice(!newRequiresInvoice)}
-                className={`relative inline-flex h-7 w-14 items-center rounded-full transition-all focus:outline-none ring-offset-2 shadow-inner ${newRequiresInvoice ? 'bg-primary ring-2 ring-primary/20' : 'bg-muted-foreground/20 ring-0'}`}
-              >
-                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-300 ${newRequiresInvoice ? 'translate-x-8' : 'translate-x-1'}`} />
-              </button>
-            </div>
-
-            {newRequiresInvoice && (
-              <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-white/50 border border-primary/20 animate-in slide-in-from-top-2 duration-300">
-                <CheckCircle className="w-4 h-4 text-primary" />
-                <span className="text-[11px] font-black text-primary uppercase tracking-wider">Atenção: Este pedido será enviado ao financeiro com exigência de NF</span>
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Produtos</label>
-              <button onClick={addItem} className="text-xs text-primary font-semibold hover:underline flex items-center gap-1">
-                <Plus className="w-3 h-3" /> Adicionar item
-              </button>
-            </div>
-            {newItems.map((item, i) => (
-              <div key={i} className="space-y-2 p-3 rounded-xl bg-muted/30 border border-border/30">
-                <div className="grid grid-cols-12 gap-3 items-end">
-                  <div className="col-span-5">
-                    <label className="text-[10px] text-muted-foreground block mb-1">Produto</label>
-                    {products.length > 0 ? (
-                      <select
-                        value={item.product}
-                        onChange={e => {
-                          const selectedProduct = products.find(p => p.name === e.target.value);
-                          const newItem = { ...item, product: e.target.value };
-                          if (selectedProduct) {
-                            // Removido auto-preenchimento de unitPrice a pedido do usuário
-                            newItem.description = selectedProduct.description;
-
-                            // Initialize sensorType for KITs
-                            if (e.target.value.toUpperCase().includes('KIT')) {
-                              newItem.sensorType = 'com_sensor';
-                            } else {
-                              delete newItem.sensorType;
-                            }
-                          }
-                          const updated = [...newItems];
-                          updated[i] = newItem;
-                          setNewItems(updated);
-                        }}
-                        className="input-modern py-2 text-xs"
-                      >
-                        <option value="">Selecione um produto...</option>
-                        {products
-                          .filter(p => {
-                            // Restrição para produtos de Carenagem
-                            if (p.category === 'Carenagem' && user?.email !== 'higorfeerreira9@gmail.com') {
-                              return false;
-                            }
-                            // Se não for o item do prêmio, mostra tudo
-                            if (!(item as any).isReward || !preSelectedReward) return true;
-
-                            const isKitProd = p.name.toUpperCase().includes('KIT');
-                            const rewardType = preSelectedReward.type;
-
-                            // 1ª Premiação (5 kits): NÃO pode ser KIT
-                            if (rewardType === 'tier_1') return !isKitProd;
-
-                            // 2ª e 3ª Premiação (Meta de Kits): TEM que ser KIT
-                            if (rewardType === 'tier_2' || rewardType === 'tier_3') return isKitProd;
-
-                            return true;
-                          })
-                          .map(p => (
-                            <option key={p.id} value={p.name}>
-                              {p.name}
-                            </option>
-                          ))}
-                      </select>
-                    ) : (
-                      <>
-                        <input type="text" value={item.product} onChange={e => updateItem(i, 'product', e.target.value)} placeholder="Nome do produto" className="input-modern py-2 text-xs" />
-                        <p className="text-[9px] text-orange-600 mt-1 font-medium">⚠️ Nenhum produto carregou. Verifique estoque ou recarregue a página.</p>
-                      </>
-                    )}
-                  </div>
-                  <div className="col-span-2">
-                    <label className="text-[10px] text-muted-foreground block mb-1">Qtd</label>
-                    <input type="number" value={item.quantity} onChange={e => updateItem(i, 'quantity', Number(e.target.value))} className="input-modern py-2 text-xs" min={1} />
-                  </div>
-                  <div className="col-span-3">
-                    <label className="text-[10px] text-muted-foreground block mb-1">Valor Unit.</label>
-                    <input
-                      type="text"
-                      value={(item as any).isReward ? '0.00' : item.unitPrice}
-                      disabled={(item as any).isReward}
-                      onChange={e => {
-                        const val = e.target.value.replace(',', '.');
-                        if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                          updateItem(i, 'unitPrice', val);
-                        }
-                      }}
-                      placeholder="0.00"
-                      className={`input-modern py-2 text-xs ${(item as any).isReward ? 'bg-success/10 text-success font-bold border-success/30 cursor-not-allowed' : ''}`}
-                    />
-                    {(item as any).isReward && (
-                      <p className="text-[9px] text-success font-black uppercase mt-1">Item Premiado (R$ 0,00)</p>
-                    )}
-                  </div>
-                  <div className="col-span-2 flex items-center justify-between">
-                    <span className="text-xs font-bold text-foreground">{formatCurrency(item.quantity * (typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) || 0 : item.unitPrice))}</span>
-                    {newItems.length > 1 && (
-                      <button onClick={() => removeItem(i)} className="w-7 h-7 rounded-lg bg-destructive/10 text-destructive inline-flex items-center justify-center hover:bg-destructive/20 transition-colors">
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    )}
-                  </div>
-                </div>
-                {/* Campo para Sensor - aparece apenas se for KIT */}
-                {item.product && item.product.toUpperCase().includes('KIT') && (
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[10px] text-muted-foreground block mb-1">Opção do KIT</label>
-                      <select
-                        value={item.sensorType || 'com_sensor'}
-                        onChange={e => updateItem(i, 'sensorType', e.target.value as 'com_sensor' | 'sem_sensor')}
-                        className="input-modern py-2 text-xs"
-                      >
-                        <option value="com_sensor">✅ COM SENSOR</option>
-                        <option value="sem_sensor">⚪ SEM SENSOR</option>
-                      </select>
-                    </div>
-                    <div className="pt-6 text-xs text-muted-foreground">
-                      Seu produto será: <strong className="text-foreground">{item.product} {item.sensorType === 'com_sensor' ? '✅ COM SENSOR' : '⚪ SEM SENSOR'}</strong>
-                    </div>
-                  </div>
-                )}
-                <div>
-                  <label className="text-[10px] text-muted-foreground block mb-1">Descrição do Produto</label>
-                  <input
-                    type="text"
-                    value={item.description}
-                    onChange={e => updateItem(i, 'description', e.target.value)}
-                    placeholder="Descrição completa do produto..."
-                    className="input-modern py-2 text-xs w-full"
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+                    <History className="w-3 h-3 text-primary" /> Observações Gerais
+                  </label>
+                  <textarea 
+                    value={newObservation} 
+                    onChange={e => setNewObservation(e.target.value)} 
+                    placeholder="Algo que o financeiro ou produção devam saber?"
+                    className="input-modern min-h-[48px] bg-white/50 border-white/40 focus:bg-white resize-none"
                   />
                 </div>
               </div>
-            ))}
-          </div>
 
-          {/* Data de entrega + Tipo */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Data de Entrega</label>
-              <input
-                type="date"
-                value={newDeliveryDate}
-                onChange={e => setNewDeliveryDate(e.target.value)}
-                min={new Date().toISOString().slice(0, 10)}
-                className="input-modern"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Tipo do Pedido</label>
-              <div className="flex gap-2">
-                {(['entrega', 'instalacao', 'manutencao', 'retirada'] as const).map(t => (
+              <div className={`p-6 rounded-3xl border-2 transition-all duration-500 ${newRequiresInvoice ? 'bg-primary/10 border-primary ring-8 ring-primary/5 shadow-xl shadow-primary/10' : 'bg-muted/30 border-dashed border-border/60 hover:border-primary/40'}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-xl transition-all duration-700 ${newRequiresInvoice ? 'bg-primary rotate-0 scale-110 shadow-primary/30' : 'bg-muted-foreground/30 scale-100 rotate-12 opacity-60'}`}>
+                      <FileText className="w-7 h-7" />
+                    </div>
+                    <div>
+                      <h3 className={`text-base font-black uppercase tracking-tight transition-colors ${newRequiresInvoice ? 'text-primary' : 'text-foreground'}`}>Precisa de Nota Fiscal?</h3>
+                      <p className="text-[11px] text-muted-foreground font-bold italic tracking-wide">Pedidos com NF seguem um fluxo financeiro diferenciado</p>
+                    </div>
+                  </div>
+
                   <button
-                    key={t}
                     type="button"
-                    onClick={() => setNewOrderType(t)}
-                    className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all ${newOrderType === t
-                      ? t === 'entrega'
-                        ? 'bg-primary/10 border-primary text-primary'
-                        : t === 'instalacao'
-                          ? 'bg-producao/10 border-producao text-producao'
-                          : t === 'manutencao'
-                            ? 'bg-indigo-500/10 border-indigo-500 text-indigo-500'
-                            : 'bg-amber-500/10 border-amber-500 text-amber-500'
-                      : 'border-border/40 text-muted-foreground hover:border-primary/30'
-                      }`}
+                    onClick={() => setNewRequiresInvoice(!newRequiresInvoice)}
+                    className={`relative inline-flex h-10 w-20 items-center rounded-full transition-all focus:outline-none ring-offset-2 shadow-inner group ${newRequiresInvoice ? 'bg-primary ring-4 ring-primary/10' : 'bg-muted-foreground/20 ring-0'}`}
                   >
-                    {t === 'entrega' ? '🚚 Entrega' : t === 'instalacao' ? '🔧 Instalação' : t === 'manutencao' ? '🛠️ Manutenção' : '📦 Retirada'}
+                    <span className={`inline-block h-8 w-8 transform rounded-full bg-white shadow-xl transition-transform duration-500 ease-in-out ${newRequiresInvoice ? 'translate-x-11' : 'translate-x-1'}`} />
                   </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between px-2">
+                <h2 className="text-lg font-black uppercase tracking-[0.2em] text-foreground flex items-center gap-3">
+                  <Package className="w-5 h-5 text-primary" /> Carrinho de Itens
+                </h2>
+                <button 
+                  onClick={addItem} 
+                  className="btn-modern bg-primary/10 text-primary hover:bg-primary hover:text-white border border-primary/20 shadow-sm px-6 py-2 rounded-2xl text-[11px] font-black uppercase tracking-[0.15em] transition-all group"
+                >
+                  <Plus className="w-4 h-4 transition-transform group-hover:rotate-90" /> Adicionar Item
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-6">
+                {newItems.map((item, i) => (
+                  <div key={i} className="glass-card p-6 rounded-[2rem] border-white/40 shadow-xl relative animate-in fade-in slide-in-from-bottom-4 duration-500 focus-within:z-[50]">
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+                      <div className="md:col-span-5 space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground pl-1">Produto</label>
+                        <SearchableSelect
+                          value={item.product}
+                          onChange={val => {
+                            const selectedProduct = products.find(p => p.name === val);
+                            const newItem = { ...item, product: val };
+                            if (selectedProduct) {
+                              newItem.description = selectedProduct.description;
+                              if (val.toUpperCase().includes('KIT')) {
+                                newItem.sensorType = 'com_sensor';
+                              } else {
+                                delete newItem.sensorType;
+                              }
+                            }
+                            const updated = [...newItems];
+                            updated[i] = newItem;
+                            setNewItems(updated);
+                          }}
+                          placeholder="Buscar produto..."
+                          icon={Package}
+                          options={products
+                            .filter(p => p.category !== 'Carenagem' || user?.email === 'higorfeerreira9@gmail.com')
+                            .map(p => ({
+                              id: p.name,
+                              label: p.name,
+                              sublabel: p.name.toUpperCase().includes('KIT') ? '🏷️ KIT DE INSTALAÇÃO' : p.category
+                            }))
+                          }
+                        />
+                      </div>
+
+                      <div className="md:col-span-2 space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground pl-1">Qtd</label>
+                        <input
+                          type="number"
+                          value={item.quantity}
+                          min="1"
+                          onChange={e => updateItem(i, 'quantity', parseInt(e.target.value) || 0)}
+                          className="input-modern text-center text-sm font-black h-12 bg-white/60 border-white/40"
+                        />
+                      </div>
+
+                      <div className="md:col-span-3 space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground pl-1">Valor Unitário</label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={item.unitPrice}
+                            onChange={e => updateItem(i, 'unitPrice', e.target.value)}
+                            className="input-modern pl-10 text-sm font-black h-12 bg-white/60 border-white/40"
+                          />
+                          <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" />
+                        </div>
+                      </div>
+
+                      <div className="md:col-span-2 flex items-end justify-end h-full self-end pb-1.5 px-2">
+                        <div className="text-right">
+                            <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest mb-1 block">Subtotal</span>
+                            <span className="text-lg font-black text-foreground">{formatCurrency((Number(item.unitPrice) || 0) * item.quantity)}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-6 pt-6 border-t border-border/40 grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground pl-1 italic">Descrição</label>
+                        <input
+                          placeholder="Detalhes específicos deste item..."
+                          value={item.description}
+                          onChange={e => updateItem(i, 'description', e.target.value)}
+                          className="input-modern py-2 text-xs h-10 bg-white/40 border-white/40"
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between gap-4">
+                        {item.product.toUpperCase().includes('KIT') ? (
+                          <div className="flex flex-col gap-1.5 grow">
+                            <label className="text-[9px] font-black uppercase tracking-widest text-primary">Configurar Sensor</label>
+                            <div className="flex gap-2 p-1 bg-black/5 rounded-xl">
+                              <button
+                                type="button"
+                                onClick={() => updateItem(i, 'sensorType', 'com_sensor')}
+                                className={`flex-1 py-2 px-3 rounded-lg text-[9px] font-black uppercase transition-all flex items-center justify-center gap-1.5 ${item.sensorType === 'com_sensor'
+                                  ? 'bg-primary text-white shadow-md'
+                                  : 'text-muted-foreground hover:bg-white/40'
+                                }`}
+                              >
+                                <CheckCircle2 className="w-3 h-3" /> COM SENSOR
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => updateItem(i, 'sensorType', 'sem_sensor')}
+                                className={`flex-1 py-2 px-3 rounded-lg text-[9px] font-black uppercase transition-all flex items-center justify-center gap-1.5 ${item.sensorType === 'sem_sensor'
+                                  ? 'bg-slate-500 text-white shadow-md'
+                                  : 'text-muted-foreground hover:bg-white/40'
+                                }`}
+                              >
+                                <XCircle className="w-3 h-3" /> SEM SENSOR
+                              </button>
+                            </div>
+                          </div>
+                        ) : <div className="grow" />}
+                        
+                        
+                        {newItems.length > 1 && (
+                          <button 
+                            onClick={() => removeItem(i)} 
+                            className="w-10 h-10 rounded-xl bg-destructive/5 text-destructive hover:bg-destructive hover:text-white transition-all flex items-center justify-center border border-destructive/10"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>
           </div>
 
-          {/* Transportadora - aparece SOMENTE se for entrega */}
-          {newOrderType === 'entrega' && (
-            <div className="space-y-3 p-5 rounded-2xl bg-blue-500/5 border border-blue-500/20 animate-in fade-in duration-500">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center text-white shadow-lg shadow-blue-500/20">
-                  <Check className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-black text-foreground uppercase tracking-tight">Transportadora</h3>
-                  <p className="text-[10px] text-muted-foreground font-bold italic">Selecione o método de entrega para este pedido</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                {['JADLOG', 'MOTOBOY', 'CLEYTON', 'LALAMOVE'].map(carrier => (
-                  <button
-                    key={carrier}
-                    type="button"
-                    onClick={() => setNewCarrier(prev => prev === carrier ? '' : carrier)}
-                    className={`flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 transition-all ${newCarrier === carrier
-                      ? 'bg-blue-500/10 border-blue-500 text-blue-500 scale-[1.02] shadow-md border-opacity-100 ring-2 ring-blue-500/10'
-                      : 'bg-muted/30 border-transparent text-muted-foreground grayscale hover:grayscale-0 hover:bg-muted/50'
-                      }`}
-                  >
-                    <span className="text-xs font-black uppercase tracking-wider">{carrier}</span>
-                    {newCarrier === carrier && <Check className="w-3 h-3" />}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Opções de Pagamento para RETIRADA */}
-          {newOrderType === 'retirada' && (
-            <div className="space-y-3 p-5 rounded-2xl bg-amber-500/5 border border-amber-500/20 animate-in fade-in duration-500">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-white">
-                  <Check className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-black text-foreground uppercase tracking-tight">Status de Pagamento (Retirada)</h3>
-                  <p className="text-[10px] text-muted-foreground font-bold">O cliente já pagou ou pagará na retirada?</p>
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setNewInstallationPaymentType('pago')}
-                  className={`flex-1 flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${newInstallationPaymentType === 'pago'
-                    ? 'bg-success/10 border-success text-success scale-[1.02] shadow-sm'
-                    : 'bg-muted/30 border-transparent text-muted-foreground grayscale hover:grayscale-0'
-                    }`}
-                >
-                  <Check className="w-5 h-5" />
-                  <span className="text-xs font-black uppercase">Pago</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setNewInstallationPaymentType('pagar_na_hora')}
-                  className={`flex-1 flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${newInstallationPaymentType === 'pagar_na_hora'
-                    ? 'bg-warning/10 border-warning text-warning scale-[1.02] shadow-sm'
-                    : 'bg-muted/30 border-transparent text-muted-foreground grayscale hover:grayscale-0'
-                    }`}
-                >
-                  <DollarSign className="w-5 h-5" />
-                  <span className="text-xs font-black uppercase">Cobrar no Local</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Calendário de Instalação / Manutenção */}
-          {(newOrderType === 'instalacao' || newOrderType === 'manutencao') && (
-            <div className={`space-y-4 p-5 rounded-2xl border animate-in fade-in duration-500 ${newOrderType === 'instalacao' ? 'bg-producao/5 border-producao/20' : 'bg-indigo-500/5 border-indigo-500/20'}`}>
-              <div className="flex items-center gap-2 mb-2">
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white ${newOrderType === 'instalacao' ? 'bg-producao' : 'bg-indigo-500'}`}>
-                  <Check className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-black text-foreground uppercase tracking-tight">Agendamento de {newOrderType === 'instalacao' ? 'Instalação' : 'Manutenção'}</h3>
-                  <p className="text-[10px] text-muted-foreground font-bold">Escolha um horário disponível para a equipe</p>
-                </div>
-              </div>
-
-              <InstallationCalendar
-                selectedDate={newDeliveryDate}
-                selectedTime={newInstallationTime}
-                onSelect={(date, time) => {
-                  setNewDeliveryDate(date);
-                  setNewInstallationTime(time);
-                  toast.success(`Horário selecionado: ${time} no dia ${format(new Date(date + 'T12:00:00'), 'dd/MM/yyyy')}`);
-                }}
-              />
-
-              <div className="space-y-2 pt-4 border-t border-producao/10">
-                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Forma de Pagamento da {newOrderType === 'instalacao' ? 'Instalação' : 'Manutenção'}</label>
-                <div className="flex gap-2">
-                  {(['pago', 'pagar_na_hora'] as const).map(p => (
+          <div className="lg:col-span-1 space-y-8">
+            <div className="glass-card p-6 rounded-[2rem] border-white/40 shadow-2xl space-y-8 sticky top-24">
+              <div className="space-y-4">
+                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+                  <Truck className="w-4 h-4 text-primary" /> Logística
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['entrega', 'instalacao', 'manutencao', 'retirada'] as const).map(t => (
                     <button
-                      key={p}
+                      key={t}
                       type="button"
-                      onClick={() => setNewInstallationPaymentType(p)}
-                      className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all ${newInstallationPaymentType === p
-                        ? 'bg-success/10 border-success text-success'
-                        : 'border-border/40 text-muted-foreground hover:border-success/30'
+                      onClick={() => setNewOrderType(t)}
+                      className={`py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 transition-all flex flex-col items-center gap-1 ${newOrderType === t
+                        ? 'bg-primary/10 border-primary text-primary'
+                        : 'bg-white/40 border-border/40 text-muted-foreground'
                         }`}
                     >
-                      {p === 'pago' ? '✅ Já Pago' : '💰 Pagar na Hora'}
+                      <span className="text-lg">
+                        {t === 'entrega' ? '🚚' : t === 'instalacao' ? '🔧' : t === 'manutencao' ? '🛠️' : '📦'}
+                      </span>
+                      {t}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {(newDeliveryDate && newInstallationTime) && (
-                <div className="p-3 rounded-xl bg-success/5 border border-success/20 text-[11px] text-success font-medium">
-                  ✨ Agendado para <strong>{format(new Date(newDeliveryDate + 'T12:00:00'), 'dd/MM/yyyy')}</strong> às <strong>{newInstallationTime}</strong>.
-                  Pagamento: <strong>{newInstallationPaymentType === 'pago' ? 'Já Pago' : 'A pagar na hora'}</strong>.
+              {newOrderType === 'entrega' && (
+                <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground pl-1">Data Prevista de Entrega</label>
+                    <ModernDatePicker
+                      value={newDeliveryDate}
+                      onChange={setNewDeliveryDate}
+                      placeholder="Selecione a data de entrega..."
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground pl-1">Transportadora / Responsável</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {['JADLOG', 'LALAMOVE', 'KLEYTON', 'MOTOBOY', 'OUTRO'].map(c => {
+                        const isPredefined = ['JADLOG', 'LALAMOVE', 'KLEYTON', 'MOTOBOY'].includes(newCarrier);
+                        const isActive = c === 'OUTRO' ? !isPredefined && newCarrier !== '' : newCarrier === c;
+                        
+                        return (
+                          <button
+                            key={c}
+                            type="button"
+                            onClick={() => setNewCarrier(c === 'OUTRO' ? '' : c)}
+                            className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${isActive
+                              ? 'bg-primary/10 border-primary text-primary shadow-lg shadow-primary/5'
+                              : 'bg-white/40 border-border/40 text-muted-foreground'
+                              }`}
+                          >
+                            {c}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {(!['JADLOG', 'LALAMOVE', 'KLEYTON', 'MOTOBOY'].includes(newCarrier) || newCarrier === '') && (
+                      <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                        <input
+                          type="text"
+                          placeholder="Digite o nome da transportadora..."
+                          value={newCarrier === 'OUTRO' ? '' : newCarrier}
+                          onChange={e => setNewCarrier(e.target.value.toUpperCase())}
+                          className="input-modern bg-white/60 border-primary/20 shadow-inner mt-2 h-12 focus:border-primary transition-all font-bold"
+                        />
+                        <p className="text-[9px] text-muted-foreground mt-1 ml-1 italic font-medium">Você selecionou uma transportadora personalizada</p>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-            </div>
-          )}
 
-
-          {/* Observações */}
-          <div className="space-y-1">
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Observação</label>
-            <textarea
-              value={newObservation}
-              onChange={e => setNewObservation(e.target.value)}
-              placeholder="Observações importantes sobre o pedido (aparecem no financeiro e produção)..."
-              className="input-modern w-full min-h-[80px] resize-y text-sm"
-              rows={3}
-            />
-          </div>
-
-          {/* Notas internas */}
-          <div className="space-y-1">
-            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Notas Internas (opcional)</label>
-            <textarea
-              value={newNotes}
-              onChange={e => setNewNotes(e.target.value)}
-              placeholder="Notas internas sobre o orçamento..."
-              className="input-modern w-full resize-y text-sm"
-              rows={2}
-            />
-          </div>
-
-          <div className="flex items-center justify-between pt-4 border-t border-border/40">
-            <div className="text-sm text-muted-foreground">
-              Total de itens: {newItems.reduce((s, i) => s + i.quantity, 0)} produto(s)
-            </div>
-            <div className="text-xl font-extrabold text-foreground">{formatCurrency(calcTotal())}</div>
-          </div>
-
-          {formError && (
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm animate-scale-in">
-              <span className="text-base">⚠</span>
-              {formError}
-            </div>
-          )}
-
-          <div className="flex gap-3">
-            <button
-              onClick={handleCreateOrder}
-              disabled={savingOrder}
-              className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {savingOrder ? (
-                <><span className="animate-spin">⚙️</span> Processando...</>
-              ) : isEdit ? (
-                <><Check className="w-4 h-4" /> Salvar Alterações</>
-              ) : (
-                <><FileText className="w-4 h-4" /> Criar Orçamento</>
+              {newOrderType === 'retirada' && (
+                <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground pl-1">Data da Retirada</label>
+                    <ModernDatePicker
+                      value={newDeliveryDate}
+                      onChange={setNewDeliveryDate}
+                      placeholder="Selecione a data da retirada..."
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground pl-1">Status do Pagamento</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(['pago', 'pagar_na_hora'] as const).map(p => (
+                        <button
+                          key={p}
+                          type="button"
+                          onClick={() => setNewInstallationPaymentType(p)}
+                          className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${newInstallationPaymentType === p
+                            ? 'bg-success/10 border-success text-success shadow-lg shadow-success/5'
+                            : 'bg-white/40 border-border/40 text-muted-foreground'
+                            }`}
+                        >
+                          {p === 'pago' ? 'Já Pago' : 'Na Hora'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
               )}
-            </button>
+
+              {(newOrderType === 'instalacao' || newOrderType === 'manutencao') && (
+                <div className="space-y-4 animate-in fade-in duration-500">
+                    <InstallationCalendar
+                        selectedDate={newDeliveryDate}
+                        selectedTime={newInstallationTime}
+                        onSelect={(date, time) => {
+                            setNewDeliveryDate(date);
+                            setNewInstallationTime(time);
+                        }}
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                        {(['pago', 'pagar_na_hora'] as const).map(p => (
+                            <button
+                                key={p}
+                                type="button"
+                                onClick={() => setNewInstallationPaymentType(p)}
+                                className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${newInstallationPaymentType === p 
+                                    ? 'bg-success/10 border-success text-success shadow-lg shadow-success/5' 
+                                    : 'bg-white/40 border-border/40 text-muted-foreground'
+                                }`}
+                            >
+                                {p === 'pago' ? 'Já Pago' : 'Na Hora'}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+              )}
+
+              <div className="pt-8 border-t border-border/40 space-y-6">
+                <div className="flex justify-between items-center px-1">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Total Geral</p>
+                    <p className="text-3xl font-black text-foreground">{formatCurrency(calcTotal())}</p>
+                  </div>
+                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                    <DollarSign className="w-6 h-6" />
+                  </div>
+                </div>
+
+                {formError && (
+                  <div className="p-4 rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive text-[10px] font-black uppercase text-center animate-bounce">
+                    {formError}
+                  </div>
+                )}
+
+                <button
+                  onClick={handleCreateOrder}
+                  disabled={savingOrder}
+                  className="w-full h-14 rounded-2xl bg-primary text-white font-black uppercase tracking-[0.2em] text-xs shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
+                >
+                  {savingOrder ? 'Processando...' : isEdit ? 'Salvar Alterações' : 'Criar Orçamento'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -1304,99 +1490,132 @@ const OrcamentosPage: React.FC = () => {
 
   // ── Lista de orçamentos ─────────────────────────────────────
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="page-header">Orçamentos</h1>
-          <p className="page-subtitle">Gerencie seus orçamentos e vendas</p>
+    <div className="space-y-8 animate-fade-in pb-20">
+      <div className="flex items-center justify-between flex-wrap gap-4 px-2">
+        <div className="space-y-1">
+          <h1 className="page-header text-3xl flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-white shadow-xl shadow-primary/20 -rotate-3 transition-transform hover:rotate-0">
+              <Plus className="w-6 h-6" />
+            </div>
+            Meus Orçamentos
+          </h1>
+          <p className="page-subtitle font-medium">Controle total sobre suas vendas e negociações</p>
         </div>
-        <button onClick={() => setShowCreate(true)} className="btn-primary">
-          <Plus className="w-4 h-4" /> Novo Orçamento
+        <button 
+          onClick={() => setShowCreate(true)} 
+          className="btn-primary h-14 px-8 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-2xl shadow-primary/30 hover:shadow-primary/50 group"
+        >
+          <Plus className="w-5 h-5 transition-transform group-hover:rotate-90" /> Novo Orçamento
         </button>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
-        <input type="text" placeholder="Buscar pedido ou cliente..." value={search} onChange={e => setSearch(e.target.value)} className="input-modern pl-11" />
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 px-1">
+          <div className="glass-card p-6 rounded-3xl border-white/40 shadow-xl space-y-1">
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Total em Aberto</p>
+              <p className="text-2xl font-black text-foreground">{formatCurrency(filtered.reduce((s,o) => s + o.total, 0))}</p>
+          </div>
+          <div className="glass-card p-6 rounded-3xl border-white/40 shadow-xl space-y-1 border-l-4 border-l-primary">
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Pedidos Ativos</p>
+              <p className="text-2xl font-black text-foreground">{filtered.length}</p>
+          </div>
+          <div className="glass-card p-6 rounded-3xl border-white/40 shadow-xl space-y-1 border-l-4 border-l-success">
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Aprovados</p>
+              <p className="text-2xl font-black text-foreground">{filtered.filter(o => o.status === 'produto_liberado').length}</p>
+          </div>
+          <div className="glass-card p-6 rounded-3xl border-white/40 shadow-xl space-y-1 border-l-4 border-l-destructive">
+              <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Rejeitados</p>
+              <p className="text-2xl font-black text-foreground">{filtered.filter(o => o.status === 'rejeitado_financeiro').length}</p>
+          </div>
       </div>
 
-      <div className="card-section">
+      <div className="relative group px-1">
+        <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground/50 group-focus-within:text-primary transition-colors" />
+        <input 
+          type="text" 
+          placeholder="Buscar por número do pedido ou nome do cliente..." 
+          value={search} 
+          onChange={e => setSearch(e.target.value)} 
+          className="input-modern pl-14 h-16 rounded-[1.5rem] bg-white/40 border-white/40 focus:bg-white shadow-lg focus:shadow-primary/10 text-base font-medium" 
+        />
+      </div>
+
+      <div className="glass-card rounded-[2rem] border-white/40 shadow-2xl overflow-hidden animate-in fade-in duration-700">
         <div className="overflow-x-auto">
-          <table className="modern-table">
+          <table className="modern-table border-collapse">
             <thead>
-              <tr>
-                <th>Pedido</th>
-                <th>Cliente</th>
-                <th className="hidden md:table-cell text-right">Valor</th>
-                <th className="hidden lg:table-cell">Progresso</th>
-                <th>Status</th>
-                <th className="text-right">Ações</th>
+              <tr className="bg-muted/50 border-none">
+                <th className="px-8 py-5"># Pedido</th>
+                <th className="px-8 py-5">📝 Cliente</th>
+                <th className="hidden md:table-cell text-right px-8 py-5">💰 Valor</th>
+                <th className="hidden lg:table-cell px-8 py-5">🏁 Progresso</th>
+                <th className="px-8 py-5">🏷️ Status</th>
+                <th className="text-right px-8 py-5">⚡ Ações</th>
               </tr>
             </thead>
-            <tbody>
-              {filtered.map(order => {
+            <tbody className="divide-y divide-border/20">
+              {filtered.map((order, idx) => {
                 const podeEditar = !STATUS_BLOQUEIAM_EDICAO.includes(order.status);
                 return (
-                  <tr key={order.id}>
-                    <td className="font-bold text-foreground">{order.number}</td>
-                    <td className="text-foreground">
+                  <tr key={order.id} className="group hover:bg-primary/[0.03] transition-colors stagger-items" style={{ animationDelay: `${idx * 40}ms` }}>
+                    <td className="px-8 py-6 font-black text-foreground tracking-tight text-base italic">{order.number}</td>
+                    <td className="px-8 py-6 text-foreground">
                       <button
                         onClick={() => navigate('/vendedor/clientes', { state: { search: order.clientName } })}
-                        className="hover:text-primary transition-colors text-left"
+                        className="hover:text-primary transition-all text-left font-bold border-b border-transparent hover:border-primary pb-0.5"
                         title="Ver ficha do cliente"
                       >
                         {order.clientName}
                       </button>
                     </td>
-                    <td className="text-right font-semibold text-foreground hidden md:table-cell">{formatCurrency(order.total)}</td>
-                    <td className="hidden lg:table-cell"><OrderPipeline order={order} compact /></td>
-                    <td><StatusBadge status={order.status} /></td>
-                    <td className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                    <td className="text-right px-8 py-6 font-extrabold text-foreground hidden md:table-cell">{formatCurrency(order.total)}</td>
+                    <td className="hidden lg:table-cell px-8 py-6"><OrderPipeline order={order} compact /></td>
+                    <td className="px-8 py-6"><StatusBadge status={order.status} /></td>
+                    <td className="text-right px-8 py-6">
+                      <div className="flex items-center justify-end gap-2.5">
                         <button
                           onClick={() => { setSelectedOrder(order); setComprovantesAttached(order.receiptUrls || []); }}
-                          className="w-8 h-8 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center justify-center transition-colors"
-                          title="Ver detalhes"
+                          className="w-10 h-10 rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-white inline-flex items-center justify-center transition-all shadow-sm hover:shadow-primary/20 group/btn"
+                          title="Detalhes"
                         >
-                          <Eye className="w-3.5 h-3.5" />
+                          <Eye className="w-4 h-4 transition-transform group-hover/btn:scale-110" />
                         </button>
                         {podeEditar && (
                           <button
                             onClick={() => openEdit(order)}
-                            className="w-8 h-8 rounded-lg bg-muted text-muted-foreground hover:bg-primary/10 hover:text-primary inline-flex items-center justify-center transition-colors"
-                            title="Editar orçamento"
+                            className="w-10 h-10 rounded-xl bg-muted/60 text-muted-foreground hover:bg-primary/10 hover:text-primary inline-flex items-center justify-center transition-all group/btn"
+                            title="Editar"
                           >
-                            <Edit2 className="w-3.5 h-3.5" />
+                            <Edit2 className="w-4 h-4 transition-transform group-hover/btn:scale-110" />
                           </button>
                         )}
                         {(order.status === 'rascunho' || order.status === 'enviado' || order.status === 'aprovado_cliente') && (
                           <button
                             onClick={() => { setSelectedOrder(order); setComprovantesAttached(order.receiptUrls || []); }}
-                            className="w-8 h-8 rounded-lg bg-vendedor/10 text-vendedor hover:bg-vendedor/20 inline-flex items-center justify-center transition-colors"
+                            className="w-10 h-10 rounded-xl bg-vendedor/10 text-vendedor hover:bg-vendedor hover:text-white inline-flex items-center justify-center transition-all group/btn"
                             title="Enviar ao Financeiro"
                           >
-                            <Send className="w-3.5 h-3.5" />
+                            <Send className="w-4 h-4 transition-transform group-hover/btn:rotate-12" />
                           </button>
                         )}
                         {podeExcluir(order.status) && (
                           <button
                             onClick={() => handleDeleteOrder(order.id, order.number)}
                             disabled={deletingOrderId === order.id}
-                            className="w-8 h-8 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive/20 inline-flex items-center justify-center transition-colors disabled:opacity-50"
-                            title="Excluir orçamento"
+                            className="w-10 h-10 rounded-xl bg-destructive/5 text-destructive hover:bg-destructive hover:text-white inline-flex items-center justify-center transition-all group/btn shadow-sm disabled:opacity-50"
+                            title="Excluir"
                           >
                             {deletingOrderId === order.id
-                              ? <span className="text-[10px] animate-spin">⚙️</span>
-                              : <Trash2 className="w-3.5 h-3.5" />}
+                              ? <div className="w-4 h-4 border-2 border-destructive/30 border-t-destructive rounded-full animate-spin" />
+                              : <Trash2 className="w-4 h-4 transition-transform group-hover/btn:scale-110" />}
                           </button>
                         )}
                         {clients.find(c => c.id === order.clientId)?.phone && (
                           <button
                             onClick={() => openWhatsApp(clients.find(c => c.id === order.clientId)!.phone)}
-                            className="w-8 h-8 rounded-lg bg-success/10 text-success hover:bg-success/20 inline-flex items-center justify-center transition-colors"
-                            title="Conversar no WhatsApp"
+                            className="w-10 h-10 rounded-xl bg-success/10 text-success hover:bg-success hover:text-white inline-flex items-center justify-center transition-all group/btn"
+                            title="WhatsApp"
                           >
-                            <MessageCircle className="w-3.5 h-3.5" />
+                            <MessageCircle className="w-4 h-4 transition-transform group-hover/btn:scale-110" />
                           </button>
                         )}
                       </div>
@@ -1406,8 +1625,13 @@ const OrcamentosPage: React.FC = () => {
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="text-center py-10 text-muted-foreground">
-                    Nenhum orçamento encontrado
+                  <td colSpan={6} className="text-center py-24">
+                    <div className="flex flex-col items-center gap-4 text-muted-foreground">
+                        <div className="w-20 h-20 rounded-full bg-muted/30 flex items-center justify-center">
+                            <Search className="w-10 h-10 opacity-20" />
+                        </div>
+                        <p className="font-bold uppercase tracking-widest text-xs">Nenhum orçamento encontrado</p>
+                    </div>
                   </td>
                 </tr>
               )}

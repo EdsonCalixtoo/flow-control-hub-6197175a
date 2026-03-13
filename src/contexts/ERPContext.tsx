@@ -85,12 +85,15 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [deliveryPickups, setDeliveryPickups] = React.useState<DeliveryPickup[]>([]);
   const [warranties, setWarranties] = React.useState<Warranty[]>([]);
   const [chatMessages, setChatMessages] = React.useState<Record<string, ChatMessage[]>>({});
+  const loadingRef = React.useRef(false);
   const [loading, setLoading] = React.useState(false);
 
   // ── Carregar DADOS do Supabase quando autenticado ──────────
   const loadFromSupabase = useCallback(async () => {
-    if (!isAuthenticated || loading) return;
+    if (!isAuthenticated || loadingRef.current) return;
+    
     try {
+      loadingRef.current = true;
       setLoading(true);
       console.log('[ERP] 📥 Sincronizando com Supabase...');
 
@@ -133,12 +136,15 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (err: any) {
       console.error('[ERP] ❌ Erro na sincronização:', err.message);
     } finally {
+      loadingRef.current = false;
       setLoading(false);
     }
-  }, [isAuthenticated, loading]);
+  }, [isAuthenticated]);
 
   useEffect(() => {
-    loadFromSupabase();
+    if (isAuthenticated) {
+      loadFromSupabase();
+    }
   }, [isAuthenticated, loadFromSupabase]);
 
   // ── INSCRIÇÃO EM TEMPO REAL ──────────────────────────────────

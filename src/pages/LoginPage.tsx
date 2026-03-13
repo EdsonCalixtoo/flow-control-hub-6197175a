@@ -68,8 +68,8 @@ const LoginPage: React.FC = () => {
 
     try {
       await login(email, password);
-      // Se não der erro, finaliza com sucesso
-      setTimeout(() => setLoading(false), 4000);
+      // Sucesso - o redirecionamento acontecerá pelo AuthGate
+      setLoading(false);
     } catch (err: any) {
       const msg = err?.message || String(err);
       setError(msg);

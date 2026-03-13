@@ -135,6 +135,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.log('[ERP] ✅ Sincronização concluída');
     } catch (err: any) {
       console.error('[ERP] ❌ Erro na sincronização:', err.message);
+      toast.error('Erro ao sincronizar dados. Verifique sua conexão.');
     } finally {
       loadingRef.current = false;
       setLoading(false);

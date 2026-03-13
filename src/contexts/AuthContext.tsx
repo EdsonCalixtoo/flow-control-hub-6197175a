@@ -59,28 +59,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // ── Carrega o perfil do usuário a partir da tabela public.users ──
   // Se não encontrar (ex: novo usuário antes do trigger existir), usa dados do JWT
   const loadUserProfile = async (authUser: { id: string; email?: string; user_metadata?: any }) => {
-    const { data: userData } = await supabase
-      .from('users')
-      .select('id, email, name, role')
-      .eq('id', authUser.id)
-      .single();
+    try {
+      console.log('[Auth] 🔍 Buscando perfil para:', authUser.id);
+      const { data: userData, error } = await supabase
+        .from('users')
+        .select('id, email, name, role')
+        .eq('id', authUser.id)
+        .maybeSingle();
 
-    const appUser: User = userData
-      ? {
-        id: userData.id,
-        email: userData.email,
-        name: userData.name,
-        role: (userData.role || 'vendedor') as User['role'],
+      if (error) {
+        console.warn('[Auth] ⚠️ Erro ao buscar perfil (usuante JWT):', error.message);
       }
-      : {
+
+      const appUser: User = userData
+        ? {
+          id: userData.id,
+          email: userData.email,
+          name: userData.name,
+          role: (userData.role || 'vendedor') as User['role'],
+        }
+        : {
+          id: authUser.id,
+          email: authUser.email || '',
+          name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Usuário',
+          role: authUser.user_metadata?.role || 'vendedor',
+        };
+
+      setUser(appUser);
+      console.log('[Auth] ✅ Perfil carregado:', appUser.email, '| role:', appUser.role);
+    } catch (err: any) {
+      console.error('[Auth] ❌ Erro crítico no loadUserProfile:', err.message);
+      // Fallback mínimo para não travar o login
+      setUser({
         id: authUser.id,
         email: authUser.email || '',
-        name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Usuário',
-        role: 'vendedor',
-      };
-
-    setUser(appUser);
-    console.log('[Auth] ✅ Perfil carregado:', appUser.email, '| role:', appUser.role);
+        name: authUser.user_metadata?.name || 'Usuário',
+        role: (authUser.user_metadata?.role || 'vendedor') as User['role'],
+      });
+    }
   };
 
   const login = useCallback(async (email: string, password: string) => {

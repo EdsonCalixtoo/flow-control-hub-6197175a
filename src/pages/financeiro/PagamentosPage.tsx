@@ -70,117 +70,153 @@ const PagamentosPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="page-header">Controle de Pagamentos</h1>
-        <p className="page-subtitle">Gerencie os comprovantes e status de pagamento dos pedidos</p>
+    <div className="space-y-8 animate-fade-in pb-12">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-black text-foreground tracking-tighter uppercase italic flex items-center gap-3">
+            <CreditCard className="w-8 h-8 text-primary" />
+            Controle de <span className="finance-text-gradient">Pagamentos</span>
+          </h1>
+          <p className="text-xs font-bold text-muted-foreground uppercase tracking-[0.2em] mt-1 ml-1">Validação de Fluxo Financeiro e Comprovantes</p>
+        </div>
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="stat-card">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-success/10 flex items-center justify-center">
-              <CheckCircle className="w-5 h-5 text-success" />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        <div className="card-premium p-6 group">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner">
+              <CheckCircle className="w-7 h-7 text-emerald-500" />
             </div>
             <div>
-              <p className="text-[11px] text-muted-foreground font-medium">Total Pago</p>
-              <p className="text-xl font-extrabold text-success">{formatCurrency(totalPago)}</p>
+              <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">Saldo Liquidado</p>
+              <p className="text-2xl font-black text-emerald-500 tracking-tighter">{formatCurrency(totalPago)}</p>
             </div>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-warning/10 flex items-center justify-center">
-              <Clock className="w-5 h-5 text-warning" />
+        <div className="card-premium p-6 group">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/10 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner">
+              <Clock className="w-7 h-7 text-amber-500" />
             </div>
             <div>
-              <p className="text-[11px] text-muted-foreground font-medium">A Receber</p>
-              <p className="text-xl font-extrabold text-warning">{formatCurrency(totalPendente)}</p>
+              <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">Contas a Receber</p>
+              <p className="text-2xl font-black text-amber-500 tracking-tighter">{formatCurrency(totalPendente)}</p>
             </div>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-info/10 flex items-center justify-center">
-              <AlertTriangle className="w-5 h-5 text-info" />
+        <div className="card-premium p-6 group">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner">
+              <AlertTriangle className="w-7 h-7 text-indigo-500" />
             </div>
             <div>
-              <p className="text-[11px] text-muted-foreground font-medium">Com Comprovante</p>
-              <p className="text-xl font-extrabold text-foreground">{totalComComprovante}</p>
+              <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">Documentação Anexada</p>
+              <p className="text-2xl font-black text-foreground tracking-tighter">{totalComComprovante} <span className="text-xs font-bold opacity-40">Arquivos</span></p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[180px]">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
-          <input type="text" placeholder="Buscar pedido ou cliente..." value={search} onChange={e => setSearch(e.target.value)} className="input-modern pl-10 py-2.5" />
+      <div className="card-section p-4 glass-premium flex items-center gap-4 flex-wrap border-none shadow-xl">
+        <div className="relative flex-1 min-w-[280px]">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40" />
+          <input 
+            type="text" 
+            placeholder="Buscar por número do pedido ou nome do cliente..." 
+            value={search} 
+            onChange={e => setSearch(e.target.value)} 
+            className="input-modern pl-11 py-3.5 bg-background/50 border-border/40 focus:border-primary/50 transition-all rounded-xl text-sm" 
+          />
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex gap-2 p-1.5 bg-muted/30 rounded-xl border border-border/20">
           {([['todos', 'Todos'], ['pendente', 'Pendentes'], ['pago', 'Pagos']] as const).map(([v, l]) => (
-            <button key={v} onClick={() => setTab(v)} className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${tab === v ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>{l}</button>
+            <button 
+              key={v} 
+              onClick={() => setTab(v)} 
+              className={`px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${tab === v ? 'bg-white dark:bg-slate-800 text-primary shadow-lg' : 'text-muted-foreground hover:text-foreground hover:bg-white/10'}`}
+            >
+              {l}
+            </button>
           ))}
         </div>
       </div>
 
       {/* Table */}
-      <div className="card-section overflow-hidden">
+      <div className="card-section glass-premium overflow-hidden border-none shadow-2xl">
         <div className="overflow-x-auto">
           <table className="modern-table">
             <thead>
-              <tr>
-                <th>Pedido</th>
-                <th>Cliente</th>
-                <th>Forma Pgto</th>
-                <th className="text-right">Valor</th>
-                <th>Comprovante</th>
-                <th>Status</th>
-                <th className="text-center">Ação</th>
+              <tr className="bg-slate-50 dark:bg-slate-900/50">
+                <th className="py-5 pl-8 uppercase tracking-widest text-[10px] font-black">ID do Pedido</th>
+                <th className="py-5 uppercase tracking-widest text-[10px] font-black">Cliente / Razão Social</th>
+                <th className="py-5 uppercase tracking-widest text-[10px] font-black">Gateway / Método</th>
+                <th className="text-right py-5 uppercase tracking-widest text-[10px] font-black">Valor Total</th>
+                <th className="py-5 uppercase tracking-widest text-[10px] font-black">Evidência</th>
+                <th className="py-5 uppercase tracking-widest text-[10px] font-black">Status</th>
+                <th className="text-center py-5 pr-8 uppercase tracking-widest text-[10px] font-black">Fluxo</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-border/20">
               {filtered.length === 0 && (
-                <tr><td colSpan={7} className="text-center text-muted-foreground p-6 text-sm">Nenhum pagamento encontrado</td></tr>
+                <tr>
+                  <td colSpan={7} className="text-center py-20">
+                    <div className="flex flex-col items-center gap-2 opacity-30">
+                      <Search className="w-10 h-10" />
+                      <p className="font-black text-[10px] uppercase tracking-[0.3em]">Nenhum registro encontrado</p>
+                    </div>
+                  </td>
+                </tr>
               )}
               {filtered.map(order => (
-                <tr key={order.id}>
-                  <td className="font-bold text-foreground">{order.number}</td>
-                  <td className="text-foreground">{order.clientName}</td>
-                  <td>
-                    {order.paymentMethod ? (
-                      <span className="flex items-center gap-1.5 text-xs text-foreground">
-                        <span className="text-muted-foreground">{METHOD_ICONS[order.paymentMethod] ?? <CreditCard className="w-4 h-4" />}</span>
-                        {order.paymentMethod}
-                      </span>
-                    ) : <span className="text-muted-foreground text-xs italic">—</span>}
+                <tr key={order.id} className="group hover:bg-primary/[0.02] transition-colors">
+                  <td className="py-6 pl-8 font-black text-foreground">#{order.number}</td>
+                  <td className="py-6">
+                    <div className="flex flex-col">
+                      <span className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">{order.clientName}</span>
+                      <span className="text-[10px] text-muted-foreground font-medium">Faturamento Direto</span>
+                    </div>
                   </td>
-                  <td className="text-right font-semibold text-foreground">{formatCurrency(order.total)}</td>
-                  <td>
+                  <td className="py-6">
+                    {order.paymentMethod ? (
+                      <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-800/50 w-fit border border-border/40">
+                        <span className="text-primary">{METHOD_ICONS[order.paymentMethod] ?? <CreditCard className="w-4 h-4" />}</span>
+                        <span className="text-xs font-black uppercase tracking-tight text-foreground">{order.paymentMethod}</span>
+                      </div>
+                    ) : <span className="text-muted-foreground text-[10px] italic font-medium">Não definido</span>}
+                  </td>
+                  <td className="text-right py-6 font-black text-foreground tabular-nums tracking-tighter text-base">{formatCurrency(order.total)}</td>
+                  <td className="py-6">
                     {order.receiptUrl ? (
-                      <a href={order.receiptUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-primary hover:underline font-semibold">
-                        <ExternalLink className="w-3 h-3" /> Ver comprovante
+                      <a href={order.receiptUrl} target="_blank" rel="noreferrer" className="h-10 px-4 rounded-xl bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500 hover:text-white inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all shadow-sm">
+                        <ExternalLink className="w-3.5 h-3.5" /> EXAMINAR
                       </a>
                     ) : (
-                      <span className="text-xs text-muted-foreground italic">Não anexado</span>
+                      <span className="text-[10px] text-muted-foreground font-black uppercase opacity-40">Ausente</span>
                     )}
                   </td>
-                  <td>
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${order.paymentStatus === 'pago' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
-                      <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                      {order.paymentStatus === 'pago' ? 'Pago' : 'Pendente'}
+                  <td className="py-6">
+                    <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest ${order.paymentStatus === 'pago' ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-500 border border-amber-500/20'}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${order.paymentStatus === 'pago' ? 'bg-emerald-500' : 'bg-amber-500'} animate-pulse`} />
+                      {order.paymentStatus === 'pago' ? 'Liquidado' : 'Em Aberto'}
                     </span>
                   </td>
-                  <td className="text-center">
+                  <td className="text-center py-6 pr-8">
                     {order.status === 'aguardando_financeiro' && order.paymentStatus !== 'pago' && (
-                      <button onClick={() => confirmPayment(order.id)} className="px-3 py-1.5 rounded-lg bg-success/10 text-success hover:bg-success/20 text-xs font-bold transition-colors">
-                        Confirmar
+                      <button 
+                        onClick={() => confirmPayment(order.id)} 
+                        className="h-10 px-6 rounded-xl bg-primary text-white hover:scale-105 active:scale-95 text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-primary/20"
+                      >
+                        CONFIRMAR
                       </button>
                     )}
                     {order.paymentStatus === 'pago' && (
-                      <span className="text-xs text-success font-semibold">✓ Confirmado</span>
+                      <div className="flex justify-center">
+                        <span className="h-10 px-6 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest border border-emerald-500/20">
+                          <CheckCircle className="w-3.5 h-3.5" /> APROVADO
+                        </span>
+                      </div>
                     )}
                   </td>
                 </tr>

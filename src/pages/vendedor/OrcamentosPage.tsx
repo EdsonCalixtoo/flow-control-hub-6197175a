@@ -30,7 +30,7 @@ const getNextOrderNumber = (existingOrders: Order[]): number => {
 const STATUS_BLOQUEIAM_EDICAO = ['aguardando_financeiro', 'aprovado_financeiro', 'rejeitado_financeiro',
   'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'];
 
-const SearchableSelect = ({ 
+const SearchableSelect = React.memo(({ 
   value, 
   options, 
   onChange, 
@@ -61,10 +61,10 @@ const SearchableSelect = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredOptions = options.filter(o => 
+  const filteredOptions = useMemo(() => options.filter(o => 
     o.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (o.sublabel && o.sublabel.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  ), [options, searchTerm]);
 
   return (
     <div className={`relative ${className} ${isOpen ? 'z-[100]' : 'z-0'}`} ref={containerRef}>
@@ -128,9 +128,9 @@ const SearchableSelect = ({
       )}
     </div>
   );
-};
+});
 
-const ModernDatePicker = ({ 
+const ModernDatePicker = React.memo(({ 
   value, 
   onChange, 
   placeholder = "Selecionar data..." 
@@ -246,7 +246,7 @@ const ModernDatePicker = ({
       )}
     </div>
   );
-};
+});
 
 const OrcamentosPage: React.FC = () => {
   const { orders, addOrder, updateOrderStatus, editOrderFull, clients, products, deleteOrder } = useERP();
@@ -270,9 +270,9 @@ const OrcamentosPage: React.FC = () => {
   const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
 
   // ✅ Isolamento: vendedor vê apenas seus pedidos
-  const myOrders = orders.filter(o =>
+  const myOrders = useMemo(() => orders.filter(o =>
     user?.role !== 'vendedor' || o.sellerId === user.id
-  );
+  ), [orders, user]);
 
   // ✅ TODOS OS VENDEDORES VÊM TODOS OS CLIENTES (compartilhados)
   // Isolamento de ORDERS já garante que cada vendedor só edita seus próprios
@@ -351,10 +351,10 @@ const OrcamentosPage: React.FC = () => {
     }
   }, [preSelectedReward, products, editingOrder]);
 
-  const filtered = myOrders.filter(o =>
+  const filtered = useMemo(() => myOrders.filter(o =>
     String(o.number).toLowerCase().includes(search.toLowerCase()) ||
     o.clientName.toLowerCase().includes(search.toLowerCase())
-  );
+  ), [myOrders, search]);
 
   // Envia para o financeiro — apenas via botão explícito
   const enviarFinanceiro = async (orderId: string) => {
@@ -404,10 +404,10 @@ const OrcamentosPage: React.FC = () => {
     setNewItems(prev => prev.map((item, idx) => idx === i ? { ...item, [field]: value } : item));
   };
 
-  const calcTotal = () => newItems.reduce((s, item) => {
+  const totalGeral = useMemo(() => newItems.reduce((s, item) => {
     const price = typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) || 0 : item.unitPrice;
     return s + (item.quantity * price);
-  }, 0);
+  }, 0), [newItems]);
 
   // Abre o formulário de edição para um orçamento existente
   const openEdit = (order: Order) => {
@@ -485,7 +485,7 @@ const OrcamentosPage: React.FC = () => {
       return;
     }
 
-    const subtotal = calcTotal();
+    const subtotal = totalGeral;
     if (subtotal < 0) {
       setFormError('⚠️ O valor total do orçamento deve ser maior ou igual a R$ 0,00.');
       return;
@@ -1267,7 +1267,7 @@ const OrcamentosPage: React.FC = () => {
                 <div className="flex justify-between items-center px-1">
                   <div className="space-y-1">
                     <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Total Geral</p>
-                    <p className="text-3xl font-black text-foreground">{formatCurrency(calcTotal())}</p>
+                    <p className="text-3xl font-black text-foreground">{formatCurrency(totalGeral)}</p>
                   </div>
                   <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
                     <DollarSign className="w-6 h-6" />

@@ -372,166 +372,217 @@ const PedidosFinanceiroPage: React.FC = () => {
 
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between flex-wrap gap-3">
-                <div>
-                    <h1 className="page-header">Gestão de Pedidos</h1>
-                    <p className="page-subtitle">Acompanhamento detalhado de todos os pedidos no financeiro</p>
+        <div className="space-y-8 animate-fade-in pb-12">
+            {/* Header Modernizado */}
+            <div className="relative overflow-hidden rounded-[2rem] bg-slate-900 p-8 text-white shadow-2xl">
+                <div className="absolute top-0 right-0 -m-12 h-64 w-64 rounded-full bg-emerald-500/10 blur-[100px]" />
+                <div className="absolute bottom-0 left-0 -m-12 h-64 w-64 rounded-full bg-blue-500/10 blur-[100px]" />
+                
+                <div className="relative flex items-center justify-between flex-wrap gap-6">
+                    <div className="space-y-2">
+                        <div className="flex items-center gap-3">
+                            <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center shadow-lg shadow-primary/20">
+                                <Package className="w-6 h-6 text-white" />
+                            </div>
+                            <h1 className="text-3xl font-black tracking-tight uppercase">Gestão de Pedidos</h1>
+                        </div>
+                        <p className="text-slate-400 font-medium max-w-md">Acompanhamento detalhado e controle de status de todos os pedidos ativos.</p>
+                    </div>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 stagger-children">
-                <StatCard title="Aguardando Aprovação" value={aguardandoFinanceiro} icon={Clock} color="text-warning" />
-                <StatCard title="Aprovados / Aguard. Prod." value={aprovadosFinanceiro} icon={CheckCircle} color="text-success" />
-                <StatCard title="Em Produção" value={emProducao} icon={Package} color="text-info" />
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 stagger-children">
+                <div className="card-premium border-amber-500/20">
+                    <div className="flex items-start justify-between">
+                        <div className="space-y-2">
+                            <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Aguardando</p>
+                            <p className="text-3xl font-black text-foreground">{aguardandoFinanceiro}</p>
+                            <span className="text-[10px] text-muted-foreground font-medium">Pedidos pendentes</span>
+                        </div>
+                        <div className="h-12 w-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
+                            <Clock className="w-6 h-6" />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="card-premium border-success/20">
+                    <div className="flex items-start justify-between">
+                        <div className="space-y-2">
+                            <p className="text-[10px] font-black text-success uppercase tracking-widest">Aprovados</p>
+                            <p className="text-3xl font-black text-foreground">{aprovadosFinanceiro}</p>
+                            <span className="text-[10px] text-muted-foreground font-medium">Aguardando produção</span>
+                        </div>
+                        <div className="h-12 w-12 rounded-xl bg-success/10 flex items-center justify-center text-success">
+                            <CheckCircle className="w-6 h-6" />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="card-premium border-info/20">
+                    <div className="flex items-start justify-between">
+                        <div className="space-y-2">
+                            <p className="text-[10px] font-black text-info uppercase tracking-widest">Em Produção</p>
+                            <p className="text-3xl font-black text-foreground">{emProducao}</p>
+                            <span className="text-[10px] text-muted-foreground font-medium">Linha de montagem</span>
+                        </div>
+                        <div className="h-12 w-12 rounded-xl bg-info/10 flex items-center justify-center text-info">
+                            <Package className="w-6 h-6" />
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <div className="card-section p-4 space-y-4">
-                <div className="flex items-center gap-3 flex-wrap">
-                    <div className="relative flex-1 min-w-[200px]">
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
+            <div className="card-section p-6 space-y-6 glass-premium">
+                <div className="flex items-center gap-4 flex-wrap">
+                    <div className="relative flex-1 min-w-[300px] group">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40 group-focus-within:text-primary transition-colors" />
                         <input
                             type="text"
-                            placeholder="Buscar por pedido ou cliente..."
+                            placeholder="Buscar por número do pedido ou nome do cliente..."
                             value={searchQuery}
                             onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-                            className="input-modern pl-10 py-2.5"
+                            className="input-modern pl-11 py-3.5 bg-background shadow-inner border-border/40 focus:border-primary/50 transition-all rounded-2xl"
                         />
                     </div>
                     <button
                         onClick={() => setShowFilters(f => !f)}
-                        className={`btn-modern shadow-none text-xs px-4 py-2.5 ${showFilters ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}
+                        className={`btn-modern px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all ${showFilters ? 'bg-primary text-white shadow-lg shadow-primary/30' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
                     >
-                        <Filter className="w-3.5 h-3.5" /> Filtros
-                        <ChevronDown className={`w-3 h-3 transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+                        <Filter className="w-4 h-4" /> Filtros Avançados
+                        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-300 ${showFilters ? 'rotate-180' : ''}`} />
                     </button>
                 </div>
 
                 {showFilters && (
-                    <div className="flex items-center gap-3 flex-wrap animate-fade-in shadow-inner p-4 rounded-xl bg-muted/20 border border-border/40">
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Status de Pagamento</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 p-6 rounded-[1.5rem] bg-muted/20 border border-border/40 animate-scale-in">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Status de Pagamento</label>
                             <select
                                 value={statusFilter}
                                 onChange={e => { setStatusFilter(e.target.value as PaymentFilter); setCurrentPage(1); }}
-                                className="input-modern py-2 text-xs"
+                                className="input-modern py-2.5 bg-background border-border/40 hover:border-primary/30 focus:border-primary/50 text-xs font-bold"
                             >
-                                <option value="todos">Todos</option>
-                                <option value="pago">Pago</option>
-                                <option value="pendente">Pendente</option>
+                                <option value="todos">Todos os Status</option>
+                                <option value="pago">Confirmado (Pago)</option>
+                                <option value="pendente">Aguardando Pagamento</option>
                             </select>
                         </div>
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Período</label>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Período de Referência</label>
                             <select
                                 value={periodFilter}
                                 onChange={e => { setPeriodFilter(e.target.value as PeriodFilter); setCurrentPage(1); }}
-                                className="input-modern py-2 text-xs"
+                                className="input-modern py-2.5 bg-background border-border/40 hover:border-primary/30 focus:border-primary/50 text-xs font-bold"
                             >
-                                <option value="todos">Todos os tempos</option>
+                                <option value="todos">Todo o histórico</option>
                                 <option value="hoje">Hoje</option>
-                                <option value="7dias">Últimos 7 dias</option>
+                                <option value="7dias">Última semana</option>
                                 <option value="30dias">Últimos 30 dias</option>
                             </select>
                         </div>
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Forma de Pagamento</label>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Método de Pagamento</label>
                             <select
                                 value={paymentMethodFilter}
                                 onChange={e => { setPaymentMethodFilter(e.target.value); setCurrentPage(1); }}
-                                className="input-modern py-2 text-xs"
+                                className="input-modern py-2.5 bg-background border-border/40 hover:border-primary/30 focus:border-primary/50 text-xs font-bold"
                             >
-                                <option value="todos">Todas as formas</option>
-                                <option value="Pix">Pix</option>
-                                <option value="Boleto">Boleto</option>
-                                <option value="Cartão">Cartão</option>
+                                <option value="todos">Qualquer método</option>
+                                <option value="Pix">Pix (Imediato)</option>
+                                <option value="Boleto">Boleto Bancário</option>
+                                <option value="Cartão">Cartão de Crédito</option>
                             </select>
                         </div>
                     </div>
                 )}
             </div>
 
-            <div className="card-section">
+            <div className="card-section glass-premium overflow-hidden border-none shadow-xl">
                 <div className="overflow-x-auto">
                     <table className="modern-table">
                         <thead>
-                            <tr>
-                                <th className="cursor-pointer select-none" onClick={() => handleSort('number')}>
-                                    Pedido {sortBy === 'number' && (sortDir === 'asc' ? '↑' : '↓')}
+                            <tr className="bg-slate-50 dark:bg-slate-900/50">
+                                <th className="cursor-pointer select-none py-5" onClick={() => handleSort('number')}>
+                                    <div className="flex items-center gap-1">Ref. Pedido {sortBy === 'number' && (sortDir === 'asc' ? '↑' : '↓')}</div>
                                 </th>
-                                <th className="cursor-pointer select-none text-left" onClick={() => handleSort('clientName')}>
-                                    Cliente {sortBy === 'clientName' && (sortDir === 'asc' ? '↑' : '↓')}
+                                <th className="cursor-pointer select-none text-left py-5" onClick={() => handleSort('clientName')}>
+                                    <div className="flex items-center gap-1">Cliente {sortBy === 'clientName' && (sortDir === 'asc' ? '↑' : '↓')}</div>
                                 </th>
-                                <th className="hidden md:table-cell text-left">Vendedor</th>
-                                <th className="cursor-pointer select-none text-right" onClick={() => handleSort('total')}>
-                                    Valor {sortBy === 'total' && (sortDir === 'asc' ? '↑' : '↓')}
+                                <th className="hidden md:table-cell text-left py-5">Vendedor Responsável</th>
+                                <th className="cursor-pointer select-none text-right py-5" onClick={() => handleSort('total')}>
+                                    <div className="flex items-center justify-end gap-1">Valor Total {sortBy === 'total' && (sortDir === 'asc' ? '↑' : '↓')}</div>
                                 </th>
-                                <th>Status</th>
-                                <th>Pagamento</th>
-                                <th className="text-right">Ações</th>
+                                <th className="py-5">Status Pedido</th>
+                                <th className="py-5">Fluxo Financeiro</th>
+                                <th className="text-right py-5 pr-8">Ações</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-border/20">
                             {paginatedOrders.map(order => (
-                                <tr key={order.id} className="hover:bg-muted/30 transition-colors">
-                                    <td className="font-bold text-foreground">{order.number}</td>
-                                    <td className="text-foreground">
-                                        <div className="flex items-center gap-1.5 line-clamp-1">
-                                            {order.clientName}
-                                            {(order.isConsigned || clients.find(c => c.id === order.clientId)?.consignado) && (
-                                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 text-[9px] font-bold border border-amber-500/20">
-                                                    ⭐
-                                                </span>
-                                            )}
-                                            {order.items.some(i => i.isReward) && (
-                                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-success/15 text-success text-[9px] font-bold border border-success/20 animate-pulse">
-                                                    🎁 PRÊMIO
-                                                </span>
-                                            )}
+                                <tr key={order.id} className="group hover:bg-primary/[0.02] transition-all duration-300">
+                                    <td className="font-extrabold text-foreground py-5">
+                                        <div className="flex items-center gap-2">
+                                            <div className="h-2 w-2 rounded-full bg-primary/40 group-hover:bg-primary transition-colors" />
+                                            #{order.number}
                                         </div>
                                     </td>
-                                    <td className="hidden md:table-cell text-foreground text-xs">{order.sellerName}</td>
-                                    <td className="text-right font-semibold text-foreground">{formatCurrency(order.total)}</td>
-                                    <td><StatusBadge status={order.status} /></td>
-                                    <td>
-                                        <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${order.paymentStatus === 'pago' ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
-                                            {order.paymentStatus === 'pago' ? 'PAGO' : 'PENDENTE'}
-                                        </span>
+                                    <td className="text-foreground py-5">
+                                        <div className="flex flex-col">
+                                            <span className="font-bold text-sm tracking-tight">{order.clientName}</span>
+                                            <div className="flex items-center gap-1 mt-1">
+                                                {(order.isConsigned || clients.find(c => c.id === order.clientId)?.consignado) && (
+                                                    <span className="px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-500 text-[8px] font-black border border-amber-500/20">CONSIGNADO</span>
+                                                )}
+                                                {order.items.some(i => i.isReward) && (
+                                                    <span className="px-1.5 py-0.5 rounded-md bg-emerald-500 text-white text-[8px] font-black animate-pulse">PRÊMIO</span>
+                                                )}
+                                            </div>
+                                        </div>
                                     </td>
-                                    <td className="text-right">
-                                        <div className="flex items-center justify-end gap-1.5">
+                                    <td className="hidden md:table-cell py-5">
+                                        <div className="flex items-center gap-2">
+                                            <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground uppercase">
+                                                {order.sellerName.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                                            </div>
+                                            <span className="text-xs font-medium text-foreground/70">{order.sellerName}</span>
+                                        </div>
+                                    </td>
+                                    <td className="text-right font-black text-foreground py-5 tabular-nums tracking-tighter">{formatCurrency(order.total)}</td>
+                                    <td className="py-5"><StatusBadge status={order.status} /></td>
+                                    <td className="py-5">
+                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black border tracking-wider ${order.paymentStatus === 'pago' 
+                                            ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' 
+                                            : 'bg-amber-500/10 text-amber-600 border-amber-500/30'}`}>
+                                            <div className={`h-1.5 w-1.5 rounded-full ${order.paymentStatus === 'pago' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+                                            {order.paymentStatus === 'pago' ? 'PAGO' : 'AGUARDANDO'}
+                                        </div>
+                                    </td>
+                                    <td className="text-right py-5 pr-8">
+                                        <div className="flex items-center justify-end gap-2">
                                             <button
                                                 onClick={() => setSelectedOrder(order)}
-                                                className="w-8 h-8 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 inline-flex items-center justify-center transition-colors shadow-sm"
+                                                className="w-10 h-10 rounded-xl bg-primary/5 text-primary hover:bg-primary hover:text-white flex items-center justify-center transition-all shadow-sm"
                                                 title="Ver Detalhes"
                                             >
-                                                <Eye className="w-3.5 h-3.5" />
+                                                <Eye className="w-4 h-4" />
                                             </button>
                                             {order.status === 'aguardando_financeiro' && (
                                                 <button
                                                     onClick={() => aprovarEEnviarProducao(order.id)}
-                                                    className="w-8 h-8 rounded-lg bg-success/10 text-success hover:bg-success/20 inline-flex items-center justify-center transition-colors shadow-sm"
-                                                    title="Aprovar e Enviar para Produção"
+                                                    className="w-10 h-10 rounded-xl bg-emerald-500/5 text-emerald-600 hover:bg-emerald-500 hover:text-white flex items-center justify-center transition-all shadow-sm"
+                                                    title="Aprovar Agora"
                                                 >
-                                                    <CheckCircle className="w-3.5 h-3.5" />
+                                                    <CheckCircle className="w-4 h-4" />
                                                 </button>
                                             )}
-                                            {order.status === 'aprovado_financeiro' || order.status === 'aguardando_producao' ? (
-                                                <button
-                                                    onClick={() => updateOrderStatus(order.id, 'em_producao', undefined, 'Financeiro', 'Liberado para produção')}
-                                                    className="w-8 h-8 rounded-lg bg-financeiro/10 text-financeiro hover:bg-financeiro/20 inline-flex items-center justify-center transition-colors shadow-sm"
-                                                    title="Liberar Produção"
-                                                >
-                                                    <Send className="w-3.5 h-3.5" />
-                                                </button>
-                                            ) : null}
                                         </div>
                                     </td>
                                 </tr>
                             ))}
                             {paginatedOrders.length === 0 && (
                                 <tr>
-                                    <td colSpan={7} className="text-center py-12 text-muted-foreground italic">
+                                    <td colSpan={7} className="text-center py-20 text-muted-foreground italic">
+                                        <Inbox className="w-10 h-10 mx-auto mb-3 opacity-20" />
                                         Nenhum pedido encontrado com os filtros aplicados
                                     </td>
                                 </tr>
@@ -541,20 +592,20 @@ const PedidosFinanceiroPage: React.FC = () => {
                 </div>
 
                 {totalPages > 1 && (
-                    <div className="p-4 border-t border-border/40 flex items-center justify-between">
-                        <p className="text-xs text-muted-foreground">Mostrando {paginatedOrders.length} de {filteredOrders.length} pedidos</p>
+                    <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-border/20 flex items-center justify-between">
+                        <p className="text-xs text-muted-foreground font-medium">Mostrando {paginatedOrders.length} de {filteredOrders.length} pedidos encontrados</p>
                         <div className="flex gap-2">
                             <button
                                 disabled={currentPage === 1}
                                 onClick={() => setCurrentPage(p => p - 1)}
-                                className="btn-modern bg-muted text-foreground p-2 disabled:opacity-30"
+                                className="px-4 py-2 rounded-xl bg-background border border-border/40 text-xs font-bold disabled:opacity-30 hover:bg-muted transition-colors"
                             >
                                 Anterior
                             </button>
                             <button
                                 disabled={currentPage === totalPages}
                                 onClick={() => setCurrentPage(p => p + 1)}
-                                className="btn-modern bg-muted text-foreground p-2 disabled:opacity-30"
+                                className="px-4 py-2 rounded-xl bg-background border border-border/40 text-xs font-bold disabled:opacity-30 hover:bg-muted transition-colors"
                             >
                                 Próximo
                             </button>

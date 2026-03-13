@@ -89,7 +89,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // ── Carregar DADOS do Supabase quando autenticado ──────────
   const loadFromSupabase = useCallback(async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated || loading) return;
     try {
       setLoading(true);
       console.log('[ERP] 📥 Sincronizando com Supabase...');
@@ -135,7 +135,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, loading]);
 
   useEffect(() => {
     loadFromSupabase();
@@ -187,27 +187,25 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               setOrders(prev => prev.filter(o => o.id !== id));
             }
 
-            // Sincroniza fundo após um tempo para garantir relações (cliente, etc)
-            clearTimeout(retryTimer);
-            retryTimer = setTimeout(() => {
-              loadFromSupabase();
-            }, 3000);
+            // Otimização: Não resetamos tudo a cada atualização individual
+            // A atualização local acima já garante o dado correto na maioria dos casos
+            // loadFromSupabase() removido para evitar lentidão excessiva
           }
         )
         .on(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'financial_entries' },
           (payload) => {
-            loadFromSupabase();
             const entry = payload.new as any;
+            setFinancialEntries(prev => [entry, ...prev]);
             toast.success(`Novo lançamento financeiro: ${entry.description}`);
           }
         )
         .subscribe((status) => {
           console.log(`[ERP Realtime] Status: ${status}`);
           if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-            console.error('[ERP Realtime] Erro na conexão. Tentando reconectar em 5s...');
-            setTimeout(connectRealtime, 5000);
+            console.error('[ERP Realtime] Erro na conexão. Tentando reconectar em 10s...');
+            setTimeout(connectRealtime, 10000); // Aparentemente o Realtime não está habilitado no banco
           }
         });
     };

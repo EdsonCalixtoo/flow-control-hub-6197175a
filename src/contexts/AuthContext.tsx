@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 
 interface User {
@@ -23,42 +23,18 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  // Guard: rastreia qual userId está sendo carregado para evitar buscas duplicadas
+  const loadingUserIdRef = useRef<string | null>(null);
+  const currentUserIdRef = useRef<string | null>(null);
 
-  // Carrega usuário da sessão do Supabase na inicialização
-  useEffect(() => {
-    console.log('[Auth] Inicializando autenticação...');
+  const loadUserProfile = useCallback(async (authUser: { id: string; email?: string; user_metadata?: any }) => {
+    // Se já está buscando esse usuário, ignora
+    if (loadingUserIdRef.current === authUser.id || currentUserIdRef.current === authUser.id) {
+      console.log('[Auth] ⏭️ Perfil já carregado/carregando para:', authUser.id);
+      return;
+    }
+    loadingUserIdRef.current = authUser.id;
 
-    // onAuthStateChange com INITIAL_SESSION é a forma correta de inicializar:
-    // dispara imediatamente com a sessão do storage local (sem chamada de rede),
-    // resolvendo o authLoading antes de qualquer fetch adicional.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('[Auth] Estado de autenticação mudou:', event);
-
-      if (event === 'INITIAL_SESSION') {
-        // Primeira leitura da sessão local — resolve o loading
-        if (session?.user) {
-          loadUserProfile(session.user); // não await para não bloquear
-        }
-        setAuthLoading(false); // sempre libera o loading aqui
-      } else if (event === 'SIGNED_IN' && session?.user) {
-        loadUserProfile(session.user);
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        console.log('[Auth] Usuário desconectado');
-      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-        // Sessão renovada — atualiza silenciosamente
-        loadUserProfile(session.user);
-      }
-    });
-
-    return () => {
-      subscription?.unsubscribe();
-    };
-  }, []);
-
-  // ── Carrega o perfil do usuário a partir da tabela public.users ──
-  // Se não encontrar (ex: novo usuário antes do trigger existir), usa dados do JWT
-  const loadUserProfile = async (authUser: { id: string; email?: string; user_metadata?: any }) => {
     try {
       console.log('[Auth] 🔍 Buscando perfil para:', authUser.id);
       const { data: userData, error } = await supabase
@@ -68,36 +44,76 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .maybeSingle();
 
       if (error) {
-        console.warn('[Auth] ⚠️ Erro ao buscar perfil (usuante JWT):', error.message);
+        console.warn('[Auth] ⚠️ Erro ao buscar perfil:', error.message);
       }
 
       const appUser: User = userData
         ? {
-          id: userData.id,
-          email: userData.email,
-          name: userData.name,
-          role: (userData.role || 'vendedor') as User['role'],
-        }
+            id: userData.id,
+            email: userData.email,
+            name: userData.name,
+            role: (userData.role || 'vendedor') as User['role'],
+          }
         : {
-          id: authUser.id,
-          email: authUser.email || '',
-          name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Usuário',
-          role: authUser.user_metadata?.role || 'vendedor',
-        };
+            id: authUser.id,
+            email: authUser.email || '',
+            name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Usuário',
+            role: (authUser.user_metadata?.role || 'vendedor') as User['role'],
+          };
 
+      currentUserIdRef.current = appUser.id;
       setUser(appUser);
       console.log('[Auth] ✅ Perfil carregado:', appUser.email, '| role:', appUser.role);
     } catch (err: any) {
       console.error('[Auth] ❌ Erro crítico no loadUserProfile:', err.message);
       // Fallback mínimo para não travar o login
-      setUser({
+      const fallback: User = {
         id: authUser.id,
         email: authUser.email || '',
         name: authUser.user_metadata?.name || 'Usuário',
         role: (authUser.user_metadata?.role || 'vendedor') as User['role'],
-      });
+      };
+      currentUserIdRef.current = fallback.id;
+      setUser(fallback);
+    } finally {
+      loadingUserIdRef.current = null;
     }
-  };
+  }, []);
+
+  // Carrega usuário da sessão do Supabase na inicialização
+  useEffect(() => {
+    console.log('[Auth] Inicializando autenticação...');
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[Auth] Estado de autenticação mudou:', event);
+
+      if (event === 'INITIAL_SESSION') {
+        if (session?.user) {
+          await loadUserProfile(session.user);
+        }
+        setAuthLoading(false);
+      } else if (event === 'SIGNED_IN' && session?.user) {
+        // Só recarrega se for um usuário diferente do já logado
+        if (currentUserIdRef.current !== session.user.id) {
+          await loadUserProfile(session.user);
+        }
+        setAuthLoading(false);
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+        currentUserIdRef.current = null;
+        loadingUserIdRef.current = null;
+        setAuthLoading(false);
+        console.log('[Auth] Usuário desconectado');
+      } else if (event === 'TOKEN_REFRESHED') {
+        // Token renovado silenciosamente — não precisa rebuscar perfil
+        console.log('[Auth] 🔄 Token renovado silenciosamente');
+      }
+    });
+
+    return () => {
+      subscription?.unsubscribe();
+    };
+  }, [loadUserProfile]);
 
   const login = useCallback(async (email: string, password: string) => {
     try {
@@ -111,8 +127,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (authError) throw new Error(authError.message);
       if (!authData.session) throw new Error('Sem sessão mantida após login');
 
-      console.log('[Auth] ✅ Login bem-sucedido');
-      // O onAuthStateChange vai chamar loadUserProfile automaticamente
+      console.log('[Auth] ✅ Login bem-sucedido - perfil será carregado pelo onAuthStateChange');
     } catch (err: any) {
       console.error('[Auth] ❌ Erro ao fazer login:', err.message);
       throw err;
@@ -123,8 +138,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('[Auth] 📝 Registrando novo usuário:', email);
 
-      // Cria conta no Supabase Auth.
-      // O trigger on_auth_user_created cuida de inserir em public.users automaticamente.
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
@@ -138,7 +151,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       console.log('[Auth] ✅ Usuário criado em Auth:', authData.user.id);
 
-      // Aguarda o trigger executar (breve delay) e faz login
       await new Promise(r => setTimeout(r, 500));
 
       const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
@@ -147,7 +159,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('[Auth] ⚠️ Erro ao fazer login automático:', loginError.message);
       } else {
         console.log('[Auth] ✅ Registro e login automático bem-sucedidos');
-        // onAuthStateChange vai chamar loadUserProfile automaticamente
       }
     } catch (err: any) {
       console.error('[Auth] ❌ Erro ao registrar:', err.message);
@@ -161,6 +172,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
       setUser(null);
+      currentUserIdRef.current = null;
+      loadingUserIdRef.current = null;
       console.log('[Auth] ✅ Logout bem-sucedido');
     } catch (err: any) {
       console.error('[Auth] ❌ Erro ao fazer logout:', err.message);
@@ -174,6 +187,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       await supabase.auth.signOut();
       localStorage.clear();
       setUser(null);
+      currentUserIdRef.current = null;
+      loadingUserIdRef.current = null;
       console.log('[Auth] ✅ Sessão limpa');
     } catch (err: any) {
       console.error('[Auth] ⚠️ Erro ao limpar sessão:', err.message);

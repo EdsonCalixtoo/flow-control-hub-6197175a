@@ -20,13 +20,22 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+// Limpa chaves de sessão do Supabase do localStorage (tokens expirados/corrompidos)
+function clearSupabaseStorage() {
+  const keysToRemove = Object.keys(localStorage).filter(k =>
+    k.startsWith('sb-') || k.includes('supabase')
+  );
+  keysToRemove.forEach(k => localStorage.removeItem(k));
+  console.log('[Auth] 🗑️ Storage limpo:', keysToRemove);
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const currentUserIdRef = useRef<string | null>(null);
+  const initializedRef = useRef(false);
 
   const loadUserProfile = useCallback(async (authUser: { id: string; email?: string; user_metadata?: any }) => {
-    // Evita busca duplicada
     if (currentUserIdRef.current === authUser.id) return;
 
     try {
@@ -55,7 +64,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('[Auth] ✅ Perfil carregado:', appUser.email, '| role:', appUser.role);
     } catch (err: any) {
       console.error('[Auth] ❌ Erro no loadUserProfile:', err.message);
-      // Fallback com dados do JWT para não travar
       const fallback: User = {
         id: authUser.id,
         email: authUser.email || '',
@@ -68,70 +76,75 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+
     console.log('[Auth] Inicializando autenticação...');
 
-    // 1. Leitura imediata da sessão local (não faz chamada de rede, é síncrono do storage)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        // Carrega perfil em background, mas já libera o loading
-        loadUserProfile(session.user);
-      }
-      // Sempre libera o loading após getSession — nunca trava
+    // Timeout de segurança: garante que o authLoading some em no máximo 5s
+    const safetyTimer = setTimeout(() => {
+      console.warn('[Auth] ⚠️ Timeout de segurança atingido — liberando loading');
       setAuthLoading(false);
-    }).catch(() => {
-      // Se getSession falhar (ex: rede offline), libera o loading mesmo assim
-      setAuthLoading(false);
-    });
+    }, 5000);
 
-    // 2. Escuta mudanças futuras (login, logout, refresh de token)
+    const init = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        if (error) {
+          // Token inválido/expirado — limpa storage e pede novo login
+          console.warn('[Auth] ⚠️ Sessão inválida, limpando storage:', error.message);
+          clearSupabaseStorage();
+          setUser(null);
+        } else if (session?.user) {
+          await loadUserProfile(session.user);
+        }
+      } catch (err: any) {
+        console.error('[Auth] ❌ Erro ao inicializar sessão:', err.message);
+        // Se falhar (ex: offline), limpa tokens corrompidos para não travar
+        clearSupabaseStorage();
+      } finally {
+        clearTimeout(safetyTimer);
+        setAuthLoading(false);
+      }
+    };
+
+    init();
+
+    // Escuta mudanças futuras APENAS para SIGNED_IN e SIGNED_OUT
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('[Auth] Evento:', event);
-
       if (event === 'SIGNED_IN' && session?.user) {
         loadUserProfile(session.user);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         currentUserIdRef.current = null;
       }
-      // TOKEN_REFRESHED e INITIAL_SESSION são ignorados — getSession() já cuidou da inicialização
     });
 
-    return () => subscription?.unsubscribe();
+    return () => {
+      subscription?.unsubscribe();
+      clearTimeout(safetyTimer);
+    };
   }, [loadUserProfile]);
 
   const login = useCallback(async (email: string, password: string) => {
-    try {
-      console.log('[Auth] 🔐 Login com email:', email);
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw new Error(error.message);
-      if (!data.session) throw new Error('Sem sessão após login');
-      console.log('[Auth] ✅ Login bem-sucedido');
-      // onAuthStateChange SIGNED_IN vai chamar loadUserProfile
-    } catch (err: any) {
-      console.error('[Auth] ❌ Erro ao fazer login:', err.message);
-      throw err;
-    }
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw new Error(error.message);
+    if (!data.session) throw new Error('Sem sessão após login');
   }, []);
 
   const register = useCallback(async (email: string, password: string, name: string, role: string) => {
-    try {
-      console.log('[Auth] 📝 Registrando:', email);
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { name, role: role || 'vendedor' } },
-      });
-      if (signUpError) throw new Error(signUpError.message);
-      if (!authData.user) throw new Error('Falha ao criar usuário');
-
-      await new Promise(r => setTimeout(r, 500));
-
-      const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
-      if (loginError) console.warn('[Auth] ⚠️ Login automático falhou:', loginError.message);
-    } catch (err: any) {
-      console.error('[Auth] ❌ Erro ao registrar:', err.message);
-      throw err;
-    }
+    const { data: authData, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { name, role: role || 'vendedor' } },
+    });
+    if (signUpError) throw new Error(signUpError.message);
+    if (!authData.user) throw new Error('Falha ao criar usuário');
+    await new Promise(r => setTimeout(r, 500));
+    const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
+    if (loginError) throw new Error(loginError.message);
   }, []);
 
   const logout = useCallback(async () => {
@@ -141,12 +154,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const clearSessionCompletely = useCallback(async () => {
-    try {
-      await supabase.auth.signOut();
-    } catch (_) { /* ignora */ }
-    localStorage.clear();
+    try { await supabase.auth.signOut(); } catch (_) {}
+    clearSupabaseStorage();
     setUser(null);
     currentUserIdRef.current = null;
+    window.location.reload();
   }, []);
 
   return (

@@ -213,20 +213,22 @@ export const ComprovanteUpload: React.FC<Props> = ({
                     onDragLeave={() => setDragging(false)}
                     onDrop={onDrop}
                     className={`
-                        flex flex-col items-center justify-center gap-2 p-4 rounded-xl border-2 border-dashed
-                        cursor-pointer transition-all duration-200 select-none text-center
+                        relative group flex flex-col items-center justify-center gap-3 p-6 rounded-[2rem] border-2 border-dashed
+                        cursor-pointer transition-all duration-300 select-none text-center
                         ${dragging
-                            ? 'border-primary bg-primary/10 scale-[1.01]'
-                            : 'border-border/40 bg-muted/20 hover:border-primary/40 hover:bg-primary/5'
+                            ? 'border-primary bg-primary/10 scale-[1.02] shadow-xl shadow-primary/10'
+                            : 'border-border/60 bg-slate-50 dark:bg-slate-900/40 hover:border-primary/40 hover:bg-slate-100 dark:hover:bg-slate-900/60'
                         }
                     `}
                 >
                     <input ref={inputRef} type="file" accept={ACCEPTED} multiple className="hidden"
                         onChange={e => { if (e.target.files) processFiles(e.target.files); }} />
-                    <Upload className={`w-5 h-5 ${dragging ? 'text-primary animate-bounce' : 'text-muted-foreground'}`} />
+                    <div className="h-12 w-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary group-hover:scale-110 group-hover:bg-primary/10 transition-all">
+                        <Upload className={`w-6 h-6 ${dragging ? 'animate-bounce' : ''}`} />
+                    </div>
                     <div>
-                        <p className="text-xs font-semibold text-foreground">{dragging ? 'Solte para adicionar' : 'Clique ou arraste para adicionar mais'}</p>
-                        <p className="text-[10px] text-muted-foreground mt-0.5">JPG, PNG, WEBP ou PDF</p>
+                        <p className="text-xs font-black text-foreground uppercase tracking-tight">{dragging ? 'Solte para adicionar' : 'Adicionar Comprovantes'}</p>
+                        <p className="text-[10px] text-muted-foreground mt-1">Clique ou arraste arquivos (Imagens ou PDF)</p>
                     </div>
                 </div>
             )}

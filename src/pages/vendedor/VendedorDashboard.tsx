@@ -65,10 +65,18 @@ const VendedorDashboard: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 stagger-children">
-        <StatCard title="Vendido no Mês" value={formatCurrency(totalVendas)} icon={ShoppingCart} color="text-vendedor" />
-        <StatCard title="Pedidos Enviados" value={pedidosEnviados} icon={FileText} color="text-success" />
-        <StatCard title="Orçam. Pendentes" value={orcamentosPendentes} icon={Clock} color="text-warning" />
-        <StatCard title="Itens Vendidos" value={produtosVendidosAgrupados.reduce((acc, p) => acc + p.quantity, 0)} icon={Package} color="text-primary" />
+        <Link to="/vendedor/orcamentos" className="block">
+          <StatCard title="Vendido no Mês" value={formatCurrency(totalVendas)} icon={ShoppingCart} color="text-vendedor" />
+        </Link>
+        <Link to="/vendedor/orcamentos" className="block">
+          <StatCard title="Pedidos Enviados" value={pedidosEnviados} icon={FileText} color="text-success" />
+        </Link>
+        <Link to="/vendedor/orcamentos" className="block">
+          <StatCard title="Orçam. Pendentes" value={orcamentosPendentes} icon={Clock} color="text-warning" />
+        </Link>
+        <Link to="/vendedor/orcamentos" className="block">
+          <StatCard title="Itens Vendidos" value={produtosVendidosAgrupados.reduce((acc, p) => acc + p.quantity, 0)} icon={Package} color="text-primary" />
+        </Link>
       </div>
 
       {/* Atalhos rápidos */}

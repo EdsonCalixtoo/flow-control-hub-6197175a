@@ -27,6 +27,7 @@ interface OrderGroup {
         signatureUrl: string;
     };
     carrier?: string;
+    groupKey: string; // Adicionado para unicidade (orderId + volumeIndex)
 }
 
 /* ─────────────────────────────────────────────
@@ -467,7 +468,8 @@ const EntregadoresPage: React.FC = () => {
                         alreadyPickedUp: !!pickup,
                         volumeIndex,
                         totalVolumes: volumes,
-                        carrier: order.carrier || 'SEM TRANSPORTADORA',
+                        carrier: (order.carrier || 'SEM TRANSPORTADORA').trim().toUpperCase(),
+                        groupKey: groupKey, 
                         pickupInfo: pickup ? {
                             delivererName: pickup.delivererName,
                             pickedUpAt: pickup.pickedUpAt,
@@ -476,11 +478,16 @@ const EntregadoresPage: React.FC = () => {
                         } : undefined,
                     });
                 }
-                map.get(groupKey)!.scans.push({
-                    id: scan.id,
-                    scannedBy: scan.scannedBy,
-                    scannedAt: scan.scannedAt,
-                });
+                
+                // Evita duplicar o mesmo scan no mesmo grupo
+                const currentGroup = map.get(groupKey)!;
+                if (!currentGroup.scans.some(s => s.id === scan.id)) {
+                    currentGroup.scans.push({
+                        id: scan.id,
+                        scannedBy: scan.scannedBy,
+                        scannedAt: scan.scannedAt,
+                    });
+                }
             }
         }
         return [...map.values()].sort((a, b) => {
@@ -495,7 +502,9 @@ const EntregadoresPage: React.FC = () => {
         if (filterStatus === 'pendente') matchStatus = !g.alreadyPickedUp;
         if (filterStatus === 'retirado') matchStatus = g.alreadyPickedUp;
 
-        const matchCarrier = selectedCarrier === 'TODOS' || g.carrier === selectedCarrier;
+        const gCarrier = (g.carrier || 'SEM TRANSPORTADORA').trim().toUpperCase();
+        const sCarrier = selectedCarrier.trim().toUpperCase();
+        const matchCarrier = sCarrier === 'TODOS' || gCarrier === sCarrier;
 
         return matchStatus && matchCarrier;
     });
@@ -503,13 +512,13 @@ const EntregadoresPage: React.FC = () => {
     const carriers = React.useMemo(() => {
         const set = new Set<string>();
         groups.forEach(g => {
-            if (g.carrier) set.add(g.carrier);
+            if (g.carrier) set.add(g.carrier.trim().toUpperCase());
         });
-        return ['TODOS', ...Array.from(set)];
+        return ['TODOS', ...Array.from(set).sort()];
     }, [groups]);
 
-    const pendingCount = groups.filter(g => !g.alreadyPickedUp).length;
-    const doneCount = groups.filter(g => g.alreadyPickedUp).length;
+    const pendingCount = React.useMemo(() => groups.filter(g => !g.alreadyPickedUp).length, [groups]);
+    const doneCount = React.useMemo(() => groups.filter(g => g.alreadyPickedUp).length, [groups]);
 
     const canConfirm = delivererName.trim().length > 1 && !!photo && !!signature;
 
@@ -873,7 +882,7 @@ const EntregadoresPage: React.FC = () => {
 
                         return (
                             <div
-                                key={group.orderId}
+                                key={group.groupKey}
                                 className={`card-section overflow-hidden transition-all duration-300 ${group.alreadyPickedUp ? 'opacity-70' : 'border-primary/20'}`}
                             >
                                 {/* Card header */}

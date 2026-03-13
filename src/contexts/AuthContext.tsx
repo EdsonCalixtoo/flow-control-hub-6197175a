@@ -148,9 +148,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const logout = useCallback(async () => {
-    await supabase.auth.signOut();
-    setUser(null);
-    currentUserIdRef.current = null;
+    try {
+      console.log('[Auth] Efetuando logout...');
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.warn('[Auth] Erro ao deslogar da API:', err);
+    } finally {
+      setUser(null);
+      currentUserIdRef.current = null;
+      // Limpa storage por segurança
+      const keys = Object.keys(localStorage);
+      keys.forEach(k => {
+        if (k.startsWith('sb-') || k.includes('supabase')) localStorage.removeItem(k);
+      });
+      console.log('[Auth] Logout concluído (estado local limpo)');
+    }
   }, []);
 
   const clearSessionCompletely = useCallback(async () => {

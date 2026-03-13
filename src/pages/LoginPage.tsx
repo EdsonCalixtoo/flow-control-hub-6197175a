@@ -44,6 +44,7 @@ const LoginPage: React.FC = () => {
   };
 
   const handleSelectRole = (role: UserRole) => {
+    console.log('[Login] Perfil selecionado:', role);
     setSelectedRole(role);
     setAuthMode('login');
     setStep('auth');
@@ -67,8 +68,9 @@ const LoginPage: React.FC = () => {
     setError(null); setSuccess(null); setLoading(true);
 
     try {
+      console.log('[Login] Tentando login para:', email, 'como', selectedRole);
       await login(email, password);
-      // Sucesso - o redirecionamento acontecerá pelo AuthGate
+      console.log('[Login] Login enviado com sucesso');
       setLoading(false);
     } catch (err: any) {
       const msg = err?.message || String(err);
@@ -106,10 +108,10 @@ const LoginPage: React.FC = () => {
   return (
     <div className="min-h-screen relative overflow-hidden flex items-center justify-center p-4">
       {/* Background */}
-      <div className="absolute inset-0 gradient-bg opacity-90" />
-      <div className="absolute top-20 -left-32 w-96 h-96 bg-primary/20 rounded-full blur-3xl animate-pulse" />
-      <div className="absolute bottom-20 -right-32 w-96 h-96 bg-[hsl(var(--gestor))]/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
-      <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: `linear-gradient(hsl(var(--primary-foreground)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--primary-foreground)) 1px, transparent 1px)`, backgroundSize: '60px 60px' }} />
+      <div className="absolute inset-0 gradient-bg opacity-90 z-0 pointer-events-none" />
+      <div className="absolute top-20 -left-32 w-96 h-96 bg-primary/20 rounded-full blur-3xl animate-pulse z-0 pointer-events-none" />
+      <div className="absolute bottom-20 -right-32 w-96 h-96 bg-[hsl(var(--gestor))]/20 rounded-full blur-3xl animate-pulse z-0 pointer-events-none" style={{ animationDelay: '2s' }} />
+      <div className="absolute inset-0 opacity-[0.03] z-0 pointer-events-none" style={{ backgroundImage: `linear-gradient(hsl(var(--primary-foreground)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--primary-foreground)) 1px, transparent 1px)`, backgroundSize: '60px 60px' }} />
 
       <div className="relative z-10 w-full max-w-md animate-scale-in">
         <div className="bg-card/80 backdrop-blur-2xl rounded-3xl border border-border/20 shadow-2xl shadow-primary/10 p-8">

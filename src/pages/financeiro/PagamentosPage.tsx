@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { formatCurrency } from '@/components/shared/StatusBadge';
-import { CheckCircle, Clock, AlertTriangle, Search, ExternalLink, CreditCard, Landmark, QrCode, Banknote } from 'lucide-react';
+import { CheckCircle, Clock, AlertTriangle, Search, ExternalLink, CreditCard, Landmark, QrCode, Banknote, XCircle } from 'lucide-react';
 
 import type { Order, FinancialEntry } from '@/types/erp';
 
@@ -16,6 +16,7 @@ const PagamentosPage: React.FC = () => {
   const { orders, products, updateOrderStatus, addFinancialEntry } = useERP();
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<'todos' | 'pendente' | 'pago'>('todos');
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const relevantOrders = orders.filter(o => {
     // Excluir produtos de Carenagem aqui (Robusto)
@@ -189,9 +190,13 @@ const PagamentosPage: React.FC = () => {
                   <td className="text-right py-6 font-black text-foreground tabular-nums tracking-tighter text-base">{formatCurrency(order.total)}</td>
                   <td className="py-6">
                     {order.receiptUrl ? (
-                      <a href={order.receiptUrl} target="_blank" rel="noreferrer" className="h-10 px-4 rounded-xl bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500 hover:text-white inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all shadow-sm">
+                      <button 
+                        type="button"
+                        onClick={() => setPreviewUrl(order.receiptUrl || '')}
+                        className="h-10 px-4 rounded-xl bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500 hover:text-white inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest transition-all shadow-sm"
+                      >
                         <ExternalLink className="w-3.5 h-3.5" /> EXAMINAR
-                      </a>
+                      </button>
                     ) : (
                       <span className="text-[10px] text-muted-foreground font-black uppercase opacity-40">Ausente</span>
                     )}
@@ -225,6 +230,47 @@ const PagamentosPage: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Modal de Visualização Global */}
+      {previewUrl && (
+        <div 
+          className="fixed inset-0 z-[9999] flex flex-col bg-slate-950/95 backdrop-blur-md animate-in fade-in duration-300"
+          onClick={() => setPreviewUrl(null)}
+        >
+          <div className="flex items-center justify-between px-6 py-4 bg-slate-900 border-b border-white/10" onClick={e => e.stopPropagation()}>
+            <h2 className="text-sm font-black text-white uppercase tracking-widest">Visualização de Comprovante</h2>
+            <div className="flex items-center gap-4">
+               <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const a = document.createElement('a');
+                  a.href = previewUrl;
+                  a.download = previewUrl.includes('pdf') ? 'comprovante.pdf' : 'comprovante.jpg';
+                  a.click();
+                }}
+                className="px-4 py-2 rounded-xl bg-white/10 text-white text-[10px] font-black uppercase tracking-widest hover:bg-white/20 transition-all flex items-center gap-2"
+              >
+                Download
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setPreviewUrl(null); }}
+                className="h-10 w-10 rounded-xl bg-rose-500 text-white flex items-center justify-center hover:bg-rose-600 transition-all shadow-lg shadow-rose-500/20"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 overflow-auto flex items-center justify-center p-8" onClick={e => e.stopPropagation()}>
+            {previewUrl.startsWith('data:application/pdf') || previewUrl.toLowerCase().includes('.pdf') ? (
+              <iframe src={previewUrl} title="Documento" className="w-full max-w-5xl h-[85vh] rounded-3xl shadow-2xl bg-white border-none" />
+            ) : (
+              <img src={previewUrl} alt="Comprovante" className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl" />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -757,24 +757,24 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                 )}
 
                 {/* Registrar Pagamento */}
-                {saldoDevedor > 0 && selectedOrder.status === 'aguardando_financeiro' && (
+                {saldoDevedor > 0 && selectedOrder.status !== 'rejeitado_financeiro' && (
                   <div className="p-5 rounded-3xl bg-primary/5 border border-primary/20 space-y-4">
                     <p className="text-[10px] font-black text-primary uppercase tracking-widest flex items-center gap-2">
-                      <Plus className="w-4 h-4" /> Registrar Recebível
+                      <Plus className="w-4 h-4" /> Registrar Pagamento Parcial
                     </p>
                     <div className="space-y-3">
                       <input
                         type="number"
                         value={novoPagValor}
                         onChange={e => setNovoPagValor(e.target.value)}
-                        placeholder="Valor em R$"
+                        placeholder="Valor do Pagamento (R$)"
                         className="input-modern bg-white dark:bg-slate-900 border-border/60 py-2.5 text-xs font-bold"
                       />
                       <input
                         type="text"
                         value={novoPagDescricao}
                         onChange={e => setNovoPagDescricao(e.target.value)}
-                        placeholder="Origem (Ex: Pix Itaú)"
+                        placeholder="Origem / Descrição do Recebimento"
                         className="input-modern bg-white dark:bg-slate-900 border-border/60 py-2.5 text-xs font-bold"
                       />
                       <button

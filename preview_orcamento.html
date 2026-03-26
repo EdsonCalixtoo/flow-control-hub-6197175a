@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Preview - Orçamento PDF</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 850px;
+            width: 100%;
+        }
+
+        .pdf-page {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            padding: 40px;
+            min-height: 1190px;
+            font-family: 'Arial', sans-serif;
+            line-height: 1.6;
+            color: #333;
+        }
+
+        .header {
+            margin-bottom: 20px;
+        }
+
+        .title {
+            font-size: 32px;
+            color: #0066cc;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .header-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            color: #666;
+            border-bottom: 2px solid #ccc;
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+        .header-info div {
+            flex: 1;
+        }
+
+        .section-title {
+            font-size: 12px;
+            font-weight: bold;
+            color: #003366;
+            margin-top: 15px;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        .client-info {
+            background: #f5f5f5;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 10px;
+            margin-bottom: 20px;
+            border-left: 4px solid #0066cc;
+        }
+
+        .client-info p {
+            margin: 3px 0;
+        }
+
+        .client-name {
+            font-size: 12px;
+            font-weight: bold;
+            color: #000;
+            margin-bottom: 6px;
+        }
+
+        table {
+            width: 100%;
+            margin: 20px 0;
+            border-collapse: collapse;
+        }
+
+        table thead {
+            background: #0066cc;
+            color: white;
+        }
+
+        table th {
+            padding: 10px;
+            text-align: left;
+            font-size: 10px;
+            font-weight: bold;
+            border: 1px solid #0066cc;
+        }
+
+        table td {
+            padding: 10px;
+            font-size: 10px;
+            border: 1px solid #ddd;
+        }
+
+        table tbody tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+
+        table tbody tr:nth-child(odd) {
+            background: #ffffff;
+        }
+
+        .product-name {
+            font-weight: 500;
+        }
+
+        .sensor-badge {
+            display: inline-block;
+            background: #e3f2fd;
+            color: #0066cc;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 9px;
+            font-weight: bold;
+            margin-left: 5px;
+            margin-top: 2px;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .totals-section {
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 2px solid #ccc;
+        }
+
+        .total-row {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 8px;
+            font-size: 11px;
+        }
+
+        .total-row .label {
+            min-width: 120px;
+            text-align: right;
+            padding-right: 20px;
+            color: #666;
+        }
+
+        .total-row .value {
+            min-width: 100px;
+            text-align: right;
+            font-weight: bold;
+        }
+
+        .grand-total {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 15px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #0066cc;
+            padding: 10px;
+            background: #f0f4ff;
+            border-radius: 4px;
+        }
+
+        .grand-total .label {
+            min-width: 120px;
+            text-align: right;
+            padding-right: 20px;
+        }
+
+        .grand-total .value {
+            min-width: 120px;
+            text-align: right;
+        }
+
+        .observations {
+            background: #fffbf0;
+            border-left: 4px solid #ff9800;
+            padding: 12px;
+            margin-top: 20px;
+            font-size: 10px;
+            border-radius: 4px;
+        }
+
+        .obs-title {
+            font-weight: bold;
+            color: #ff9800;
+            margin-bottom: 6px;
+            font-size: 11px;
+        }
+
+        .footer {
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 1px solid #ddd;
+            font-size: 9px;
+            color: #999;
+            text-align: center;
+        }
+
+        .print-button {
+            display: block;
+            margin: 20px auto;
+            padding: 12px 30px;
+            background: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .print-button:hover {
+            background: #0052a3;
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            
+            .container {
+                box-shadow: none;
+                padding: 0;
+                max-width: 100%;
+                border-radius: 0;
+            }
+
+            .print-button {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <button class="print-button" onclick="window.print()">🖨️ Imprimir / Salvar como PDF</button>
+        
+        <div class="pdf-page">
+            <!-- HEADER -->
+            <div class="header">
+                <div class="title">ORÇAMENTO</div>
+                <div class="header-info">
+                    <div>
+                        <strong>Data:</strong> 02/03/2026<br>
+                        <strong>Validade:</strong> 30 dias
+                    </div>
+                    <div style="text-align: right;">
+                        <strong>Número:</strong> ORÇ-2026-001
+                    </div>
+                </div>
+            </div>
+
+            <!-- CLIENTE -->
+            <div class="section-title">Cliente</div>
+            <div class="client-info">
+                <div class="client-name">João Silva Comércio LTDA</div>
+                <p><strong>CPF/CNPJ:</strong> 12.345.678/0001-90</p>
+                <p><strong>Telefone:</strong> (11) 98765-4321</p>
+                <p><strong>Email:</strong> contato@joaosilva.com.br</p>
+                <p><strong>Endereço:</strong> Rua das Flores, 123 - São Paulo/SP - 01234-567</p>
+            </div>
+
+            <!-- VENDEDOR -->
+            <div class="section-title">Vendedor Responsável</div>
+            <div class="client-info" style="border-left-color: #4CAF50;">
+                <p><strong style="font-size: 12px; color: #333;">Carlos Alberto Silva</strong></p>
+            </div>
+
+            <!-- TABELA DE PRODUTOS -->
+            <div class="section-title">Produtos</div>
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 45%;">PRODUTO</th>
+                        <th style="width: 15%; text-align: center;">QTDE</th>
+                        <th style="width: 20%; text-align: right;">VLR UNIT.</th>
+                        <th style="width: 20%; text-align: right;">SUBTOTAL</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>
+                            <div class="product-name">KIT SPRINTER .N</div>
+                            <div class="sensor-badge">✅ COM SENSOR</div>
+                        </td>
+                        <td style="text-align: center;">2</td>
+                        <td class="text-right">R$ 2.500,00</td>
+                        <td class="text-right">R$ 5.000,00</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <div class="product-name">KIT FORD TRANSIT</div>
+                            <div class="sensor-badge">⚪ SEM SENSOR</div>
+                        </td>
+                        <td style="text-align: center;">1</td>
+                        <td class="text-right">R$ 1.800,00</td>
+                        <td class="text-right">R$ 1.800,00</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <div class="product-name">Sensor de Temperatura</div>
+                        </td>
+                        <td style="text-align: center;">5</td>
+                        <td class="text-right">R$ 150,00</td>
+                        <td class="text-right">R$ 750,00</td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <div class="product-name">Cabo de Conexão 5m</div>
+                        </td>
+                        <td style="text-align: center;">3</td>
+                        <td class="text-right">R$ 85,00</td>
+                        <td class="text-right">R$ 255,00</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <!-- TOTAIS -->
+            <div class="totals-section">
+                <div class="total-row">
+                    <span class="label">SUBTOTAL:</span>
+                    <span class="value">R$ 7.805,00</span>
+                </div>
+                <div class="grand-total">
+                    <span class="label">TOTAL:</span>
+                    <span class="value">R$ 7.805,00</span>
+                </div>
+            </div>
+
+            <!-- OBSERVAÇÕES -->
+            <div class="observations">
+                <div class="obs-title">📋 OBSERVAÇÕES</div>
+                <p>- Entrega prevista: 10/03/2026<br>
+                   - Prazo de pagamento: 30 dias<br>
+                   - Frete: Cobrado à parte<br>
+                   - Os produtos KIT com sensor incluem instalação básica<br>
+                   - Garantia de 12 meses a partir da entrega</p>
+            </div>
+
+            <!-- RODAPÉ -->
+            <div class="footer">
+                <p>Este orçamento é válido por 30 dias. Para confirmar seu pedido, favor retornar assinado ou via email.</p>
+                <p style="margin-top: 5px;">Gerado em: 02/03/2026 às 14:35:22</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

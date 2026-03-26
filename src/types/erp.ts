@@ -1,0 +1,382 @@
+export type UserRole = 'vendedor' | 'financeiro' | 'gestor' | 'producao';
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  avatar?: string;
+}
+
+export interface Client {
+  id: string;
+  name: string;
+  cpfCnpj: string;
+  phone: string;
+  email?: string;
+  address: string;
+  bairro?: string;          // campo bairro
+  city: string;
+  state: string;
+  cep: string;
+  notes: string;
+  consignado?: boolean;
+  createdBy?: string;       // ID do vendedor que cadastrou o cliente
+  createdAt: string;
+}
+
+
+export interface QuoteItem {
+  id: string;
+  product: string;
+  description?: string;   // descrição completa do produto
+  quantity: number;
+  unitPrice: number;
+  discount: number;
+  discountType: 'percent' | 'value';
+  total: number;
+  sensorType?: 'com_sensor' | 'sem_sensor';  // para produtos KIT
+  isReward?: boolean;
+  rewardId?: string;
+}
+
+export type OrderStatus =
+  | 'rascunho'
+  | 'enviado'
+  | 'aprovado_cliente'
+  | 'aguardando_financeiro'
+  | 'aprovado_financeiro'
+  | 'rejeitado_financeiro'
+  | 'aguardando_gestor'
+  | 'aprovado_gestor'
+  | 'rejeitado_gestor'
+  | 'aguardando_producao'
+  | 'em_producao'
+  | 'producao_finalizada'
+  | 'produto_liberado'
+  | 'retirado_entregador'
+  | 'planejamento'
+  | 'extraviado';
+
+export type ProductionStatus = 'em_producao' | 'agendado' | 'atrasado' | 'finalizado';
+
+export interface StatusHistoryEntry {
+  status: OrderStatus;
+  timestamp: string;
+  user: string;
+  note?: string;
+}
+
+export interface Order {
+  id: string;
+  number: string;
+  clientId: string;
+  clientName: string;
+  sellerId: string;
+  sellerName: string;
+  items: QuoteItem[];
+  subtotal: number;
+  taxes: number;
+  total: number;
+  status: OrderStatus;
+  notes: string;
+  observation?: string;         // campo de observação do orçamento
+  rejectionReason?: string;     // motivo de rejeição pelo financeiro
+  paymentMethod?: string;
+  paymentStatus?: 'pago' | 'parcial' | 'pendente';
+  installments?: number;
+  createdAt: string;
+  updatedAt: string;
+  qrCode?: string;
+  productionStartedAt?: string;
+  productionFinishedAt?: string;
+  releasedAt?: string;
+  releasedBy?: string;
+  receiptUrl?: string;
+  deliveryDate?: string;
+  comprovantesVistos?: number; // Contador de comprovantes já visualizados pelo financeiro
+  scheduledDate?: string;        // data de agendamento da produção
+  orderType?: 'entrega' | 'instalacao' | 'manutencao' | 'retirada';
+  installationDate?: string;
+  installationTime?: string;
+  installationPaymentType?: 'pago' | 'pagar_na_hora';
+  isConsigned?: boolean;
+  productionStatus?: ProductionStatus;  // status detalhado de produção
+  volumes?: number;  // quantidade de caixas/volumes para entrega (default 1)
+  statusHistory: StatusHistoryEntry[];
+  // chat
+  chatMessages?: ChatMessage[];
+  receiptUrls?: string[]; // Para múltiplos comprovantes
+  carrier?: string;      // Transportadora (JADLOG, MOTOBOY, etc)
+  isCronograma?: boolean; // Pedido de cronograma (agendado com antecedência)
+  financeiroAprovado?: boolean;
+  isWarranty?: boolean;
+  statusPagamento?: 'pendente' | 'pago' | 'parcial';
+  statusProducao?: string;
+  requiresInvoice?: boolean;
+}
+
+export type RewardStatus = 'pendente' | 'liberado' | 'resgatado';
+
+export interface ClientReward {
+  id: string;
+  clientId: string;
+  rewardType: 'tier_1' | 'tier_2' | 'tier_3';
+  kitsRequired: number;
+  kitsCompleted: number;
+  kitsConsumed?: number;
+  kitsAdjustment?: number;
+  rewardStatus: RewardStatus;
+  rewardRedeemedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KitBreakdown {
+  product: string;
+  quantity: number;
+}
+
+export interface ClientRanking {
+  totalKits: number;
+  tier1Count: number;
+  tier2Count: number;
+  tier3Count: number;
+  ranking: 'Bronze' | 'Prata' | 'Ouro' | 'Nenhum';
+  breakdown: KitBreakdown[];
+}
+
+export interface ChatMessage {
+  id: string;
+  orderId: string;
+  senderId?: string;
+  senderName: string;
+  senderRole: UserRole;
+  message: string;
+  createdAt: string;
+  readBy: string[];  // array de roles que já leram
+}
+
+export interface OrderReturn {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  clientName: string;
+  reason: string;
+  reportedBy: string;
+  createdAt: string;
+}
+
+// Leitura de código de barras pela produção
+export interface BarcodeScan {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  scannedBy: string;
+  scannedAt: string;
+  success: boolean;
+  note?: string;
+}
+
+// Retirada confirmada pelo entregador
+export interface DeliveryPickup {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  delivererName: string;
+  photoUrl: string;       // base64 da foto do rosto
+  signatureUrl: string;  // base64 da assinatura
+  pickedUpAt: string;
+  batchId?: string;      // ID do lote de retirada
+  note?: string;
+}
+
+export interface ProductionError {
+  id: string;
+  orderId?: string;
+  orderNumber?: string;
+  clientName?: string;
+  description: string;
+  reportedBy: string;
+  severity: 'baixa' | 'media' | 'alta' | 'critica';
+  resolved: boolean;
+  createdAt: string;
+  resolvedAt?: string;
+}
+
+export const STATUS_FLOW: OrderStatus[] = [
+  'rascunho',
+  'aguardando_financeiro',
+  'aprovado_financeiro',
+  'aguardando_producao',
+  'em_producao',
+  'producao_finalizada',
+  'produto_liberado',
+];
+
+export interface FinancialEntry {
+  id: string;
+  type: 'receita' | 'despesa';
+  description: string;
+  amount: number;
+  category: string;
+  date: string;
+  status: 'pago' | 'pendente';
+  orderId?: string;      // pedido vinculado
+  orderNumber?: string;
+  clientId?: string;
+  clientName?: string;
+  paymentMethod?: string;
+  dueDate?: string;
+  paidAt?: string;
+  receiptUrl?: string;  // legacy
+  receiptUrls?: string[]; // Para múltiplos comprovantes
+  transactionId?: string; // Identificador único da transação (ex: NSU, ID do Pix)
+  cardLastDigits?: string; // Últimos 4 dígitos do cartão
+  createdAt: string;
+}
+
+export interface Product {
+  id: string;
+  sku: string;
+  name: string;
+  description: string;
+  category: string;
+  unitPrice: number;
+  costPrice: number;
+  stockQuantity: number;
+  minStock: number;
+  unit: string;
+  supplier: string;
+  status: 'ativo' | 'inativo' | 'esgotado';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const STATUS_LABELS: Record<OrderStatus, string> = {
+  rascunho: 'Rascunho',
+  enviado: 'Enviado',
+  aprovado_cliente: 'Aprovado pelo Cliente',
+  aguardando_financeiro: 'Aguardando Financeiro',
+  aprovado_financeiro: 'Aprovado Financeiro',
+  rejeitado_financeiro: 'Rejeitado Financeiro',
+  aguardando_gestor: 'Aguardando Gestor',
+  aprovado_gestor: 'Aprovado Gestor',
+  rejeitado_gestor: 'Rejeitado Gestor',
+  aguardando_producao: 'Aguardando Produção',
+  em_producao: 'Em Produção',
+  producao_finalizada: 'Produção Finalizada',
+  produto_liberado: 'Produto Liberado',
+  retirado_entregador: 'Retirado pelo Entregador',
+  extraviado: 'Extraviado',
+  planejamento: 'Previsão de Produção',
+};
+
+export const STATUS_COLORS: Record<OrderStatus, string> = {
+  rascunho: 'bg-muted text-muted-foreground',
+  enviado: 'bg-info/10 text-info',
+  aprovado_cliente: 'bg-info/10 text-info',
+  aguardando_financeiro: 'bg-pink/10 text-pink',
+  aprovado_financeiro: 'bg-success/10 text-success',
+  rejeitado_financeiro: 'bg-destructive/10 text-destructive',
+  aguardando_gestor: 'bg-warning/10 text-warning',
+  aprovado_gestor: 'bg-success/10 text-success',
+  rejeitado_gestor: 'bg-destructive/10 text-destructive',
+  aguardando_producao: 'bg-warning/10 text-warning',
+  em_producao: 'bg-producao/10 text-producao',
+  producao_finalizada: 'bg-info/10 text-info',
+  produto_liberado: 'bg-success/10 text-success',
+  retirado_entregador: 'bg-primary/10 text-primary',
+  extraviado: 'bg-destructive/10 text-destructive font-bold',
+  planejamento: 'bg-producao/10 text-producao border-dashed border-producao/50',
+};
+
+export const ROLE_LABELS: Record<UserRole, string> = {
+  vendedor: 'Vendedor',
+  financeiro: 'Financeiro',
+  gestor: 'Gestor',
+  producao: 'Produção',
+};
+
+export const ROLE_COLORS: Record<UserRole, string> = {
+  vendedor: 'bg-vendedor',
+  financeiro: 'bg-financeiro',
+  gestor: 'bg-gestor',
+  producao: 'bg-producao',
+};
+
+export const PRODUCTION_STATUS_LABELS: Record<ProductionStatus, string> = {
+  em_producao: 'Em Produção',
+  agendado: 'Agendado',
+  atrasado: 'Atrasado',
+  finalizado: 'Finalizado',
+};
+
+export const PRODUCTION_STATUS_COLORS: Record<ProductionStatus, string> = {
+  em_producao: 'bg-producao/10 text-producao',
+  agendado: 'bg-primary/10 text-primary',
+  atrasado: 'bg-destructive/10 text-destructive',
+  finalizado: 'bg-success/10 text-success',
+};
+
+// Relatorio de atraso enviado da producao para o gestor
+export interface DelayReport {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  clientName: string;
+  orderType: 'entrega' | 'instalacao' | 'manutencao' | 'retirada';
+  deliveryDate?: string;
+  orderTotal: number;
+  reason: string;
+  sentAt: string;
+  readAt?: string;
+  sentBy: string;
+}
+
+export type WarrantyStatus =
+  | 'Garantia criada'
+  | 'Aguardando aprovação do gestor'
+  | 'Garantia aprovada'
+  | 'Em produção'
+  | 'Garantia finalizada'
+  | 'rejeitado';
+
+export interface WarrantyHistory {
+  status: WarrantyStatus;
+  timestamp: string;
+  user: string;
+  note?: string;
+}
+
+export interface Warranty {
+  id: string;
+  orderId?: string;
+  orderNumber?: string;
+  clientId?: string;
+  clientName: string;
+  sellerId?: string;
+  sellerName?: string;
+  product?: string;
+  description: string;
+  status: WarrantyStatus;
+  receiptUrls?: string[];
+  resolution?: string;
+  createdAt: string;
+  updatedAt: string;
+  carrier?: string;
+  history?: WarrantyHistory[];
+}
+
+export interface MonthlyClosing {
+  id: string;
+  sellerId: string;
+  sellerName: string;
+  referenceMonth: string; // 'MM/YYYY'
+  closingDate: string;
+  totalSold: number;
+  orderCount: number;
+  outstandingValue: number;
+  details?: any;
+  createdAt: string;
+}

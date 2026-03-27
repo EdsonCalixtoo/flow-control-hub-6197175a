@@ -5,7 +5,7 @@ import {
     Search, ShieldCheck, ChevronRight, MapPin,
     Calendar, CreditCard, ShoppingBag
 } from 'lucide-react';
-import { StatusBadge } from '@/components/shared/StatusBadge';
+import { StatusBadge, formatDate } from '@/components/shared/StatusBadge';
 import { supabasePublic } from '@/lib/supabasePublic';
 import type { Order, OrderStatus } from '@/types/erp';
 
@@ -179,7 +179,7 @@ const TrackingPage: React.FC = () => {
                             <div className="flex items-center gap-1.5 text-slate-800 font-bold justify-end">
                                 <Calendar className="w-4 h-4 text-primary" />
                                 {order.deliveryDate
-                                    ? new Date(order.deliveryDate).toLocaleDateString('pt-BR')
+                                    ? formatDate(order.deliveryDate)
                                     : 'A definir'}
                             </div>
                         </div>

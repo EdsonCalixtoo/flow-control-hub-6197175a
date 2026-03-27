@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { cleanR2Url } from '@/lib/storageServiceR2';
-import { StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
+import { StatusBadge, formatCurrency, formatDate } from '@/components/shared/StatusBadge';
 import { OrderPipeline, OrderHistory } from '@/components/shared/OrderTimeline';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
 import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check, Download, Link2, DollarSign, CheckCircle, Users, Package, Truck, CheckCircle2, XCircle, ChevronDown, Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -793,7 +793,7 @@ const OrcamentosPage: React.FC = () => {
       yPosition += 12;
       pdf.setFontSize(9);
       pdf.setTextColor(100, 100, 100);
-      pdf.text(`Data: ${new Date(order.createdAt).toLocaleDateString('pt-BR')}`, 15, yPosition);
+      pdf.text(`Data: ${formatDate(order.createdAt)}`, 15, yPosition);
       pdf.text(`Validade: 30 dias`, 90, yPosition);
       pdf.text(`Número: ${order.number}`, 150, yPosition);
 
@@ -1469,7 +1469,7 @@ const OrcamentosPage: React.FC = () => {
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div className="p-3 rounded-xl bg-muted/30"><span className="text-xs text-muted-foreground block mb-1">Cliente</span><span className="font-semibold text-foreground">{selectedOrder.clientName}</span></div>
             <div className="p-3 rounded-xl bg-muted/30"><span className="text-xs text-muted-foreground block mb-1">Status</span><StatusBadge status={selectedOrder.status} /></div>
-            <div className="p-3 rounded-xl bg-muted/30"><span className="text-xs text-muted-foreground block mb-1">Data</span><span className="text-foreground font-medium">{new Date(selectedOrder.createdAt).toLocaleDateString('pt-BR')}</span></div>
+            <div className="p-3 rounded-xl bg-muted/30"><span className="text-xs text-muted-foreground block mb-1">Data</span><span className="text-foreground font-medium">{formatDate(selectedOrder.createdAt)}</span></div>
             <div className="p-3 rounded-xl bg-muted/30"><span className="text-xs text-muted-foreground block mb-1">Total</span><span className="font-extrabold text-foreground text-lg">{formatCurrency(selectedOrder.total)}</span></div>
             
             {/* Exibe Data de Entrega ou Agendamento se houver */}
@@ -1479,7 +1479,7 @@ const OrcamentosPage: React.FC = () => {
                   📅 {selectedOrder.orderType === 'entrega' ? 'Data da Entrega' : 'Data do Agendamento'}
                 </span>
                 <span className="font-black text-primary text-base">
-                  {new Date(selectedOrder.deliveryDate || selectedOrder.installationDate!).toLocaleDateString('pt-BR')}
+                  {formatDate(selectedOrder.deliveryDate || selectedOrder.installationDate)}
                   {selectedOrder.installationTime && ` às ${selectedOrder.installationTime}`}
                 </span>
               </div>

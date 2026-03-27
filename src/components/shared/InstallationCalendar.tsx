@@ -20,6 +20,14 @@ export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSe
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
+        if (selectedDate) {
+            // Usa o hack de meio-dia para evitar problemas de fuso horário ao converter string para Date local
+            const dateToLoad = new Date(selectedDate.includes('T') ? selectedDate : selectedDate + 'T12:00:00');
+            setCurrentDate(dateToLoad);
+        }
+    }, []); // Executa apenas no mount para evitar loops se selecionado mudar externamente
+
+    useEffect(() => {
         loadAppointments();
     }, [currentDate]);
 

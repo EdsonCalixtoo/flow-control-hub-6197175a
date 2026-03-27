@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useERP } from '@/contexts/ERPContext';
-import { formatCurrency } from '@/components/shared/StatusBadge';
+import { formatCurrency, formatDate } from '@/components/shared/StatusBadge';
 import { TrendingUp, TrendingDown, Plus, Search, X, Filter } from 'lucide-react';
 import type { FinancialEntry } from '@/types/erp';
 
@@ -38,6 +38,7 @@ const LancamentosPage: React.FC = () => {
       category: form.category,
       date: form.date,
       status: form.status,
+      createdAt: new Date().toISOString(),
     });
     setShowModal(false);
     setForm(emptyForm);
@@ -127,7 +128,7 @@ const LancamentosPage: React.FC = () => {
               </div>
               <div>
                 <p className="text-sm font-semibold text-foreground">{entry.description}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{entry.category} • {new Date(entry.date).toLocaleDateString('pt-BR')}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{entry.category} • {formatDate(entry.date)}</p>
               </div>
             </div>
             <div className="text-right shrink-0 ml-4">

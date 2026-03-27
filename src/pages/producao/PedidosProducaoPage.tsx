@@ -1117,12 +1117,21 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                  </div>
               </div>
               <div>
-                 <p className="text-xl font-black text-foreground uppercase truncate">
-                   {viewOrder.orderType === 'instalacao'
-                     ? (viewOrder.installationDate ? `${new Date(viewOrder.installationDate + 'T00:00:00').toLocaleDateString('pt-BR')}` : 'DIRETO')
+                 <p className="text-xl font-black text-foreground uppercase leading-none tracking-tighter">
+                   {(viewOrder.orderType === 'instalacao' || viewOrder.orderType === 'manutencao' || viewOrder.orderType === 'retirada')
+                     ? (viewOrder.installationDate 
+                          ? fmtDate(viewOrder.installationDate)
+                         : 'DIRETO'
+                       )
                      : 'PROD. PADRÃO'
-                   }
-                 </p>
+                    }
+                  </p>
+                  {(viewOrder.orderType === 'instalacao' || viewOrder.orderType === 'manutencao' || viewOrder.orderType === 'retirada') && viewOrder.installationDate && viewOrder.installationTime && (
+                     <div className='flex items-center gap-1.5 px-2 py-1 rounded-xl bg-primary/10 text-primary w-fit border border-primary/20 mt-1.5 animate-in fade-in zoom-in-95 duration-500'>
+                        <Clock className='w-3 h-3 shrink-0' />
+                        <span className='text-[10px] font-black uppercase tracking-widest whitespace-nowrap'>Agendado: {viewOrder.installationTime}</span>
+                     </div>
+                  )}
                  <p className="text-[10px] font-bold text-muted-foreground mt-0.5">Tipo de Produção</p>
               </div>
            </div>
@@ -1519,6 +1528,12 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                              <div className="w-1 h-1 rounded-full bg-muted-foreground/30" />
                              Vend: {order.sellerName}
                            </span>
+                           {(order.orderType === 'instalacao' || order.orderType === 'manutencao' || order.orderType === 'retirada') && (order.installationDate || order.scheduledDate) && (
+                              <span className="text-primary font-black flex items-center gap-1.5 ml-auto animate-in fade-in slide-in-from-right-2 duration-700 bg-primary/5 px-2 py-0.5 rounded-lg border border-primary/10">
+                                <Clock className="w-3.5 h-3.5" />
+                                {fmtDate(order.installationDate || order.scheduledDate)} {order.installationTime ? `@ ${order.installationTime}` : ''}
+                              </span>
+                           )}
                         </div>
 
                         {/* Itens Group */}

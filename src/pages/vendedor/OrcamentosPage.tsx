@@ -16,6 +16,7 @@ import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { InstallationCalendar } from '@/components/shared/InstallationCalendar';
 import { checkInstallationConflict, saveInstallation, deleteInstallationByOrder, InstallationAppointment } from '@/lib/installationServiceSupabase';
+import { cancelRedeemReward } from '@/lib/rewardServiceSupabase';
 import { fetchMaxOrderNumberGlobal } from '@/lib/orderServiceSupabase';
 
 // Função local para gerar próximo número de ordem
@@ -481,7 +482,7 @@ const OrcamentosPage: React.FC = () => {
     setFormError('');
   };
 
-  const resetForm = () => {
+  const resetForm = (isSuccess = false) => {
     setEditingOrder(null);
     setShowCreate(false);
     setNewClientId('');
@@ -495,6 +496,11 @@ const OrcamentosPage: React.FC = () => {
     setNewCarrier('');
     setNewRequiresInvoice(false);
     setFormError('');
+    if (activeReward && isSuccess !== true) {
+      cancelRedeemReward(activeReward.id).then(success => {
+        if (success) console.log('[OrcamentosPage] 🔄 Resgate de prêmio cancelado e estornado.');
+      });
+    }
     setActiveReward(null);
   };
 
@@ -628,7 +634,7 @@ const OrcamentosPage: React.FC = () => {
         }
 
         setFormError('');
-        resetForm();
+        resetForm(true);
         setSuccessMessage('Orçamento atualizado com sucesso!');
         setShowSuccessAnim(true);
         setTimeout(() => setShowSuccessAnim(false), 2500);
@@ -728,7 +734,7 @@ const OrcamentosPage: React.FC = () => {
           }
 
           setFormError('');
-          resetForm();
+          resetForm(true);
           setSuccessMessage('Orçamento criado com sucesso!');
           setShowSuccessAnim(true);
           setTimeout(() => setShowSuccessAnim(false), 2500);
@@ -999,7 +1005,7 @@ const OrcamentosPage: React.FC = () => {
             </p>
           </div>
           <button
-            onClick={resetForm}
+            onClick={() => resetForm()}
             className="btn-modern bg-destructive/10 text-destructive hover:bg-destructive/20 border border-destructive/20 shadow-none text-xs font-black uppercase tracking-widest px-6"
           >
             <X className="w-4 h-4" /> Cancelar

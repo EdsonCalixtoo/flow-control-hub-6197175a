@@ -139,6 +139,37 @@ export const redeemReward = async (rewardId: string): Promise<boolean> => {
     }
 };
 
+export const cancelRedeemReward = async (rewardId: string): Promise<boolean> => {
+    try {
+        const { data: rewardData, error: fetchError } = await supabase
+            .from('client_rewards')
+            .select('*')
+            .eq('id', rewardId)
+            .single();
+
+        if (fetchError || !rewardData) throw fetchError || new Error('Prêmio não encontrado');
+
+        // Só cancela se estiver no status 'resgatado'
+        if (rewardData.reward_status !== 'resgatado') return false;
+
+        const { error } = await supabase
+            .from('client_rewards')
+            .update({
+                reward_status: 'liberado', 
+                reward_redeemed_at: null,
+                kits_consumed: Math.max(0, (rewardData.kits_consumed || 0) - rewardData.kits_required),
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', rewardId);
+
+        if (error) throw error;
+        return true;
+    } catch (err: any) {
+        console.error('[Rewards] Erro ao cancelar resgate de prêmio:', err.message);
+        return false;
+    }
+};
+
 export const updateClientRewardsAuto = async (clientId: string): Promise<void> => {
     try {
         const ranking = await calculateClientRanking(clientId);

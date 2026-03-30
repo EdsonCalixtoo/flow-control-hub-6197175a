@@ -23,6 +23,7 @@ interface OrderTimelineProps {
 }
 
 export const OrderPipeline: React.FC<OrderTimelineProps> = ({ order, compact }) => {
+  const isFinalStatus = order.status === 'produto_liberado' || order.status === 'retirado_entregador';
   const currentIndex = PIPELINE_STEPS.indexOf(order.status);
   const isRejected = order.status === 'rejeitado_financeiro' || order.status === 'rejeitado_gestor';
 
@@ -39,8 +40,8 @@ export const OrderPipeline: React.FC<OrderTimelineProps> = ({ order, compact }) 
   return (
     <div className={`flex items-center gap-1 ${compact ? 'overflow-x-auto pb-1' : 'flex-wrap'}`}>
       {PIPELINE_STEPS.map((step, i) => {
-        const done = i < currentIndex;
-        const active = i === currentIndex;
+        const done = i < currentIndex || (isFinalStatus && i === currentIndex);
+        const active = i === currentIndex && !isFinalStatus;
         return (
           <React.Fragment key={step}>
             <div className="flex items-center gap-1.5 shrink-0">

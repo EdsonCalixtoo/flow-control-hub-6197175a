@@ -266,8 +266,8 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
   aguardando_producao: 'Aguardando Produção',
   em_producao: 'Em Produção',
   producao_finalizada: 'Produção Finalizada',
-  produto_liberado: 'Produto Liberado',
-  retirado_entregador: 'Retirado pelo Entregador',
+  produto_liberado: 'Finalizado (Pronto)',
+  retirado_entregador: 'Retirado p/ Entregador',
   extraviado: 'Extraviado',
   planejamento: 'Previsão de Produção',
 };

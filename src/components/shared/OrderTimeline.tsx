@@ -11,8 +11,8 @@ const STEP_LABELS: Record<string, string> = {
   aprovado_gestor: 'Aprovado Gestor',
   aguardando_producao: 'Produção',
   em_producao: 'Em Produção',
-  producao_finalizada: 'Finalizado',
-  produto_liberado: 'Liberado',
+  producao_finalizada: 'Prod. Finalizada',
+  produto_liberado: 'Finalizado',
 };
 
 const PIPELINE_STEPS = STATUS_FLOW;

@@ -351,15 +351,15 @@ const GestorDashboard: React.FC = () => {
                           <tr key={order.id} className={isLateOrder ? 'bg-destructive/5' : ''}>
                             <td>
                               <div className="flex items-center gap-1.5">
-                                <span className="font-extrabold text-foreground">{order.number}</span>
+                                <span className="font-extrabold text-foreground select-all cursor-text">#{order.number}</span>
                                 {isLateOrder && (
                                   <span className="text-[9px] font-bold text-destructive bg-destructive/10 px-1 py-0.5 rounded">ATRASADO</span>
                                 )}
                               </div>
                             </td>
-                            <td className="text-foreground">
-                              <div className="flex items-center gap-1.5">
-                                {order.clientName}
+                            <td className="text-foreground select-text">
+                              <div className="flex items-center gap-1.5 focus:outline-none">
+                                <span className="select-all cursor-text">{order.clientName}</span>
                                 {order.requiresInvoice && (
                                   <span className="inline-flex items-center font-black text-[8px] bg-primary/20 text-primary px-1.5 py-0.5 rounded-full border border-primary/30">NF</span>
                                 )}
@@ -373,7 +373,9 @@ const GestorDashboard: React.FC = () => {
                             </td>
                             <td className="hidden sm:table-cell">
                               <span className={`text-xs font-semibold ${isLateOrder ? 'text-destructive' : 'text-muted-foreground'}`}>
-                                {formatDate(order.deliveryDate)}
+                                {(order.orderType === 'instalacao' || order.orderType === 'manutencao') && order.installationDate 
+                                  ? formatDate(order.installationDate) 
+                                  : formatDate(order.deliveryDate)}
                               </span>
                             </td>
                             <td><StatusBadge status={order.status} /></td>

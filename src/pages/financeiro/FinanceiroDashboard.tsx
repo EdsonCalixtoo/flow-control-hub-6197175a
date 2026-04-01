@@ -280,6 +280,11 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
     return client?.consignado === true;
   }), [ordersVisiveisFinanceiro, clients]);
 
+  // 🔔 Contador de novos comprovantes especificamente para consignados
+  const newReceiptsInConsigned = useMemo(() => {
+    return consignadosOrders.filter(o => (o.receiptUrls?.length || 0) > (o.comprovantesVistos || 0)).length;
+  }, [consignadosOrders]);
+
   // --- ⏰ LÓGICA DE NOTIFICAÇÃO DE ATRASO DE PAGAMENTO ---
   const calcularDiasAtraso = (dataCriacao: string) => {
     const criada = new Date(dataCriacao);
@@ -730,7 +735,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
     const saldoDevedor = selectedOrder.total - totalPago;
 
     return (
-      <div className="space-y-8 animate-fade-in pb-20 relative">
+      <div className="space-y-8 animate-fade-in pb-20 relative select-text cursor-default">
         {/* Header de Ação */}
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
@@ -741,7 +746,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
               <ArrowLeft className="w-5 h-5" />
             </button>
             <div>
-              <h1 className="text-2xl font-black text-foreground tracking-tight">Pedido #{selectedOrder.number}</h1>
+              <h1 className="text-2xl font-black text-foreground tracking-tight select-text">Pedido <span className="text-primary select-all cursor-text">#{selectedOrder.number}</span></h1>
               <p className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                 <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
                 Gerenciamento financeiro detalhado
@@ -877,7 +882,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
           <div className="lg:col-span-2 space-y-8">
             
             {/* Card de Informações Gerais */}
-            <div className="card-premium p-8">
+            <div className="card-premium p-8 select-text">
               <div className="flex items-center justify-between mb-8">
                 <h3 className="text-[11px] font-black text-muted-foreground uppercase tracking-[0.2em] flex items-center gap-2">
                   <Info className="w-4 h-4 text-primary" />
@@ -895,8 +900,8 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                         <Star className="w-6 h-6" />
                       </div>
                       <div>
-                        <p className="text-sm font-black text-amber-600 uppercase tracking-tight">Regime de Consignação</p>
-                        <p className="text-xs text-amber-600/70 mt-1 font-medium leading-relaxed italic">Condições especiais de pagamento aplicadas a este cliente.</p>
+                        <p className="text-sm font-black text-amber-600 uppercase tracking-tight select-text">Regime de Consignação</p>
+                        <p className="text-xs text-amber-600/70 mt-1 font-medium leading-relaxed italic select-text">Condições especiais de pagamento aplicadas a este cliente.</p>
                       </div>
                     </div>
                   )}
@@ -917,37 +922,37 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                 {/* Grid de Dados */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Cliente */}
-                  <div className="flex items-center gap-4 p-5 rounded-3xl bg-slate-50 dark:bg-slate-900/40 border border-border/40 group hover:border-primary/30 transition-all hover:shadow-lg hover:shadow-primary/[0.02]">
+                  <div className="flex items-center gap-4 p-5 rounded-3xl bg-slate-50 dark:bg-slate-900/40 border border-border/40 select-text relative z-10">
                     <div className="h-12 w-12 rounded-2xl bg-background border border-border/40 flex items-center justify-center text-muted-foreground group-hover:text-primary group-hover:border-primary/20 transition-all shadow-sm">
                       <Users2 className="w-5 h-5" />
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 select-text">
                       <span className="text-[10px] uppercase font-black text-muted-foreground/60 block tracking-widest">Cliente Final</span>
-                      <span className="text-sm font-black text-foreground block truncate">{selectedOrder.clientName}</span>
-                      <span className="text-[10px] text-muted-foreground block mt-0.5">{client?.cpfCnpj ? `CPF/CNPJ: ${client.cpfCnpj}` : 'Sem documento'}</span>
+                      <span className="text-sm font-black text-foreground block select-all cursor-text pointer-events-auto">{selectedOrder.clientName}</span>
+                      <span className="text-[10px] text-muted-foreground block mt-0.5 select-all cursor-text pointer-events-auto">{client?.cpfCnpj ? `CPF/CNPJ: ${client.cpfCnpj}` : 'Sem documento'}</span>
                     </div>
                   </div>
 
                   {/* Vendedor */}
-                  <div className="flex items-center gap-4 p-5 rounded-3xl bg-slate-50 dark:bg-slate-900/40 border border-border/40 group hover:border-primary/30 transition-all hover:shadow-lg hover:shadow-primary/[0.02]">
+                  <div className="flex items-center gap-4 p-5 rounded-3xl bg-slate-50 dark:bg-slate-900/40 border border-border/40 select-text relative z-10">
                     <div className="h-12 w-12 rounded-2xl bg-background border border-border/40 flex items-center justify-center text-muted-foreground group-hover:text-primary group-hover:border-primary/20 transition-all shadow-sm">
                       <BadgeCheck className="w-5 h-5" />
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 select-text">
                       <span className="text-[10px] uppercase font-black text-muted-foreground/60 block tracking-widest">Consultor de Vendas</span>
-                      <span className="text-sm font-black text-foreground block truncate">{selectedOrder.sellerName}</span>
-                      <span className="text-[10px] text-muted-foreground block mt-0.5">Responsável direto</span>
+                      <span className="text-sm font-black text-foreground block select-all cursor-text pointer-events-auto">{selectedOrder.sellerName}</span>
+                      <span className="text-[10px] text-muted-foreground block mt-0.5 select-all cursor-text pointer-events-auto">Responsável direto</span>
                     </div>
                   </div>
 
                   {/* Meio de Entrega */}
-                  <div className="flex items-center gap-4 p-5 rounded-3xl bg-slate-50 dark:bg-slate-900/40 border border-border/40 group hover:border-primary/30 transition-all hover:shadow-lg hover:shadow-primary/[0.02]">
+                  <div className="flex items-center gap-4 p-5 rounded-3xl bg-slate-50 dark:bg-slate-900/40 border border-border/40 select-text relative z-10">
                     <div className="h-12 w-12 rounded-2xl bg-background border border-border/40 flex items-center justify-center text-muted-foreground group-hover:text-primary group-hover:border-primary/20 transition-all shadow-sm">
                       <Send className="w-5 h-5" />
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 select-text">
                       <span className="text-[10px] uppercase font-black text-muted-foreground/60 block tracking-widest">Meio de Entrega</span>
-                      <span className="text-sm font-black text-foreground block truncate">
+                      <span className="text-sm font-black text-foreground block select-all cursor-text pointer-events-auto">
                         {selectedOrder.orderType === 'retirada' ? '📦 Retirada no Local'
                           : selectedOrder.orderType === 'instalacao' ? '🔧 Instalação'
                           : selectedOrder.orderType === 'manutencao' ? '🛠️ Manutenção'
@@ -960,6 +965,11 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                             : 'bg-amber-500/20 text-amber-700 border-amber-500/40 shadow-sm shadow-amber-500/10'
                         }`}>
                           {selectedOrder.installationPaymentType === 'pago' ? '✅ Já pago' : '⚠️ Pagar na hora da retirada'}
+                        </span>
+                      )}
+                      {(selectedOrder.orderType === 'instalacao' || selectedOrder.orderType === 'manutencao') && selectedOrder.installationDate && (
+                        <span className="text-[10px] font-black text-primary block mt-1 uppercase tracking-widest bg-primary/5 px-2 py-0.5 rounded-lg w-fit">
+                          📅 {new Date(selectedOrder.installationDate + 'T12:00:00').toLocaleDateString('pt-BR')} {selectedOrder.installationTime ? `às ${selectedOrder.installationTime}` : ''}
                         </span>
                       )}
                       {selectedOrder.orderType === 'entrega' && (
@@ -979,27 +989,32 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                     }`}>
                       <FileText className="w-5 h-5" />
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 select-text">
                       <span className="text-[10px] uppercase font-black text-muted-foreground/60 block tracking-widest">Nota Fiscal</span>
-                      <span className={`text-sm font-black block truncate ${
+                      <span className={`text-sm font-black block select-all cursor-text pointer-events-auto ${
                         selectedOrder.requiresInvoice ? 'text-primary' : 'text-foreground'
                       }`}>
                         {selectedOrder.requiresInvoice ? '⚠️ COM NOTA FISCAL' : 'Sem Nota Fiscal'}
                       </span>
-                      <span className="text-[10px] text-muted-foreground block mt-0.5">
+                      {selectedOrder.requiresShippingNote && (
+                        <span className="text-[10px] font-black text-amber-600 block mt-1 uppercase tracking-tight bg-amber-500/10 px-2 py-0.5 rounded-lg w-fit select-all cursor-text pointer-events-auto">
+                          📦 NOTA DE ENVIO SOLICITADA
+                        </span>
+                      )}
+                      <span className="text-[10px] text-muted-foreground block mt-0.5 select-all cursor-text pointer-events-auto">
                         {selectedOrder.requiresInvoice ? 'Emitir NF-e obrigatoriamente' : 'Operação sem faturamento'}
                       </span>
                     </div>
                   </div>
 
                   {/* Fluxo Operacional */}
-                  <div className="flex items-center gap-4 p-5 rounded-3xl bg-slate-50 dark:bg-slate-900/40 border border-border/40 group hover:border-primary/30 transition-all hover:shadow-lg hover:shadow-primary/[0.02] md:col-span-2">
+                  <div className="flex items-center gap-4 p-5 rounded-3xl bg-slate-50 dark:bg-slate-900/40 border border-border/40 select-text relative z-10 md:col-span-2">
                     <div className="h-12 w-12 rounded-2xl bg-background border border-border/40 flex items-center justify-center text-muted-foreground group-hover:text-primary group-hover:border-primary/20 transition-all shadow-sm">
                       <Radio className="w-5 h-5" />
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 select-text">
                       <span className="text-[10px] uppercase font-black text-muted-foreground/60 block tracking-widest">Fluxo Operacional</span>
-                      <span className="text-sm font-black text-foreground block truncate">{isOrderCarenagem(selectedOrder) ? 'Direto p/ Estoque (Carenagem)' : 'Fluxo de Produção'}</span>
+                      <span className="text-sm font-black text-foreground block select-all cursor-text">{isOrderCarenagem(selectedOrder) ? 'Direto p/ Estoque (Carenagem)' : 'Fluxo de Produção'}</span>
                       <span className="text-[10px] text-muted-foreground block mt-0.5">Processamento automático</span>
                     </div>
                   </div>
@@ -1024,12 +1039,12 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                     <div className="h-12 w-12 rounded-2xl bg-background border border-border/40 flex items-center justify-center text-muted-foreground shrink-0 shadow-sm">
                       <MapPin className="w-5 h-5" />
                     </div>
-                    <div>
+                    <div className="select-text pointer-events-auto">
                       <span className="text-[10px] uppercase font-black text-muted-foreground/60 block tracking-widest">Local de Entrega / Instalação</span>
-                      <p className="text-sm font-bold text-foreground leading-snug mt-1">
+                      <p className="text-sm font-bold text-foreground leading-snug mt-1 select-all cursor-text pointer-events-auto">
                         {client.address}, {client.bairro ? `${client.bairro}, ` : ''}{client.city} - {client.state}
                       </p>
-                      <p className="text-[11px] text-muted-foreground mt-1 font-mono">CEP: {client.cep}</p>
+                      <p className="text-[11px] text-muted-foreground mt-1 font-mono select-all cursor-text pointer-events-auto">CEP: {client.cep}</p>
                     </div>
                   </div>
                 )}
@@ -1126,7 +1141,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
               
               <div className="space-y-4">
                 <div className="grid grid-cols-1 gap-3">
-                  <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-border/40">
+                  <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-border/40 select-text relative z-10">
                     <div>
                       <p className="text-[10px] font-black text-muted-foreground uppercase">Total do Pedido</p>
                       <p className="text-sm font-black text-foreground">{formatCurrency(selectedOrder.total)}</p>
@@ -1802,22 +1817,29 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
       {/* Sub-categories grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: 'Consignados', value: totalConsignadoOwed, icon: Star, color: 'amber', action: () => setShowConsignados(true) },
+          { label: 'Consignados', value: totalConsignadoOwed, icon: Star, color: 'amber', action: () => setShowConsignados(true), hasNew: newReceiptsInConsigned > 0, count: newReceiptsInConsigned },
           { label: 'Instalações', value: totalInstallationsOwed, icon: Radio, color: 'orange', action: () => setShowInstallations(true) },
           { label: 'Retiradas', value: totalRetiradasOwed, icon: Inbox, color: 'rose', action: () => setShowRetiradas(true) },
           { label: 'Carenagem', value: totalCarenagemOwed, icon: Package, color: 'indigo', action: () => setShowCarenagem(true) },
-        ].map((item, i) => (
+        ].map((item: any, i) => (
           <button
             key={i}
             onClick={item.action}
-            className={`flex items-center gap-4 p-4 rounded-3xl border border-border/50 bg-card hover:bg-${item.color}-500/[0.03] hover:border-${item.color}-500/30 transition-all duration-300 group text-left`}
+            className={`flex items-center gap-4 p-4 rounded-3xl border border-border/50 bg-card hover:bg-${item.color}-500/[0.03] hover:border-${item.color}-500/30 transition-all duration-300 group text-left relative ${item.hasNew ? 'animate-bounce-subtle' : ''}`}
           >
             <div className={`h-10 w-10 rounded-xl bg-${item.color}-500/10 flex items-center justify-center text-${item.color}-500 group-hover:scale-110 transition-transform`}>
               <item.icon className="w-5 h-5" />
             </div>
             <div>
               <p className="text-[10px] font-bold text-muted-foreground uppercase">{item.label}</p>
-              <p className="text-sm font-black text-foreground">{formatCurrency(item.value)}</p>
+              <div className="flex items-center gap-2">
+                <p className="text-sm font-black text-foreground">{formatCurrency(item.value)}</p>
+                {item.hasNew && (
+                  <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500 text-white text-[8px] font-black animate-pulse">
+                     {item.count} NOVO(S)
+                  </span>
+                )}
+              </div>
             </div>
           </button>
         ))}
@@ -1849,7 +1871,12 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                   return (
                     <div key={order.id} className="card-section p-4 flex items-center justify-between flex-wrap gap-3 bg-amber-500/5 border border-amber-500/20">
                       <div className="flex-1 min-w-[200px]">
-                        <p className="font-bold text-foreground text-sm">{order.number}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-foreground text-sm">{order.number}</p>
+                          {order.receiptUrls && order.receiptUrls.length > (order.comprovantesVistos || 0) && (
+                            <span className="px-1.5 py-0.5 rounded-md bg-emerald-500 text-white text-[8px] font-black animate-pulse">💰 NOVO COMPROVANTE</span>
+                          )}
+                        </div>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {order.clientName} • {new Date(order.createdAt).toLocaleDateString('pt-BR')}
                         </p>
@@ -2586,21 +2613,29 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                         const isConsigned = order.isConsigned ?? (clients.find(c => c.id === order.clientId)?.consignado || clients.find(c => c.name === order.clientName)?.consignado);
                         return (
                           <tr key={order.id} className="group hover:bg-primary/[0.02] transition-all duration-300">
-                            <td className="font-black text-foreground py-6">
+                            <td className="font-black text-foreground py-6 select-text">
                               <div className="flex items-center gap-3">
                                 <div className="h-2 w-2 rounded-full bg-primary/30 group-hover:bg-primary transition-colors" />
-                                #{order.number}
+                                <span className="select-all cursor-text">#{order.number}</span>
                               </div>
                             </td>
                             <td className="text-foreground py-6">
                               <div className="flex flex-col">
-                                <span className="font-bold text-sm tracking-tight group-hover:text-primary transition-colors">{order.clientName}</span>
-                                <div className="flex items-center gap-1 ml-0.5 mt-1.5">
+                                <span className="font-bold text-sm tracking-tight group-hover:text-primary transition-colors select-all cursor-text">{order.clientName}</span>
+                                <div className="flex items-center gap-1 ml-0.5 mt-1.5 flex-wrap select-text">
+                                  {(order.orderType === 'instalacao' || order.orderType === 'manutencao') && order.installationDate && (
+                                    <span className="px-1.5 py-0.5 rounded-md bg-primary/10 text-primary text-[8px] font-black border border-primary/20 flex items-center gap-1">
+                                      📅 {new Date(order.installationDate + 'T12:00:00').toLocaleDateString('pt-BR')}
+                                    </span>
+                                  )}
                                   {isConsigned && (
                                     <span className="px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-500 text-[8px] font-black border border-amber-500/20 shadow-sm">⭐ CONSIGNADO</span>
                                   )}
                                   {order.requiresInvoice && (
                                     <span className="px-1.5 py-0.5 rounded-md bg-primary text-white text-[8px] font-black shadow-lg shadow-primary/20 animate-pulse">📄 NF SOLICITADA</span>
+                                  )}
+                                  {order.requiresShippingNote && (
+                                    <span className="px-1.5 py-0.5 rounded-md bg-amber-500 text-white text-[8px] font-black shadow-lg shadow-amber-500/20">📦 NOTA ENVIO</span>
                                   )}
                                   {order.receiptUrls && order.receiptUrls.length > (order.comprovantesVistos || 0) && (
                                     <span className="px-1.5 py-0.5 rounded-md bg-emerald-500 text-white text-[8px] font-black shadow-lg shadow-emerald-500/20 animate-bounce">💰 NOVO COMPROVANTE</span>

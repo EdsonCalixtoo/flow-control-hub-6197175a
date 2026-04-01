@@ -321,6 +321,7 @@ const OrcamentosPage: React.FC = () => {
   const [newInstallationPaymentType, setNewInstallationPaymentType] = useState<'pago' | 'pagar_na_hora'>('pago');
   const [newCarrier, setNewCarrier] = useState('');
   const [newRequiresInvoice, setNewRequiresInvoice] = useState(false);
+  const [newRequiresShippingNote, setNewRequiresShippingNote] = useState(false);
 
   // Abre pedido via URL (?view=ID)
   useEffect(() => {
@@ -502,6 +503,7 @@ const OrcamentosPage: React.FC = () => {
     setNewInstallationPaymentType(order.installationPaymentType || 'pago');
     setNewCarrier(order.carrier || '');
     setNewRequiresInvoice(order.requiresInvoice || false);
+    setNewRequiresShippingNote(order.requiresShippingNote || false);
     setFormError('');
   };
 
@@ -518,6 +520,7 @@ const OrcamentosPage: React.FC = () => {
     setNewInstallationPaymentType('pago');
     setNewCarrier('');
     setNewRequiresInvoice(false);
+    setNewRequiresShippingNote(false);
     setFormError('');
     if (activeReward && isSuccess !== true) {
       cancelRedeemReward(activeReward.id).then(success => {
@@ -634,6 +637,7 @@ const OrcamentosPage: React.FC = () => {
           carrier: newOrderType === 'entrega' ? newCarrier : undefined,
           isConsigned: client.consignado,
           requiresInvoice: newRequiresInvoice,
+          requiresShippingNote: newRequiresShippingNote,
           updatedAt: now,
         };
 
@@ -723,6 +727,7 @@ const OrcamentosPage: React.FC = () => {
             orderType: newOrderType,
             isConsigned: client.consignado,
             requiresInvoice: newRequiresInvoice,
+            requiresShippingNote: newRequiresShippingNote,
             createdAt: now,
             updatedAt: now,
             statusHistory: [{
@@ -1098,6 +1103,28 @@ const OrcamentosPage: React.FC = () => {
                     className={`relative inline-flex h-10 w-20 items-center rounded-full transition-all focus:outline-none ring-offset-2 shadow-inner group ${newRequiresInvoice ? 'bg-primary ring-4 ring-primary/10' : 'bg-muted-foreground/20 ring-0'}`}
                   >
                     <span className={`inline-block h-8 w-8 transform rounded-full bg-white shadow-xl transition-transform duration-500 ease-in-out ${newRequiresInvoice ? 'translate-x-11' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+              </div>
+
+              <div className={`p-6 rounded-3xl border-2 transition-all duration-500 ${newRequiresShippingNote ? 'bg-amber-500/10 border-amber-500 ring-8 ring-amber-500/5 shadow-xl shadow-amber-500/10' : 'bg-muted/30 border-dashed border-border/60 hover:border-amber-500/40'}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-xl transition-all duration-700 ${newRequiresShippingNote ? 'bg-amber-500 rotate-0 scale-110 shadow-amber-500/30' : 'bg-muted-foreground/30 scale-100 rotate-12 opacity-60'}`}>
+                      <Truck className="w-7 h-7" />
+                    </div>
+                    <div>
+                      <h3 className={`text-base font-black uppercase tracking-tight transition-colors ${newRequiresShippingNote ? 'text-amber-600' : 'text-foreground'}`}>Precisa de Nota de Envio?</h3>
+                      <p className="text-[11px] text-muted-foreground font-bold italic tracking-wide">Documento simples para acompanhamento da mercadoria</p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setNewRequiresShippingNote(!newRequiresShippingNote)}
+                    className={`relative inline-flex h-10 w-20 items-center rounded-full transition-all focus:outline-none ring-offset-2 shadow-inner group ${newRequiresShippingNote ? 'bg-amber-500 ring-4 ring-amber-500/10' : 'bg-muted-foreground/20 ring-0'}`}
+                  >
+                    <span className={`inline-block h-8 w-8 transform rounded-full bg-white shadow-xl transition-transform duration-500 ease-in-out ${newRequiresShippingNote ? 'translate-x-11' : 'translate-x-1'}`} />
                   </button>
                 </div>
               </div>
@@ -1539,12 +1566,22 @@ const OrcamentosPage: React.FC = () => {
                 </span>
               )}
             </div>
-            {/* Nota Fiscal */}
-            <div className={`p-3 rounded-xl ${selectedOrder.requiresInvoice ? 'bg-primary/10 border border-primary/30' : 'bg-muted/30'}`}>
-              <span className="text-xs text-muted-foreground block mb-1">Nota Fiscal</span>
-              <span className={`font-semibold ${selectedOrder.requiresInvoice ? 'text-primary' : 'text-foreground'}`}>
-                {selectedOrder.requiresInvoice ? '⚠️ Com Nota Fiscal' : 'Sem Nota Fiscal'}
-              </span>
+            {/* Notas / Documentos */}
+            <div className="flex flex-col gap-2">
+              <div className={`p-3 rounded-xl ${selectedOrder.requiresInvoice ? 'bg-primary/10 border border-primary/30' : 'bg-muted/30'}`}>
+                <span className="text-xs text-muted-foreground block mb-1">Nota Fiscal</span>
+                <span className={`font-semibold ${selectedOrder.requiresInvoice ? 'text-primary' : 'text-foreground'}`}>
+                  {selectedOrder.requiresInvoice ? '⚠️ Com Nota Fiscal' : 'Sem Nota Fiscal'}
+                </span>
+              </div>
+              {selectedOrder.requiresShippingNote && (
+                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                  <span className="text-xs text-amber-600 block mb-1">Nota de Envio</span>
+                  <span className="font-semibold text-amber-600">
+                    📦 Nota de Envio Solicitada
+                  </span>
+                </div>
+              )}
             </div>
           </div>
 

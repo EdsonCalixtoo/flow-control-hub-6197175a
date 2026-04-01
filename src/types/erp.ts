@@ -114,6 +114,7 @@ export interface Order {
   statusPagamento?: 'pendente' | 'pago' | 'parcial';
   statusProducao?: string;
   requiresInvoice?: boolean;
+  requiresShippingNote?: boolean;
 }
 
 export type RewardStatus = 'pendente' | 'liberado' | 'resgatado';

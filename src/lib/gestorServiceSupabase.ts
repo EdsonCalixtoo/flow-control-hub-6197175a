@@ -178,6 +178,8 @@ const supabaseToReturn = (data: any): OrderReturn => ({
     clientName: data.client_name,
     reason: data.reason,
     reportedBy: data.reported_by,
+    resolved: data.resolved || false,
+    resolvedAt: data.resolved_at || undefined,
     createdAt: data.created_at,
 });
 
@@ -196,7 +198,7 @@ export const fetchOrderReturns = async (): Promise<OrderReturn[]> => {
     }
 };
 
-export const createOrderReturnSupabase = async (ret: Omit<OrderReturn, 'id' | 'createdAt'>): Promise<OrderReturn | null> => {
+export const createOrderReturnSupabase = async (ret: Omit<OrderReturn, 'id' | 'createdAt' | 'resolvedAt'>): Promise<OrderReturn | null> => {
     try {
         const payload = {
             order_id: ret.orderId,
@@ -204,12 +206,28 @@ export const createOrderReturnSupabase = async (ret: Omit<OrderReturn, 'id' | 'c
             client_name: ret.clientName,
             reason: ret.reason,
             reported_by: ret.reportedBy,
+            resolved: ret.resolved || false,
         };
         const { data, error } = await supabase.from('order_returns').insert([payload]).select().single();
         if (error) throw error;
         return supabaseToReturn(data);
     } catch (err: any) {
         console.error('[Returns] Erro ao criar devolução:', err.message);
+        throw err;
+    }
+};
+
+export const resolveOrderReturnSupabase = async (returnId: string): Promise<OrderReturn | null> => {
+    try {
+        const { data, error } = await supabase.from('order_returns')
+            .update({ resolved: true, resolved_at: new Date().toISOString() })
+            .eq('id', returnId)
+            .select()
+            .single();
+        if (error) throw error;
+        return supabaseToReturn(data);
+    } catch (err: any) {
+        console.error('[Returns] Erro ao resolver devolução:', err.message);
         throw err;
     }
 };

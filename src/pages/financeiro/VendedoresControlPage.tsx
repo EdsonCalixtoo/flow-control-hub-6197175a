@@ -4,8 +4,9 @@ import { formatCurrency } from '@/components/shared/StatusBadge';
 import { Search, TrendingUp, Eye, ArrowLeft, Lock, History, CheckCircle2, AlertCircle, Calendar, Download, FileText, Loader2 } from 'lucide-react';
 import type { Order, MonthlyClosing } from '@/types/erp';
 import { toast } from 'sonner';
-import { generateClosingPDF } from '@/lib/pdfClosingGenerator';
+import { generateClosingPDF, generateSellerItemsPDF } from '@/lib/pdfClosingGenerator';
 import { uploadToR2 } from '@/lib/storageServiceR2';
+import { updateMonthlyClosing } from '@/lib/fechamentoServiceSupabase';
 
 const VendedoresControlPage: React.FC = () => {
   const { orders, clients, financialEntries, monthlyClosings, closeMonth } = useERP();
@@ -15,6 +16,7 @@ const VendedoresControlPage: React.FC = () => {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [showClosingMode, setShowClosingMode] = useState(false);
   const [activeTab, setActiveTab] = useState<'vendedores' | 'historico'>('vendedores');
+  const [isFixing, setIsFixing] = useState(false);
 
   // Helper para buscar último fechamento de um vendedor
   const getLastClosingDate = (sellerId: string) => {
@@ -46,6 +48,8 @@ const VendedoresControlPage: React.FC = () => {
       valoresEmAberto: number;
       kitsComSensor: number;
       kitsSemSensor: number;
+      estribos: number;
+      totalProdutos: number;
       premios: number;
       lastClosingDate: Date | null;
       orders: Order[];
@@ -70,6 +74,8 @@ const VendedoresControlPage: React.FC = () => {
           valoresEmAberto: 0,
           kitsComSensor: 0,
           kitsSemSensor: 0,
+          estribos: 0,
+          totalProdutos: 0,
           premios: 0,
           lastClosingDate: getLastClosingDate(order.sellerId),
           orders: [],
@@ -90,6 +96,14 @@ const VendedoresControlPage: React.FC = () => {
 
         // Detalhamento de Itens
         order.items.forEach(item => {
+          if (!item.isReward) {
+            stats[key].totalProdutos += item.quantity;
+          }
+          
+          if (item.product.toUpperCase().includes('ESTRIBO')) {
+            stats[key].estribos += item.quantity;
+          }
+
           if (item.isReward) {
             stats[key].premios += item.quantity;
           } else if (item.sensorType === 'com_sensor') {
@@ -147,8 +161,10 @@ const VendedoresControlPage: React.FC = () => {
     const confirmMsg = `Deseja realizar o fechamento mensal para ${seller.name}?\n\n` +
       `📦 Total Vendido: ${formatCurrency(seller.totalVendas)}\n` +
       `📋 Pedidos: ${seller.qtdPedidos}\n` +
+      `📦 Total de Produtos: ${seller.totalProdutos}\n` +
       `📡 Kits Com Sensor: ${seller.kitsComSensor}\n` +
       `📦 Kits Sem Sensor: ${seller.kitsSemSensor}\n` +
+      `🪜 Estribos: ${seller.estribos}\n` +
       `🎁 Premiações: ${seller.premios}`;
     
     if (!window.confirm(confirmMsg)) return;
@@ -166,7 +182,9 @@ const VendedoresControlPage: React.FC = () => {
       outstandingValue: seller.valoresEmAberto,
       kitsComSensor: seller.kitsComSensor,
       kitsSemSensor: seller.kitsSemSensor,
-      premios: seller.premios
+      premios: seller.premios,
+      totalProducts: seller.totalProdutos,
+      estribos: seller.estribos
     }, true); // Já baixa para o usuário ter a cópia dele
 
     // 2. Sobe para o R2 para persistência eterna
@@ -194,12 +212,162 @@ const VendedoresControlPage: React.FC = () => {
         kitsComSensor: seller.kitsComSensor,
         kitsSemSensor: seller.kitsSemSensor,
         premios: seller.premios,
+        totalItems: seller.totalProdutos,
+        estribos: seller.estribos,
         pdfUrl: pdfUrl // 🔥 Link eterno
       }
     };
 
     await closeMonth(closingData);
     toast.success(`Fechamento concluído e salvo no histórico!`);
+  };
+
+  const handlePrintItems = (seller: typeof sellerStats[0]) => {
+    const now = new Date();
+    const referenceMonth = `${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}`;
+    
+    // Coleta todos os itens dos pedidos do período atual
+    const itemsToPrint: any[] = [];
+    
+    seller.orders.forEach(order => {
+      const lastClosing = seller.lastClosingDate;
+      const isAfterClosing = !lastClosing || new Date(order.createdAt) > lastClosing;
+      
+      if (isAfterClosing) {
+        order.items.forEach(item => {
+          itemsToPrint.push({
+            product: item.product,
+            quantity: item.quantity,
+            orderNumber: order.number,
+            clientName: order.clientName,
+            date: new Date(order.createdAt).toLocaleDateString('pt-BR')
+          });
+        });
+      }
+    });
+
+    if (itemsToPrint.length === 0) {
+      toast.error('Nenhum item vendido neste período para imprimir.');
+      return;
+    }
+
+    generateSellerItemsPDF({
+      sellerName: seller.name,
+      referenceMonth,
+      items: itemsToPrint
+    });
+    
+    toast.success('Relatório de itens gerado com sucesso!');
+  };
+
+  const handlePrintHistoricalItems = (closing: MonthlyClosing) => {
+    // Busca pedidos do vendedor que caem no range deste fechamento
+    // ✅ Reutiliza a lógica de períodos (lastClosing até o closingDate)
+    const lastClosingStr = closing.details?.lastClosing;
+    const lastClosingDate = (!lastClosingStr || lastClosingStr === 'Início') ? null : new Date(lastClosingStr);
+    const closingDate = new Date(closing.closingDate);
+
+    const itemsToPrint: any[] = [];
+
+    orders.forEach(order => {
+      // Ignora rascunhos e outros não contábeis (mesma lógica do stats)
+      if (['rascunho', 'orcamento', 'rejeitado_financeiro'].includes(order.status)) return;
+      
+      const isSeller = order.sellerId === closing.sellerId || order.sellerName === closing.sellerName;
+      if (!isSeller) return;
+
+      const orderDate = new Date(order.createdAt);
+      const isAfterPrev = !lastClosingDate || orderDate > lastClosingDate;
+      const isBeforeCurrent = orderDate <= closingDate;
+
+      if (isAfterPrev && isBeforeCurrent) {
+        order.items.forEach(item => {
+          itemsToPrint.push({
+            product: item.product,
+            quantity: item.quantity,
+            orderNumber: order.number,
+            clientName: order.clientName,
+            date: orderDate.toLocaleDateString('pt-BR')
+          });
+        });
+      }
+    });
+
+    if (itemsToPrint.length === 0) {
+      toast.error('Não foi possível reconstruir a lista de itens para este fechamento antigo.');
+      return;
+    }
+
+    generateSellerItemsPDF({
+      sellerName: closing.sellerName,
+      referenceMonth: closing.referenceMonth,
+      items: itemsToPrint
+    });
+    
+    toast.success('Relatório de itens históricos gerado!');
+  };
+
+  const needsFix = useMemo(() => {
+    return monthlyClosings.some(c => c.details?.totalItems === undefined || c.details?.estribos === undefined);
+  }, [monthlyClosings]);
+
+  const handleFixOldClosings = async () => {
+    if (!window.confirm("Deseja recalcular e atualizar todos os fechamentos antigos com o total de itens e estribos? Isso atualizará os relatórios permanentemente.")) return;
+    
+    setIsFixing(true);
+    let successCount = 0;
+
+    for (const closing of monthlyClosings) {
+      if (closing.details?.totalItems !== undefined && closing.details?.estribos !== undefined) continue;
+
+      const lastClosingStr = closing.details?.lastClosing;
+      const lastClosingDate = (!lastClosingStr || lastClosingStr === 'Início') ? null : new Date(lastClosingStr);
+      const closingDate = new Date(closing.closingDate);
+
+      let totalProdutos = 0;
+      let estribos = 0;
+      let kitsCom = 0;
+      let kitsSem = 0;
+      let premios = 0;
+
+      orders.forEach(order => {
+        if (['rascunho', 'orcamento', 'rejeitado_financeiro'].includes(order.status)) return;
+        const isSeller = order.sellerId === closing.sellerId || order.sellerName === closing.sellerName;
+        if (!isSeller) return;
+
+        const orderDate = new Date(order.createdAt);
+        if ((!lastClosingDate || orderDate > lastClosingDate) && orderDate <= closingDate) {
+          order.items.forEach(item => {
+            if (!item.isReward) totalProdutos += item.quantity;
+            if (item.product.toUpperCase().includes('ESTRIBO')) estribos += item.quantity;
+            
+            if (item.isReward) premios += item.quantity;
+            else if (item.sensorType === 'com_sensor') kitsCom += item.quantity;
+            else if (item.sensorType === 'sem_sensor') kitsSem += item.quantity;
+          });
+        }
+      });
+
+      const updatedDetails = {
+        ...closing.details,
+        totalItems: totalProdutos,
+        estribos,
+        kitsComSensor: kitsCom || closing.details?.kitsComSensor || 0,
+        kitsSemSensor: kitsSem || closing.details?.kitsSemSensor || 0,
+        premios: premios || closing.details?.premios || 0
+      };
+
+      try {
+        await updateMonthlyClosing(closing.id, { details: updatedDetails });
+        successCount++;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    
+    setIsFixing(false);
+    toast.success(`${successCount} fechamentos foram atualizados! Recarregando...`);
+    window.location.reload();
   };
 
   // Detalhes de um vendedor
@@ -226,6 +394,12 @@ const VendedoresControlPage: React.FC = () => {
             </div>
           </div>
           <div className="flex gap-2">
+            <button 
+              onClick={() => handlePrintItems(seller)}
+              className="btn-modern bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 text-xs font-bold"
+            >
+              <FileText className="w-3.5 h-3.5 mr-2" /> Imprimir Itens
+            </button>
             <button 
               onClick={() => handleCloseMonth(seller)}
               className="btn-modern bg-primary text-white shadow-lg shadow-primary/20 text-xs font-bold"
@@ -497,6 +671,27 @@ const VendedoresControlPage: React.FC = () => {
       ) : (
         /* HISTÓRICO DE FECHAMENTOS */
         <div className="space-y-6 animate-fade-in">
+           {needsFix && (
+             <div className="p-4 bg-primary/5 border border-primary/20 rounded-2xl flex items-center justify-between flex-wrap gap-4 mb-6">
+                <div className="flex items-center gap-3">
+                   <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+                      <AlertCircle className="w-5 h-5" />
+                   </div>
+                   <div>
+                      <p className="text-sm font-black text-foreground uppercase tracking-tight">Fechamentos sem métricas novas</p>
+                      <p className="text-xs text-muted-foreground">Existem fechamentos antigos que ainda não possuem contagem de itens e estribos.</p>
+                   </div>
+                </div>
+                <button
+                  onClick={handleFixOldClosings}
+                  disabled={isFixing}
+                  className="btn-modern bg-primary text-white text-xs font-black shadow-lg shadow-primary/20"
+                >
+                  {isFixing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                  CORRIGIR E ATUALIZAR TODOS
+                </button>
+             </div>
+           )}
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {monthlyClosings.length === 0 ? (
                 <div className="col-span-full py-20 text-center glass-card border-dashed">
@@ -511,35 +706,43 @@ const VendedoresControlPage: React.FC = () => {
                         <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
                            <Lock className="w-5 h-5" />
                         </div>
-                        <div className="flex flex-col items-end">
+                         <div className="flex flex-col items-end gap-2">
                            <span className="text-[10px] font-black bg-muted px-2 py-1 rounded text-muted-foreground uppercase tracking-widest border border-border/40 mb-2">
                              Ref: {closing.referenceMonth}
                            </span>
-                           <button
-                             onClick={() => {
-                               if (closing.details?.pdfUrl) {
-                                 window.open(closing.details.pdfUrl, '_blank');
-                               } else {
-                                 // Fallback: Gera na hora se não existir link no R2 (legado de 5 minutos atrás)
-                                 generateClosingPDF({
-                                   sellerName: closing.sellerName,
-                                   referenceMonth: closing.referenceMonth,
-                                   closingDate: closing.closingDate,
-                                   totalSold: closing.totalSold,
-                                   orderCount: closing.orderCount,
-                                   outstandingValue: closing.outstandingValue,
-                                   kitsComSensor: closing.details?.kitsComSensor || 0,
-                                   kitsSemSensor: closing.details?.kitsSemSensor || 0,
-                                   premios: closing.details?.premios || 0
-                                 });
-                               }
-                             }}
-                             className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
-                             title={closing.details?.pdfUrl ? "Abrir PDF na nuvem" : "Gerar PDF local"}
-                           >
-                             <Download className="w-4 h-4" />
-                           </button>
-                        </div>
+                           <div className="flex gap-2">
+                              <button
+                                onClick={() => handlePrintHistoricalItems(closing)}
+                                className="w-8 h-8 rounded-lg bg-info/10 text-info flex items-center justify-center hover:bg-info hover:text-white transition-all shadow-sm"
+                                title="Baixar Lista de Itens"
+                              >
+                                <FileText className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  // 🔥 Forçamos a geração local para garantir que as novas métricas (Estribos e Total de Produtos) 
+                                  // apareçam no PDF, mesmo em fechamentos antigos que foram "corrigidos".
+                                  generateClosingPDF({
+                                    sellerName: closing.sellerName,
+                                    referenceMonth: closing.referenceMonth,
+                                    closingDate: closing.closingDate,
+                                    totalSold: closing.totalSold,
+                                    orderCount: closing.orderCount,
+                                    outstandingValue: closing.outstandingValue,
+                                    kitsComSensor: closing.details?.kitsComSensor || 0,
+                                    kitsSemSensor: closing.details?.kitsSemSensor || 0,
+                                    premios: closing.details?.premios || 0,
+                                    totalProducts: closing.details?.totalItems || 0,
+                                    estribos: closing.details?.estribos || 0
+                                  });
+                                }}
+                                className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
+                                title="Gerar PDF Atualizado"
+                              >
+                                <Download className="w-4 h-4" />
+                              </button>
+                           </div>
+                         </div>
                      </div>
                      
                      <div className="space-y-4">
@@ -561,13 +764,21 @@ const VendedoresControlPage: React.FC = () => {
 
                         {/* Detalhes específicos do PDF no Card também */}
                         <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/5">
-                           <div className="flex items-center gap-1.5 text-[9px] font-bold text-muted-foreground">
+                           <div className="flex items-center gap-1.5 text-[9px] font-bold text-muted-foreground" title="Kits Com Sensor">
                               <CheckCircle2 className="w-3 h-3 text-primary" />
-                              {closing.details?.kitsComSensor || 0} COM SENSOR
+                              {closing.details?.kitsComSensor || 0} COM
                            </div>
-                           <div className="flex items-center gap-1.5 text-[9px] font-bold text-muted-foreground">
+                           <div className="flex items-center gap-1.5 text-[9px] font-bold text-muted-foreground" title="Kits Sem Sensor">
                               <CheckCircle2 className="w-3 h-3 text-slate-400" />
-                              {closing.details?.kitsSemSensor || 0} SEM SENSOR
+                              {closing.details?.kitsSemSensor || 0} SEM
+                           </div>
+                           <div className="flex items-center gap-1.5 text-[9px] font-bold text-muted-foreground" title="Total de Produtos (excl. brindes)">
+                              <FileText className="w-3 h-3 text-info" />
+                              {closing.details?.totalItems || 0} PROD
+                           </div>
+                           <div className="flex items-center gap-1.5 text-[9px] font-bold text-muted-foreground" title="Estribos">
+                              <TrendingUp className="w-3 h-3 text-emerald-500" />
+                              {closing.details?.estribos || 0} ESTRIBOS
                            </div>
                         </div>
 

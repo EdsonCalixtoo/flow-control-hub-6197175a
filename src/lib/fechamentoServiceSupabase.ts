@@ -61,3 +61,36 @@ export const createMonthlyClosing = async (closing: Omit<MonthlyClosing, 'id' | 
     createdAt: data.created_at
   };
 };
+
+export const updateMonthlyClosing = async (id: string, closing: Partial<MonthlyClosing>): Promise<MonthlyClosing | null> => {
+  const updateData: any = {};
+  if (closing.totalSold !== undefined) updateData.total_sold = closing.totalSold;
+  if (closing.orderCount !== undefined) updateData.order_count = closing.orderCount;
+  if (closing.outstandingValue !== undefined) updateData.outstanding_value = closing.outstandingValue;
+  if (closing.details !== undefined) updateData.details = closing.details;
+
+  const { data, error } = await supabase
+    .from('monthly_closings')
+    .update(updateData)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating monthly closing:', error);
+    return null;
+  }
+
+  return {
+    id: data.id,
+    sellerId: data.seller_id,
+    sellerName: data.seller_name,
+    referenceMonth: data.reference_month,
+    closingDate: data.closing_date,
+    totalSold: Number(data.total_sold),
+    orderCount: Number(data.order_count),
+    outstandingValue: Number(data.outstanding_value),
+    details: data.details,
+    createdAt: data.created_at
+  };
+};

@@ -42,6 +42,7 @@ interface ERPContextType {
   productionErrors: ProductionError[];
   addProductionError: (err: Omit<ProductionError, 'id' | 'createdAt'>) => Promise<void>;
   resolveError: (errorId: string) => Promise<void>;
+  resolveOrderReturn: (returnId: string) => Promise<void>;
   // barcode scans
   barcodeScans: BarcodeScan[];
   addBarcodeScan: (scan: Omit<BarcodeScan, 'id' | 'scannedAt'>) => Promise<void>;
@@ -617,7 +618,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [chatMessages]);
 
   // ── ORDER RETURNS ─────────────────────────────────────────────
-  const addOrderReturn = useCallback(async (ret: Omit<OrderReturn, 'id' | 'createdAt'>) => {
+  const addOrderReturn = useCallback(async (ret: Omit<OrderReturn, 'id' | 'createdAt' | 'resolvedAt'>) => {
     try {
       const newRet = await createOrderReturnSupabase(ret);
       if (newRet) {
@@ -626,6 +627,18 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } catch (err: any) {
       console.error('[ERP] Erro ao criar devolução:', err.message);
+    }
+  }, []);
+
+  const resolveOrderReturn = useCallback(async (returnId: string) => {
+    try {
+      const { resolveOrderReturnSupabase } = await import('@/lib/gestorServiceSupabase');
+      const updated = await resolveOrderReturnSupabase(returnId);
+      if (updated) {
+        setOrderReturns(prev => prev.map(r => r.id === returnId ? updated : r));
+      }
+    } catch (error) {
+      console.error('Error resolving order return:', error);
     }
   }, []);
 
@@ -769,7 +782,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <ERPContext.Provider value={{
       orders, clients, financialEntries, products, delayReports, unreadDelayReports, overduePaymentsCount, loading,
       chatMessages, sendMessage, loadChat, markChatAsRead, getUnreadCount,
-      orderReturns, addOrderReturn,
+      orderReturns, addOrderReturn, resolveOrderReturn,
       productionErrors, addProductionError, resolveError,
       barcodeScans, addBarcodeScan,
       deliveryPickups, addDeliveryPickup,

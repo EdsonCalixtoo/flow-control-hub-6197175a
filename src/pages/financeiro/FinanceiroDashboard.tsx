@@ -5,9 +5,10 @@ import { useERP } from '@/contexts/ERPContext';
 import { StatCard, StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
 import { RealtimeNotificationHandler } from '@/components/shared/RealtimeNotificationHandler';
-import { DollarSign, TrendingUp, Clock, AlertTriangle, Search, Filter, ChevronDown, ChevronLeft, ChevronRight, Eye, CheckCircle, XCircle, Send, ArrowLeft, Users2, BarChart3, Radio, Star, Plus, Trash2, Inbox, Bell, FileText, Package, Info, BadgeCheck, MapPin, Box, CreditCard, Image as ImageIcon, Maximize2, Edit3, RotateCcw } from 'lucide-react';
+import { DollarSign, TrendingUp, Clock, AlertTriangle, Search, Filter, ChevronDown, ChevronLeft, ChevronRight, Eye, CheckCircle, XCircle, Send, ArrowLeft, Users2, BarChart3, Radio, Star, Plus, Trash2, Inbox, Bell, FileText, Package, Info, BadgeCheck, MapPin, Box, CreditCard, Image as ImageIcon, Maximize2, Edit3, RotateCcw, Download } from 'lucide-react';
 import { useRealtimeOrders } from '@/hooks/useRealtimeOrders';
 import { uploadToR2, generateR2Path, cleanR2Url } from '@/lib/storageServiceR2';
+import { generateFinanceiroDashboardPDF } from '@/lib/pdfClosingGenerator';
 import { toast } from 'sonner';
 import type { Order, FinancialEntry } from '@/types/erp';
 
@@ -1674,6 +1675,29 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
           </div>
           
           <div className="flex items-center gap-4">
+            <button
+              onClick={() => {
+                generateFinanceiroDashboardPDF({
+                  totalPending: grandTotalPending,
+                  totalReceived: totalRecebido,
+                  totalAproval: aguardandoFinanceiro,
+                  orders: filteredOrders.map(o => ({
+                    number: o.number,
+                    client: o.clientName,
+                    seller: o.sellerName,
+                    status: o.status,
+                    total: o.total,
+                    pending: getSaldoDevedor(o.id, o.total)
+                  }))
+                });
+                toast.success('Relatório Financeiro gerado com sucesso!');
+              }}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-2xl transition-all shadow-xl shadow-emerald-500/30 text-xs font-black flex items-center gap-2 border border-emerald-400"
+            >
+              <Download className="w-4 h-4" />
+              Baixar Relatório
+            </button>
+
             <button
               onClick={syncData}
               disabled={isRefreshing}

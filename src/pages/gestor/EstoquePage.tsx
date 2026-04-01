@@ -3,8 +3,10 @@ import { useERP } from '@/contexts/ERPContext';
 import { formatCurrency } from '@/components/shared/StatusBadge';
 import {
     Package, Plus, Search, Edit2, Trash2, X, AlertTriangle,
-    ArrowUpDown, Box, TrendingDown, TrendingUp, Archive
+    ArrowUpDown, Box, TrendingDown, TrendingUp, Archive,
+    Minus, PlusCircle, CheckCircle, RotateCcw
 } from 'lucide-react';
+import { toast } from 'sonner';
 import type { Product } from '@/types/erp';
 
 const CATEGORIES = ['Geral', 'Eletrônico Vendedor', 'Outros'];
@@ -35,8 +37,32 @@ const EstoquePage: React.FC = () => {
     const [editingProduct, setEditingProduct] = useState<Product | null>(null);
     const [form, setForm] = useState(emptyProduct);
     const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-    const [saveError, setSaveError] = useState('');
-    const [savingProduct, setSavingProduct] = useState(false);
+
+    // Ajuste Fácil Inline
+    const [quickEditId, setQuickEditId] = useState<string | null>(null);
+    const [quickEditQty, setQuickEditQty] = useState<number>(0);
+
+    const handleQuickSave = async (p: Product) => {
+        if (quickEditQty < 0) return;
+        try {
+            const status: Product['status'] = quickEditQty === 0 ? 'esgotado' : p.status === 'inativo' ? 'inativo' : 'ativo';
+            await updateProduct({
+                ...p,
+                stockQuantity: quickEditQty,
+                status,
+                updatedAt: new Date().toISOString().slice(0, 10),
+            });
+            toast.success(`Estoque de ${p.name} atualizado para ${quickEditQty}.`);
+            setQuickEditId(null);
+        } catch (error) {
+            toast.error('Erro ao salvar nova quantidade.');
+        }
+    };
+
+    const startQuickEdit = (p: Product) => {
+        setQuickEditId(p.id);
+        setQuickEditQty(p.stockQuantity);
+    };
 
     // Stats
     const totalProducts = products.length;
@@ -73,7 +99,6 @@ const EstoquePage: React.FC = () => {
         setEditingProduct(null);
         setForm(emptyProduct);
         setShowForm(true);
-        // Scroll to form if needed
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
@@ -97,39 +122,29 @@ const EstoquePage: React.FC = () => {
     };
 
     const handleSave = () => {
-        setSaveError('');
-
-        // Validação
-        if (!form.name.trim()) {
-            setSaveError('Nome do produto é obrigatório');
-            return;
-        }
-        if (!form.sku.trim()) {
-            setSaveError('SKU é obrigatório');
+        if (!form.name.trim() || !form.sku.trim()) {
+            toast.error('Nome e SKU são campos obrigatórios.');
             return;
         }
 
-        // Verificar se SKU já existe (apenas para novos produtos)
         if (!editingProduct && products.some(p => p.sku.toUpperCase() === form.sku.toUpperCase())) {
-            setSaveError('SKU já existe na base de dados');
+            toast.error('SKU já existe na base de dados.');
             return;
         }
 
-        setSavingProduct(true);
         const now = new Date().toISOString().slice(0, 10);
         const status: Product['status'] = form.stockQuantity === 0 ? 'esgotado' : form.status === 'inativo' ? 'inativo' : 'ativo';
 
         try {
             if (editingProduct) {
-                console.log('[EstoquePage] Atualizando produto:', editingProduct.id);
                 updateProduct({
                     ...editingProduct,
                     ...form,
                     status,
                     updatedAt: now,
                 });
+                toast.success('Produto atualizado com sucesso!');
             } else {
-                console.log('[EstoquePage] Criando novo produto:', form.name);
                 addProduct({
                     id: crypto.randomUUID(),
                     ...form,
@@ -137,294 +152,296 @@ const EstoquePage: React.FC = () => {
                     createdAt: now,
                     updatedAt: now,
                 });
+                toast.success('Novo produto adicionado ao catálogo!');
             }
             setShowForm(false);
             setForm(emptyProduct);
             setEditingProduct(null);
-            setSavingProduct(false);
-        } catch (err: any) {
-            console.error('[EstoquePage] Erro ao salvar:', err);
-            setSaveError(err?.message || 'Erro ao salvar produto');
-            setSavingProduct(false);
+        } catch (err) {
+            toast.error((err as Error)?.message || 'Falha ao salvar produto.');
         }
     };
 
     const handleDelete = (id: string) => {
         deleteProduct(id);
         setDeleteConfirm(null);
-    };
-
-    const getStockBadge = (p: Product) => {
-        if (p.stockQuantity === 0) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-destructive/10 text-destructive"><AlertTriangle className="w-3 h-3" /> Esgotado</span>;
-        if (p.stockQuantity <= p.minStock) return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-warning/10 text-warning"><TrendingDown className="w-3 h-3" /> Estoque Baixo</span>;
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-success/10 text-success"><TrendingUp className="w-3 h-3" /> OK</span>;
+        toast.info('Produto removido do sistema.');
     };
 
     const usedCategories = [...new Set([...CATEGORIES, ...products.map(p => p.category)])];
 
-
     return (
-        <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between flex-wrap gap-3">
-                <div>
-                    <h1 className="page-header">Estoque</h1>
-                    <p className="page-subtitle">Gerencie seus produtos e controle de estoque</p>
+        <div className="space-y-10 pb-12 animate-fade-in">
+            {/* Header Hero Section */}
+            <div className="relative overflow-hidden rounded-[2.5rem] bg-slate-950 dark:bg-slate-900 border border-white/5 p-8 md:p-12 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-[400px] h-[400px] bg-cyan-500/10 rounded-full blur-[100px] pointer-events-none" />
+                <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/4 w-[300px] h-[300px] bg-blue-500/10 rounded-full blur-[80px] pointer-events-none" />
+                
+                <div className="relative z-10 space-y-2">
+                    <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight flex items-center gap-3">
+                        <Box className="w-10 h-10 text-cyan-400" />
+                        Polo de Estoque
+                    </h1>
+                    <p className="text-slate-400 text-lg font-medium">Gestão inteligente e ajuste ultra-rápido de produtos.</p>
                 </div>
-                <button onClick={() => showForm ? setShowForm(false) : openCreate()} className={`btn-modern ${showForm ? 'bg-muted text-foreground' : 'bg-gradient-to-r from-gestor to-gestor/80 text-primary-foreground'}`}>
-                    {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                    {showForm ? 'Cancelar' : 'Novo Produto'}
+                
+                <button onClick={() => showForm ? setShowForm(false) : openCreate()} className="relative z-10 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-xl shadow-blue-900/40 px-8 py-4 rounded-2xl font-black uppercase tracking-wider flex items-center gap-3 transition-all hover:scale-105 active:scale-95">
+                    {showForm ? <RotateCcw className="w-5 h-5" /> : <PlusCircle className="w-5 h-5" />}
+                    {showForm ? 'Voltar ao Estoque' : 'Adicionar Item'}
                 </button>
             </div>
 
-            {/* Form Inline (Em vez de Modal) - MOVIDO PARA O TOPO */}
+            {/* Quick Stats Grid */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="glass-premium p-6 rounded-[2rem] border-border/40 hover:-translate-y-1 transition-transform cursor-default">
+                    <div className="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-4">
+                        <Package className="w-7 h-7" />
+                    </div>
+                    <p className="text-3xl font-black text-foreground">{totalProducts}</p>
+                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mt-1">Variedades</p>
+                </div>
+                <div className="glass-premium p-6 rounded-[2rem] border-border/40 hover:-translate-y-1 transition-transform cursor-default">
+                    <div className="w-14 h-14 rounded-2xl bg-success/10 text-success flex items-center justify-center mb-4">
+                        <TrendingUp className="w-7 h-7" />
+                    </div>
+                    <p className="text-3xl font-black text-foreground">{formatCurrency(totalValue)}</p>
+                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mt-1">Giro Avaliado</p>
+                </div>
+                <div className="glass-premium p-6 rounded-[2rem] border-border/40 hover:-translate-y-1 transition-transform cursor-default">
+                    <div className="w-14 h-14 rounded-2xl bg-warning/10 text-warning flex items-center justify-center mb-4">
+                        <AlertTriangle className="w-7 h-7" />
+                    </div>
+                    <p className="text-3xl font-black text-foreground">{lowStockCount}</p>
+                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mt-1">Alerta de Saída</p>
+                </div>
+                <div className="glass-premium p-6 rounded-[2rem] border-border/40 hover:-translate-y-1 transition-transform cursor-default">
+                    <div className="w-14 h-14 rounded-2xl bg-destructive/10 text-destructive flex items-center justify-center mb-4">
+                        <Archive className="w-7 h-7" />
+                    </div>
+                    <p className="text-3xl font-black text-foreground">{outOfStockCount}</p>
+                    <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mt-1">Zerados (Pausa)</p>
+                </div>
+            </div>
+
+            {/* Main Form */}
             {showForm && (
-                <div className="card-section p-0 overflow-hidden border-2 border-gestor/20 animate-in fade-in slide-in-from-top-4 duration-300">
-                    <div className="bg-gestor/5 border-b border-gestor/10 px-6 py-4 flex items-center justify-between">
-                        <div>
-                            <h2 className="text-sm font-extrabold text-foreground">{editingProduct ? 'Editar Produto' : 'Novo Produto'}</h2>
-                            <p className="text-[10px] text-muted-foreground mt-0.5">{editingProduct ? 'Atualize os dados e clique em salvar' : 'Preencha os campos abaixo para cadastrar'}</p>
+                <div className="glass-premium border-primary/20 rounded-[2.5rem] p-8 animate-scale-in">
+                    <div className="flex items-center gap-4 mb-8 pb-4 border-b border-border/40">
+                        <div className="w-12 h-12 bg-primary text-primary-foreground rounded-full flex items-center justify-center shadow-lg shadow-primary/30">
+                            {editingProduct ? <Edit2 className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
                         </div>
-                        <button onClick={() => { setShowForm(false); setEditingProduct(null); }} className="w-7 h-7 rounded-lg bg-background/50 flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
-                            <X className="w-3.5 h-3.5" />
-                        </button>
+                        <div>
+                            <h2 className="text-xl font-black text-foreground uppercase tracking-widest">{editingProduct ? 'Ajustes no Produto' : 'Ficha de Novo Produto'}</h2>
+                            <p className="text-sm font-medium text-muted-foreground">Preencha os atributos vitais do inventário</p>
+                        </div>
                     </div>
 
-                    <div className="p-6 space-y-5">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div>
-                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5 ml-1">SKU *</label>
-                                <input type="text" value={form.sku} onChange={e => setForm(f => ({ ...f, sku: e.target.value.toUpperCase() }))} className="input-modern font-mono text-sm" placeholder="SKU-001" />
-                            </div>
-                            <div className="md:col-span-2">
-                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5 ml-1">Nome do Produto *</label>
-                                <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="input-modern text-sm" placeholder="Ex: Kit Sprinter com Sensor" />
-                            </div>
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                        <div className="md:col-span-3 space-y-2">
+                            <label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Código SKU</label>
+                            <input type="text" value={form.sku} onChange={e => setForm(f => ({ ...f, sku: e.target.value.toUpperCase() }))} className="input-modern h-14 !rounded-2xl" placeholder="Ex: MOLA-002" />
+                        </div>
+                        <div className="md:col-span-9 space-y-2">
+                            <label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Nomenclatura Completa</label>
+                            <input type="text" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="input-modern h-14 !rounded-2xl" placeholder="Nome oficial de venda" />
+                        </div>
+                        <div className="md:col-span-12 space-y-2">
+                            <label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Especificação Técnica (Opcional)</label>
+                            <input type="text" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className="input-modern h-14 !rounded-2xl bg-muted/30" placeholder="Use para definir variações ou detalhes importantes" />
+                        </div>
+                        
+                        <div className="md:col-span-3 space-y-2">
+                            <label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Classe/Categoria</label>
+                            <input type="text" list="cat-list" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} className="input-modern h-14 !rounded-2xl" />
+                            <datalist id="cat-list">{usedCategories.map(c => <option key={c} value={c} />)}</datalist>
+                        </div>
+                        <div className="md:col-span-2 space-y-2">
+                            <label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Medida</label>
+                            <select value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))} className="input-modern h-14 !rounded-2xl">
+                                {UNITS.map(u => <option key={u} value={u}>{u.toUpperCase()}</option>)}
+                            </select>
+                        </div>
+                        <div className="md:col-span-3 space-y-2">
+                            <label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Valor Aquisição</label>
+                            <input type="number" step="0.01" value={form.costPrice || ''} onChange={e => setForm(f => ({ ...f, costPrice: parseFloat(e.target.value) || 0 }))} className="input-modern h-14 !rounded-2xl" placeholder="R$ 0,00" />
+                        </div>
+                        <div className="md:col-span-4 space-y-2">
+                            <label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Preço Praticado (Venda)</label>
+                            <input type="number" step="0.01" value={form.unitPrice || ''} onChange={e => setForm(f => ({ ...f, unitPrice: parseFloat(e.target.value) || 0 }))} className="input-modern h-14 !rounded-2xl border-success/30 bg-success/5 focus:bg-background" placeholder="R$ 0,00" />
                         </div>
 
-                        <div>
-                            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5 ml-1">Descrição</label>
-                            <input value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className="input-modern text-sm" placeholder="Breve descrição do produto..." />
+                        <div className="md:col-span-4 space-y-2">
+                            <label className="text-xs font-black uppercase tracking-widest text-muted-foreground text-primary">Saldo Entrada</label>
+                            <input type="number" value={form.stockQuantity || ''} onChange={e => setForm(f => ({ ...f, stockQuantity: parseInt(e.target.value) || 0 }))} className="input-modern h-14 !rounded-2xl border-primary/30 bg-primary/5 focus:bg-background text-lg font-bold" />
                         </div>
-
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                            <div>
-                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5 ml-1">Categoria</label>
-                                <input type="text" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} className="input-modern text-sm" list="category-list" />
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5 ml-1">Unidade</label>
-                                <select value={form.unit} onChange={e => setForm(f => ({ ...f, unit: e.target.value }))} className="input-modern text-sm">
-                                    {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5 ml-1">Custo (R$)</label>
-                                <input type="number" step="0.01" value={form.costPrice || ''} onChange={e => setForm(f => ({ ...f, costPrice: parseFloat(e.target.value) || 0 }))} className="input-modern text-sm" />
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5 ml-1">Venda (R$)</label>
-                                <input type="number" step="0.01" value={form.unitPrice || ''} onChange={e => setForm(f => ({ ...f, unitPrice: parseFloat(e.target.value) || 0 }))} className="input-modern text-sm" />
-                            </div>
+                        <div className="md:col-span-4 space-y-2">
+                            <label className="text-xs font-black uppercase tracking-widest text-muted-foreground text-warning">Alerta Mínimo</label>
+                            <input type="number" value={form.minStock || ''} onChange={e => setForm(f => ({ ...f, minStock: parseInt(e.target.value) || 0 }))} className="input-modern h-14 !rounded-2xl" />
                         </div>
-
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                            <div>
-                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5 ml-1">Qtd Atual</label>
-                                <input type="number" value={form.stockQuantity || ''} onChange={e => setForm(f => ({ ...f, stockQuantity: parseInt(e.target.value) || 0 }))} className="input-modern text-sm" />
-                            </div>
-                            <div>
-                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5 ml-1">Estoque Mín</label>
-                                <input type="number" value={form.minStock || ''} onChange={e => setForm(f => ({ ...f, minStock: parseInt(e.target.value) || 0 }))} className="input-modern text-sm" />
-                            </div>
-                            <div className="col-span-2 md:col-span-1">
-                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5 ml-1">Fornecedor</label>
-                                <input type="text" value={form.supplier} onChange={e => setForm(f => ({ ...f, supplier: e.target.value }))} className="input-modern text-sm" />
-                            </div>
+                        <div className="md:col-span-4 space-y-2">
+                            <label className="text-xs font-black uppercase tracking-widest text-muted-foreground">Produtor/Marca</label>
+                            <input type="text" value={form.supplier} onChange={e => setForm(f => ({ ...f, supplier: e.target.value }))} className="input-modern h-14 !rounded-2xl" />
                         </div>
+                    </div>
 
-                        {saveError && (
-                            <div className="bg-destructive/5 border border-destructive/20 rounded-xl p-3">
-                                <p className="text-[11px] text-destructive font-bold flex items-center gap-2">
-                                    <AlertTriangle className="w-3.5 h-3.5" /> {saveError}
-                                </p>
-                            </div>
-                        )}
-
-                        <div className="pt-2 flex justify-end gap-3 border-t border-border/40">
-                            <button onClick={() => { setShowForm(false); setEditingProduct(null); setSaveError(''); }} className="px-5 py-2 rounded-xl bg-muted text-muted-foreground text-xs font-bold hover:bg-muted/80 transition-all">
-                                Cancelar
-                            </button>
-                            <button onClick={handleSave} disabled={savingProduct || !form.name.trim() || !form.sku.trim()} className="px-6 py-2 rounded-xl bg-gradient-to-r from-gestor to-gestor/80 text-primary-foreground text-xs font-bold shadow-lg shadow-gestor/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50">
-                                {savingProduct ? 'Salvando...' : editingProduct ? 'Salvar Alterações' : 'Cadastrar Produto'}
-                            </button>
-                        </div>
+                    <div className="flex gap-4 mt-10 pt-6 border-t border-border/40">
+                        <button onClick={handleSave} className="flex-1 md:flex-none btn-primary !h-14 !rounded-[1.25rem] !px-12 text-base shadow-xl shadow-primary/20">
+                            {editingProduct ? 'Gravar Alterações' : 'Implantar no Catálogo'}
+                        </button>
+                        <button onClick={() => setShowForm(false)} className="h-14 px-8 rounded-[1.25rem] font-bold text-muted-foreground hover:bg-muted/50 transition-colors">
+                            Descartar
+                        </button>
                     </div>
                 </div>
             )}
 
-            {/* Stats */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <div className="stat-card">
-                    <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-gestor/20 to-gestor/5 flex items-center justify-center">
-                            <Box className="w-5 h-5 text-gestor" />
+            {/* Smart Filters and Search */}
+            {!showForm && (
+                <div className="glass-premium p-4 md:p-6 rounded-[2rem] flex flex-col lg:flex-row items-center gap-4">
+                    <div className="relative flex-1 w-full">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground/50" />
+                        <input type="text" placeholder="Localizar item no acervo (SKU, Nome, Fornecedor)..." value={search} onChange={e => setSearch(e.target.value)} className="input-modern pl-12 h-14 !rounded-2xl w-full text-sm font-medium bg-muted/50 focus:bg-background" />
+                    </div>
+                    
+                    <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto no-scrollbar pb-1 lg:pb-0">
+                        <div className="flex items-center gap-1 bg-muted/40 p-1.5 rounded-2xl">
+                            {['todos', 'ok', 'baixo', 'esgotado'].map(tab => (
+                                <button
+                                    key={tab}
+                                    onClick={() => setStatusFilter(tab)}
+                                    className={`px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all whitespace-nowrap ${statusFilter === tab ? 'bg-white dark:bg-slate-800 text-foreground shadow-md' : 'text-muted-foreground hover:text-foreground'}`}
+                                >
+                                    {tab === 'ok' ? 'Disponível' : tab === 'baixo' ? 'Crítico' : tab === 'esgotado' ? 'Falta' : 'Listar Todos'}
+                                </button>
+                            ))}
                         </div>
-                        <div>
-                            <p className="text-[11px] text-muted-foreground font-medium">Total Produtos</p>
-                            <p className="text-xl font-extrabold text-foreground">{totalProducts}</p>
-                        </div>
+                        <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="input-modern h-[46px] !rounded-2xl w-auto bg-muted/40 border-transparent text-sm font-bold ml-2">
+                            <option value="todos">Seções (Mix)</option>
+                            {usedCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                        </select>
                     </div>
                 </div>
-                <div className="stat-card">
-                    <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-success/20 to-success/5 flex items-center justify-center">
-                            <TrendingUp className="w-5 h-5 text-success" />
-                        </div>
-                        <div>
-                            <p className="text-[11px] text-muted-foreground font-medium">Valor em Estoque</p>
-                            <p className="text-xl font-extrabold text-foreground">{formatCurrency(totalValue)}</p>
-                        </div>
-                    </div>
-                </div>
-                <div className="stat-card">
-                    <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-warning/20 to-warning/5 flex items-center justify-center">
-                            <TrendingDown className="w-5 h-5 text-warning" />
-                        </div>
-                        <div>
-                            <p className="text-[11px] text-muted-foreground font-medium">Estoque Baixo</p>
-                            <p className="text-xl font-extrabold text-warning">{lowStockCount}</p>
-                        </div>
-                    </div>
-                </div>
-                <div className="stat-card">
-                    <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-destructive/20 to-destructive/5 flex items-center justify-center">
-                            <AlertTriangle className="w-5 h-5 text-destructive" />
-                        </div>
-                        <div>
-                            <p className="text-[11px] text-muted-foreground font-medium">Esgotados</p>
-                            <p className="text-xl font-extrabold text-destructive">{outOfStockCount}</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            )}
 
-            {/* Filters */}
-            <div className="flex items-center gap-3 flex-wrap">
-                <div className="relative flex-1 min-w-[200px]">
-                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
-                    <input type="text" placeholder="Buscar por nome, SKU ou fornecedor..." value={search} onChange={e => setSearch(e.target.value)} className="input-modern pl-10 py-2.5" />
-                </div>
-                <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} className="input-modern py-2.5 w-auto min-w-[140px]">
-                    <option value="todos">Todas Categorias</option>
-                    {usedCategories.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-                <div className="flex gap-1.5">
-                    {[
-                        { value: 'todos', label: 'Todos' },
-                        { value: 'ok', label: 'Em Estoque' },
-                        { value: 'baixo', label: 'Baixo' },
-                        { value: 'esgotado', label: 'Esgotado' },
-                    ].map(tab => (
-                        <button
-                            key={tab.value}
-                            onClick={() => setStatusFilter(tab.value)}
-                            className={`px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${statusFilter === tab.value ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'
-                                }`}
-                        >
-                            {tab.label}
-                        </button>
-                    ))}
-                </div>
-            </div>
-
-            {/* Products Table */}
-            {sorted.length === 0 ? (
-                <div className="card-section p-12 text-center">
-                    <div className="w-16 h-16 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-4">
-                        <Archive className="w-8 h-8 text-muted-foreground" />
+            {/* Modern Data Grid */}
+            {!showForm && sorted.length === 0 ? (
+                <div className="glass-premium p-16 text-center border-dashed border-2 rounded-[3.5rem] mt-10">
+                    <div className="w-24 h-24 rounded-full bg-muted/40 flex items-center justify-center mx-auto mb-6">
+                        <Package className="w-10 h-10 text-muted-foreground/50" />
                     </div>
-                    <p className="text-foreground font-bold text-lg">Nenhum produto encontrado</p>
-                    <p className="text-sm text-muted-foreground mt-1">Cadastre novos produtos para começar</p>
+                    <h3 className="text-2xl font-black text-foreground mb-2">Acervo Vazio ou Nada Encontrado</h3>
+                    <p className="text-muted-foreground max-w-sm mx-auto">Não localizamos nenhum SKUs correspondentes ao seu filtro atual. Limpe a busca ou crie um novo item.</p>
                 </div>
             ) : (
-                <div className="card-section overflow-hidden">
-                    <div className="overflow-x-auto">
-                        <table className="modern-table">
-                            <thead>
-                                <tr>
-                                    <th className="cursor-pointer select-none" onClick={() => toggleSort('name')}>
-                                        <div className="flex items-center gap-1">Produto <ArrowUpDown className="w-3 h-3 text-muted-foreground" /></div>
-                                    </th>
-                                    <th>SKU</th>
-                                    <th>Categoria</th>
-                                    <th className="text-right cursor-pointer select-none" onClick={() => toggleSort('stockQuantity')}>
-                                        <div className="flex items-center justify-end gap-1">Estoque <ArrowUpDown className="w-3 h-3 text-muted-foreground" /></div>
-                                    </th>
-                                    <th>Status</th>
-                                    <th className="text-right cursor-pointer select-none" onClick={() => toggleSort('unitPrice')}>
-                                        <div className="flex items-center justify-end gap-1">Preço Venda <ArrowUpDown className="w-3 h-3 text-muted-foreground" /></div>
-                                    </th>
-                                    <th className="text-right">Custo</th>
-                                    <th>Fornecedor</th>
-                                    <th className="text-center">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {sorted.map(product => (
-                                    <tr key={product.id} className={product.stockQuantity === 0 ? 'bg-destructive/[0.03]' : product.stockQuantity <= product.minStock ? 'bg-warning/[0.03]' : ''}>
-                                        <td>
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-gestor/15 to-gestor/5 flex items-center justify-center shrink-0">
-                                                    <Package className="w-4 h-4 text-gestor" />
-                                                </div>
-                                                <div>
-                                                    <p className="font-semibold text-foreground text-sm">{product.name}</p>
-                                                    <p className="text-[10px] text-muted-foreground">{product.description}</p>
-                                                </div>
+                !showForm && (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 pt-2">
+                    {sorted.map(product => {
+                        const isEsgotado = product.stockQuantity === 0;
+                        const isBaixo = product.stockQuantity > 0 && product.stockQuantity <= product.minStock;
+                        const isQuickEditing = quickEditId === product.id;
+
+                        return (
+                            <div key={product.id} className={`group relative glass-card !p-0 rounded-[2rem] border-2 transition-all duration-300 hover:shadow-2xl overflow-hidden flex flex-col h-full bg-background/50 ${
+                                isEsgotado ? 'border-destructive/30 hover:border-destructive/50 shadow-destructive/[0.05]' : 
+                                isBaixo ? 'border-warning/30 hover:border-warning/50 shadow-warning/[0.05]' : 
+                                'border-transparent hover:border-primary/20'
+                            }`}>
+                                {/* Card Status Indicator Top Border */}
+                                <div className={`h-1.5 w-full ${isEsgotado ? 'bg-destructive' : isBaixo ? 'bg-warning' : 'bg-primary/20 group-hover:bg-primary/60 transition-colors'}`} />
+                                
+                                <div className="p-6 flex flex-col flex-1">
+                                    <div className="flex items-start justify-between gap-4 mb-4">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="px-2 py-0.5 rounded-md bg-muted/60 text-[10px] font-mono font-black tracking-wider text-muted-foreground shrink-0">{product.sku}</span>
+                                                <span className="truncate text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">{product.category}</span>
                                             </div>
-                                        </td>
-                                        <td><span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">{product.sku}</span></td>
-                                        <td><span className="text-xs">{product.category}</span></td>
-                                        <td className="text-right">
-                                            <div className="flex flex-col items-end gap-0.5">
-                                                <span className="font-bold text-sm">{product.stockQuantity} <span className="text-muted-foreground font-normal">{product.unit}</span></span>
-                                                <span className="text-[10px] text-muted-foreground">Mín: {product.minStock}</span>
-                                            </div>
-                                        </td>
-                                        <td>{getStockBadge(product)}</td>
-                                        <td className="text-right font-semibold text-sm">{formatCurrency(product.unitPrice)}</td>
-                                        <td className="text-right text-sm text-muted-foreground">{formatCurrency(product.costPrice)}</td>
-                                        <td className="text-xs text-muted-foreground">{product.supplier}</td>
-                                        <td>
-                                            <div className="flex items-center justify-center gap-1">
-                                                <button onClick={() => openEdit(product)} className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary hover:bg-primary/20 transition-colors" title="Editar">
-                                                    <Edit2 className="w-3.5 h-3.5" />
+                                            <h3 className="text-base font-black text-foreground leading-tight line-clamp-2" title={product.name}>{product.name}</h3>
+                                        </div>
+                                        {/* Actions Menu */}
+                                        <div className="flex gap-1 shrink-0 bg-muted/20 p-1 rounded-2xl opacity-0 scale-95 group-hover:opacity-100 group-hover:scale-100 transition-all origin-top-right">
+                                            <button onClick={() => openEdit(product)} className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center text-primary hover:scale-110 transition-transform">
+                                                <Edit2 className="w-3.5 h-3.5" />
+                                            </button>
+                                            {deleteConfirm === product.id ? (
+                                                <div className="flex gap-1 absolute right-0 -top-1 bg-destructive/95 backdrop-blur-md p-1.5 rounded-2xl shadow-xl z-20">
+                                                    <button onClick={() => handleDelete(product.id)} className="px-3 py-1.5 rounded-xl bg-white/20 hover:bg-white text-white hover:text-destructive text-[11px] font-black uppercase transition-colors">Excluir</button>
+                                                    <button onClick={() => setDeleteConfirm(null)} className="px-3 py-1.5 rounded-xl bg-black/20 text-white hover:bg-black/40 text-[11px] font-black uppercase transition-colors">Não</button>
+                                                </div>
+                                            ) : (
+                                                <button onClick={() => setDeleteConfirm(product.id)} className="w-8 h-8 rounded-xl bg-white dark:bg-slate-800 shadow-sm flex items-center justify-center text-destructive hover:scale-110 transition-transform">
+                                                    <Trash2 className="w-3.5 h-3.5" />
                                                 </button>
-                                                {deleteConfirm === product.id ? (
-                                                    <div className="flex gap-1">
-                                                        <button onClick={() => handleDelete(product.id)} className="w-8 h-8 rounded-lg bg-destructive flex items-center justify-center text-destructive-foreground text-[10px] font-bold" title="Confirmar">Sim</button>
-                                                        <button onClick={() => setDeleteConfirm(null)} className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center text-muted-foreground text-[10px] font-bold" title="Cancelar">Não</button>
+                                            )}
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Mid Details */}
+                                    <div className="mt-auto pt-4 border-t border-border/40 space-y-4">
+                                        {/* Quick Edit Quantities System */}
+                                        <div className="bg-muted/30 rounded-2xl p-3 flex items-center justify-between">
+                                            <div>
+                                                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Saldo Fisico</p>
+                                                {isQuickEditing ? (
+                                                    <div className="flex items-center gap-1.5 mt-1">
+                                                        <button disabled={quickEditQty <= 0} onClick={() => setQuickEditQty(q => Math.max(0, q - 1))} className="w-8 h-8 rounded-full bg-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive hover:text-white transition-colors disabled:opacity-30">
+                                                            <Minus className="w-4 h-4" />
+                                                        </button>
+                                                        <input 
+                                                            type="number" 
+                                                            value={quickEditQty} 
+                                                            onChange={e => setQuickEditQty(parseInt(e.target.value) || 0)} 
+                                                            className="w-16 h-8 text-center text-lg font-black bg-background border-none rounded-lg p-0 focus:ring-2 focus:ring-primary"
+                                                        />
+                                                        <button onClick={() => setQuickEditQty(q => q + 1)} className="w-8 h-8 rounded-full bg-success/10 text-success flex items-center justify-center hover:bg-success hover:text-white transition-colors">
+                                                            <Plus className="w-4 h-4" />
+                                                        </button>
                                                     </div>
                                                 ) : (
-                                                    <button onClick={() => setDeleteConfirm(product.id)} className="w-8 h-8 rounded-lg bg-destructive/10 flex items-center justify-center text-destructive hover:bg-destructive/20 transition-colors" title="Excluir">
-                                                        <Trash2 className="w-3.5 h-3.5" />
-                                                    </button>
+                                                    <div className="flex items-baseline gap-1.5 mt-0.5">
+                                                        <span className={`text-4xl font-black ${isEsgotado ? 'text-destructive' : isBaixo ? 'text-warning' : 'text-foreground'}`}>{product.stockQuantity}</span>
+                                                        <span className="text-xs font-bold text-muted-foreground">{product.unit}</span>
+                                                    </div>
                                                 )}
                                             </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
+                                            
+                                            {/* The button to trigger or save quick edit */}
+                                            {isQuickEditing ? (
+                                                <div className="flex flex-col gap-1">
+                                                    <button onClick={() => handleQuickSave(product)} className="w-10 h-10 rounded-[14px] bg-success text-white flex items-center justify-center shadow-lg shadow-success/30 hover:scale-110 transition-transform">
+                                                        <CheckCircle className="w-5 h-5" />
+                                                    </button>
+                                                    <button onClick={() => setQuickEditId(null)} className="text-[9px] font-bold text-muted-foreground hover:text-foreground text-center">Cancelar</button>
+                                                </div>
+                                            ) : (
+                                                <button onClick={() => startQuickEdit(product)} className="w-10 h-10 rounded-[14px] bg-white dark:bg-slate-800 shadow-md border border-border/50 text-foreground flex items-center justify-center hover:bg-primary/10 hover:text-primary transition-colors tooltip group/btn relative">
+                                                    <Edit2 className="w-4 h-4" />
+                                                    <span className="absolute -top-8 bg-black text-white text-[10px] px-2 py-1 rounded-md opacity-0 group-hover/btn:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">Ajuste Rápido</span>
+                                                </button>
+                                            )}
+                                        </div>
 
+                                        <div className="flex items-center justify-between px-1">
+                                            <div>
+                                                <p className="text-[10px] font-semibold text-muted-foreground uppercase">Venda</p>
+                                                <p className="text-sm font-black text-success">{formatCurrency(product.unitPrice)}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-[10px] font-semibold text-muted-foreground uppercase">Mínimo</p>
+                                                <p className="text-sm font-black text-muted-foreground">{product.minStock} {product.unit}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+                )
+            )}
         </div>
     );
 };
 
 export default EstoquePage;
+

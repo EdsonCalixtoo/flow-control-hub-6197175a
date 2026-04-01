@@ -164,6 +164,8 @@ export interface OrderReturn {
   clientName: string;
   reason: string;
   reportedBy: string;
+  resolved?: boolean;
+  resolvedAt?: string;
   createdAt: string;
 }
 

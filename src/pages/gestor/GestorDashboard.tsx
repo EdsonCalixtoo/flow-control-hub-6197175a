@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatCard, StatusBadge, formatCurrency, formatDate } from '@/components/shared/StatusBadge';
-import { ShoppingCart, Factory, CheckCircle, AlertTriangle, Package, Send, Truck, Wrench, Calendar, Bell, X, ExternalLink, RotateCcw, Bug, ClipboardList, Plus, ShieldCheck, XCircle, History as HistoryIcon, Share2 } from 'lucide-react';
+import { LayoutDashboard, FileText, ShoppingCart, Factory, CheckCircle, AlertTriangle, Package, Send, Truck, Wrench, Calendar, Bell, X, ExternalLink, RotateCcw, Bug, ClipboardList, Plus, ShieldCheck, XCircle, History as HistoryIcon, Share2 } from 'lucide-react';
+import { toast } from 'sonner';
 import type { Order, OrderStatus, ProductionError } from '@/types/erp';
 import { STATUS_LABELS } from '@/types/erp';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -20,7 +21,7 @@ const SEVERITY_COLORS: Record<string, string> = {
 };
 
 const GestorDashboard: React.FC = () => {
-  const { orders, products, updateOrderStatus, delayReports, unreadDelayReports, markDelayReportRead, orderReturns, addOrderReturn, productionErrors, addProductionError, resolveError, warranties, updateWarrantyStatus } = useERP();
+  const { orders, products, updateOrderStatus, delayReports, unreadDelayReports, markDelayReportRead, orderReturns, addOrderReturn, resolveOrderReturn, productionErrors, addProductionError, resolveError, warranties, updateWarrantyStatus } = useERP();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -163,7 +164,7 @@ const GestorDashboard: React.FC = () => {
     { name: 'No Prazo (Em andamento)', value: emProducao || 8 },
   ];
 
-  type PanelKey = 'total' | 'enviados' | 'em_producao' | 'finalizados' | 'atrasados' | 'estoque_baixo' | null;
+  type PanelKey = 'total' | 'enviados' | 'em_producao' | 'finalizados' | 'atrasados' | 'extravios' | 'devolvidos' | 'estoque_baixo' | null;
   const [activePanel, setActivePanel] = useState<PanelKey>(null);
   const togglePanel = (key: PanelKey) => setActivePanel(prev => prev === key ? null : key);
 
@@ -177,6 +178,9 @@ const GestorDashboard: React.FC = () => {
       new Date(o.deliveryDate) < today &&
       !['producao_finalizada', 'produto_liberado', 'rascunho'].includes(o.status)
     ),
+    extravios: orders.filter(o => o.status === 'extraviado'),
+    devolvidos: [], // This could be mapped to returns if desired
+    estoque_baixo: [], 
   };
 
   const panelLabels: Record<string, string> = {
@@ -185,6 +189,8 @@ const GestorDashboard: React.FC = () => {
     em_producao: 'Em Produção',
     finalizados: 'Finalizados',
     atrasados: 'Pedidos Atrasados',
+    extravios: 'Pedidos Extraviados',
+    devolvidos: 'Pedidos Devolvidos (Histórico)',
     estoque_baixo: 'Estoque Baixo / Crítico',
   };
 
@@ -192,30 +198,67 @@ const GestorDashboard: React.FC = () => {
   const unreadReturns = orderReturns.length;
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="page-header">Dashboard do Gestor</h1>
-        <p className="page-subtitle">Visão estratégica consolidada</p>
+    <div className="space-y-10 pb-12 animate-fade-in">
+      {/* Header / Hero Section */}
+      <div className="relative overflow-hidden rounded-[2.5rem] bg-slate-950 dark:bg-slate-900 border border-white/5 p-8 md:p-12 shadow-2xl">
+        <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-[500px] h-[500px] bg-primary/20 rounded-full blur-[120px] pointer-events-none" />
+        <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/4 w-[400px] h-[400px] bg-gestor/20 rounded-full blur-[100px] pointer-events-none" />
+        
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-2">
+            <h1 className="text-4xl md:text-5xl font-black text-white tracking-tight">
+              Olá, <span className="gradient-text">{userName}</span>
+            </h1>
+            <p className="text-slate-400 text-lg font-medium">Bem-vindo ao seu painel de controle estratégico.</p>
+            <div className="flex items-center gap-4 pt-4">
+              <div className="flex -space-x-2">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="w-8 h-8 rounded-full border-2 border-slate-900 bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-400">
+                    {String.fromCharCode(64 + i)}
+                  </div>
+                ))}
+                <div className="w-8 h-8 rounded-full border-2 border-slate-900 bg-primary/10 flex items-center justify-center text-[10px] font-bold text-primary">
+                  +{totalPedidos}
+                </div>
+              </div>
+              <p className="text-xs text-slate-500 font-semibold uppercase tracking-widest">Atividade em tempo real</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3">
+             <div className="glass-premium p-4 md:p-6 rounded-[2rem] border-white/10 text-center min-w-[120px]">
+               <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-1">Pedidos Hoje</p>
+               <p className="text-3xl font-black text-white">{orders.filter(o => o.createdAt.startsWith(new Date().toISOString().split('T')[0])).length}</p>
+             </div>
+             <div className="bg-primary p-4 md:p-6 rounded-[2rem] shadow-xl shadow-primary/20 text-center min-w-[120px]">
+               <p className="text-[10px] uppercase tracking-widest text-primary-foreground/60 font-bold mb-1">Taxa Entrega</p>
+               <p className="text-3xl font-black text-primary-foreground">98%</p>
+             </div>
+          </div>
+        </div>
       </div>
 
-      {/* Tabs de navegação */}
-      <div className="flex gap-2 border-b border-border/40 overflow-x-auto">
+      {/* Modern Pill Navigation Tabs */}
+      <div className="flex gap-2 p-1.5 bg-card/50 backdrop-blur-md rounded-[1.5rem] border border-border/40 overflow-x-auto no-scrollbar max-w-fit mx-auto lg:mx-0">
         {([
-          { key: 'dashboard', label: '📊 Dashboard', badge: 0 },
-          { key: 'problemas', label: '⚠️ Problemas na Produção', badge: unreadErrors },
-          { key: 'devolvidos', label: '🔁 Pedidos Devolvidos', badge: unreadReturns },
-          { key: 'extravios', label: '📦 Extravios', badge: 0 },
-          { key: 'garantias', label: '🛡️ Garantias', badge: warranties.filter(w => w.status === 'Garantia criada').length },
-          { key: 'erros', label: '📋 Relatórios de Erros', badge: 0 },
-        ] as { key: GestorTab; label: string; badge: number }[]).map(tab => (
+          { key: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, badge: 0 },
+          { key: 'problemas', label: 'Problemas', icon: AlertTriangle, badge: unreadErrors },
+          { key: 'devolvidos', label: 'Devoluções', icon: RotateCcw, badge: orderReturns.filter(r => !r.resolved).length },
+          { key: 'extravios', label: 'Extravios', icon: Package, badge: orders.filter(o => o.status === 'extraviado').length },
+          { key: 'garantias', label: 'Garantias', icon: ShieldCheck, badge: warranties.filter(w => ['Garantia criada', 'Garantia aprovada'].includes(w.status)).length },
+          { key: 'erros', label: 'Relatórios', icon: FileText, badge: 0 },
+        ] as { key: GestorTab; label: string; icon: React.ElementType; badge: number }[]).map(tab => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`relative px-4 py-2.5 text-xs font-semibold border-b-2 transition-colors whitespace-nowrap ${activeTab === tab.key ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            className={`flex items-center gap-2 px-6 py-3 text-sm font-bold rounded-2xl transition-all duration-300 ${activeTab === tab.key 
+              ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/25 scale-[1.05]' 
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted/80'}`}
           >
+            <tab.icon className={`w-4 h-4 ${activeTab === tab.key ? 'animate-pulse' : ''}`} />
             {tab.label}
             {tab.badge > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center min-w-[16px] h-4 rounded-full bg-destructive text-white text-[9px] font-extrabold px-1">
+              <span className={`flex items-center justify-center min-w-[18px] h-[18px] rounded-full text-[9px] font-black ${activeTab === tab.key ? 'bg-white text-primary' : 'bg-destructive text-white'}`}>
                 {tab.badge}
               </span>
             )}
@@ -223,38 +266,51 @@ const GestorDashboard: React.FC = () => {
         ))}
       </div>
 
-      {/* Tab: Dashboard principal */}
-      {activeTab === 'dashboard' && (
-        <div className="space-y-8 animate-fade-in">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 stagger-children">
-            {([
-              { key: 'total', title: 'Total Pedidos', value: totalPedidos, icon: ShoppingCart, color: 'text-vendedor' },
-              { key: 'enviados', title: 'Enviados', value: enviadosSucesso, icon: CheckCircle, color: 'text-success' },
-              { key: 'em_producao', title: 'Em Produção', value: emProducao, icon: Factory, color: 'text-producao' },
-              { key: 'finalizados', title: 'Finalizados', value: finalizados, icon: Package, color: 'text-gestor' },
-              { key: 'atrasados', title: 'Atrasados', value: atrasados, icon: AlertTriangle, color: 'text-destructive' },
-              { key: 'estoque_baixo', title: 'Estoque Baixo', value: estoqueBaixo, icon: AlertTriangle, color: 'text-warning' },
-            ] as { key: PanelKey; title: string; value: number; icon: React.ElementType; color: string }[]).map(card => (
-              <button
-                key={card.key}
-                onClick={() => togglePanel(card.key)}
-                className={`card-section p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg ${activePanel === card.key ? 'ring-2 ring-primary/40 shadow-lg shadow-primary/10' : ''}`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{card.title}</p>
-                    <p className="text-3xl font-black text-foreground mt-1">{card.value}</p>
+      {/* Tab Content Section */}
+      <div className="relative">
+        {/* Tab: Dashboard Principal */}
+        {activeTab === 'dashboard' && (
+          <div className="space-y-10 animate-fade-in stagger-children">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+              {([
+                { key: 'total', title: 'Total Pedidos', value: totalPedidos, icon: ShoppingCart, color: 'text-primary', bg: 'bg-primary/10', gradient: 'from-primary/20 to-transparent' },
+                { key: 'enviados', title: 'Pedidos Enviados', value: enviadosSucesso, icon: Send, color: 'text-success', bg: 'bg-success/10', gradient: 'from-success/20 to-transparent' },
+                { key: 'em_producao', title: 'Em Produção', value: emProducao, icon: Factory, color: 'text-producao', bg: 'bg-producao/10', gradient: 'from-producao/20 to-transparent' },
+                { key: 'finalizados', title: 'Produção Finalizada', value: finalizados, icon: CheckCircle, color: 'text-gestor', bg: 'bg-gestor/10', gradient: 'from-gestor/20 to-transparent' },
+                { key: 'atrasados', title: 'Pendências Críticas', value: atrasados, icon: AlertTriangle, color: 'text-destructive', bg: 'bg-destructive/10', gradient: 'from-destructive/20 to-transparent' },
+                { key: 'extravios', title: 'Cargas Extraviadas', value: orders.filter(o => o.status === 'extraviado').length, icon: Package, color: 'text-destructive', bg: 'bg-destructive/10', gradient: 'from-destructive/20 to-transparent' },
+                { key: 'devolvidos', title: 'Retornos/Devoluções', value: orderReturns.filter(r => !r.resolved).length, icon: RotateCcw, color: 'text-warning', bg: 'bg-warning/10', gradient: 'from-warning/20 to-transparent' },
+                { key: 'estoque_baixo', title: 'Estoque Baixo', value: estoqueBaixo, icon: Bug, color: 'text-warning', bg: 'bg-warning/10', gradient: 'from-warning/20 to-transparent' },
+              ] as { key: PanelKey; title: string; value: number; icon: React.ElementType; color: string; bg: string; gradient: string }[]).map(card => (
+                <button
+                  key={card.key}
+                  onClick={() => togglePanel(card.key)}
+                  className={`relative group card-premium !p-0 border-none transition-all duration-500 rounded-[2.5rem] overflow-hidden ${activePanel === card.key ? 'ring-2 ring-primary ring-offset-4 dark:ring-offset-slate-950 scale-[1.02]' : 'hover:scale-[1.02]'}`}
+                >
+                  <div className={`absolute inset-0 bg-gradient-to-br ${card.gradient} opacity-40`} />
+                  <div className="relative p-7 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className={`w-14 h-14 rounded-2xl ${card.bg} ${card.color} flex items-center justify-center transition-transform duration-500 group-hover:rotate-12 group-hover:scale-110 shadow-inner`}>
+                        <card.icon className="w-7 h-7" />
+                      </div>
+                      <div className="text-right">
+                         <span className="text-xs font-bold text-muted-foreground/60 uppercase tracking-widest">{card.key === 'total' ? 'KPI' : 'Meta'}</span>
+                         <div className="h-1.5 w-12 bg-muted/30 rounded-full mt-1 overflow-hidden">
+                            <div className={`h-full ${card.bg} rounded-full`} style={{ width: '70%' }} />
+                         </div>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-3xl md:text-4xl font-black text-foreground tracking-tighter">{card.value}</p>
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground mt-1">{card.title}</p>
+                    </div>
+                    <div className={`flex items-center gap-1.5 text-[10px] font-black uppercase ${activePanel === card.key ? 'text-primary' : 'text-muted-foreground/40'}`}>
+                      {activePanel === card.key ? 'Fechar Visualização ▲' : 'Explorar Detalhes ▼'}
+                    </div>
                   </div>
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-muted/60 ${card.color}`}>
-                    <card.icon className="w-5 h-5" />
-                  </div>
-                </div>
-                <p className={`text-[10px] mt-2 font-semibold transition-colors ${activePanel === card.key ? 'text-primary' : 'text-muted-foreground/60'}`}>
-                  {activePanel === card.key ? '▲ Fechar lista' : '▼ Ver lista'}
-                </p>
-              </button>
-            ))}
-          </div>
+                </button>
+              ))}
+            </div>
 
           {/* Painel de lista dinâmica */}
           {activePanel && (
@@ -495,59 +551,70 @@ const GestorDashboard: React.FC = () => {
 
       {/* Tab: Problemas na Produção */}
       {activeTab === 'problemas' && (
-        <div className="space-y-6 animate-fade-in">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-foreground">Problemas na Produção</h2>
-              <p className="text-sm text-muted-foreground">{productionErrors.filter(e => !e.resolved).length} problema(s) aberto(s)</p>
+        <div className="space-y-8 animate-fade-in stagger-children">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-card/40 p-6 rounded-[2rem] border border-border/40 backdrop-blur-sm">
+            <div className="space-y-1">
+              <h2 className="text-2xl font-black text-foreground tracking-tight flex items-center gap-2">
+                 <AlertTriangle className="w-6 h-6 text-destructive" />
+                 Problemas Críticos
+              </h2>
+              <p className="text-sm font-medium text-muted-foreground">{productionErrors.filter(e => !e.resolved).length} interrupções ativas no fluxo</p>
             </div>
             <button
               onClick={() => setAddingError(v => !v)}
-              className="btn-modern bg-destructive/10 text-destructive shadow-none hover:bg-destructive/20 text-xs"
+              className="btn-primary !rounded-2xl flex items-center gap-2"
             >
-              <Plus className="w-3.5 h-3.5" /> Registrar Problema
+              <Plus className="w-4 h-4" /> Registrar Incidência
             </button>
           </div>
 
           {addingError && (
-            <div className="card-section p-5 space-y-4 border-destructive/20 animate-fade-in">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Novo Problema de Produção</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Nº do Pedido (opcional)</label>
+            <div className="glass-premium p-8 rounded-[2.5rem] border-primary/20 animate-scale-in">
+              <div className="flex items-center gap-3 mb-6">
+                 <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                    <ClipboardList className="w-5 h-5" />
+                 </div>
+                 <h3 className="text-lg font-black text-foreground uppercase tracking-wider">Nova Notificação de Erro</h3>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-black uppercase tracking-[0.15em] text-muted-foreground ml-1">Nº do Pedido (Ref.)</label>
                   <input
                     type="text"
                     value={newErrorOrderNum}
                     onChange={e => setNewErrorOrderNum(e.target.value)}
-                    placeholder="PED-001"
-                    className="input-modern text-xs"
+                    placeholder="PED-0000"
+                    className="input-modern h-14 !rounded-2xl bg-muted/30 border-transparent focus:bg-background"
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Severidade</label>
+                <div className="space-y-2">
+                  <label className="text-xs font-black uppercase tracking-[0.15em] text-muted-foreground ml-1">Severidade da Crise</label>
                   <select
                     value={newErrorSeverity}
                     onChange={e => setNewErrorSeverity(e.target.value as ProductionError['severity'])}
-                    className="input-modern text-xs"
+                    className="input-modern h-14 !rounded-2xl bg-muted/30 border-transparent focus:bg-background"
                   >
-                    <option value="baixa">Baixa</option>
-                    <option value="media">Média</option>
-                    <option value="alta">Alta</option>
-                    <option value="critica">Crítica</option>
+                    <option value="baixa">🍀 Baixa - Ajuste Simples</option>
+                    <option value="media">⚡ Média - Requer Atenção</option>
+                    <option value="alta">🔥 Alta - Impacto na Entrega</option>
+                    <option value="critica">🚨 Crítica - Produção Parada</option>
                   </select>
                 </div>
               </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Descrição do Problema</label>
+              
+              <div className="space-y-2 mt-6">
+                <label className="text-xs font-black uppercase tracking-[0.15em] text-muted-foreground ml-1">Descrição Detalhada do Bloqueio</label>
                 <textarea
                   value={newErrorDesc}
                   onChange={e => setNewErrorDesc(e.target.value)}
-                  placeholder="Descreva o problema detalhadamente..."
-                  className="input-modern w-full resize-y text-sm min-h-[80px]"
-                  rows={3}
+                  placeholder="Descreva minuciosamente o ocorrido para que a gestão possa atuar..."
+                  className="input-modern w-full !rounded-2xl bg-muted/30 border-transparent focus:bg-background p-4 min-h-[120px]"
+                  rows={4}
                 />
               </div>
-              <div className="flex gap-2">
+              
+              <div className="flex items-center gap-4 mt-8">
                 <button
                   onClick={async () => {
                     if (!newErrorDesc.trim()) return;
@@ -565,55 +632,69 @@ const GestorDashboard: React.FC = () => {
                     setNewErrorOrderNum('');
                     setNewErrorSeverity('media');
                     setAddingError(false);
+                    toast.success('Incidência registrada no sistema cockpit.');
                   }}
                   disabled={!newErrorDesc.trim()}
-                  className="btn-primary disabled:opacity-50"
+                  className="btn-primary !px-10 !h-14 !rounded-[1.25rem] flex-1 md:flex-none shadow-xl shadow-primary/20 disabled:opacity-50"
                 >
-                  Registrar
+                  Publicar Alerta
                 </button>
-                <button onClick={() => setAddingError(false)} className="btn-modern bg-muted text-foreground shadow-none">Cancelar</button>
+                <button onClick={() => setAddingError(false)} className="px-8 h-14 rounded-[1.25rem] font-bold text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-all">Cancelar</button>
               </div>
             </div>
           )}
 
           {productionErrors.length === 0 ? (
-            <div className="card-section p-12 text-center">
-              <Bug className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="font-bold text-foreground">Nenhum problema registrado</p>
-              <p className="text-sm text-muted-foreground mt-1">Tudo funcionando normalmente</p>
+            <div className="text-center py-20 bg-muted/5 rounded-[3rem] border-2 border-dashed border-border/20">
+              <div className="w-20 h-20 bg-success/10 text-success rounded-full flex items-center justify-center mx-auto mb-6">
+                 <ShieldCheck className="w-10 h-10" />
+              </div>
+              <h3 className="text-2xl font-black text-foreground">Fluxo Estável</h3>
+              <p className="text-muted-foreground font-medium mt-2">Nenhum problema bloqueante reportado no momento.</p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {productionErrors.map(err => (
-                <div key={err.id} className={`card-section p-4 ${err.resolved ? 'opacity-60' : 'border-destructive/20'}`}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {err.orderNumber && <span className="font-bold text-foreground text-sm">{err.orderNumber}</span>}
-                        {err.clientName && <span className="text-xs text-muted-foreground">— {err.clientName}</span>}
-                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${SEVERITY_COLORS[err.severity] ?? 'bg-muted text-muted-foreground'}`}>
-                          {SEVERITY_LABELS[err.severity]}
-                        </span>
-                        {err.resolved && (
-                          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-success/10 text-success">✓ Resolvido</span>
-                        )}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {[...productionErrors].sort((a,b) => (a.resolved === b.resolved ? 0 : a.resolved ? 1 : -1)).map(err => (
+                <div 
+                  key={err.id} 
+                  className={`group relative glass-card !p-6 rounded-[2rem] transition-all duration-300 hover:shadow-2xl ${err.resolved ? 'opacity-50 grayscale hover:grayscale-0 active:scale-95' : 'border-destructive/20 hover:border-destructive/40 shadow-xl shadow-destructive/[0.03]'}`}
+                >
+                  {!err.resolved && (
+                    <div className={`absolute top-6 right-6 w-3 h-3 rounded-full animate-pulse ${err.severity === 'critica' || err.severity === 'alta' ? 'bg-destructive' : 'bg-warning'}`} />
+                  )}
+                  
+                  <div className="flex flex-col h-full space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${SEVERITY_COLORS[err.severity]}`}>
+                        {SEVERITY_LABELS[err.severity]}
                       </div>
-                      <p className="text-sm text-foreground">{err.description}</p>
-                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                        <span>Por: <b>{err.reportedBy}</b></span>
-                        <span>•</span>
-                        <span>{new Date(err.createdAt).toLocaleDateString('pt-BR')}</span>
-                        {err.resolvedAt && <><span>•</span><span>Resolvido em {new Date(err.resolvedAt).toLocaleDateString('pt-BR')}</span></>}
-                      </div>
+                      {err.orderNumber && <span className="font-black text-foreground">{err.orderNumber}</span>}
+                      {err.resolved && (
+                        <div className="flex items-center gap-1 text-[10px] font-bold text-success">
+                           <CheckCircle className="w-3 h-3" /> RESOLVIDO
+                        </div>
+                      )}
                     </div>
-                    {!err.resolved && (
-                      <button
-                        onClick={() => resolveError(err.id)}
-                        className="btn-modern bg-success/10 text-success shadow-none text-xs hover:bg-success/20 shrink-0"
-                      >
-                        <CheckCircle className="w-3.5 h-3.5" /> Resolver
-                      </button>
-                    )}
+                    
+                    <p className="text-sm font-semibold text-foreground leading-relaxed flex-1 italic">
+                       "{err.description}"
+                    </p>
+                    
+                    <div className="flex items-center justify-between pt-4 border-t border-border/40">
+                       <div className="space-y-0.5">
+                          <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest">Reportado por</p>
+                          <p className="text-[11px] font-bold text-foreground">{err.reportedBy} • {new Date(err.createdAt).toLocaleDateString()}</p>
+                       </div>
+                       {!err.resolved && (
+                         <button 
+                           onClick={() => resolveError(err.id)}
+                           className="w-10 h-10 rounded-xl bg-success/10 text-success hover:bg-success hover:text-white transition-all flex items-center justify-center shadow-lg shadow-success/10"
+                           title="Marcar como resolvido"
+                         >
+                           <CheckCircle className="w-5 h-5" />
+                         </button>
+                       )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -687,212 +768,260 @@ const GestorDashboard: React.FC = () => {
             </div>
           )}
 
-          {orderReturns.length === 0 ? (
-            <div className="space-y-4">
-              <div className="card-section p-6 text-center">
-                <h2 className="card-section-title">Acesso Rápido</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">Atalhos para funções administrativas</p>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <div className="flex items-center gap-2">
+                <HistoryIcon className="w-4 h-4 text-muted-foreground" />
+                <h3 className="text-xs font-black uppercase tracking-wider text-muted-foreground">Histórico de Devoluções</h3>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                <button
-                  onClick={async () => {
-                    if (seeding) return;
-                    setSeeding(true);
-                    // Mock-like logic or direct call
-                    // Better: use the context addProduct (but it might need to be async)
-                    // We'll just hardcode the ingestion here for the user to click.
-                    const kits = [
-                      { sku: 'KIT-SPR-N', name: 'KIT SPRINTER .N', desc: '1–Chicote, 1–Suporte coluna, 1–Courinho capinha, 3–Enforca gato pequeno, 1–Fusível, 1–Trava em U, 1–Parafuso Allen, 5–Espaçador 40mm, 2–Espaçador 60mm, 2–Adesivos, 1–Garantia, 1–Colar azul, 1–Cremalheira 1,20m' },
-                      { sku: 'KIT-DAI-N', name: 'KIT DAILY .N', desc: '1–Chicote, 1–Suporte coluna, 1–Courinho capinha, 3–Enforca gato pequeno, 1–Fusível, 1–Trava em U, 1–Parafuso Allen, 5–Espaçador 40mm, 2–Espaçador 60mm, 2–Adesivos, 1–Garantia, 1–Colar azul, 1–Cremalheira 1,20m' },
-                      { sku: 'KIT-DUC-N', name: 'KIT DUCATO', desc: '6–Espaçador 40mm, 1–Porta fusível, 1–Parafuso Allen, 1–Trava cabo, 3–Enforca gato, 1–Courinho capinha, 1–Suporte coluna, 3–Adesivos, 1–Garantia, 1–Cremalheira 1,10m, 1–Chicote' },
-                      { sku: 'KIT-BOX-N', name: 'KIT BOXER', desc: '6–Espaçador 40mm, 1–Porta fusível, 1–Parafuso Allen, 1–Trava cabo, 3–Enforca gato, 1–Courinho capinha, 1–Suporte coluna, 3–Adesivos, 1–Garantia, 1–Cremalheira 1,10m, 1–Chicote' },
-                    ];
-
-                    const { createProduct } = await import('@/lib/productServiceSupabase');
-                    let count = 0;
-                    for (const k of kits) {
-                      if (!products.find(p => p.name === k.name)) {
-                        await createProduct({
-                          sku: k.sku, name: k.name, description: k.desc,
-                          category: 'Kits', unitPrice: 0, costPrice: 0, stockQuantity: 100, minStock: 5, unit: 'kit', status: 'ativo',
-                          supplier: ''
-                        });
-                        count++;
-                      }
-                    }
-                    alert(`${count} produtos novos adicionados ao catálogo!`);
-                    setSeeding(false);
-                    window.location.reload();
-                  }}
-                  disabled={seeding}
-                  className="btn-modern bg-primary/10 text-primary border-primary/20 justify-center py-4"
-                >
-                  <Plus className="w-5 h-5" /> {seeding ? 'Subindo...' : 'Carga de Produtos (Kits)'}
-                </button>
-                <button onClick={() => navigate('/gestor/estoque')} className="btn-modern bg-muted text-foreground justify-center py-4">
-                  <Package className="w-5 h-5" /> Gerenciar Estoque
-                </button>
-                <button onClick={() => navigate('/gestor/logs')} className="btn-modern bg-muted text-foreground justify-center py-4">
-                  <ClipboardList className="w-5 h-5" /> Logs do Sistema
-                </button>
+              <div className="flex items-center gap-4 text-[10px] font-bold text-muted-foreground">
+                <span className="flex items-center gap-1.5"><StatusBadge status="extraviado" /> {orderReturns.filter(r => !r.resolved).length} Pendentes</span>
+                <span className="flex items-center gap-1.5"><CheckCircle className="w-3 h-3 text-success" /> {orderReturns.filter(r => r.resolved).length} Resolvidos</span>
               </div>
             </div>
-          ) : (
+
             <div className="space-y-3">
-              {orderReturns.map(ret => (
-                <div key={ret.id} className="card-section p-4 border-warning/20">
-                  <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-warning/10 flex items-center justify-center shrink-0">
-                      <RotateCcw className="w-4 h-4 text-warning" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-foreground text-sm">{ret.orderNumber}</span>
-                        <span className="text-xs text-muted-foreground">— {ret.clientName}</span>
-                        <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-warning/10 text-warning">DEVOLVIDO</span>
+              {orderReturns.length === 0 ? (
+                <div className="card-section p-10 text-center border-dashed bg-muted/10">
+                  <RotateCcw className="w-10 h-10 text-muted-foreground/20 mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">Nenhuma devolução registrada no histórico.</p>
+                </div>
+              ) : (
+                orderReturns.map(ret => (
+                  <div key={ret.id} className={`card-section p-4 border-warning/20 transition-all ${ret.resolved ? 'opacity-60 grayscale-[0.5]' : 'hover:border-warning/40'}`}>
+                    <div className="flex items-start gap-4">
+                      <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${ret.resolved ? 'bg-success/10 text-success' : 'bg-warning/10 text-warning'}`}>
+                        {ret.resolved ? <CheckCircle className="w-6 h-6" /> : <RotateCcw className="w-6 h-6" />}
                       </div>
-                      <p className="text-sm text-foreground mt-1">{ret.reason}</p>
-                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-1">
-                        <span>Por: <b>{ret.reportedBy}</b></span>
-                        <span>•</span>
-                        <span>{new Date(ret.createdAt).toLocaleDateString('pt-BR')}</span>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="font-black text-foreground tracking-tight">{ret.orderNumber}</span>
+                            <span className="text-[10px] font-bold text-muted-foreground">— {ret.clientName}</span>
+                          </div>
+                          {ret.resolved ? (
+                            <span className="text-[9px] font-black px-2 py-0.5 rounded-lg bg-success/10 text-success border border-success/20 uppercase">Resolvido</span>
+                          ) : (
+                            <span className="text-[9px] font-black px-2 py-0.5 rounded-lg bg-warning/10 text-warning border border-warning/20 uppercase">Pendente</span>
+                          )}
+                        </div>
+                        <div className="mt-2 bg-muted/40 p-4 rounded-xl border border-border/40 relative overflow-hidden">
+                          <p className="text-sm text-foreground leading-relaxed italic">"{ret.reason}"</p>
+                        </div>
+                        <div className="flex items-center gap-3 text-[10px] text-muted-foreground mt-4">
+                          <span className="flex items-center gap-1"><ShoppingCart className="w-3.5 h-3.5" /> Por: <b>{ret.reportedBy}</b></span>
+                          <span>•</span>
+                          <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" /> {new Date(ret.createdAt).toLocaleDateString('pt-BR')}</span>
+                          
+                          <div className="ml-auto flex items-center gap-2">
+                            {!ret.resolved && (
+                              <button 
+                                onClick={async () => {
+                                  if (window.confirm('Marcar devolução como RESOLVIDA?')) {
+                                    await resolveOrderReturn(ret.id);
+                                    toast.success('Devolução marcada como resolvida.');
+                                  }
+                                }}
+                                className="btn-modern bg-success/10 text-success hover:bg-success/20 text-[9px] font-black uppercase px-3 py-1.5"
+                              >
+                                <CheckCircle className="w-3.5 h-3.5 mr-1" /> Resolver
+                              </button>
+                            )}
+                            <button 
+                              onClick={() => {
+                                const order = orders.find(o => o.number === ret.orderNumber);
+                                if (order) navigate(`/producao/pedidos?view=${order.id}`);
+                                else alert('Pedido não encontrado na base ativa.');
+                              }}
+                              className="btn-modern bg-primary/10 text-primary hover:bg-primary/20 text-[9px] font-black uppercase px-3 py-1.5"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5 mr-1" /> Ver Pedido
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                )))}
+              </div>
             </div>
-          )}
         </div>
       )}
 
       {/* Tab: Extravios */}
       {activeTab === 'extravios' && (
         <div className="space-y-6 animate-fade-in">
-          <div>
-            <h2 className="text-lg font-bold text-foreground">Gestão de Extravios</h2>
-            <p className="text-sm text-muted-foreground">Registre extravios e solicite refação para a produção</p>
-          </div>
-
-          <div className="card-section p-6 space-y-6">
-            <div className="max-w-md space-y-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Número do Pedido</label>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <ShoppingCart className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
-                    <input
-                      type="text"
-                      value={extravioOrderNum}
-                      onChange={e => setExtravioOrderNum(e.target.value.toUpperCase())}
-                      placeholder="PED-1234"
-                      className="input-modern pl-10 h-12"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Observação do Extravio</label>
-                <textarea
-                  value={extravioNote}
-                  onChange={e => setExtravioNote(e.target.value)}
-                  placeholder="Descreva o que aconteceu (ex: Extraviado pela transportadora JADLOG)"
-                  className="input-modern min-h-[80px] p-3 text-sm"
-                />
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={async () => {
-                    if (!extravioOrderNum.trim()) return;
-                    const order = orders.find(o => o.number === extravioOrderNum.trim());
-                    if (!order) {
-                      alert('❌ Pedido não encontrado. Verifique o número.');
-                      return;
-                    }
-                    if (window.confirm(`Confirmar o registro de EXTRAVIO para o pedido ${order.number}?`)) {
-                      await updateOrderStatus(
-                        order.id,
-                        'extraviado',
-                        undefined,
-                        userName,
-                        `PEDIDO EXTRAVIADO: ${extravioNote}`
-                      );
-                      alert(`✅ Pedido ${order.number} marcado como EXTRAVIADO.`);
-                    }
-                  }}
-                  disabled={!extravioOrderNum.trim()}
-                  className="btn-modern bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/20 flex-1 h-12 text-xs font-bold"
-                >
-                  <AlertTriangle className="w-4 h-4 mr-2" /> Registrar Extravio
-                </button>
-
-                <button
-                  onClick={async () => {
-                    const order = orders.find(o => o.number === extravioOrderNum.trim());
-                    if (!order) {
-                      alert('❌ Pedido não encontrado.');
-                      return;
-                    }
-                    if (order.status !== 'extraviado' && !window.confirm('Este pedido ainda não está marcado como extraviado. Deseja enviar para produção mesmo assim?')) {
-                      return;
-                    }
-
-                    await updateOrderStatus(
-                      order.id,
-                      'aguardando_producao',
-                      undefined,
-                      userName,
-                      `REFAÇÃO POR EXTRAVIO: ${extravioNote}`
-                    );
-                    alert(`🚀 Pedido ${order.number} enviado para PRODUÇÃO.`);
-                    setExtravioOrderNum('');
-                    setExtravioNote('');
-                  }}
-                  disabled={!extravioOrderNum.trim()}
-                  className="btn-primary flex-1 h-12 text-xs font-bold"
-                >
-                  <Factory className="w-4 h-4 mr-2" /> Enviar para Produção
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-1">Pedidos Extraviados Recentemente</h3>
-            <div className="grid grid-cols-1 gap-3">
-              {orders.filter(o => o.status === 'extraviado').length === 0 ? (
-                <div className="p-12 text-center card-section border-dashed">
-                  <Package className="w-10 h-10 text-muted-foreground/20 mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">Nenhum pedido com status "Extraviado" no momento.</p>
-                </div>
-              ) : (
-                orders.filter(o => o.status === 'extraviado').map(order => (
-                  <div key={order.id} className="card-section p-4 flex items-center justify-between group">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-destructive/10 flex items-center justify-center text-destructive">
-                        <AlertTriangle className="w-6 h-6" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-extrabold text-foreground">{order.number}</span>
-                          <span className="text-xs text-muted-foreground">{order.clientName}</span>
-                        </div>
-                        <p className="text-[10px] text-muted-foreground">
-                          Última atualização: {new Date(order.updatedAt).toLocaleDateString('pt-BR')} às {new Date(order.updatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                        </p>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground px-1">Registrar Novo Extravio</h3>
+              <div className="card-section p-6 space-y-6">
+                <div className="max-w-md space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Número do Pedido</label>
+                    <div className="flex gap-2">
+                      <div className="relative flex-1">
+                        <ShoppingCart className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
+                        <input
+                          type="text"
+                          value={extravioOrderNum}
+                          onChange={e => setExtravioOrderNum(e.target.value.toUpperCase())}
+                          placeholder="PED-1234"
+                          className="input-modern pl-10 h-12"
+                        />
                       </div>
                     </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Observação do Extravio</label>
+                    <textarea
+                      value={extravioNote}
+                      onChange={e => setExtravioNote(e.target.value)}
+                      placeholder="Descreva o que aconteceu (ex: Extraviado pela transportadora JADLOG)"
+                      className="input-modern min-h-[80px] p-3 text-sm"
+                    />
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-3">
                     <button
-                      onClick={() => setExtravioOrderNum(order.number)}
-                      className="btn-modern bg-muted text-foreground opacity-0 group-hover:opacity-100 transition-all text-[10px] font-bold uppercase tracking-tighter"
+                      onClick={async () => {
+                        if (!extravioOrderNum.trim()) return;
+                        const order = orders.find(o => o.number === extravioOrderNum.trim());
+                        if (!order) {
+                          alert('❌ Pedido não encontrado. Verifique o número.');
+                          return;
+                        }
+                        if (window.confirm(`Confirmar o registro de EXTRAVIO para o pedido ${order.number}?`)) {
+                          await updateOrderStatus(
+                            order.id,
+                            'extraviado',
+                            undefined,
+                            userName,
+                            `PEDIDO EXTRAVIADO: ${extravioNote}`
+                          );
+                          alert(`✅ Pedido ${order.number} marcado como EXTRAVIADO.`);
+                        }
+                      }}
+                      disabled={!extravioOrderNum.trim()}
+                      className="btn-modern bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/20 flex-1 h-12 text-xs font-bold"
                     >
-                      Selecionar
+                      <AlertTriangle className="w-4 h-4 mr-2" /> Registrar Extravio
+                    </button>
+
+                    <button
+                      onClick={async () => {
+                        const order = orders.find(o => o.number === extravioOrderNum.trim());
+                        if (!order) {
+                          alert('❌ Pedido não encontrado.');
+                          return;
+                        }
+                        if (order.status !== 'extraviado' && !window.confirm('Este pedido ainda não está marcado como extraviado. Deseja enviar para produção mesmo assim?')) {
+                          return;
+                        }
+
+                        await updateOrderStatus(
+                          order.id,
+                          'aguardando_producao',
+                          undefined,
+                          userName,
+                          `REFAÇÃO POR EXTRAVIO: ${extravioNote}`
+                        );
+                        alert(`🚀 Pedido ${order.number} enviado para PRODUÇÃO.`);
+                        setExtravioOrderNum('');
+                        setExtravioNote('');
+                      }}
+                      disabled={!extravioOrderNum.trim()}
+                      className="btn-primary flex-1 h-12 text-xs font-bold"
+                    >
+                      <Factory className="w-4 h-4 mr-2" /> Enviar para Produção
                     </button>
                   </div>
-                ))
-              )}
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center justify-between px-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Pedidos Extraviados (Recentemente)</h3>
+                <span className="text-[10px] font-bold text-muted-foreground">{orders.filter(o => o.status === 'extraviado').length} ativos</span>
+              </div>
+              <div className="grid grid-cols-1 gap-3">
+                {orders.filter(o => o.status === 'extraviado').length === 0 ? (
+                  <div className="p-10 text-center card-section border-dashed bg-muted/10">
+                    <Package className="w-10 h-10 text-muted-foreground/20 mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">Nenhum pedido extraviado no momento.</p>
+                  </div>
+                ) : (
+                  orders.filter(o => o.status === 'extraviado').map(order => (
+                    <div key={order.id} className="card-section p-4 flex items-center justify-between group hover:border-destructive/30 transition-all border-destructive/10">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-2xl bg-destructive/10 flex items-center justify-center text-destructive">
+                          <AlertTriangle className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-foreground">{order.number}</span>
+                            <span className="text-xs text-muted-foreground">{order.clientName}</span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-tighter mt-0.5">
+                            <Calendar className="inline w-2.5 h-2.5 mr-1" />
+                            {new Date(order.updatedAt).toLocaleDateString('pt-BR')} às {new Date(order.updatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setExtravioOrderNum(order.number)}
+                        className="btn-modern bg-muted text-foreground opacity-0 group-hover:opacity-100 transition-all text-[10px] font-bold uppercase tracking-tighter"
+                      >
+                        Selecionar
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* HISTÓRICO DE EXTRAVIOS */}
+              <div className="flex items-center gap-2 mt-6 px-1">
+                <HistoryIcon className="w-4 h-4 text-muted-foreground" />
+                <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Histórico Completo de Extravios</h3>
+              </div>
+              <div className="space-y-3">
+                {orders.filter(o => 
+                  o.status !== 'extraviado' && 
+                  o.statusHistory.some(h => h.status === 'extraviado')
+                ).length === 0 ? (
+                  <p className="text-[10px] text-muted-foreground italic px-1">Nenhum registro histórico.</p>
+                ) : (
+                  orders.filter(o => 
+                    o.status !== 'extraviado' && 
+                    o.statusHistory.some(h => h.status === 'extraviado')
+                  ).reverse().slice(0, 5).map(order => (
+                    <div key={order.id} className="card-section p-3 flex items-center justify-between bg-muted/20 border-border/40 opacity-75 hover:opacity-100 transition-all">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-muted flex items-center justify-center text-muted-foreground">
+                          <CheckCircle className="w-4 h-4" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-foreground text-xs">{order.number}</span>
+                            <span className="text-[10px] text-muted-foreground">— {order.clientName}</span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[9px] font-bold uppercase text-muted-foreground">Status Atual:</span>
+                            <StatusBadge status={order.status} />
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => navigate(`/producao/pedidos?view=${order.id}`)}
+                        className="p-2 rounded-lg hover:bg-white text-muted-foreground transition-colors"
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -901,106 +1030,188 @@ const GestorDashboard: React.FC = () => {
       {/* Tab: Garantias (Aprovação) */}
       {activeTab === 'garantias' && (
         <div className="space-y-6 animate-fade-in">
-          <div>
-            <h2 className="text-lg font-bold text-foreground">Aprovação de Garantias</h2>
-            <p className="text-sm text-muted-foreground">Analise as solicitações de garantia enviadas pelos vendedores</p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4">
-            {warranties.filter(w => ['Garantia criada', 'Garantia aprovada'].includes(w.status)).length === 0 ? (
-              <div className="card-section p-20 text-center">
-                <ShieldCheck className="w-12 h-12 text-muted-foreground/20 mx-auto mb-3" />
-                <p className="text-muted-foreground font-medium">Nenhuma garantia aguardando ação.</p>
+          <div className="grid grid-cols-1 gap-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between px-1">
+                <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                  <AlertTriangle className="w-3.5 h-3.5 text-warning" /> 
+                  Solicitações Pendentes ({warranties.filter(w => ['Garantia criada', 'Garantia aprovada'].includes(w.status)).length})
+                </h3>
               </div>
-            ) : (
-              warranties.filter(w => ['Garantia criada', 'Garantia aprovada'].includes(w.status)).map(w => (
-                <div key={w.id} className="card-section p-6 space-y-4 border-primary/10">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-black text-lg text-foreground">{w.orderNumber}</span>
-                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${w.status === 'Garantia criada' ? 'bg-warning/10 text-warning' : 'bg-success/10 text-success'
-                          }`}>
-                          {w.status === 'Garantia criada' ? 'Aguardando Análise' : 'Aprovada - Aguardando Produção'}
-                        </span>
-                      </div>
-                      <p className="text-sm font-bold text-foreground">{w.clientName}</p>
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Vendedor: {w.sellerName || '---'}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase">{new Date(w.createdAt).toLocaleDateString('pt-BR')}</p>
-                    </div>
-                  </div>
-
-                  <div className="bg-muted/30 p-4 rounded-xl border border-border/50">
-                    <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-2">Descrição do Problema</p>
-                    <p className="text-sm text-foreground italic">"{w.description}"</p>
-                  </div>
-
-                  {w.receiptUrls && w.receiptUrls.length > 0 && (
-                    <div className="flex gap-2">
-                      {w.receiptUrls.map((url, i) => (
-                        <a key={i} href={url} target="_blank" rel="noreferrer" className="w-16 h-16 rounded-lg bg-muted border border-border flex items-center justify-center overflow-hidden hover:opacity-80 transition-opacity">
-                          <img src={url} alt="Comprovante" className="w-full h-full object-cover" />
-                        </a>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between gap-4 pt-2">
-                    <button
-                      onClick={() => setViewingWarrantyHistory(w)}
-                      className="text-[10px] font-black uppercase text-primary flex items-center gap-1.5 hover:underline"
-                    >
-                      <HistoryIcon className="w-3 h-3" /> Ver Histórico Completo
-                    </button>
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase">{w.carrier ? `Via: ${w.carrier}` : ''}</p>
-                  </div>
-
-                  <div className="flex gap-3 pt-2">
-                    {w.status === 'Garantia criada' ? (
-                      <>
-                        <button
-                          onClick={async () => {
-                            if (window.confirm('Aprovar esta garantia?')) {
-                              await updateWarrantyStatus(w.id, 'Garantia aprovada', undefined, userName, 'Garantia aprovada pelo gestor');
-                              alert('Garantia APROVADA!');
-                            }
-                          }}
-                          className="btn-primary bg-success hover:bg-success/90 border-none flex-1 h-11 text-xs font-bold"
-                        >
-                          <CheckCircle className="w-4 h-4 mr-2" /> Aprovar Garantia
-                        </button>
-                        <button
-                          onClick={async () => {
-                            const reason = prompt('Motivo da reprovação:');
-                            if (reason) {
-                              await updateWarrantyStatus(w.id, 'rejeitado', undefined, userName, `Reprovado: ${reason}`);
-                              alert('Garantia REPROVADA.');
-                            }
-                          }}
-                          className="btn-modern bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/20 flex-1 h-11 text-xs font-bold"
-                        >
-                          <XCircle className="w-4 h-4 mr-2" /> Reprovar
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={async () => {
-                          if (window.confirm('Enviar este pedido de garantia para a produção?')) {
-                            await updateWarrantyStatus(w.id, 'Em produção', undefined, userName, 'Enviado para produção');
-                            alert('Garantia enviada para PRODUÇÃO!');
-                          }
-                        }}
-                        className="btn-primary w-full h-11 text-xs font-bold"
-                      >
-                        <Factory className="w-4 h-4 mr-2" /> Enviar para Produção
-                      </button>
-                    )}
-                  </div>
+              
+              {warranties.filter(w => ['Garantia criada', 'Garantia aprovada'].includes(w.status)).length === 0 ? (
+                <div className="card-section p-16 text-center bg-muted/10">
+                  <ShieldCheck className="w-12 h-12 text-muted-foreground/20 mx-auto mb-3" />
+                  <p className="text-muted-foreground font-medium text-sm">Nenhuma garantia aguardando ação do gestor.</p>
                 </div>
-              ))
-            )}
+              ) : (
+                <div className="grid grid-cols-1 gap-4">
+                  {warranties.filter(w => ['Garantia criada', 'Garantia aprovada'].includes(w.status)).map(w => (
+                    <div key={w.id} className="card-section p-6 space-y-4 border-primary/20 shadow-sm hover:shadow-md transition-all">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-black text-xl text-foreground tracking-tight">{w.orderNumber}</span>
+                            <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-lg border ${
+                              w.status === 'Garantia criada' ? 'bg-warning/10 text-warning border-warning/20' : 'bg-primary/10 text-primary border-primary/20'
+                            }`}>
+                              {w.status === 'Garantia criada' ? 'Aguardando Análise' : 'Aprovada - Aguardando Produção'}
+                            </span>
+                          </div>
+                          <p className="text-sm font-bold text-foreground flex items-center gap-1.5">
+                            <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                            {w.clientName}
+                          </p>
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider bg-muted/50 inline-block px-1.5 py-0.5 rounded">Vendedor: {w.sellerName || '---'}</p>
+                        </div>
+                        <div className="text-right flex flex-col items-end gap-1">
+                          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{new Date(w.createdAt).toLocaleDateString('pt-BR')}</p>
+                          <span className="text-[9px] font-bold text-muted-foreground/60">{new Date(w.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                      </div>
+
+                      <div className="bg-muted/40 p-4 rounded-xl border border-border/50 relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-2 opacity-10">
+                          <ClipboardList className="w-12 h-12" />
+                        </div>
+                        <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                          <Bug className="w-3 h-3" /> Descrição do Problema
+                        </p>
+                        <p className="text-sm text-foreground italic leading-relaxed">"{w.description}"</p>
+                      </div>
+
+                      {w.receiptUrls && w.receiptUrls.length > 0 && (
+                        <div className="flex gap-2.5 overflow-x-auto pb-1">
+                          {w.receiptUrls.map((url, i) => (
+                            <a key={i} href={url} target="_blank" rel="noreferrer" className="w-16 h-16 rounded-xl bg-muted border border-border flex items-center justify-center overflow-hidden hover:opacity-80 transition-all hover:scale-105 active:scale-95 shadow-sm">
+                              <img src={url} alt="Comprovante" className="w-full h-full object-cover" />
+                            </a>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between gap-4 pt-2 border-t border-border/40">
+                        <button
+                          onClick={() => setViewingWarrantyHistory(w)}
+                          className="text-[10px] font-black uppercase text-primary flex items-center gap-1.5 hover:text-primary/70 transition-colors"
+                        >
+                          <HistoryIcon className="w-3.5 h-3.5" /> Ver Histórico
+                        </button>
+                        {w.carrier && (
+                          <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase">
+                            <Truck className="w-3 h-3" /> {w.carrier}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                        {w.status === 'Garantia criada' ? (
+                          <>
+                            <button
+                              onClick={async () => {
+                                if (window.confirm('Aprovar esta garantia?')) {
+                                  await updateWarrantyStatus(w.id, 'Garantia aprovada', undefined, userName, 'Garantia aprovada pelo gestor');
+                                  alert('Garantia APROVADA!');
+                                }
+                              }}
+                              className="btn-primary bg-success hover:bg-success/90 border-none h-11 text-xs font-black shadow-lg shadow-success/10"
+                            >
+                              <CheckCircle className="w-4 h-4 mr-2" /> Aprovar Solicitação
+                            </button>
+                            <button
+                              onClick={async () => {
+                                const reason = prompt('Motivo da reprovação:');
+                                if (reason) {
+                                  await updateWarrantyStatus(w.id, 'rejeitado', undefined, userName, `Reprovado: ${reason}`);
+                                  alert('Garantia REPROVADA.');
+                                }
+                              }}
+                              className="btn-modern bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/20 h-11 text-xs font-black shadow-lg shadow-destructive/5"
+                            >
+                              <XCircle className="w-4 h-4 mr-2" /> Reprovar
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={async () => {
+                              if (window.confirm('Enviar este pedido de garantia para a produção?')) {
+                                await updateWarrantyStatus(w.id, 'Em produção', undefined, userName, 'Enviado para produção');
+                                alert('Garantia enviada para PRODUÇÃO!');
+                              }
+                            }}
+                            className="btn-primary w-full sm:col-span-2 h-11 text-xs font-black shadow-lg shadow-primary/20"
+                          >
+                            <Factory className="w-4 h-4 mr-2" /> Enviar para Linha de Produção
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* HISTÓRICO DE GARANTIAS CONCLUÍDAS */}
+            <div className="space-y-4 mt-8">
+              <div className="flex items-center gap-2 px-1">
+                <HistoryIcon className="w-4 h-4 text-muted-foreground" />
+                <h3 className="text-xs font-black uppercase tracking-widest text-muted-foreground">Histórico de Garantias (Concluídas/Em Produção)</h3>
+              </div>
+              <div className="space-y-3">
+                {warranties.filter(w => !['Garantia criada', 'Garantia aprovada'].includes(w.status)).length === 0 ? (
+                  <p className="text-[10px] text-muted-foreground italic px-1">Nenhum registro histórico.</p>
+                ) : (
+                  warranties.filter(w => !['Garantia criada', 'Garantia aprovada'].includes(w.status)).map(w => (
+                    <div key={w.id} className="card-section p-4 flex items-center justify-between opacity-80 hover:opacity-100 transition-all bg-muted/20 border-border/40">
+                      <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                          w.status === 'Garantia finalizada' ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary'
+                        }`}>
+                          {w.status === 'Garantia finalizada' ? <ShieldCheck className="w-5 h-5" /> : <Factory className="w-5 h-5" />}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-foreground text-sm">{w.orderNumber}</span>
+                            <span className="text-xs text-muted-foreground">— {w.clientName}</span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                              w.status === 'Garantia finalizada' ? 'bg-success/10 text-success' : 'bg-primary/10 text-primary'
+                            }`}>
+                              {w.status}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground">• Atualizado: {new Date(w.updatedAt).toLocaleDateString('pt-BR')}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setViewingWarrantyHistory(w)}
+                          className="p-2 rounded-lg hover:bg-white text-muted-foreground transition-colors"
+                          title="Ver Histórico"
+                        >
+                          <HistoryIcon className="w-4 h-4" />
+                        </button>
+                        {w.status === 'Em produção' && (
+                          <button
+                            onClick={async () => {
+                              if (window.confirm('Marcar garantia como FINALIZADA (Enviada ao cliente)?')) {
+                                await updateWarrantyStatus(w.id, 'Garantia finalizada', undefined, userName, 'Finalizado pelo gestor');
+                                alert('Garantia MARCADA COMO FINALIZADA!');
+                              }
+                            }}
+                            className="p-2 rounded-lg hover:bg-success/10 text-success transition-colors"
+                            title="Finalizar"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -1126,6 +1337,7 @@ const GestorDashboard: React.FC = () => {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 };

@@ -1,13 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { Search, Save, Package, Truck, ArrowLeft, Edit3, Filter, History } from 'lucide-react';
+import { Search, Save, Package, Truck, ArrowLeft, Edit3, Filter, History, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 
 const CorrigirPedidoPage: React.FC = () => {
-  const { orders, updateOrder } = useERP();
+  const { orders, updateOrder, products } = useERP();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
@@ -16,6 +16,9 @@ const CorrigirPedidoPage: React.FC = () => {
   // Campos de edição
   const [volumes, setVolumes] = useState<number>(1);
   const [carrier, setCarrier] = useState('');
+  const [items, setItems] = useState<any[]>([]);
+  const [installationDate, setInstallationDate] = useState('');
+  const [installationTime, setInstallationTime] = useState('');
   const [loading, setLoading] = useState(false);
 
   // Filtra pedidos com base no termo de busca
@@ -41,6 +44,9 @@ const CorrigirPedidoPage: React.FC = () => {
     setSelectedOrderId(order.id);
     setVolumes(order.volumes || 1);
     setCarrier(order.carrier || '');
+    setItems(order.items || []);
+    setInstallationDate(order.installationDate || '');
+    setInstallationTime(order.installationTime || '');
     // Scroll suave para o formulário no mobile
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -50,9 +56,18 @@ const CorrigirPedidoPage: React.FC = () => {
     
     setLoading(true);
     try {
+      // Recalcular totais se houver mudança nos itens
+      const subtotal = items.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+      const total = subtotal; // Simplificado, sem taxas por enquanto
+
       await updateOrder(selectedOrderId, {
         volumes: Number(volumes),
-        carrier: carrier.toUpperCase()
+        carrier: carrier.toUpperCase(),
+        items,
+        subtotal,
+        total,
+        installationDate,
+        installationTime
       });
       toast.success('Pedido corrigido com sucesso!');
       setSelectedOrderId(null); // Fecha edição após salvar
@@ -62,6 +77,12 @@ const CorrigirPedidoPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleItemChange = (index: number, field: string, value: any) => {
+    const newItems = [...items];
+    newItems[index] = { ...newItems[index], [field]: value };
+    setItems(newItems);
   };
 
   const CARRIERS = ['JADLOG', 'MOTOBOY', 'KLEYTON', 'LALAMOVE', 'RETIRADA NA LOJA'];
@@ -139,15 +160,103 @@ const CorrigirPedidoPage: React.FC = () => {
                       </button>
                     ))}
                   </div>
-                  <input
-                    type="text"
-                    placeholder="Ou digite outro nome..."
-                    className="input-modern mt-2 h-12 bg-white border-2"
-                    value={carrier}
-                    onChange={(e) => setCarrier(e.target.value)}
-                  />
+                    <input
+                      type="text"
+                      placeholder="Ou digite outro nome..."
+                      className="input-modern mt-2 h-12 bg-white border-2"
+                      value={carrier}
+                      onChange={(e) => setCarrier(e.target.value)}
+                    />
+                  </div>
                 </div>
-              </div>
+
+                {/* ITENS DO PEDIDO */}
+                <div className="space-y-3 pt-4 border-t">
+                  <label className="text-[10px] font-bold text-primary uppercase flex items-center gap-1">
+                    <Package className="w-3 h-3" /> Itens e Quantidades
+                  </label>
+                  <div className="space-y-4">
+                    {items.map((item, idx) => (
+                      <div key={idx} className="p-4 rounded-xl bg-muted/30 border border-border/40 space-y-3">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[9px] font-black uppercase text-muted-foreground">Produto</label>
+                          <select
+                            className="input-modern h-10 bg-white border-2 text-xs font-bold"
+                            value={item.product}
+                            onChange={(e) => {
+                              const selectedProd = products.find(p => p.name === e.target.value);
+                              const newItems = [...items];
+                              newItems[idx] = { 
+                                ...newItems[idx], 
+                                product: e.target.value,
+                                unitPrice: selectedProd ? selectedProd.unitPrice : newItems[idx].unitPrice
+                              };
+                              setItems(newItems);
+                            }}
+                          >
+                            <option value="">Selecione um produto...</option>
+                            {products.map(p => (
+                              <option key={p.id} value={p.name}>{p.name}</option>
+                            ))}
+                            {/* Caso o produto atual não esteja na lista (ex: legado ou custom), permite manter */}
+                            {!products.find(p => p.name === item.product) && item.product && (
+                                <option value={item.product}>{item.product} (Atual)</option>
+                            )}
+                          </select>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[9px] font-black uppercase text-muted-foreground">Qtd</label>
+                            <input
+                              type="number"
+                              className="input-modern h-10 bg-white border-2 text-sm font-black"
+                              value={item.quantity}
+                              onChange={(e) => handleItemChange(idx, 'quantity', parseInt(e.target.value))}
+                            />
+                          </div>
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[9px] font-black uppercase text-muted-foreground">Preço Unit.</label>
+                            <input
+                              type="number"
+                              className="input-modern h-10 bg-white border-2 text-sm font-bold"
+                              value={item.unitPrice}
+                              onChange={(e) => handleItemChange(idx, 'unitPrice', parseFloat(e.target.value))}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* AGENDAMENTO (SE FOR INSTALAÇÃO OU MANUTENÇÃO) */}
+                {(selectedOrder.orderType === 'instalacao' || selectedOrder.orderType === 'manutencao') && (
+                  <div className="space-y-4 pt-4 border-t">
+                    <label className="text-[10px] font-bold text-primary uppercase flex items-center gap-1">
+                      <Clock className="w-3 h-3" /> Agendamento de Serviço
+                    </label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[9px] font-black uppercase text-muted-foreground">Data</label>
+                        <input
+                          type="date"
+                          className="input-modern h-12 bg-white border-2 text-xs font-bold"
+                          value={installationDate}
+                          onChange={(e) => setInstallationDate(e.target.value)}
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[9px] font-black uppercase text-muted-foreground">Hora</label>
+                        <input
+                          type="time"
+                          className="input-modern h-12 bg-white border-2 text-xs font-bold"
+                          value={installationTime}
+                          onChange={(e) => setInstallationTime(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
 
               <button
                 onClick={handleSave}

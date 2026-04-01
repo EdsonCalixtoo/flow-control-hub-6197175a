@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Gift, Trophy, CheckCircle2, Clock, Star, Medal, ChevronRight, Loader2, Package } from 'lucide-react';
+import { Gift, Trophy, CheckCircle2, Clock, Star, Medal, ChevronRight, Loader2, Package, RotateCcw } from 'lucide-react';
 import {
     calculateClientRanking,
     fetchClientRewards,
     redeemReward,
+    resetReward,
     updateClientRewardsAuto
 } from '@/lib/rewardServiceSupabase';
 import type { ClientReward, ClientRanking } from '@/types/erp';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ClientRewardTabProps {
     clientId: string;
@@ -16,10 +18,12 @@ interface ClientRewardTabProps {
 
 const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
     const navigate = useNavigate();
+    const { user } = useAuth();
     const [ranking, setRanking] = useState<ClientRanking | null>(null);
     const [rewards, setRewards] = useState<ClientReward[]>([]);
     const [loading, setLoading] = useState(true);
     const [redeemingId, setRedeemingId] = useState<string | null>(null);
+    const [resettingId, setResettingId] = useState<string | null>(null);
 
     const loadData = async () => {
         setLoading(true);
@@ -71,6 +75,30 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
         }
     };
 
+    const handleReset = async (reward: ClientReward) => {
+        if (user?.role === 'vendedor') {
+            toast.error('Você não tem permissão para zerar premiações.');
+            return;
+        }
+
+        if (!window.confirm('Tem certeza que deseja zerar a pontuação atual deste prêmio? Esta ação criará um ajuste negativo para compensar os kits atuais.')) {
+            return;
+        }
+
+        setResettingId(reward.id);
+        try {
+            const success = await resetReward(reward.id, reward.kitsCompleted);
+            if (success) {
+                toast.success('Pontuação zerada com sucesso!');
+                loadData(); // Recarregar dados
+            } else {
+                toast.error('Erro ao zerar pontuação');
+            }
+        } finally {
+            setResettingId(null);
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center py-20 animate-pulse">
@@ -115,6 +143,8 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
             default: return 'from-muted/50 to-muted/20 text-muted-foreground border-border/50';
         }
     };
+
+    const isDeveloperOrGestor = user?.role === 'admin' || user?.role === 'gestor';
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -227,8 +257,56 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
                                 )}
 
                                 {!isLiberado && !isResgatado && (
-                                    <div className="px-4 py-2 rounded-xl bg-muted/50 text-muted-foreground text-[11px] font-black uppercase tracking-wider flex items-center gap-2">
-                                        Faltam {Math.max(0, reward.kitsRequired - reward.kitsCompleted)} kits <ChevronRight className="w-3 h-3" />
+                                    <div className="flex items-center gap-3">
+                                        <div className="px-4 py-2 rounded-xl bg-muted/50 text-muted-foreground text-[11px] font-black uppercase tracking-wider flex items-center gap-2">
+                                            Faltam {Math.max(0, reward.kitsRequired - reward.kitsCompleted)} kits <ChevronRight className="w-3 h-3" />
+                                        </div>
+                                        {reward.kitsCompleted > 0 && isDeveloperOrGestor && (
+                                            <button
+                                                onClick={() => handleReset(reward)}
+                                                disabled={resettingId === reward.id}
+                                                className="p-2 rounded-xl hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors border border-transparent hover:border-destructive/20"
+                                                title="Zerar progressão atual"
+                                            >
+                                                {resettingId === reward.id ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                ) : (
+                                                    <RotateCcw className="w-4 h-4" />
+                                                )}
+                                            </button>
+                                        )}
+                                    </div>
+                                )}
+                                
+                                {isLiberado && (
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            onClick={() => handleRedeem(reward)}
+                                            disabled={redeemingId === reward.id}
+                                            className="btn-primary bg-success hover:bg-success/90 border-none shadow-lg shadow-success/20 py-3 px-6 h-auto text-sm font-bold flex items-center gap-2"
+                                        >
+                                            {redeemingId === reward.id ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <Trophy className="w-4 h-4" />
+                                            )}
+                                            LIBERAR PRÊMIO
+                                        </button>
+
+                                        {isDeveloperOrGestor && (
+                                            <button
+                                                onClick={() => handleReset(reward)}
+                                                disabled={resettingId === reward.id}
+                                                className="p-2 rounded-xl hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors border border-transparent hover:border-destructive/20"
+                                                title="Zerar progressão atual (ignorar prêmios ganhos)"
+                                            >
+                                                {resettingId === reward.id ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                ) : (
+                                                    <RotateCcw className="w-4 h-4" />
+                                                )}
+                                            </button>
+                                        )}
                                     </div>
                                 )}
                             </div>

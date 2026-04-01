@@ -111,12 +111,12 @@ export const fetchOrders = async (role?: string, userId?: string): Promise<Order
 
         console.log(`[Orders] 🔍 Buscando pedidos (Role: ${currentRole}, User: ${currentUserId})...`);
         
-        // ✅ Aumentamos o limite para 1000 para garantir que o Financeiro/Gestor vejam o histórico completo recente
+        // ✅ Aumentamos o limite para 5000 para garantir que o Financeiro/Gestor vejam o histórico completo recente
         let query = supabase
             .from('orders')
             .select(BASIC_ORDER_COLUMNS)
             .order('created_at', { ascending: false })
-            .limit(1000);
+            .limit(5000);
 
         // ✅ Vendedores continuam isolados em seus próprios 1000 pedidos
         // 🚀 EXCEÇÃO: Erica (ericasousa@gmail.com) pode ver tudo para gerir a Central de Garantias

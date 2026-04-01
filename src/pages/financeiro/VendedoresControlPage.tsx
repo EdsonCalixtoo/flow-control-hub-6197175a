@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { formatCurrency } from '@/components/shared/StatusBadge';
-import { Search, TrendingUp, Eye, ArrowLeft, Lock, History, CheckCircle2, AlertCircle, Calendar, Download, FileText, Loader2 } from 'lucide-react';
+import { Search, TrendingUp, Eye, ArrowLeft, Lock, History, CheckCircle2, AlertCircle, Calendar, Download, FileText, Loader2, RefreshCcw } from 'lucide-react';
 import type { Order, MonthlyClosing } from '@/types/erp';
 import { toast } from 'sonner';
 import { generateClosingPDF, generateSellerItemsPDF } from '@/lib/pdfClosingGenerator';
@@ -12,7 +12,7 @@ const VendedoresControlPage: React.FC = () => {
   const { orders, clients, financialEntries, monthlyClosings, closeMonth } = useERP();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSeller, setSelectedSeller] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<'totalVendas' | 'qtdPedidos' | 'name'>('totalVendas');
+  const [sortBy, setSortBy] = useState<'totalVendas' | 'qtdPedidos' | 'name' | 'totalProdutos'>('totalVendas');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [showClosingMode, setShowClosingMode] = useState(false);
   const [activeTab, setActiveTab] = useState<'vendedores' | 'historico'>('vendedores');
@@ -51,13 +51,14 @@ const VendedoresControlPage: React.FC = () => {
       estribos: number;
       totalProdutos: number;
       premios: number;
+      others: number;
       lastClosingDate: Date | null;
       orders: Order[];
     }> = {};
 
     orders.forEach(order => {
-      // ✅ Apenas conta vendas reais (ignora rascunhos, orçamentos e rejeitados)
-      if (['rascunho', 'orcamento', 'rejeitado_financeiro'].includes(order.status)) return;
+      // ✅ Apenas conta vendas que foram enviadas (ignora rascunhos e orçamentos)
+      if (['rascunho', 'orcamento'].includes(order.status)) return;
 
       const key = order.sellerId || order.sellerName;
       if (!stats[key]) {
@@ -77,6 +78,7 @@ const VendedoresControlPage: React.FC = () => {
           estribos: 0,
           totalProdutos: 0,
           premios: 0,
+          others: 0,
           lastClosingDate: getLastClosingDate(order.sellerId),
           orders: [],
         };
@@ -96,20 +98,31 @@ const VendedoresControlPage: React.FC = () => {
 
         // Detalhamento de Itens
         order.items.forEach(item => {
-          if (!item.isReward) {
-            stats[key].totalProdutos += item.quantity;
-          }
-          
-          if (item.product.toUpperCase().includes('ESTRIBO')) {
-            stats[key].estribos += item.quantity;
-          }
+          const isFree = item.isReward || Number(item.unitPrice) === 0 || Number(item.total) === 0;
 
-          if (item.isReward) {
+          if (isFree) {
             stats[key].premios += item.quantity;
-          } else if (item.sensorType === 'com_sensor') {
-            stats[key].kitsComSensor += item.quantity;
-          } else if (item.sensorType === 'sem_sensor') {
-            stats[key].kitsSemSensor += item.quantity;
+            // ❌ Premiação não entra na contagem de "Total de Produtos" (Regra Estrita)
+          } else {
+            const prodName = item.product.toUpperCase();
+            const isEstribo = prodName.includes('ESTRIBO');
+            const isKit = prodName.includes('KIT');
+            
+            if (isEstribo) {
+              stats[key].estribos += item.quantity;
+              stats[key].totalProdutos += item.quantity; // ✅ Entra na contagem
+            } else if (isKit) {
+              const hasSensorRef = item.sensorType === 'com_sensor' || prodName.includes('.A') || prodName.includes('COM SENSOR');
+              if (hasSensorRef) {
+                stats[key].kitsComSensor += item.quantity;
+              } else {
+                stats[key].kitsSemSensor += item.quantity;
+              }
+              stats[key].totalProdutos += item.quantity; // ✅ Entra na contagem
+            } else {
+              // ❌ Qualquer outro produto pago (Others) não entra na contagem de "Total de Produtos"
+              stats[key].others += item.quantity;
+            }
           }
         });
 
@@ -165,6 +178,7 @@ const VendedoresControlPage: React.FC = () => {
       `📡 Kits Com Sensor: ${seller.kitsComSensor}\n` +
       `📦 Kits Sem Sensor: ${seller.kitsSemSensor}\n` +
       `🪜 Estribos: ${seller.estribos}\n` +
+      `📦 Outros Itens: ${seller.others}\n` +
       `🎁 Premiações: ${seller.premios}`;
     
     if (!window.confirm(confirmMsg)) return;
@@ -184,7 +198,8 @@ const VendedoresControlPage: React.FC = () => {
       kitsSemSensor: seller.kitsSemSensor,
       premios: seller.premios,
       totalProducts: seller.totalProdutos,
-      estribos: seller.estribos
+      estribos: seller.estribos,
+      others: seller.others
     }, true); // Já baixa para o usuário ter a cópia dele
 
     // 2. Sobe para o R2 para persistência eterna
@@ -214,7 +229,8 @@ const VendedoresControlPage: React.FC = () => {
         premios: seller.premios,
         totalItems: seller.totalProdutos,
         estribos: seller.estribos,
-        pdfUrl: pdfUrl // 🔥 Link eterno
+        others: seller.others,
+        pdfUrl: pdfUrl
       }
     };
 
@@ -235,6 +251,9 @@ const VendedoresControlPage: React.FC = () => {
       
       if (isAfterClosing) {
         order.items.forEach(item => {
+          const isFree = item.isReward || Number(item.unitPrice) === 0 || Number(item.total) === 0;
+          if (isFree) return;
+          
           itemsToPrint.push({
             product: item.product,
             quantity: item.quantity,
@@ -270,8 +289,8 @@ const VendedoresControlPage: React.FC = () => {
     const itemsToPrint: any[] = [];
 
     orders.forEach(order => {
-      // Ignora rascunhos e outros não contábeis (mesma lógica do stats)
-      if (['rascunho', 'orcamento', 'rejeitado_financeiro'].includes(order.status)) return;
+      // ✅ Tudo que foi enviado entra no histórico
+      if (['rascunho', 'orcamento'].includes(order.status)) return;
       
       const isSeller = order.sellerId === closing.sellerId || order.sellerName === closing.sellerName;
       if (!isSeller) return;
@@ -282,6 +301,9 @@ const VendedoresControlPage: React.FC = () => {
 
       if (isAfterPrev && isBeforeCurrent) {
         order.items.forEach(item => {
+          const isFree = item.isReward || Number(item.unitPrice) === 0 || Number(item.total) === 0;
+          if (isFree) return;
+          
           itemsToPrint.push({
             product: item.product,
             quantity: item.quantity,
@@ -308,7 +330,7 @@ const VendedoresControlPage: React.FC = () => {
   };
 
   const needsFix = useMemo(() => {
-    return monthlyClosings.some(c => c.details?.totalItems === undefined || c.details?.estribos === undefined);
+    return monthlyClosings.length > 0;
   }, [monthlyClosings]);
 
   const handleFixOldClosings = async () => {
@@ -318,7 +340,8 @@ const VendedoresControlPage: React.FC = () => {
     let successCount = 0;
 
     for (const closing of monthlyClosings) {
-      if (closing.details?.totalItems !== undefined && closing.details?.estribos !== undefined) continue;
+      // 🔄 Agora permitimos recalcular tudo para aplicar a nova lógica de "tudo o que foi enviado" e "preco=0"
+      // if (closing.details?.totalItems !== undefined && closing.details?.estribos !== undefined && closing.details?.others !== undefined) continue;
 
       const lastClosingStr = closing.details?.lastClosing;
       const lastClosingDate = (!lastClosingStr || lastClosingStr === 'Início') ? null : new Date(lastClosingStr);
@@ -329,21 +352,37 @@ const VendedoresControlPage: React.FC = () => {
       let kitsCom = 0;
       let kitsSem = 0;
       let premios = 0;
+      let others = 0;
 
       orders.forEach(order => {
-        if (['rascunho', 'orcamento', 'rejeitado_financeiro'].includes(order.status)) return;
+        // ✅ Tudo que foi enviado
+        if (['rascunho', 'orcamento'].includes(order.status)) return;
+        
         const isSeller = order.sellerId === closing.sellerId || order.sellerName === closing.sellerName;
         if (!isSeller) return;
 
         const orderDate = new Date(order.createdAt);
         if ((!lastClosingDate || orderDate > lastClosingDate) && orderDate <= closingDate) {
           order.items.forEach(item => {
-            if (!item.isReward) totalProdutos += item.quantity;
-            if (item.product.toUpperCase().includes('ESTRIBO')) estribos += item.quantity;
-            
-            if (item.isReward) premios += item.quantity;
-            else if (item.sensorType === 'com_sensor') kitsCom += item.quantity;
-            else if (item.sensorType === 'sem_sensor') kitsSem += item.quantity;
+            const isFree = item.isReward || Number(item.unitPrice) === 0 || Number(item.total) === 0;
+
+            if (isFree) {
+              premios += item.quantity;
+            } else {
+              const prodName = item.product.toUpperCase();
+              if (prodName.includes('ESTRIBO')) {
+                estribos += item.quantity;
+                totalProdutos += item.quantity;
+              } else if (prodName.includes('KIT')) {
+                const hasSensorRef = item.sensorType === 'com_sensor' || prodName.includes('.A') || prodName.includes('COM SENSOR');
+                if (hasSensorRef) kitsCom += item.quantity;
+                else kitsSem += item.quantity;
+                totalProdutos += item.quantity;
+              } else {
+                others += item.quantity;
+                // 'others' pagos não entram no 'totalProdutos' principal
+              }
+            }
           });
         }
       });
@@ -352,6 +391,7 @@ const VendedoresControlPage: React.FC = () => {
         ...closing.details,
         totalItems: totalProdutos,
         estribos,
+        others,
         kitsComSensor: kitsCom || closing.details?.kitsComSensor || 0,
         kitsSemSensor: kitsSem || closing.details?.kitsSemSensor || 0,
         premios: premios || closing.details?.premios || 0
@@ -560,6 +600,9 @@ const VendedoresControlPage: React.FC = () => {
                     <th className="cursor-pointer hover:text-primary py-5" onClick={() => handleSort('name')}>
                       Vendedor {sortBy === 'name' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                     </th>
+                    <th className="text-right cursor-pointer hover:text-primary" onClick={() => handleSort('totalProdutos')}>
+                      TOTAL GERAL (KITS/ESTRIBOS) {sortBy === 'totalProdutos' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
+                    </th>
                     <th className="text-right cursor-pointer hover:text-primary" onClick={() => handleSort('qtdPedidos')}>
                       Qtd Pedidos {sortBy === 'qtdPedidos' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                     </th>
@@ -584,7 +627,12 @@ const VendedoresControlPage: React.FC = () => {
                           </span>
                         </div>
                       </td>
-                      <td className="text-right font-black text-foreground">{seller.qtdPedidos}</td>
+                      <td className="text-right font-black text-primary text-base">
+                        {seller.totalProdutos}
+                      </td>
+                      <td className="text-right font-bold text-muted-foreground/60">
+                        {seller.qtdPedidos}
+                      </td>
                       <td className="text-right font-black text-emerald-500">{formatCurrency(seller.totalVendas)}</td>
                       <td className="text-right font-black text-destructive">{formatCurrency(seller.valoresEmAberto)}</td>
                       <td className="text-right text-muted-foreground font-bold">{formatCurrency(seller.valorMedio)}</td>
@@ -651,7 +699,7 @@ const VendedoresControlPage: React.FC = () => {
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
               {[
                 { label: 'Vendedores Ativos', value: sellerStats.length.toString(), color: 'text-primary', icon: Users2 },
-                { label: 'Pedidos no Ciclo', value: sellerStats.reduce((s, st) => s + st.qtdPedidos, 0).toString(), color: 'text-info', icon: ShoppingCart },
+                { label: 'PRODUTOS REAIS (KITS/ESTRIBOS)', value: sellerStats.reduce((s, st) => s + st.totalProdutos, 0).toString(), color: 'text-info', icon: ShoppingCart },
                 { label: 'Vendas Totais', value: formatCurrency(sellerStats.reduce((s, st) => s + st.totalVendas, 0)), color: 'text-emerald-500', icon: DollarSign },
                 { label: 'Aberto Total', value: formatCurrency(sellerStats.reduce((s, st) => s + st.valoresEmAberto, 0)), color: 'text-destructive', icon: AlertCircle },
               ].map((card, i) => (
@@ -671,15 +719,15 @@ const VendedoresControlPage: React.FC = () => {
       ) : (
         /* HISTÓRICO DE FECHAMENTOS */
         <div className="space-y-6 animate-fade-in">
-           {needsFix && (
+           {monthlyClosings.length > 0 && (
              <div className="p-4 bg-primary/5 border border-primary/20 rounded-2xl flex items-center justify-between flex-wrap gap-4 mb-6">
                 <div className="flex items-center gap-3">
                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
                       <AlertCircle className="w-5 h-5" />
                    </div>
                    <div>
-                      <p className="text-sm font-black text-foreground uppercase tracking-tight">Fechamentos sem métricas novas</p>
-                      <p className="text-xs text-muted-foreground">Existem fechamentos antigos que ainda não possuem contagem de itens e estribos.</p>
+                      <p className="text-sm font-black text-foreground uppercase tracking-tight">Atualizar Todos os Relatórios Antigos</p>
+                      <p className="text-xs text-muted-foreground">Clique para recalcular todo o histórico usando as novas regras (Tudo enviado + Valor 0,00).</p>
                    </div>
                 </div>
                 <button
@@ -687,8 +735,8 @@ const VendedoresControlPage: React.FC = () => {
                   disabled={isFixing}
                   className="btn-modern bg-primary text-white text-xs font-black shadow-lg shadow-primary/20"
                 >
-                  {isFixing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-                  CORRIGIR E ATUALIZAR TODOS
+                  {isFixing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCcw className="w-4 h-4 mr-2" />}
+                  RECALCULAR TUDO AGORA
                 </button>
              </div>
            )}
@@ -733,7 +781,8 @@ const VendedoresControlPage: React.FC = () => {
                                     kitsSemSensor: closing.details?.kitsSemSensor || 0,
                                     premios: closing.details?.premios || 0,
                                     totalProducts: closing.details?.totalItems || 0,
-                                    estribos: closing.details?.estribos || 0
+                                    estribos: closing.details?.estribos || 0,
+                                    others: closing.details?.others || 0
                                   });
                                 }}
                                 className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
@@ -762,7 +811,7 @@ const VendedoresControlPage: React.FC = () => {
                            </div>
                         </div>
 
-                        {/* Detalhes específicos do PDF no Card também */}
+                        {/* Detalhes específicos - Segue a nova regra estrita (Kits + Estribos) */}
                         <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/5">
                            <div className="flex items-center gap-1.5 text-[9px] font-bold text-muted-foreground" title="Kits Com Sensor">
                               <CheckCircle2 className="w-3 h-3 text-primary" />
@@ -772,9 +821,9 @@ const VendedoresControlPage: React.FC = () => {
                               <CheckCircle2 className="w-3 h-3 text-slate-400" />
                               {closing.details?.kitsSemSensor || 0} SEM
                            </div>
-                           <div className="flex items-center gap-1.5 text-[9px] font-bold text-muted-foreground" title="Total de Produtos (excl. brindes)">
+                           <div className="flex items-center gap-1.5 text-[9px] font-bold text-muted-foreground" title="Total Real (Kits + Estribos)">
                               <FileText className="w-3 h-3 text-info" />
-                              {closing.details?.totalItems || 0} PROD
+                              {closing.details?.totalItems || 0} TOTAL
                            </div>
                            <div className="flex items-center gap-1.5 text-[9px] font-bold text-muted-foreground" title="Estribos">
                               <TrendingUp className="w-3 h-3 text-emerald-500" />

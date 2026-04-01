@@ -400,6 +400,29 @@ const OrcamentosPage: React.FC = () => {
     o.clientName.toLowerCase().includes(search.toLowerCase())
   ), [myOrders, search]);
 
+  const summary = useMemo(() => {
+    let vendidos = 0;
+    let rejeitados = 0;
+    
+    filtered.forEach(order => {
+      const isRejected = order.status === 'rejeitado_financeiro';
+      const isQuote = ['rascunho', 'enviado', 'aprovado_cliente'].includes(order.status);
+      
+      order.items.forEach(item => {
+        const isFree = item.isReward || Number(item.unitPrice) === 0 || Number(item.total) === 0;
+        if (isFree) return; // Skip rewards
+
+        const prodName = item.product.toUpperCase();
+        if (prodName.includes('KIT') || prodName.includes('ESTRIBO')) {
+           if (isRejected) rejeitados += item.quantity;
+           else if (!isQuote) vendidos += item.quantity;
+        }
+      });
+    });
+    
+    return { vendidos, rejeitados };
+  }, [filtered]);
+
   // Envia para o financeiro — apenas via botão explícito
   const enviarFinanceiro = async (orderId: string) => {
     try {
@@ -1821,12 +1844,12 @@ const OrcamentosPage: React.FC = () => {
           <p className="text-2xl font-black text-foreground">{filtered.length}</p>
         </div>
         <div className="glass-card p-6 rounded-3xl border-white/40 shadow-xl space-y-1 border-l-4 border-l-success">
-          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Aprovados</p>
-          <p className="text-2xl font-black text-foreground">{filtered.filter(o => o.status === 'produto_liberado').length}</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Itens Vendidos</p>
+          <p className="text-2xl font-black text-foreground">{summary.vendidos}</p>
         </div>
         <div className="glass-card p-6 rounded-3xl border-white/40 shadow-xl space-y-1 border-l-4 border-l-destructive">
-          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Rejeitados</p>
-          <p className="text-2xl font-black text-foreground">{filtered.filter(o => o.status === 'rejeitado_financeiro').length}</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Itens Rejeitados</p>
+          <p className="text-2xl font-black text-foreground">{summary.rejeitados}</p>
         </div>
       </div>
 

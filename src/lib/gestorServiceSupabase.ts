@@ -32,7 +32,7 @@ export const fetchFinancialEntries = async (): Promise<FinancialEntry[]> => {
         const { data, error } = await supabase.from('financial_entries')
             .select(BASIC_FINANCIAL_COLUMNS)
             .order('created_at', { ascending: false })
-            .limit(300);
+            .limit(5000);
         if (error) throw error;
         return (data || []).map(supabaseToFinancial);
     } catch (err: any) {
@@ -129,7 +129,7 @@ export const fetchDelayReports = async (): Promise<DelayReport[]> => {
         const { data, error } = await supabase.from('delay_reports')
             .select('*')
             .order('sent_at', { ascending: false })
-            .limit(100);
+            .limit(1000);
         if (error) throw error;
         return (data || []).map(supabaseToDelay);
     } catch (err: any) {
@@ -189,7 +189,7 @@ export const fetchOrderReturns = async (): Promise<OrderReturn[]> => {
         const { data, error } = await supabase.from('order_returns')
             .select('*')
             .order('created_at', { ascending: false })
-            .limit(100);
+            .limit(1000);
         if (error) throw error;
         return (data || []).map(supabaseToReturn);
     } catch (err: any) {
@@ -252,7 +252,7 @@ export const fetchProductionErrors = async (): Promise<ProductionError[]> => {
         const { data, error } = await supabase.from('production_errors')
             .select('*')
             .order('created_at', { ascending: false })
-            .limit(100);
+            .limit(1000);
         if (error) throw error;
         return (data || []).map(supabaseToProdError);
     } catch (err: any) {
@@ -309,7 +309,7 @@ export const fetchBarcodeScans = async (): Promise<BarcodeScan[]> => {
         const { data, error } = await supabase.from('barcode_scans')
             .select('*')
             .order('created_at', { ascending: false })
-            .limit(200);
+            .limit(1000);
         if (error) throw error;
         return (data || []).map(supabaseToBarcodeScan);
     } catch (err: any) {
@@ -358,7 +358,7 @@ export const fetchDeliveryPickups = async (): Promise<DeliveryPickup[]> => {
         const { data, error } = await supabase.from('delivery_pickups')
             .select(BASIC_PICKUP_COLUMNS)
             .order('created_at', { ascending: false })
-            .limit(100);
+            .limit(1000);
         if (error) throw error;
         return (data || []).map(supabaseToDeliveryPickup);
     } catch (err: any) {

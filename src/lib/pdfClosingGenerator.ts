@@ -13,6 +13,7 @@ export interface ClosingPdfData {
   premios: number;
   totalProducts: number;
   estribos: number;
+  others: number;
 }
 
 export const generateClosingPDF = (data: ClosingPdfData, shouldDownload: boolean = true): Blob => {
@@ -118,30 +119,23 @@ export const generateClosingPDF = (data: ClosingPdfData, shouldDownload: boolean
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(textColor[0], textColor[1], textColor[2]);
   
-  doc.text('Total de Produtos', 115, 118);
+  doc.text('Total de Produtos', 115, 117);
   doc.setFont('helvetica', 'bold');
-  doc.text(data.totalProducts.toString(), 185, 118, { align: 'right' });
+  doc.text(data.totalProducts.toString(), 185, 117, { align: 'right' });
   
   doc.setFont('helvetica', 'normal');
-  doc.text('Kits c/ Sensor', 115, 125);
-  doc.setFont('helvetica', 'bold');
-  doc.text(data.kitsComSensor.toString(), 185, 125, { align: 'right' });
+  doc.setFontSize(9); // Font smaller for components
+  doc.text('Kits c/ Sensor', 115, 126);
+  doc.text(data.kitsComSensor.toString(), 185, 126, { align: 'right' });
   
-  doc.setFont('helvetica', 'normal');
-  doc.text('Kits s/ Sensor', 115, 132);
-  doc.setFont('helvetica', 'bold');
-  doc.text(data.kitsSemSensor.toString(), 185, 132, { align: 'right' });
+  doc.text('Kits s/ Sensor', 115, 135);
+  doc.text(data.kitsSemSensor.toString(), 185, 135, { align: 'right' });
   
-  doc.setFont('helvetica', 'normal');
-  doc.text('Estribos', 115, 139);
-  doc.setFont('helvetica', 'bold');
-  doc.text(data.estribos.toString(), 185, 139, { align: 'right' });
+  doc.text('Estribos', 115, 144);
+  doc.text(data.estribos.toString(), 185, 144, { align: 'right' });
 
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(13, 148, 136); // Teal-600
-  doc.text('Premiações', 115, 146);
-  doc.setFont('helvetica', 'bold');
-  doc.text(data.premios.toString(), 185, 146, { align: 'right' });
+  // Outros Itens e Premiações REMOVIDOS da contagem principal conforme solicitação.
+  // Manteremos as métricas nos dados para auditoria interna, mas não aparecem no PDF final de venda.
 
   // 4. Declaration Section
   doc.setFillColor(252, 252, 252);

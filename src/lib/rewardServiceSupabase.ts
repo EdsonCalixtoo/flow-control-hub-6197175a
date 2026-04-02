@@ -56,7 +56,7 @@ export const calculateClientRanking = async (clientId: string): Promise<ClientRa
                 // Breakdown
                 breakdownMap[item.product] = (breakdownMap[item.product] || 0) + qty;
 
-                if (price >= 1550 && price <= 1650) {
+                if (price >= 1400 && price <= 1650) {
                     tier2Count += qty;
                 }
                 if (price >= 1150 && price <= 1350) {

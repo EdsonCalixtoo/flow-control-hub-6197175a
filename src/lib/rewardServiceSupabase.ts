@@ -56,9 +56,22 @@ export const calculateClientRanking = async (clientId: string): Promise<ClientRa
                 // Breakdown
                 breakdownMap[item.product] = (breakdownMap[item.product] || 0) + qty;
 
-                if (price >= 1400 && price <= 1650) {
-                    tier2Count += qty;
+                // Regra de Tier 2 sensível à data (Promoção iniciada em 01/04/2026)
+                const promoStartDate = new Date('2026-04-01T00:00:00Z');
+                const orderDate = new Date(order.createdAt);
+                
+                if (orderDate >= promoStartDate) {
+                    // Regra Nova (Abril/2026 em diante)
+                    if (price >= 1400 && price <= 1650) {
+                        tier2Count += qty;
+                    }
+                } else {
+                    // Regra Legada (Pedidos antigos)
+                    if (price >= 1550 && price <= 1650) {
+                        tier2Count += qty;
+                    }
                 }
+
                 if (price >= 1150 && price <= 1350) {
                     tier3Count += qty;
                 }

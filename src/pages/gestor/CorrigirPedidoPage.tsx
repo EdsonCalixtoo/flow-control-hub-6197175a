@@ -5,6 +5,8 @@ import { Search, Save, Package, Truck, ArrowLeft, Edit3, Filter, History, Clock 
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { StatusBadge } from '@/components/shared/StatusBadge';
+import { InstallationCalendar } from '@/components/shared/InstallationCalendar';
+import { checkInstallationConflict, saveInstallation, deleteInstallationByOrder } from '@/lib/installationServiceSupabase';
 
 const CorrigirPedidoPage: React.FC = () => {
   const { orders, updateOrder, products } = useERP();
@@ -66,10 +68,21 @@ const CorrigirPedidoPage: React.FC = () => {
       const calculatedTotal = calculatedSubtotal + originalTaxes;
 
       // Se mudar para instalação/manutenção e não tiver data, avisa
-      if ((orderType === 'instalacao' || orderType === 'manutencao') && !installationDate) {
-        toast.error('Insira uma data para o agendamento.');
+      if ((orderType === 'instalacao' || orderType === 'manutencao') && (!installationDate || !installationTime)) {
+        toast.error('Informe a data e o horário da agenda.');
         setLoading(false);
         return;
+      }
+
+      // Verifica conflito se mudou horário ou data
+      if ((orderType === 'instalacao' || orderType === 'manutencao') && 
+          (installationDate !== selectedOrder?.installationDate || installationTime !== selectedOrder?.installationTime)) {
+          const hasConflict = await checkInstallationConflict(installationDate, installationTime);
+          if (hasConflict) {
+              toast.error('❌ Este horário já está ocupado na agenda.');
+              setLoading(false);
+              return;
+          }
       }
 
       await updateOrder(selectedOrderId, {
@@ -82,9 +95,25 @@ const CorrigirPedidoPage: React.FC = () => {
         installationTime,
         scheduledDate: installationDate, // Sincroniza para aparecer no calendário de produção
         orderType,
-        parentOrderId: parentOrderId || undefined,
         parentOrderNumber: orders.find(o => o.id === parentOrderId)?.number
       });
+
+      // Atualiza Agenda
+      if (orderType === 'instalacao' || orderType === 'manutencao') {
+          await deleteInstallationByOrder(selectedOrderId);
+          await saveInstallation({
+              order_id: selectedOrderId,
+              seller_id: selectedOrder?.sellerId || '1',
+              client_name: selectedOrder?.clientName || 'Cliente',
+              date: installationDate,
+              time: installationTime,
+              payment_type: selectedOrder?.installationPaymentType || 'pago',
+              type: orderType as any
+          });
+      } else if ((selectedOrder?.orderType === 'instalacao' || selectedOrder?.orderType === 'manutencao') && orderType !== 'instalacao' && orderType !== 'manutencao') {
+          await deleteInstallationByOrder(selectedOrderId);
+      }
+
       toast.success('Pedido corrigido com sucesso!');
       setSelectedOrderId(null); // Fecha edição após salvar
     } catch (err: any) {
@@ -299,30 +328,18 @@ const CorrigirPedidoPage: React.FC = () => {
 
                 {/* AGENDAMENTO (SE FOR INSTALAÇÃO, MANUTENÇÃO OU RETIRADA) */}
                 {(orderType === 'instalacao' || orderType === 'manutencao' || orderType === 'retirada') && (
-                  <div className="space-y-4 pt-4 border-t">
+                  <div className="space-y-4 pt-4 border-t animate-in fade-in duration-500">
                     <label className="text-[10px] font-bold text-primary uppercase flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> Agendamento de Serviço
+                      <Clock className="w-3 h-3" /> Selecionar Horário na Agenda
                     </label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[9px] font-black uppercase text-muted-foreground">Data</label>
-                        <input
-                          type="date"
-                          className="input-modern h-12 bg-white border-2 text-xs font-bold"
-                          value={installationDate}
-                          onChange={(e) => setInstallationDate(e.target.value)}
-                        />
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <label className="text-[9px] font-black uppercase text-muted-foreground">Hora</label>
-                        <input
-                          type="time"
-                          className="input-modern h-12 bg-white border-2 text-xs font-bold"
-                          value={installationTime}
-                          onChange={(e) => setInstallationTime(e.target.value)}
-                        />
-                      </div>
-                    </div>
+                    <InstallationCalendar 
+                        selectedDate={installationDate}
+                        selectedTime={installationTime}
+                        onSelect={(date, time) => {
+                            setInstallationDate(date);
+                            setInstallationTime(time);
+                        }}
+                    />
                   </div>
                 )}
 

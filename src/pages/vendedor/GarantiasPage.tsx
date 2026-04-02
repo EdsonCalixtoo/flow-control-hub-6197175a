@@ -9,6 +9,8 @@ import { formatCurrency, StatusBadge } from '@/components/shared/StatusBadge';
 import { addMonths, isAfter, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
+import { InstallationCalendar } from '@/components/shared/InstallationCalendar';
+import { checkInstallationConflict, saveInstallation, deleteInstallationByOrder } from '@/lib/installationServiceSupabase';
 
 type Tab = 'pedidos' | 'solicitacoes' | 'sistema_antigo';
 
@@ -40,6 +42,9 @@ const GarantiasPage: React.FC = () => {
     const [manualOrderNumber, setManualOrderNumber] = useState('');
     const [manualClientId, setManualClientId] = useState('');
     const [manualClientName, setManualClientName] = useState('');
+    const [orderType, setOrderType] = useState<'entrega' | 'instalacao' | 'manutencao' | 'retirada'>('entrega');
+    const [installationDate, setInstallationDate] = useState('');
+    const [installationTime, setInstallationTime] = useState('');
     const { clients } = useERP();
 
     const isErica = user?.email === 'ericasousa@gmail.com';
@@ -106,6 +111,22 @@ const GarantiasPage: React.FC = () => {
             const now = new Date().toISOString();
             const fullDescription = `${reason} - ${description}${warrantyItems.length > 0 ? '\n\nITENS EM GARANTIA:\n' + warrantyItems.map(i => `- ${i.product} (Qtd: ${i.quantity}): ${i.description}`).join('\n') : ''}`;
 
+            // Validação de agendamento
+            if (orderType === 'instalacao' || orderType === 'manutencao') {
+                if (!installationDate || !installationTime) {
+                    toast.error(`Informe a data e o horário da ${orderType === 'manutencao' ? 'manutenção' : 'instalação'}.`);
+                    setLoading(false);
+                    return;
+                }
+
+                const hasConflict = await checkInstallationConflict(installationDate, installationTime);
+                if (hasConflict) {
+                    toast.error('❌ Este horário já está ocupado na agenda.');
+                    setLoading(false);
+                    return;
+                }
+            }
+
             if (isManual) {
                 // CRIANDO GARANTIA MANUAL (SISTEMA ANTIGO)
                 const orderIdGenerated = crypto.randomUUID();
@@ -127,7 +148,23 @@ const GarantiasPage: React.FC = () => {
                     statusHistory: [{ status: 'aguardando_producao' as any, timestamp: now, user: user?.name || 'Vendedor', note: `Garantia do ${manualOrderNumber} - Enviado direto para produção` }],
                     carrier: carrier,
                     isWarranty: true,
+                    orderType,
+                    installationDate,
+                    installationTime,
+                    scheduledDate: (orderType === 'instalacao' || orderType === 'manutencao' || orderType === 'retirada') ? installationDate : undefined,
                 });
+
+                if (orderType === 'instalacao' || orderType === 'manutencao') {
+                    await saveInstallation({
+                        order_id: orderIdGenerated,
+                        seller_id: user?.id || '',
+                        client_name: manualClientName || 'Cliente Manual',
+                        date: installationDate,
+                        time: installationTime,
+                        payment_type: 'pago',
+                        type: orderType as any
+                    });
+                }
 
                 await addWarranty({
                     orderId: orderIdGenerated,
@@ -141,6 +178,9 @@ const GarantiasPage: React.FC = () => {
                     status: 'Garantia criada' as WarrantyStatus,
                     receiptUrls,
                     carrier,
+                    orderType,
+                    installationDate,
+                    installationTime,
                     history: [{ status: 'Garantia criada' as WarrantyStatus, timestamp: now, user: user?.name || 'Vendedor', note: `Garantia aberta MANUALMENTE (Ref: ${manualOrderNumber})` }]
                 });
                 toast.success(`Garantia manual aberta e pedido ${manualOrderNumber} gerado`);
@@ -169,7 +209,24 @@ const GarantiasPage: React.FC = () => {
                         statusHistory: [{ status: (isErica || isVendedor) ? 'aguardando_gestor' : ('aguardando_producao' as any), timestamp: now, user: user?.name || 'Vendedor', note: `Garantia do ${selectedOrder!.number} (Edição - Novo Pedido)` }],
                         carrier: carrier,
                         isWarranty: true,
+                        orderType,
+                        installationDate,
+                        installationTime,
+                        scheduledDate: (orderType === 'instalacao' || orderType === 'manutencao' || orderType === 'retirada') ? installationDate : undefined,
                     });
+
+                    if (orderType === 'instalacao' || orderType === 'manutencao') {
+                        await deleteInstallationByOrder(orderIdGenerated); // Caso estivessemos editando algo que já existia ( improvável aqui mas por segurança )
+                        await saveInstallation({
+                            order_id: orderIdGenerated,
+                            seller_id: selectedOrder!.sellerId,
+                            client_name: selectedOrder!.clientName,
+                            date: installationDate,
+                            time: installationTime,
+                            payment_type: 'pago',
+                            type: orderType as any
+                        });
+                    }
 
                     await editWarranty(editingWarranty.id, {
                         description: fullDescription,
@@ -178,6 +235,9 @@ const GarantiasPage: React.FC = () => {
                         orderId: orderIdGenerated,
                         orderNumber: orderNumber,
                         updatedAt: now,
+                        orderType,
+                        installationDate,
+                        installationTime,
                     });
                     toast.success(`Editado e Gerado novo pedido: ${orderNumber}`);
                 } else {
@@ -198,7 +258,26 @@ const GarantiasPage: React.FC = () => {
                             })),
                             notes: `PEDIDO DE GARANTIA REFERENTE AO ${selectedOrder!.number}\n\nMotivo: ${reason}\n\nDetalhes: ${description}`,
                             updatedAt: now,
+                            orderType,
+                            installationDate,
+                            installationTime,
+                            scheduledDate: (orderType === 'instalacao' || orderType === 'manutencao' || orderType === 'retirada') ? installationDate : undefined,
                         });
+
+                        if (orderType === 'instalacao' || orderType === 'manutencao') {
+                            await deleteInstallationByOrder(existingWarrantyOrder.id);
+                            await saveInstallation({
+                                order_id: existingWarrantyOrder.id,
+                                seller_id: selectedOrder!.sellerId,
+                                client_name: selectedOrder!.clientName,
+                                date: installationDate,
+                                time: installationTime,
+                                payment_type: 'pago',
+                                type: orderType as any
+                            });
+                        } else {
+                            await deleteInstallationByOrder(existingWarrantyOrder.id);
+                        }
                         toast.success(`Pedido ${existingWarrantyOrder.number} atualizado com sucesso!`);
                     } else {
                         toast.info("Pedido vinculado não encontrado, as alterações foram salvas apenas no histórico da garantia.");
@@ -228,7 +307,23 @@ const GarantiasPage: React.FC = () => {
                         statusHistory: [{ status: 'aguardando_gestor' as any, timestamp: now, user: user?.name || 'Vendedor', note: `Garantia do ${selectedOrder!.number} - Aguardando aprovação do gestor` }],
                         carrier: carrier,
                         isWarranty: true,
+                        orderType,
+                        installationDate,
+                        installationTime,
+                        scheduledDate: (orderType === 'instalacao' || orderType === 'manutencao' || orderType === 'retirada') ? installationDate : undefined,
                     });
+
+                    if (orderType === 'instalacao' || orderType === 'manutencao') {
+                        await saveInstallation({
+                            order_id: orderIdGenerated,
+                            seller_id: selectedOrder!.sellerId,
+                            client_name: selectedOrder!.clientName,
+                            date: installationDate,
+                            time: installationTime,
+                            payment_type: 'pago',
+                            type: orderType as any
+                        });
+                    }
                 }
 
                 await addWarranty({
@@ -243,6 +338,9 @@ const GarantiasPage: React.FC = () => {
                     status: 'Garantia criada' as WarrantyStatus,
                     receiptUrls,
                     carrier,
+                    orderType,
+                    installationDate,
+                    installationTime,
                     history: [{ status: 'Garantia criada' as WarrantyStatus, timestamp: now, user: user?.name || 'Vendedor', note: `Garantia aberta (Origem: ${selectedOrder!.number})` }]
                 });
                 toast.success(`Garantia aberta e pedido gerado: ${orderNumber}`);
@@ -260,6 +358,9 @@ const GarantiasPage: React.FC = () => {
             setManualOrderNumber('');
             setManualClientId('');
             setManualClientName('');
+            setOrderType('entrega');
+            setInstallationDate('');
+            setInstallationTime('');
         } catch (err: any) {
             toast.error('Erro ao processar alteração');
         } finally {
@@ -291,6 +392,9 @@ const GarantiasPage: React.FC = () => {
                         setManualOrderNumber('');
                         setManualClientId('');
                         setManualClientName('');
+                        setOrderType('entrega');
+                        setInstallationDate('');
+                        setInstallationTime('');
                     }} className="btn-modern bg-muted text-foreground">
                         <ArrowLeft className="w-4 h-4" /> Cancelar
                     </button>
@@ -511,6 +615,52 @@ const GarantiasPage: React.FC = () => {
                             </div>
                         </div>
                     )}
+
+                    {/* TIPO DE SERVIÇO E AGENDAMENTO (NOVO) */}
+                    <div className="space-y-4 p-6 bg-slate-50 rounded-2xl border border-slate-200 shadow-inner">
+                        <div className="space-y-3">
+                            <label className="text-[10px] font-bold text-primary uppercase flex items-center gap-1">
+                                <ShieldAlert className="w-3 h-3" /> Tipo de Garantia / Serviço
+                            </label>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                {[
+                                    { id: 'entrega', label: 'Entrega' },
+                                    { id: 'instalacao', label: 'Instalação' },
+                                    { id: 'manutencao', label: 'Manutenção' },
+                                    { id: 'retirada', label: 'Retirada' }
+                                ].map(type => (
+                                    <button
+                                        key={type.id}
+                                        type="button"
+                                        onClick={() => setOrderType(type.id as any)}
+                                        className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${
+                                            orderType === type.id 
+                                                ? 'bg-primary text-white shadow-md' 
+                                                : 'bg-white text-muted-foreground border border-slate-200 hover:bg-slate-100'
+                                        }`}
+                                    >
+                                        {type.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        {(orderType === 'instalacao' || orderType === 'manutencao' || orderType === 'retirada') && (
+                            <div className="animate-in slide-in-from-top-2 duration-300">
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-primary flex items-center gap-1 mb-3">
+                                    <Clock className="w-3 h-3" /> Selecionar Horário na Agenda
+                                </label>
+                                <InstallationCalendar
+                                    selectedDate={installationDate}
+                                    selectedTime={installationTime}
+                                    onSelect={(date, time) => {
+                                        setInstallationDate(date);
+                                        setInstallationTime(time);
+                                    }}
+                                />
+                            </div>
+                        )}
+                    </div>
 
                     {/* MEIO DE ENTREGA (TRANSPORTADORA) */}
                     <div className="space-y-3 p-5 rounded-2xl bg-primary/5 border border-primary/20 animate-in fade-in duration-500">

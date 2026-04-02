@@ -371,6 +371,9 @@ export interface Warranty {
   updatedAt: string;
   carrier?: string;
   history?: WarrantyHistory[];
+  orderType?: 'entrega' | 'instalacao' | 'manutencao' | 'retirada';
+  installationDate?: string;
+  installationTime?: string;
 }
 
 export interface MonthlyClosing {

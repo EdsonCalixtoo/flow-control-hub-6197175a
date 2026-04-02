@@ -19,6 +19,7 @@ const CorrigirPedidoPage: React.FC = () => {
   const [items, setItems] = useState<any[]>([]);
   const [installationDate, setInstallationDate] = useState('');
   const [installationTime, setInstallationTime] = useState('');
+  const [parentOrderId, setParentOrderId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Filtra pedidos com base no termo de busca
@@ -47,6 +48,7 @@ const CorrigirPedidoPage: React.FC = () => {
     setItems(order.items || []);
     setInstallationDate(order.installationDate || '');
     setInstallationTime(order.installationTime || '');
+    setParentOrderId(order.parentOrderId || null);
     // Scroll suave para o formulário no mobile
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -57,17 +59,21 @@ const CorrigirPedidoPage: React.FC = () => {
     setLoading(true);
     try {
       // Recalcular totais se houver mudança nos itens
-      const subtotal = items.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
-      const total = subtotal; // Simplificado, sem taxas por enquanto
+      const calculatedSubtotal = items.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+      const originalTaxes = selectedOrder?.taxes || 0;
+      const calculatedTotal = calculatedSubtotal + originalTaxes;
 
       await updateOrder(selectedOrderId, {
         volumes: Number(volumes),
         carrier: carrier.toUpperCase(),
         items,
-        subtotal,
-        total,
+        subtotal: calculatedSubtotal,
+        total: calculatedTotal,
         installationDate,
-        installationTime
+        installationTime,
+        scheduledDate: installationDate, // Sincroniza para aparecer no calendário de produção
+        parentOrderId: parentOrderId || undefined,
+        parentOrderNumber: orders.find(o => o.id === parentOrderId)?.number
       });
       toast.success('Pedido corrigido com sucesso!');
       setSelectedOrderId(null); // Fecha edição após salvar
@@ -168,6 +174,31 @@ const CorrigirPedidoPage: React.FC = () => {
                       onChange={(e) => setCarrier(e.target.value)}
                     />
                   </div>
+
+                  <div className="space-y-1 pt-4 border-t">
+                    <label className="text-[10px] font-bold text-primary uppercase flex items-center gap-1">
+                      <Package className="w-3 h-3" /> Unificar com outro Pedido
+                    </label>
+                    <p className="text-[9px] text-muted-foreground mb-1">Se este pedido estiver dentro da caixa de outro pedido, selecione-o abaixo</p>
+                    <select
+                      className="input-modern h-12 bg-white border-2 text-xs font-bold"
+                      value={parentOrderId || ''}
+                      onChange={(e) => setParentOrderId(e.target.value || null)}
+                    >
+                      <option value="">Não unificar (Pedido independente)</option>
+                      {orders
+                        .filter(o => o.id !== selectedOrderId)
+                        .slice(0, 50)
+                        .map(o => (
+                          <option key={o.id} value={o.id}>{o.number} - {o.clientName}</option>
+                        ))}
+                    </select>
+                    {parentOrderId && (
+                      <p className="text-[10px] text-amber-600 font-bold mt-1">
+                        ⚠️ Atenção: Este pedido não contará volumes próprios na entrega.
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 {/* ITENS DO PEDIDO */}
@@ -229,8 +260,8 @@ const CorrigirPedidoPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* AGENDAMENTO (SE FOR INSTALAÇÃO OU MANUTENÇÃO) */}
-                {(selectedOrder.orderType === 'instalacao' || selectedOrder.orderType === 'manutencao') && (
+                {/* AGENDAMENTO (SE FOR INSTALAÇÃO, MANUTENÇÃO OU RETIRADA) */}
+                {(selectedOrder.orderType === 'instalacao' || selectedOrder.orderType === 'manutencao' || selectedOrder.orderType === 'retirada') && (
                   <div className="space-y-4 pt-4 border-t">
                     <label className="text-[10px] font-bold text-primary uppercase flex items-center gap-1">
                       <Clock className="w-3 h-3" /> Agendamento de Serviço

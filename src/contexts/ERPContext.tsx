@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useCallback, useEffect, useMemo } from 'react';
-import type { Order, Client, FinancialEntry, Product, OrderStatus, StatusHistoryEntry, DelayReport, ChatMessage, OrderReturn, ProductionError, BarcodeScan, DeliveryPickup, Warranty } from '@/types/erp';
+import type { Order, Client, FinancialEntry, Product, OrderStatus, StatusHistoryEntry, DelayReport, ChatMessage, OrderReturn, ProductionError, BarcodeScan, DeliveryPickup, Warranty, WarrantyStatus } from '@/types/erp';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
@@ -300,6 +300,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const updated = await updateOrderSupabase(orderId, updateFields);
       if (updated) {
         setOrders(prev => prev.map(o => o.id === orderId ? updated : o));
+        setWarranties(prev => (prev || []).map(w => {
+          if (w.orderId === orderId || w.id === orderId) {
+            const wStatus: WarrantyStatus = (status as any) === 'producao_finalizada' ? 'Garantia finalizada' : w.status;
+            return { ...w, status: wStatus, updatedAt: now };
+          }
+          return w;
+        }));
         console.log('[ERP] Status atualizado no Supabase:', status);
 
         // 📦 GESTÃO AUTOMÁTICA DE ESTOQUE
@@ -386,6 +393,12 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const updated = await updateOrderSupabase(orderId, fields);
       if (updated) {
         setOrders(prev => prev.map(o => o.id === orderId ? updated : o));
+        setWarranties(prev => (prev || []).map(w => {
+          if (w.orderId === orderId || w.id === orderId) {
+            return { ...w, updatedAt: new Date().toISOString() };
+          }
+          return w;
+        }));
       }
     } catch (err: any) {
       console.error('[ERP] Erro ao atualizar pedido:', err.message);
@@ -397,6 +410,12 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const updated = await updateOrderSupabase(order.id, order);
       if (updated) {
         setOrders(prev => prev.map(o => o.id === order.id ? updated : o));
+        setWarranties(prev => (prev || []).map(w => {
+          if (w.orderId === order.id || w.id === order.id) {
+            return { ...w, updatedAt: new Date().toISOString() };
+          }
+          return w;
+        }));
       }
     } catch (err: any) {
       console.error('[ERP] Erro ao editar pedido:', err.message);
@@ -741,6 +760,17 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (updated) {
         setWarranties(prev => prev.map(w => w.id === id ? updated : w));
+
+        // 🔗 SINCRONIZAÇÃO COM O PEDIDO VINCULADO
+        // Quando a garantia é aprovada ou finalizada, o status do pedido correspondente
+        // também deve ser atualizado para que apareça corretamente nos módulos de produção.
+        if (updated.orderId) {
+          if (status === 'Garantia aprovada') {
+            await updateOrderStatus(updated.orderId, 'aguardando_producao', undefined, userName, 'Garantia aprovada pelo gestor e enviada para produção');
+          } else if (status === 'Garantia finalizada') {
+            await updateOrderStatus(updated.orderId, 'producao_finalizada', undefined, userName, 'Garantia concluída na produção');
+          }
+        }
       }
     } catch (err: any) {
       console.error('[ERP] Erro ao atualizar garantia:', err.message);

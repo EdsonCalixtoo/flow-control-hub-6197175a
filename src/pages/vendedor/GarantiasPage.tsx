@@ -43,6 +43,7 @@ const GarantiasPage: React.FC = () => {
     const { clients } = useERP();
 
     const isErica = user?.email === 'ericasousa@gmail.com';
+    const isVendedor = user?.role === 'vendedor';
 
     // 1. Permissão especial para Erica ver tudo na aba de Garantia
     const filteredOrders = useMemo(() => {
@@ -162,10 +163,10 @@ const GarantiasPage: React.FC = () => {
                             id: `ni${i}`, product: item.product, description: item.description, quantity: item.quantity, unitPrice: 0, discount: 0, discountType: 'value', total: 0, sensorType: item.sensorType
                         })),
                         subtotal: 0, taxes: 0, total: 0,
-                        status: 'aguardando_producao',
+                        status: (isErica || isVendedor) ? 'aguardando_gestor' : 'aguardando_producao',
                         notes: `PEDIDO DE GARANTIA REFERENTE AO ${selectedOrder!.number}\n\nMotivo: ${reason}\n\nDetalhes: ${description}`,
                         createdAt: now, updatedAt: now,
-                        statusHistory: [{ status: 'aguardando_producao' as any, timestamp: now, user: user?.name || 'Vendedor', note: `Garantia do ${selectedOrder!.number} (Edição - Novo Pedido)` }],
+                        statusHistory: [{ status: (isErica || isVendedor) ? 'aguardando_gestor' : ('aguardando_producao' as any), timestamp: now, user: user?.name || 'Vendedor', note: `Garantia do ${selectedOrder!.number} (Edição - Novo Pedido)` }],
                         carrier: carrier,
                         isWarranty: true,
                     });
@@ -209,7 +210,7 @@ const GarantiasPage: React.FC = () => {
                 const orderNumber = `PED-${String(nextNumber).padStart(3, '0')}`;
                 const orderIdGenerated = crypto.randomUUID();
 
-                if (isErica) {
+                if (isErica || isVendedor) {
                     await addOrder({
                         id: orderIdGenerated,
                         number: orderNumber,
@@ -221,10 +222,10 @@ const GarantiasPage: React.FC = () => {
                             id: `ni${i}`, product: item.product, description: item.description, quantity: item.quantity, unitPrice: 0, discount: 0, discountType: 'value', total: 0, sensorType: item.sensorType
                         })),
                         subtotal: 0, taxes: 0, total: 0,
-                        status: 'aguardando_producao',
+                        status: 'aguardando_gestor',
                         notes: `PEDIDO DE GARANTIA REFERENTE AO ${selectedOrder!.number}\n\nMotivo: ${reason}\n\nDetalhes: ${description}`,
                         createdAt: now, updatedAt: now,
-                        statusHistory: [{ status: 'aguardando_producao' as any, timestamp: now, user: user?.name || 'Vendedor', note: `Garantia do ${selectedOrder!.number} - Enviado direto para produção` }],
+                        statusHistory: [{ status: 'aguardando_gestor' as any, timestamp: now, user: user?.name || 'Vendedor', note: `Garantia do ${selectedOrder!.number} - Aguardando aprovação do gestor` }],
                         carrier: carrier,
                         isWarranty: true,
                     });

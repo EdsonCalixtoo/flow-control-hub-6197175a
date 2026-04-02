@@ -115,6 +115,8 @@ export interface Order {
   statusProducao?: string;
   requiresInvoice?: boolean;
   requiresShippingNote?: boolean;
+  parentOrderId?: string;      // ID do pedido "pai" para unificação em uma caixa
+  parentOrderNumber?: string;  // Número do pedido "pai"
 }
 
 export type RewardStatus = 'pendente' | 'liberado' | 'resgatado';

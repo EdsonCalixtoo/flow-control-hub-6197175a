@@ -28,7 +28,8 @@ interface OrderGroup {
         signatureUrl: string;
     };
     carrier?: string;
-    groupKey: string; // Adicionado para unicidade (orderId + volumeIndex)
+    groupKey: string;
+    unifiedOrders?: Array<{ id: string; number: string }>; // Novos pedidos unificados nesta caixa
 }
 
 /* ─────────────────────────────────────────────
@@ -442,46 +443,54 @@ const EntregadoresPage: React.FC = () => {
         const map = new Map<string, OrderGroup>();
         for (const scan of barcodeScans) {
             if (!scan.success) continue;
-            const order = orders.find(o => o.id === scan.orderId);
-            if (!order) continue;
+            const originalOrder = orders.find(o => o.id === scan.orderId);
+            if (!originalOrder) continue;
+
+            // Determina qual é o pedido "Pai" para fins de agrupamento de volumes
+            const headerOrder = originalOrder.parentOrderId 
+                ? (orders.find(o => o.id === originalOrder.parentOrderId) || originalOrder)
+                : originalOrder;
 
             // Filtro: Apenas pedidos liberados pela produção ou já retirados
-            if (order.status !== 'produto_liberado' && order.status !== 'retirado_entregador') {
+            if (headerOrder.status !== 'produto_liberado' && headerOrder.status !== 'retirado_entregador' && 
+                originalOrder.status !== 'produto_liberado' && originalOrder.status !== 'retirado_entregador') {
                 continue;
             }
 
-            const pickup = deliveryPickups.find(p => p.orderId === scan.orderId);
-            const volumes = order.volumes || 1;  // Quantidade de volumes/caixas
+            const pickup = deliveryPickups.find(p => p.orderId === headerOrder.id);
+            const volumes = headerOrder.volumes || 1;
 
-            // Criar uma entrada para cada volume
+            // Criar uma entrada para cada volume do pedido PAI
             for (let volumeIndex = 0; volumeIndex < volumes; volumeIndex++) {
-                const groupKey = `${scan.orderId}-vol-${volumeIndex}`;
+                const groupKey = `${headerOrder.id}-vol-${volumeIndex}`;
 
                 if (!map.has(groupKey)) {
-                    const totalQty = order.items.reduce((acc, i) => acc + i.quantity, 0);
                     map.set(groupKey, {
-                        orderId: scan.orderId,
-                        orderNumber: scan.orderNumber,
-                        clientName: order.clientName,
-                        sellerName: order.sellerName,
+                        orderId: headerOrder.id,
+                        orderNumber: headerOrder.number,
+                        clientName: headerOrder.clientName,
+                        sellerName: headerOrder.sellerName,
                         scans: [],
-                        totalQty,
-                        alreadyPickedUp: !!pickup || order.status === 'retirado_entregador',
+                        totalQty: headerOrder.items.reduce((acc, i) => acc + i.quantity, 0),
+                        alreadyPickedUp: !!pickup || headerOrder.status === 'retirado_entregador',
                         volumeIndex,
                         totalVolumes: volumes,
-                        carrier: (order.carrier || 'SEM TRANSPORTADORA').trim().toUpperCase(),
-                        groupKey: groupKey, 
-                        pickupInfo: pickup ? {
-                            delivererName: pickup.delivererName,
-                            pickedUpAt: pickup.pickedUpAt,
-                            photoUrl: pickup.photoUrl,
-                            signatureUrl: pickup.signatureUrl,
-                        } : undefined,
+                        carrier: (headerOrder.carrier || 'SEM TRANSPORTADORA').trim().toUpperCase(),
+                        groupKey: groupKey,
+                        unifiedOrders: [],
                     });
                 }
                 
-                // Evita duplicar o mesmo scan no mesmo grupo
                 const currentGroup = map.get(groupKey)!;
+
+                // Se o scan for de um pedido diferente (unificado), adiciona à lista
+                if (originalOrder.id !== headerOrder.id) {
+                    if (!currentGroup.unifiedOrders?.some(uo => uo.id === originalOrder.id)) {
+                        currentGroup.unifiedOrders?.push({ id: originalOrder.id, number: originalOrder.number });
+                    }
+                }
+
+                // Adiciona o scan ao grupo (evita duplicados)
                 if (!currentGroup.scans.some(s => s.id === scan.id)) {
                     currentGroup.scans.push({
                         id: scan.id,
@@ -491,6 +500,23 @@ const EntregadoresPage: React.FC = () => {
                 }
             }
         }
+        
+        // Pós-processamento: Se houver pedidos que são filhos mas cujos pais NÃO foram bipados ainda, 
+        // eles devem aparecer mesmo assim? O usuário disse: "deve conter em entregadores o pedido".
+        // Vamos garantir que todos os pedidos unificados apareçam nos grupos de seus pais se os pedidos foram liberados.
+        orders.filter(o => o.parentOrderId && (o.status === 'produto_liberado' || o.status === 'retirado_entregador')).forEach(child => {
+            const parent = orders.find(p => p.id === child.parentOrderId);
+            if (!parent) return;
+
+            const volumes = parent.volumes || 1;
+            for (let v = 0; v < volumes; v++) {
+                const groupKey = `${parent.id}-vol-${v}`;
+                const group = map.get(groupKey);
+                if (group && !group.unifiedOrders?.some(uo => uo.id === child.id)) {
+                    group.unifiedOrders?.push({ id: child.id, number: child.number });
+                }
+            }
+        });
         return [...map.values()].sort((a, b) => {
             if (a.alreadyPickedUp && !b.alreadyPickedUp) return 1;
             if (!a.alreadyPickedUp && b.alreadyPickedUp) return -1;
@@ -581,6 +607,19 @@ const EntregadoresPage: React.FC = () => {
                 `Retirado pelo entregador: ${delivererName.trim()}`
             );
 
+            // 🔗 Sincroniza pedidos unificados
+            if (group.unifiedOrders && group.unifiedOrders.length > 0) {
+                for (const uo of group.unifiedOrders) {
+                    await updateOrderStatus(
+                        uo.id,
+                        'retirado_entregador',
+                        {},
+                        user?.name || 'Gestor',
+                        `Retirado pelo entregador (Unificado com ${group.orderNumber}): ${delivererName.trim()}`
+                    );
+                }
+            }
+
             setSuccess(group.orderNumber);
             setConfirmingId(null);
             setDelivererName('');
@@ -652,6 +691,19 @@ const EntregadoresPage: React.FC = () => {
                         user?.name || 'Gestor',
                         `Retirado pelo entregador: ${delivererName.trim()}`
                     );
+
+                    // 🔗 Sincroniza pedidos unificados no lote
+                    if (group.unifiedOrders && group.unifiedOrders.length > 0) {
+                        for (const uo of group.unifiedOrders) {
+                            await updateOrderStatus(
+                                uo.id,
+                                'retirado_entregador',
+                                {},
+                                user?.name || 'Gestor',
+                                `Retirado pelo entregador (Unificado com ${group.orderNumber}): ${delivererName.trim()}`
+                            );
+                        }
+                    }
 
                     orderNumbers.push(group.orderNumber);
                 } catch (err) {
@@ -943,7 +995,14 @@ const EntregadoresPage: React.FC = () => {
                                             </div>
                                             <div>
                                                 <div className="flex items-center gap-2 flex-wrap">
-                                                    <p className="font-bold text-foreground text-sm">{group.orderNumber}</p>
+                                                    <p className="font-bold text-foreground text-sm">
+                                                        {group.orderNumber}
+                                                        {group.unifiedOrders && group.unifiedOrders.length > 0 && (
+                                                            <span className="ml-1 text-primary animate-pulse">
+                                                                + {group.unifiedOrders.map(u => u.number).join(' + ')}
+                                                            </span>
+                                                        )}
+                                                    </p>
                                                     {group.totalVolumes && group.totalVolumes > 1 && (
                                                         <span className="status-badge bg-producao/10 text-producao text-[9px]">
                                                             📦 Volume {(group.volumeIndex || 0) + 1} de {group.totalVolumes}
@@ -1033,29 +1092,35 @@ const EntregadoresPage: React.FC = () => {
                                                     <table className="modern-table">
                                                         <thead>
                                                             <tr>
+                                                                <th>Pedido</th>
                                                                 <th>Produto</th>
                                                                 <th>Descrição</th>
                                                                 <th className="text-right">Qtd</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody>
-                                                            {order.items.map(item => (
-                                                                <tr key={item.id}>
-                                                                    <td className="font-semibold text-foreground">
-                                                                        {item.product}
-                                                                        {item.product.toUpperCase().includes('KIT') && item.sensorType && (
-                                                                            <span className="ml-2 text-xs font-semibold px-2 py-1 rounded-full bg-primary/20 text-primary">
-                                                                                {item.sensorType === 'com_sensor' ? '✅ COM SENSOR' : '⚪ SEM SENSOR'}
-                                                                            </span>
-                                                                        )}
-                                                                    </td>
-                                                                    <td className="text-muted-foreground text-xs">{item.description || '—'}</td>
-                                                                    <td className="text-right">
-                                                                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary font-extrabold text-sm">
-                                                                            {item.quantity}
-                                                                        </span>
-                                                                    </td>
-                                                                </tr>
+                                                            {[order, ...(group.unifiedOrders?.map(uo => orders.find(o => o.id === uo.id)) || [])].filter(Boolean).map(o => (
+                                                                <React.Fragment key={o!.id}>
+                                                                    {o!.items.map(item => (
+                                                                        <tr key={item.id}>
+                                                                            <td className="text-[10px] font-bold text-primary">{o!.number}</td>
+                                                                            <td className="font-semibold text-foreground">
+                                                                                {item.product}
+                                                                                {item.product.toUpperCase().includes('KIT') && item.sensorType && (
+                                                                                    <span className="ml-2 text-xs font-semibold px-2 py-1 rounded-full bg-primary/20 text-primary">
+                                                                                        {item.sensorType === 'com_sensor' ? '✅ COM SENSOR' : '⚪ SEM SENSOR'}
+                                                                                    </span>
+                                                                                )}
+                                                                            </td>
+                                                                            <td className="text-muted-foreground text-xs">{item.description || '—'}</td>
+                                                                            <td className="text-right">
+                                                                                <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary font-extrabold text-sm">
+                                                                                    {item.quantity}
+                                                                                </span>
+                                                                            </td>
+                                                                        </tr>
+                                                                    ))}
+                                                                </React.Fragment>
                                                             ))}
                                                         </tbody>
                                                     </table>

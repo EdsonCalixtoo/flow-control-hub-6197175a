@@ -20,6 +20,7 @@ const CorrigirPedidoPage: React.FC = () => {
   const [installationDate, setInstallationDate] = useState('');
   const [installationTime, setInstallationTime] = useState('');
   const [parentOrderId, setParentOrderId] = useState<string | null>(null);
+  const [orderType, setOrderType] = useState<any>('entrega');
   const [loading, setLoading] = useState(false);
 
   // Filtra pedidos com base no termo de busca
@@ -49,6 +50,7 @@ const CorrigirPedidoPage: React.FC = () => {
     setInstallationDate(order.installationDate || '');
     setInstallationTime(order.installationTime || '');
     setParentOrderId(order.parentOrderId || null);
+    setOrderType(order.orderType || 'entrega');
     // Scroll suave para o formulário no mobile
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -63,6 +65,13 @@ const CorrigirPedidoPage: React.FC = () => {
       const originalTaxes = selectedOrder?.taxes || 0;
       const calculatedTotal = calculatedSubtotal + originalTaxes;
 
+      // Se mudar para instalação/manutenção e não tiver data, avisa
+      if ((orderType === 'instalacao' || orderType === 'manutencao') && !installationDate) {
+        toast.error('Insira uma data para o agendamento.');
+        setLoading(false);
+        return;
+      }
+
       await updateOrder(selectedOrderId, {
         volumes: Number(volumes),
         carrier: carrier.toUpperCase(),
@@ -72,6 +81,7 @@ const CorrigirPedidoPage: React.FC = () => {
         installationDate,
         installationTime,
         scheduledDate: installationDate, // Sincroniza para aparecer no calendário de produção
+        orderType,
         parentOrderId: parentOrderId || undefined,
         parentOrderNumber: orders.find(o => o.id === parentOrderId)?.number
       });
@@ -123,11 +133,38 @@ const CorrigirPedidoPage: React.FC = () => {
                     </div>
                 </div>
                 <button 
-                    onClick={() => setSelectedOrderId(null)} 
+                    onClick={() => { setSelectedOrderId(null); setOrderType('entrega'); }} 
                     className="text-[10px] font-black uppercase text-muted-foreground hover:text-destructive px-3 py-1 bg-muted/50 rounded-lg"
                 >
                   Cancelar
                 </button>
+              </div>
+
+              {/* TIPO DE PEDIDO */}
+              <div className="space-y-3 pb-4 border-b">
+                <label className="text-[10px] font-bold text-primary uppercase flex items-center gap-1">
+                  <Package className="w-3 h-3" /> Tipo de Pedido
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { id: 'entrega', label: 'Entrega' },
+                    { id: 'instalacao', label: 'Instalação' },
+                    { id: 'manutencao', label: 'Manutenção' },
+                    { id: 'retirada', label: 'Retirada' }
+                  ].map(type => (
+                    <button
+                      key={type.id}
+                      onClick={() => setOrderType(type.id)}
+                      className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${
+                        orderType === type.id 
+                          ? 'bg-primary text-white shadow-md' 
+                          : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                      }`}
+                    >
+                      {type.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="space-y-6">
@@ -261,7 +298,7 @@ const CorrigirPedidoPage: React.FC = () => {
                 </div>
 
                 {/* AGENDAMENTO (SE FOR INSTALAÇÃO, MANUTENÇÃO OU RETIRADA) */}
-                {(selectedOrder.orderType === 'instalacao' || selectedOrder.orderType === 'manutencao' || selectedOrder.orderType === 'retirada') && (
+                {(orderType === 'instalacao' || orderType === 'manutencao' || orderType === 'retirada') && (
                   <div className="space-y-4 pt-4 border-t">
                     <label className="text-[10px] font-bold text-primary uppercase flex items-center gap-1">
                       <Clock className="w-3 h-3" /> Agendamento de Serviço

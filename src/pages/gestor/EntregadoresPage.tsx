@@ -29,7 +29,7 @@ interface OrderGroup {
     };
     carrier?: string;
     groupKey: string;
-    unifiedOrders?: Array<{ id: string; number: string }>; // Novos pedidos unificados nesta caixa
+    unifiedOrders?: Array<{ id: string; number: string; items: any[] }>; // Novos pedidos unificados nesta caixa
 }
 
 /* ─────────────────────────────────────────────
@@ -446,10 +446,26 @@ const EntregadoresPage: React.FC = () => {
             const originalOrder = orders.find(o => o.id === scan.orderId);
             if (!originalOrder) continue;
 
-            // Determina qual é o pedido "Pai" para fins de agrupamento de volumes
-            const headerOrder = originalOrder.parentOrderId 
-                ? (orders.find(o => o.id === originalOrder.parentOrderId) || originalOrder)
-                : originalOrder;
+            // 🧬 Busca Robusta e DETERMINÍSTICA pelo "Pai Raiz" (Evita duplicados em unificações circulares)
+            let currentRoot = originalOrder;
+            const groupMembers = [originalOrder];
+            const visitedIds = new Set<string>();
+            visitedIds.add(originalOrder.id);
+            
+            let parentId = originalOrder.parentOrderId;
+            while (parentId && !visitedIds.has(parentId)) {
+                const parent = orders.find(o => o.id === parentId);
+                if (!parent) break;
+                groupMembers.push(parent);
+                visitedIds.add(parent.id);
+                parentId = parent.parentOrderId;
+            }
+
+            // Para ser determinístico (um único cartão mesmo que unifique A->B e B->A):
+            // 1. Tenta o que NÃO tem pai (o topo da cadeia oficial)
+            // 2. Se for circular (todos têm pai), escolhemos o com menor número de ID alphabetically
+            const headerOrder = groupMembers.find(m => !m.parentOrderId) || 
+                               groupMembers.sort((a, b) => a.id.localeCompare(b.id))[0];
 
             // Filtro: Apenas pedidos liberados pela produção ou já retirados
             if (headerOrder.status !== 'produto_liberado' && headerOrder.status !== 'retirado_entregador' && 
@@ -486,7 +502,11 @@ const EntregadoresPage: React.FC = () => {
                 // Se o scan for de um pedido diferente (unificado), adiciona à lista
                 if (originalOrder.id !== headerOrder.id) {
                     if (!currentGroup.unifiedOrders?.some(uo => uo.id === originalOrder.id)) {
-                        currentGroup.unifiedOrders?.push({ id: originalOrder.id, number: originalOrder.number });
+                        currentGroup.unifiedOrders?.push({ 
+                            id: originalOrder.id, 
+                            number: originalOrder.number,
+                            items: originalOrder.items // Passa os itens para o manifesto total
+                        });
                     }
                 }
 
@@ -505,15 +525,32 @@ const EntregadoresPage: React.FC = () => {
         // eles devem aparecer mesmo assim? O usuário disse: "deve conter em entregadores o pedido".
         // Vamos garantir que todos os pedidos unificados apareçam nos grupos de seus pais se os pedidos foram liberados.
         orders.filter(o => o.parentOrderId && (o.status === 'produto_liberado' || o.status === 'retirado_entregador')).forEach(child => {
-            const parent = orders.find(p => p.id === child.parentOrderId);
-            if (!parent) return;
+            // Segue a mesma lógica determinística do Pai Raiz
+            let root = child;
+            const visited = new Set<string>();
+            visited.add(child.id);
+            let pid = child.parentOrderId;
+            const chain = [child];
 
-            const volumes = parent.volumes || 1;
+            while(pid && !visited.has(pid)) {
+                const p = orders.find(o => o.id === pid);
+                if (!p) break;
+                chain.push(p);
+                visited.add(p.id);
+                pid = p.parentOrderId;
+            }
+
+            const header = chain.find(m => !m.parentOrderId) || 
+                          chain.sort((a,b) => a.id.localeCompare(b.id))[0];
+
+            if (header.id === child.id) return; // Se ele mesmo acabou virando o pai, ignora o pós-processo de filho
+
+            const volumes = header.volumes || 1;
             for (let v = 0; v < volumes; v++) {
-                const groupKey = `${parent.id}-vol-${v}`;
+                const groupKey = `${header.id}-vol-${v}`;
                 const group = map.get(groupKey);
                 if (group && !group.unifiedOrders?.some(uo => uo.id === child.id)) {
-                    group.unifiedOrders?.push({ id: child.id, number: child.number });
+                    group.unifiedOrders?.push({ id: child.id, number: child.number, items: child.items });
                 }
             }
         });

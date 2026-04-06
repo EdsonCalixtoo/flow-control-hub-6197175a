@@ -1716,16 +1716,22 @@ const OrcamentosPage: React.FC = () => {
 
           {/* Central de Comprovantes */}
           {podeGerenciarComprovantes && (() => {
-            const clienteConsignado = !!clients.find(c => c.id === selectedOrder.clientId)?.consignado;
+            const client = clients.find(c => c.id === selectedOrder.clientId);
+            const clienteConsignado = !!client?.consignado;
             const isInstalacao = selectedOrder.orderType === 'instalacao';
             const isManutencao = selectedOrder.orderType === 'manutencao';
             const isRetirada = selectedOrder.orderType === 'retirada';
+            const isOnlyReward = selectedOrder.items.every(item => item.isReward === true);
             const isWaiting = selectedOrder.status === 'aguardando_financeiro';
             const isAdvanced = ['aprovado_financeiro', 'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado', 'retirado_entregador'].includes(selectedOrder.status);
             const temComprovante = (comprovantesAttached.length > 0) || (selectedOrder.receiptUrls && selectedOrder.receiptUrls.length > 0);
 
-            // Consignado, Instalação, Manutenção ou Retirada: pode enviar sem comprovante. Normal: precisa de comprovante.
-            const podeEnviar = (clienteConsignado || isInstalacao || isManutencao || isRetirada) ? true : temComprovante;
+            // Regras: 
+            // 1. Consignado pode enviar sem (vendedor anexa depois)
+            // 2. Serviços (Instalação/Manutenção/Retirada) podem enviar sem
+            // 3. SE FOR APENAS PRÊMIO, pode enviar sem.
+            // 4. Caso tenha produto normal + prêmio, precisa de comprovante (exceto se for consignado).
+            const podeEnviar = (clienteConsignado || isInstalacao || isManutencao || isRetirada || isOnlyReward) ? true : temComprovante;
 
             return (
               <>
@@ -1733,11 +1739,16 @@ const OrcamentosPage: React.FC = () => {
                   <ComprovanteUpload
                     values={comprovantesAttached.length > 0 ? comprovantesAttached : (selectedOrder.receiptUrls || [])}
                     onChange={setComprovantesAttached}
-                    label={clienteConsignado
-                      ? "Comprovantes de Pagamento (opcional para clientes consignados)"
+                    label={(clienteConsignado || isOnlyReward)
+                      ? `Comprovantes de Pagamento (opcional para ${isOnlyReward ? 'resgate de prêmio' : 'clientes consignados'})`
                       : "Comprovantes de Pagamento (obrigatório para enviar ao Financeiro)"}
                   />
-                  {clienteConsignado && !temComprovante && (
+                  {isOnlyReward && !temComprovante && (
+                    <p className="text-[10px] text-success mt-2 flex items-center gap-1">
+                      🎁 Pedido exclusivo de Premiação — envio sem comprovante liberado.
+                    </p>
+                  )}
+                  {clienteConsignado && !isOnlyReward && !temComprovante && (
                     <p className="text-[10px] text-amber-500 mt-2 flex items-center gap-1">
                       ⭐ Cliente consignado — pode enviar sem comprovante. O financeiro registrará os pagamentos parciais.
                     </p>
@@ -1776,7 +1787,7 @@ const OrcamentosPage: React.FC = () => {
                     <Send className="w-4 h-4" /> {sendingToFinance ? '⏳ Enviando...' : isWaiting || isAdvanced ? '🔄 Atualizar Comprovantes' : '🟢 Enviar para Financeiro'}
                   </button>
                 </div>
-                {!clienteConsignado && !isInstalacao && !isManutencao && !isRetirada && !temComprovante && (
+                {!clienteConsignado && !isInstalacao && !isManutencao && !isRetirada && !isOnlyReward && !temComprovante && (
                   <p className="text-[10px] text-muted-foreground text-center">
                     ⚠️ Anexe o comprovante de pagamento para habilitar o envio ao financeiro
                   </p>
@@ -1784,6 +1795,7 @@ const OrcamentosPage: React.FC = () => {
               </>
             );
           })()}
+
         </div>
 
         {/* Modal de Visualização (Detail View) */}

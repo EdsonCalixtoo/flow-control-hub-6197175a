@@ -467,6 +467,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         cep: client.cep,
         notes: client.notes,
         consignado: client.consignado,
+        isSite: client.isSite || false,
       };
 
       // Salva no Supabase — o banco gera o ID automaticamente

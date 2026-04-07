@@ -1076,6 +1076,11 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
           <div className="space-y-1">
              <div className="flex items-center gap-3">
                 <h1 className="text-4xl font-black text-foreground tracking-tighter uppercase">{viewOrder.number}</h1>
+                {viewOrder.isSite && (
+                   <span className="px-3 py-1.5 rounded-full bg-blue-600 text-white text-[11px] font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 animate-pulse flex items-center gap-2">
+                     🌐 VENDA DO SITE
+                   </span>
+                )}
                 {isOrderWarranty && (
                    <span className="px-3 py-1 rounded-full bg-destructive text-white text-[11px] font-black uppercase tracking-widest shadow-xl shadow-destructive/20 animate-pulse">
                      🔥 GARANTIA CRÍTICA
@@ -1476,7 +1481,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                   order.status === 'em_producao' ? 'border-l-primary' :
                   order.status === 'producao_finalizada' ? 'border-l-success' :
                   'border-l-muted'
-                } ${late ? 'border-l-destructive shadow-lg shadow-destructive/5' : ''}`}>
+                } ${late ? 'border-l-destructive shadow-lg shadow-destructive/5' : ''} ${order.isSite ? 'shadow-xl shadow-blue-500/10' : ''}`}>
                   
                   <div className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 relative z-10">
                     <div className="flex items-center gap-4 sm:gap-5 flex-1 min-w-0">
@@ -1494,6 +1499,11 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                         <div className="flex items-center gap-2 sm:gap-3 flex-wrap mb-1.5">
                           <h3 className="font-black text-foreground text-lg sm:text-xl tracking-tighter uppercase flex items-center gap-2">
                             {order.number}
+                            {order.isSite && (
+                              <span className="px-2 py-0.5 rounded-full bg-blue-600 text-white text-[8px] sm:text-[10px] font-black uppercase tracking-wider shadow-lg shadow-blue-500/20 animate-pulse flex items-center gap-1.5">
+                                🌐 VENDA DO SITE
+                              </span>
+                            )}
                             {(order.isWarranty || order.notes?.toLowerCase().includes('garantia')) && (
                               <span className="px-2 py-0.5 rounded-lg bg-destructive text-white text-[8px] sm:text-[10px] font-black uppercase tracking-widest shadow-lg shadow-destructive/20 animate-pulse">
                                 GARANTIA

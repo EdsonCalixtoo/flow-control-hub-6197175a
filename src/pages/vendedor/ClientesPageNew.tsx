@@ -149,7 +149,7 @@ const emptyForm = {
   name: '', cpfCnpj: '', email: '', phone: '',
   address: '', numero: '', complemento: '',
   bairro: '', city: '', state: 'SP', cep: '',
-  notes: '', consignado: false,
+  notes: '', consignado: false, isSite: false,
 };
 
 // ── Componente principal ─────────────────────────────────
@@ -209,6 +209,7 @@ export default function ClientesPageNew() {
       cep: client.cep || '',
       notes: client.notes || '',
       consignado: client.consignado || false,
+      isSite: client.isSite || false,
     });
     setError('');
     setFormMode(client.id);
@@ -284,6 +285,7 @@ export default function ClientesPageNew() {
           cep: form.cep,
           notes: form.notes,
           consignado: form.consignado,
+          isSite: form.isSite,
           createdBy: '',
           createdAt: now,
         };
@@ -301,6 +303,7 @@ export default function ClientesPageNew() {
           cep: form.cep,
           notes: form.notes,
           consignado: form.consignado,
+          isSite: form.isSite,
           createdBy: '',
           createdAt: now,
         };
@@ -576,6 +579,13 @@ export default function ClientesPageNew() {
                     <span style={{ color: '#fbbf24', marginRight: '4px' }}>⭐</span> Cliente Consignado
                   </label>
                 </div>
+                <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <input type="checkbox" id="isSite" name="isSite" checked={form.isSite} onChange={handleChange}
+                    style={{ width: '18px', height: '18px', accentColor: '#3b82f6', cursor: 'pointer' }} />
+                  <label htmlFor="isSite" className="cl-text-subtitle" style={{ fontSize: '14px', cursor: 'pointer', userSelect: 'none' }}>
+                    <span style={{ color: '#3b82f6', marginRight: '4px' }}>🌐</span> Cliente do Site
+                  </label>
+                </div>
               </div>
 
               {/* Botões */}
@@ -631,12 +641,17 @@ export default function ClientesPageNew() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                         <h3 className="cl-text-title" style={{ margin: 0, fontSize: '15px', fontWeight: '700' }}>{client.name}</h3>
-                        {client.consignado && (
-                          <span className="cl-badge" style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' }}>
-                            <Icon.Star /> Consignado
-                          </span>
-                        )}
-                      </div>
+                          {client.consignado && (
+                            <span className="cl-badge" style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.3)' }}>
+                              <Icon.Star /> Consignado
+                            </span>
+                          )}
+                          {client.isSite && (
+                            <span className="cl-badge" style={{ background: 'rgba(59,130,246,0.15)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.3)' }}>
+                              🌐 Site
+                            </span>
+                          )}
+                        </div>
                       <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                         {client.cpfCnpj && (
                           <span className="cl-text-subtitle" style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px' }}>

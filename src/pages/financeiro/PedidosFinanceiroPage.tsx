@@ -159,7 +159,14 @@ const PedidosFinanceiroPage: React.FC = () => {
                 <div className="flex items-center justify-between flex-wrap gap-3">
                     <div>
                         <h1 className="page-header">Detalhes do Pedido</h1>
-                        <p className="page-subtitle">{selectedOrder.number} • {selectedOrder.clientName}</p>
+                        <p className="page-subtitle flex items-center gap-2">
+                            {selectedOrder.number} • {selectedOrder.clientName}
+                            {selectedOrder.isSite && (
+                                <span className="px-2 py-0.5 rounded-full bg-blue-500 text-white text-[9px] font-black animate-pulse shadow-lg shadow-blue-500/20">
+                                    🌐 SITE (PRIORIDADE)
+                                </span>
+                            )}
+                        </p>
                     </div>
                     <button onClick={() => setSelectedOrderId(null)} className="btn-modern bg-muted text-foreground shadow-none text-xs">
                         <ArrowLeft className="w-4 h-4" /> Voltar
@@ -633,8 +640,15 @@ const PedidosFinanceiroPage: React.FC = () => {
                         </thead>
                         <tbody className="divide-y divide-border/20">
                             {paginatedOrders.map(order => (
-                                <tr key={order.id} className="group hover:bg-primary/[0.02] transition-all duration-300">
-                                    <td className="font-extrabold text-foreground py-5">
+                                <tr 
+                                    key={order.id} 
+                                    className={`group transition-all duration-300 hover:-translate-y-0.5 ${
+                                        order.isSite ? 'bg-blue-50/30 shadow-xl shadow-blue-500/10' : 
+                                        order.isConsigned ? 'ring-2 ring-amber-500 bg-amber-50/20 shadow-md shadow-amber-500/10' : 
+                                        'bg-white/50 hover:bg-white border border-border/40'
+                                    } relative rounded-2xl overflow-hidden`}
+                                >
+                                    <td className="font-extrabold text-foreground py-5 first:rounded-l-2xl">
                                         <div className="flex items-center gap-2">
                                             <div className="h-2 w-2 rounded-full bg-primary/40 group-hover:bg-primary transition-colors" />
                                             #{order.number}
@@ -646,6 +660,11 @@ const PedidosFinanceiroPage: React.FC = () => {
                                             <div className="flex items-center gap-1 mt-1">
                                                 {(order.isConsigned || clients.find(c => c.id === order.clientId)?.consignado) && (
                                                     <span className="px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-500 text-[8px] font-black border border-amber-500/20">CONSIGNADO</span>
+                                                )}
+                                                {order.isSite && (
+                                                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-600 text-white text-[8px] font-black uppercase tracking-wider shadow-md shadow-blue-500/20 animate-pulse w-fit">
+                                                        🌐 VENDA DO SITE
+                                                    </div>
                                                 )}
                                                 {order.items.some(i => i.isReward) && (
                                                     <span className="px-1.5 py-0.5 rounded-md bg-emerald-500 text-white text-[8px] font-black animate-pulse">PRÊMIO</span>
@@ -671,7 +690,7 @@ const PedidosFinanceiroPage: React.FC = () => {
                                             {order.paymentStatus === 'pago' ? 'PAGO' : 'AGUARDANDO'}
                                         </div>
                                     </td>
-                                    <td className="text-right py-5 pr-8">
+                                    <td className="text-right py-5 pr-8 last:rounded-r-2xl">
                                         <div className="flex items-center justify-end gap-2">
                                             <button
                                                 onClick={() => setSelectedOrderId(order.id)}

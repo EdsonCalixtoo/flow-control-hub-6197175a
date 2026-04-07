@@ -43,6 +43,7 @@ export const supabaseToOrder = (data: any): Order => ({
     comprovantesVistos: data.comprovantes_vistos || 0,
     parentOrderId: data.parent_order_id || undefined,
     parentOrderNumber: data.parent_order_number || undefined,
+    isSite: data.is_site || false,
     // Deriva o motivo de rejeição a partir do statusHistory
     rejectionReason: (() => {
         const history: any[] = data.status_history || [];
@@ -86,6 +87,7 @@ export const orderToSupabase = (order: Partial<Order>) => {
     if (order.comprovantesVistos !== undefined) data.comprovantes_vistos = order.comprovantesVistos;
     if (order.parentOrderId !== undefined) data.parent_order_id = order.parentOrderId;
     if (order.parentOrderNumber !== undefined) data.parent_order_number = order.parentOrderNumber;
+    if (order.isSite !== undefined) data.is_site = order.isSite;
 
     if (order.items) data.items = order.items;
     if (order.statusHistory) data.status_history = order.statusHistory;
@@ -97,7 +99,7 @@ export const orderToSupabase = (order: Partial<Order>) => {
 // Colunas básicas para o Dashboard (ECONOMIZA MEMÓRIA E EVITA TIMEOUT)
 // 🚨 EMERGÊNCIA: Removemos colunas pesadas (items, history, receipts) do fetch de listagem (Dashboard)
 // Isso impede que o navegador baixe Megabytes de strings Base64 em cada polling!
-const BASIC_ORDER_COLUMNS = 'id, number, client_id, client_name, seller_id, seller_name, subtotal, taxes, total, status, notes, observation, order_type, is_cronograma, financeiro_aprovado, is_warranty, status_pagamento, status_producao, created_at, updated_at, requires_invoice, requires_shipping_note, delivery_date, installation_date, scheduled_date, installation_time, carrier, volumes, payment_method, comprovantes_vistos, items, receipt_urls, receipt_url, parent_order_id, parent_order_number';
+const BASIC_ORDER_COLUMNS = 'id, number, client_id, client_name, seller_id, seller_name, subtotal, taxes, total, status, notes, observation, order_type, is_cronograma, financeiro_aprovado, is_warranty, status_pagamento, status_producao, created_at, updated_at, requires_invoice, requires_shipping_note, delivery_date, installation_date, scheduled_date, installation_time, carrier, volumes, payment_method, comprovantes_vistos, items, receipt_urls, receipt_url, parent_order_id, parent_order_number, is_site';
 
 export const fetchOrders = async (role?: string, userId?: string): Promise<Order[]> => {
     try {

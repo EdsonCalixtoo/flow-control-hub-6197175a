@@ -636,6 +636,7 @@ const OrcamentosPage: React.FC = () => {
           installationPaymentType: (newOrderType === 'instalacao' || newOrderType === 'manutencao' || newOrderType === 'retirada') ? newInstallationPaymentType : undefined,
           carrier: newOrderType === 'entrega' ? newCarrier : undefined,
           isConsigned: client.consignado,
+          isSite: client.isSite || false,
           requiresInvoice: newRequiresInvoice,
           requiresShippingNote: newRequiresShippingNote,
           updatedAt: now,
@@ -726,6 +727,7 @@ const OrcamentosPage: React.FC = () => {
             deliveryDate: newDeliveryDate || undefined,
             orderType: newOrderType,
             isConsigned: client.consignado,
+            isSite: client.isSite || false,
             requiresInvoice: newRequiresInvoice,
             requiresShippingNote: newRequiresShippingNote,
             createdAt: now,
@@ -1458,7 +1460,14 @@ const OrcamentosPage: React.FC = () => {
 
     return (
       <>
-        <div ref={detailRef} className="card-section p-6 space-y-5 animate-scale-in relative z-0">
+        <div 
+          ref={detailRef} 
+          className={`card-section p-6 space-y-5 animate-scale-in relative z-0 ${
+            selectedOrder.isSite ? 'border-2 border-blue-500 shadow-lg shadow-blue-500/10' : 
+            selectedOrder.isConsigned ? 'border-2 border-amber-500 shadow-lg shadow-amber-500/10' : 
+            ''
+          }`}
+        >
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <h2 className="font-bold text-foreground text-lg">{selectedOrder.number}</h2>
@@ -1467,6 +1476,11 @@ const OrcamentosPage: React.FC = () => {
                   ⭐ Consignado
                 </span>
               )}
+              {selectedOrder.isSite && (
+                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-600 text-white text-[10px] font-black uppercase tracking-wider shadow-lg shadow-blue-500/20 animate-pulse">
+                   🌐 VENDA DO SITE
+                 </span>
+               )}
             </div>
             <div className="flex items-center gap-2">
               {/* Botão Copiar Link de Rastreio */}
@@ -1939,9 +1953,9 @@ const OrcamentosPage: React.FC = () => {
 
       <div className="glass-card rounded-[2rem] border-white/40 shadow-2xl overflow-hidden animate-in fade-in duration-700">
         <div className="overflow-x-auto">
-          <table className="modern-table border-collapse">
+          <table className="modern-table border-separate border-spacing-y-3">
             <thead>
-              <tr className="bg-muted/50 border-none">
+              <tr className="bg-transparent border-none">
                 <th className="px-8 py-5"># Pedido</th>
                 <th className="px-8 py-5">📝 Cliente</th>
                 <th className="hidden md:table-cell text-right px-8 py-5">💰 Valor</th>
@@ -1954,8 +1968,16 @@ const OrcamentosPage: React.FC = () => {
               {filtered.map((order, idx) => {
                 const podeEditar = !STATUS_BLOQUEIAM_EDICAO.includes(order.status);
                 return (
-                  <tr key={order.id} className="group hover:bg-primary/[0.03] transition-colors stagger-items" style={{ animationDelay: `${idx * 40}ms` }}>
-                    <td className="px-8 py-6 font-black text-foreground tracking-tight text-base italic">
+                  <tr 
+                    key={order.id} 
+                    className={`group transition-all duration-300 stagger-items hover:-translate-y-0.5 ${
+                      order.isSite ? 'bg-blue-50/30 shadow-xl shadow-blue-500/10' : 
+                      order.isConsigned ? 'ring-2 ring-amber-500 bg-amber-50/20 shadow-md shadow-amber-500/10' : 
+                      'bg-white/50 hover:bg-white border border-border/40'
+                    } relative rounded-2xl overflow-hidden`} 
+                    style={{ animationDelay: `${idx * 40}ms` }}
+                  >
+                    <td className="px-8 py-6 font-black text-foreground tracking-tight text-base italic first:rounded-l-2xl">
                       <div className="flex flex-col">
                         <span>{order.number}</span>
                         {viewCycle === 'historico' && (
@@ -1966,6 +1988,16 @@ const OrcamentosPage: React.FC = () => {
                         {order.notes?.includes('PEDIDO DE GARANTIA REFERENTE AO') && (
                           <span className="block text-[8px] text-primary opacity-70 font-bold uppercase mt-0.5">
                             {order.notes.split('\n')[0].replace('PEDIDO DE GARANTIA REFERENTE AO ', '(Referente ao ') + ')'}
+                          </span>
+                        )}
+                        {order.isSite && (
+                          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-600 text-white text-[8px] font-black uppercase tracking-wider shadow-md shadow-blue-500/20 animate-pulse w-fit mt-1">
+                            🌐 VENDA DO SITE
+                          </div>
+                        )}
+                        {order.isConsigned && (
+                          <span className="text-[8px] font-black text-amber-500 uppercase bg-amber-500/10 px-1.5 py-0.5 rounded w-fit mt-1 border border-amber-500/20 flex items-center gap-1">
+                             ⭐ Consignado
                           </span>
                         )}
                       </div>
@@ -1982,7 +2014,7 @@ const OrcamentosPage: React.FC = () => {
                     <td className="text-right px-8 py-6 font-extrabold text-foreground hidden md:table-cell">{formatCurrency(order.total)}</td>
                     <td className="hidden lg:table-cell px-8 py-6"><OrderPipeline order={order} compact /></td>
                     <td className="px-8 py-6"><StatusBadge status={order.status} /></td>
-                    <td className="text-right px-8 py-6">
+                    <td className="text-right px-8 py-6 last:rounded-r-2xl">
                       <div className="flex items-center justify-end gap-2.5">
                         <button
                           onClick={async () => { 

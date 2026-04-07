@@ -21,6 +21,7 @@ export interface Client {
   cep: string;
   notes: string;
   consignado?: boolean;
+  isSite?: boolean;     // Campo de identificação de cliente de Site
   createdBy?: string;       // ID do vendedor que cadastrou o cliente
   createdAt: string;
 }
@@ -101,6 +102,7 @@ export interface Order {
   installationTime?: string;
   installationPaymentType?: 'pago' | 'pagar_na_hora';
   isConsigned?: boolean;
+  isSite?: boolean;      // Campo de identificação de pedido de Site
   productionStatus?: ProductionStatus;  // status detalhado de produção
   volumes?: number;  // quantidade de caixas/volumes para entrega (default 1)
   statusHistory: StatusHistoryEntry[];

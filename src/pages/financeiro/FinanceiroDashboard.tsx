@@ -2201,6 +2201,11 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {order.clientName} • {new Date(order.createdAt).toLocaleDateString('pt-BR')}
                       </p>
+                      {order.isSite && (
+                        <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-600 text-white text-[8px] font-black uppercase tracking-wider shadow-md shadow-blue-500/20 animate-pulse w-fit mt-1.5">
+                          🌐 VENDA DO SITE
+                        </div>
+                      )}
                       {pago > 0 && (
                         <p className="text-[10px] text-amber-500 font-bold mt-1 uppercase tracking-wider">
                           PAGO: {formatCurrency(pago)}
@@ -2309,6 +2314,11 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {order.clientName} • {new Date(order.createdAt).toLocaleDateString('pt-BR')}
                         </p>
+                        {order.isSite && (
+                          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-600 text-white text-[8px] font-black uppercase tracking-wider shadow-md shadow-blue-500/20 animate-pulse w-fit mt-1.5">
+                            🌐 VENDA DO SITE
+                          </div>
+                        )}
                       </div>
                       <div className="text-right">
                         <p className="font-bold text-foreground text-sm">{formatCurrency(order.total)}</p>
@@ -2612,7 +2622,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                       {paginatedOrders.filter(o => !isOrderCarenagem(o)).map(order => {
                         const isConsigned = order.isConsigned ?? (clients.find(c => c.id === order.clientId)?.consignado || clients.find(c => c.name === order.clientName)?.consignado);
                         return (
-                          <tr key={order.id} className="group hover:bg-primary/[0.02] transition-all duration-300">
+                          <tr key={order.id} className={`group hover:bg-primary/[0.02] transition-all duration-300 ${order.isSite ? 'bg-blue-50/20 shadow-lg shadow-blue-500/5' : ''}`}>
                             <td className="font-black text-foreground py-6 select-text">
                               <div className="flex items-center gap-3">
                                 <div className="h-2 w-2 rounded-full bg-primary/30 group-hover:bg-primary transition-colors" />
@@ -2623,6 +2633,11 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                               <div className="flex flex-col">
                                 <span className="font-bold text-sm tracking-tight group-hover:text-primary transition-colors select-all cursor-text">{order.clientName}</span>
                                 <div className="flex items-center gap-1 ml-0.5 mt-1.5 flex-wrap select-text">
+                                  {order.isSite && (
+                                    <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-600 text-white text-[8px] font-black uppercase tracking-wider shadow-md shadow-blue-500/20 animate-pulse w-fit">
+                                      🌐 VENDA DO SITE
+                                    </div>
+                                  )}
                                   {(order.orderType === 'instalacao' || order.orderType === 'manutencao') && order.installationDate && (
                                     <span className="px-1.5 py-0.5 rounded-md bg-primary/10 text-primary text-[8px] font-black border border-primary/20 flex items-center gap-1">
                                       📅 {new Date(order.installationDate + 'T12:00:00').toLocaleDateString('pt-BR')}

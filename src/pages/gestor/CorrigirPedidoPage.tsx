@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { Search, Save, Package, Truck, ArrowLeft, Edit3, Filter, History, Clock } from 'lucide-react';
+import { Search, Save, Package, Truck, ArrowLeft, Edit3, Filter, History, Clock, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -21,9 +21,11 @@ const CorrigirPedidoPage: React.FC = () => {
   const [items, setItems] = useState<any[]>([]);
   const [installationDate, setInstallationDate] = useState('');
   const [installationTime, setInstallationTime] = useState('');
-  const [parentOrderId, setParentOrderId] = useState<string | null>(null);
-  const [orderType, setOrderType] = useState<any>('entrega');
-  const [loading, setLoading] = useState(false);
+   const [parentOrderId, setParentOrderId] = useState<string | null>(null);
+   const [selectedChildIds, setSelectedChildIds] = useState<string[]>([]);
+   const [orderType, setOrderType] = useState<any>('entrega');
+   const [loading, setLoading] = useState(false);
+   const [unifySearch, setUnifySearch] = useState('');
 
   // Filtra pedidos com base no termo de busca
   const filteredOrders = useMemo(() => {
@@ -39,23 +41,39 @@ const CorrigirPedidoPage: React.FC = () => {
     ).slice(0, 100);
   }, [orders, searchTerm]);
 
-  const selectedOrder = useMemo(() => 
-    orders.find(o => o.id === selectedOrderId),
-    [orders, selectedOrderId]
-  );
+   const selectedOrder = useMemo(() => 
+     orders.find(o => o.id === selectedOrderId),
+     [orders, selectedOrderId]
+   );
+ 
+   const possibleChildren = useMemo(() => {
+    if (!selectedOrder) return [];
+    return orders.filter(o => 
+      o.id !== selectedOrderId && 
+      o.id !== parentOrderId && 
+      (o.clientId === selectedOrder.clientId || o.clientName === selectedOrder.clientName) &&
+      (!unifySearch || o.number.toLowerCase().includes(unifySearch.toLowerCase()))
+    );
+  }, [orders, selectedOrderId, parentOrderId, selectedOrder, unifySearch]);
 
-  const handleSelectOrder = (order: any) => {
-    setSelectedOrderId(order.id);
-    setVolumes(order.volumes || 1);
-    setCarrier(order.carrier || '');
-    setItems(order.items || []);
-    setInstallationDate(order.installationDate || '');
-    setInstallationTime(order.installationTime || '');
-    setParentOrderId(order.parentOrderId || null);
-    setOrderType(order.orderType || 'entrega');
-    // Scroll suave para o formulário no mobile
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+   const handleSelectOrder = (order: any) => {
+     setSelectedOrderId(order.id);
+     setVolumes(order.volumes || 1);
+     setCarrier(order.carrier || '');
+     setItems(order.items || []);
+     setInstallationDate(order.installationDate || '');
+     setInstallationTime(order.installationTime || '');
+     setParentOrderId(order.parentOrderId || null);
+     setOrderType(order.orderType || 'entrega');
+     
+     // Identifica pedidos que já são filhos deste
+     const children = orders.filter(o => o.parentOrderId === order.id).map(o => o.id);
+     setSelectedChildIds(children);
+     setUnifySearch('');
+
+     // Scroll suave para o formulário no mobile
+     window.scrollTo({ top: 0, behavior: 'smooth' });
+   };
 
   const handleSave = async () => {
     if (!selectedOrderId) return;
@@ -85,18 +103,35 @@ const CorrigirPedidoPage: React.FC = () => {
           }
       }
 
-      await updateOrder(selectedOrderId, {
-        volumes: Number(volumes),
-        carrier: carrier.toUpperCase(),
-        items,
-        subtotal: calculatedSubtotal,
-        total: calculatedTotal,
-        installationDate,
-        installationTime,
-        scheduledDate: installationDate, // Sincroniza para aparecer no calendário de produção
-        orderType,
-        parentOrderNumber: orders.find(o => o.id === parentOrderId)?.number
-      });
+       await updateOrder(selectedOrderId, {
+         volumes: Number(volumes),
+         carrier: carrier.toUpperCase(),
+         items,
+         subtotal: calculatedSubtotal,
+         total: calculatedTotal,
+         installationDate,
+         installationTime,
+         scheduledDate: installationDate, // Sincroniza para aparecer no calendário de produção
+         orderType,
+         parentOrderId: parentOrderId,
+         parentOrderNumber: orders.find(o => o.id === parentOrderId)?.number
+       });
+
+       // Salva a unificação dos pedidos FILHOS
+       // 1. Limpa filhos antigos que foram desmarcados
+       const oldChildren = orders.filter(o => o.parentOrderId === selectedOrderId);
+       for (const old of oldChildren) {
+          if (!selectedChildIds.includes(old.id)) {
+            await updateOrder(old.id, { parentOrderId: null, parentOrderNumber: null });
+          }
+       }
+       // 2. Define novos filhos
+       for (const childId of selectedChildIds) {
+          await updateOrder(childId, { 
+            parentOrderId: selectedOrderId, 
+            parentOrderNumber: selectedOrder?.number 
+          });
+       }
 
       // Atualiza Agenda
       if (orderType === 'instalacao' || orderType === 'manutencao') {
@@ -241,30 +276,77 @@ const CorrigirPedidoPage: React.FC = () => {
                     />
                   </div>
 
-                  <div className="space-y-1 pt-4 border-t">
-                    <label className="text-[10px] font-bold text-primary uppercase flex items-center gap-1">
-                      <Package className="w-3 h-3" /> Unificar com outro Pedido
-                    </label>
-                    <p className="text-[9px] text-muted-foreground mb-1">Se este pedido estiver dentro da caixa de outro pedido, selecione-o abaixo</p>
-                    <select
-                      className="input-modern h-12 bg-white border-2 text-xs font-bold"
-                      value={parentOrderId || ''}
-                      onChange={(e) => setParentOrderId(e.target.value || null)}
-                    >
-                      <option value="">Não unificar (Pedido independente)</option>
-                      {orders
-                        .filter(o => o.id !== selectedOrderId)
-                        .slice(0, 50)
-                        .map(o => (
-                          <option key={o.id} value={o.id}>{o.number} - {o.clientName}</option>
-                        ))}
-                    </select>
-                    {parentOrderId && (
-                      <p className="text-[10px] text-amber-600 font-bold mt-1">
-                        ⚠️ Atenção: Este pedido não contará volumes próprios na entrega.
-                      </p>
-                    )}
-                  </div>
+                   <div className="space-y-4 pt-4 border-t bg-amber-50/30 p-4 rounded-xl border border-amber-200/50">
+                     <div className="flex items-center justify-between">
+                        <label className="text-[10px] font-bold text-amber-700 uppercase flex items-center gap-1">
+                          <Package className="w-3 h-3" /> Unificar este pedido
+                        </label>
+                     </div>
+                     <p className="text-[9px] text-amber-600/80 mb-2">Este pedido vai DENTRO de qual outro pedido?</p>
+                     <select
+                       className="input-modern h-12 bg-white border-2 text-xs font-bold border-amber-200 focus:border-amber-400"
+                       value={parentOrderId || ''}
+                       onChange={(e) => setParentOrderId(e.target.value || null)}
+                     >
+                       <option value="">Não unificar (Independente)</option>
+                       {orders
+                         .filter(o => o.id !== selectedOrderId && (o.clientId === selectedOrder.clientId || o.clientName === selectedOrder.clientName))
+                         .map(o => (
+                           <option key={o.id} value={o.id}>{o.number} - {o.clientName}</option>
+                         ))}
+                       <optgroup label="Outros Clientes">
+                        {orders
+                          .filter(o => o.id !== selectedOrderId && o.clientId !== selectedOrder.clientId)
+                          .slice(0, 10)
+                          .map(o => (
+                            <option key={o.id} value={o.id}>{o.number} - {o.clientName}</option>
+                          ))}
+                       </optgroup>
+                     </select>
+
+                     <div className="space-y-3 pt-4 mt-2 border-t border-amber-200">
+                        <label className="text-[10px] font-bold text-amber-700 uppercase flex items-center gap-1">
+                          <Plus className="w-3 h-3" /> Unificar pedidos NESTE (Filhos)
+                        </label>
+                        <p className="text-[9px] text-amber-600/80">Quais outros pedidos vão DENTRO deste pedido?</p>
+                        
+                        <div className="relative">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                          <input 
+                            type="text" 
+                            placeholder="Buscar pedido do cliente..."
+                            className="input-modern pl-9 h-9 text-[10px] bg-white border-amber-200"
+                            value={unifySearch}
+                            onChange={(e) => setUnifySearch(e.target.value)}
+                          />
+                        </div>
+
+                         <div className="max-h-40 overflow-y-auto space-y-1 pr-2 custom-scrollbar">
+                           {possibleChildren.length > 0 ? (
+                             possibleChildren.map(o => (
+                               <label key={o.id} className="flex items-center gap-2 p-2 rounded-lg bg-white/50 hover:bg-white border border-transparent hover:border-amber-200 transition-all cursor-pointer">
+                                 <input 
+                                   type="checkbox"
+                                   className="rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                                   checked={selectedChildIds.includes(o.id)}
+                                   onChange={(e) => {
+                                     if (e.target.checked) setSelectedChildIds(prev => [...prev, o.id]);
+                                     else setSelectedChildIds(prev => prev.filter(id => id !== o.id));
+                                   }}
+                                 />
+                                 <span className="text-[10px] font-bold text-foreground">{o.number}</span>
+                                 <span className="text-[9px] text-muted-foreground ml-auto">{o.status}</span>
+                               </label>
+                             ))
+                           ) : (
+                             <div className="py-8 text-center border-2 border-dashed border-amber-100 rounded-xl bg-amber-50/50">
+                               <p className="text-[10px] font-bold text-amber-600/60 uppercase">Nenhum outro pedido encontrado</p>
+                               <p className="text-[9px] text-amber-500/40">para {selectedOrder?.clientName}</p>
+                             </div>
+                           )}
+                         </div>
+                     </div>
+                   </div>
                 </div>
 
                 {/* ITENS DO PEDIDO */}

@@ -81,7 +81,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
     () => orders.filter(o => 
       STATUS_VISIVEL_FINANCEIRO.includes(o.status) && 
       !o.isWarranty && 
-      o.total > 0 &&
+      (o.total > 0 || o.items.some(item => item.isReward)) && 
       !o.notes?.toLowerCase().includes('garantia')
     ),
     [orders]

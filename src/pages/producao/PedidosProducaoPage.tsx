@@ -32,6 +32,11 @@ const PRODUCTION_STATUS_OPTS: { value: ProductionStatus; label: string; cls: str
 const PedidosProducaoPage: React.FC = () => {
   const { orders, clients, barcodeScans, updateOrderStatus, addBarcodeScan, updateOrder, addDelayReport, loadFromSupabase, loading, warranties, updateWarrantyStatus, loadOrderDetails } = useERP();
   const { user } = useAuth();
+  const isCarenagem = user?.role === 'producao_carenagem';
+  const mainColor = isCarenagem ? 'indigo-600' : 'producao';
+  const MainIcon = isCarenagem ? Truck : Package;
+  const mainGradient = isCarenagem ? 'from-indigo-600 to-indigo-600/60' : 'from-producao to-producao/60';
+  const mainShadow = isCarenagem ? 'shadow-indigo-600/20' : 'shadow-producao/20';
   const [searchParams] = useSearchParams();
   const tipoFiltro = searchParams.get('tipo') || '';
   const viewParam = searchParams.get('view');
@@ -285,6 +290,20 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
     
     if (statusFilter === 'planejamento') return isPlanning;
     if (!baseStatus) return false;
+
+    // Filtro por Cargo (Produção vs Produção Carenagem)
+    const hasCarenagem = o.items.some(item => 
+      item.product.toLowerCase().includes('carenagem') || 
+      item.product.toLowerCase().includes('side skirt') ||
+      item.description?.toLowerCase().includes('carenagem') ||
+      item.description?.toLowerCase().includes('side skirt')
+    );
+
+    if (user?.role === 'producao_carenagem') {
+      if (!hasCarenagem) return false;
+    } else if (user?.role === 'producao') {
+      if (hasCarenagem) return false;
+    }
 
     const isActuallyScanned = scannedOrderIds.has(o.id);
     const filterToUse = tipoFiltro === 'historico' ? 'historico' : statusFilter;
@@ -1264,11 +1283,11 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
   return (
     <div className="space-y-6">
       <RealtimeNotificationHandler />
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="relative">
-          <h1 className="text-2xl font-black tracking-tight text-foreground flex items-center gap-3">
-             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-producao to-producao/60 flex items-center justify-center text-white shadow-lg shadow-producao/20">
-                <Package className="w-5 h-5" />
+          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground flex items-center gap-3">
+             <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${mainGradient} flex items-center justify-center text-white shadow-lg ${mainShadow} shrink-0`}>
+                <MainIcon className="w-5 h-5" />
              </div>
              <span className="gradient-text">{PAGE_TITLES[tipoFiltro] ?? 'Pedidos de Produção'}</span>
           </h1>
@@ -1279,9 +1298,9 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                   'Gestão da fábrica industrial'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
           {tipoFiltro === 'instalacao' && (
-            <div className="flex items-center gap-2 mr-2 bg-muted/30 p-1.5 rounded-xl border border-border/10">
+            <div className="flex items-center gap-2 bg-muted/30 p-1.5 rounded-xl border border-border/10 shrink-0">
               <Calendar className="w-4 h-4 text-muted-foreground ml-1" />
               <input
                 type="date"
@@ -1291,16 +1310,16 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
               />
             </div>
           )}
-          {/* Removido o botão sincronizar a pedido */}
           <button
             onClick={() => setShowCalendar(!showCalendar)}
-            className={`btn-modern gap-2 text-xs font-bold ${showCalendar ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary border-primary/20'}`}
+            className={`btn-modern gap-2 text-xs font-bold shrink-0 ${showCalendar ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary border-primary/20'}`}
           >
             <Calendar className="w-4 h-4" />
-            {showCalendar ? 'Ocultar Calendário' : 'Ver Calendário'}
+            <span className="hidden xs:inline">{showCalendar ? 'Ocultar Calendário' : 'Ver Calendário'}</span>
+            <span className="xs:hidden">{showCalendar ? 'Ocultar' : 'Calendário'}</span>
           </button>
-          <button onClick={() => setShowScanner(true)} className="btn-modern bg-gradient-to-r from-producao to-producao/80 text-primary-foreground">
-            <ScanLine className="w-4 h-4" /> Ler Código
+          <button onClick={() => setShowScanner(true)} className={`btn-modern bg-gradient-to-r ${mainGradient} text-primary-foreground shrink-0`}>
+            <ScanLine className="w-4 h-4" /> <span className="hidden xs:inline">Ler Código</span>
           </button>
         </div>
       </div>
@@ -1330,50 +1349,52 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
         </div>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col lg:flex-row lg:items-center gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
-          <input type="text" placeholder="Filtre por Pedido, Cliente ou Vendedor..." value={search} onChange={e => setSearch(e.target.value)} className="input-modern pl-10 py-2.5" />
+          <input type="text" placeholder="Filtre por Pedido, Cliente ou Vendedor..." value={search} onChange={e => setSearch(e.target.value)} className="input-modern pl-10 py-3" />
         </div>
-        <div className="flex items-center gap-3 bg-muted/20 p-2 rounded-2xl border border-border/10">
-          <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
-             <Filter className="w-4 h-4" />
+        <div className="flex flex-row items-center gap-3 w-full lg:w-auto">
+          <div className="flex flex-1 items-center gap-2 bg-muted/20 p-2 rounded-2xl border border-border/10">
+            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+               <Filter className="w-4 h-4" />
+            </div>
+            <div className="relative flex-1 min-w-[100px]">
+              <select 
+                value={orderTypeFilter} 
+                onChange={e => setOrderTypeFilter(e.target.value)}
+                className="w-full bg-transparent border-none text-[9px] font-black focus:outline-none uppercase tracking-widest appearance-none cursor-pointer pr-6"
+              >
+                <option value="todos" className="bg-card text-foreground">TODOS OS TIPOS</option>
+                <option value="entrega" className="bg-card text-foreground">📦 ENTREGA</option>
+                <option value="instalacao" className="bg-card text-foreground">🔧 INSTALAÇÃO</option>
+                <option value="retirada" className="bg-card text-foreground">🏢 RETIRADA</option>
+                <option value="manutencao" className="bg-card text-foreground">🛠️ MANUTENÇÃO</option>
+              </select>
+              <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
+            </div>
           </div>
-          <div className="relative flex-1 min-w-[140px]">
-            <select 
-              value={orderTypeFilter} 
-              onChange={e => setOrderTypeFilter(e.target.value)}
-              className="w-full bg-transparent border-none text-[10px] font-black focus:outline-none uppercase tracking-widest appearance-none cursor-pointer pr-8"
-            >
-              <option value="todos" className="bg-card text-foreground">TODOS OS TIPOS</option>
-              <option value="entrega" className="bg-card text-foreground">📦 ENTREGA</option>
-              <option value="instalacao" className="bg-card text-foreground">🔧 INSTALAÇÃO</option>
-              <option value="retirada" className="bg-card text-foreground">🏢 RETIRADA</option>
-              <option value="manutencao" className="bg-card text-foreground">🛠️ MANUTENÇÃO</option>
-            </select>
-            <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 bg-muted/20 p-2 rounded-2xl border border-border/10">
-          <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
-            <Truck className="w-4 h-4" />
-          </div>
-          <div className="relative flex-1 min-w-[140px]">
-            <select 
-              value={carrierFilter} 
-              onChange={e => setCarrierFilter(e.target.value)}
-              className="w-full bg-transparent border-none text-[10px] font-black focus:outline-none uppercase tracking-widest appearance-none cursor-pointer pr-8"
-            >
-              <option value="todos" className="bg-card text-foreground">TODOS OS MEIOS</option>
-              <option value="jadlog" className="bg-card text-foreground">JADLOG</option>
-              <option value="motoboy" className="bg-card text-foreground">MOTOBOY</option>
-              <option value="kleyton" className="bg-card text-foreground">KLEYTON</option>
-              <option value="lalamove" className="bg-card text-foreground">LALAMOVE</option>
-              <option value="retirada" className="bg-card text-foreground">RETIRADA LOCAL</option>
-              <option value="sem_definir" className="bg-card text-foreground">TRANSPORTADORA NÃO DEFINIDA</option>
-            </select>
-            <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+  
+          <div className="flex flex-1 items-center gap-2 bg-muted/20 p-2 rounded-2xl border border-border/10">
+            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
+              <Truck className="w-4 h-4" />
+            </div>
+            <div className="relative flex-1 min-w-[100px]">
+              <select 
+                value={carrierFilter} 
+                onChange={e => setCarrierFilter(e.target.value)}
+                className="w-full bg-transparent border-none text-[9px] font-black focus:outline-none uppercase tracking-widest appearance-none cursor-pointer pr-6"
+              >
+                <option value="todos" className="bg-card text-foreground">TODOS OS MEIOS</option>
+                <option value="jadlog" className="bg-card text-foreground">JADLOG</option>
+                <option value="motoboy" className="bg-card text-foreground">MOTOBOY</option>
+                <option value="kleyton" className="bg-card text-foreground">KLEYTON</option>
+                <option value="lalamove" className="bg-card text-foreground">LALAMOVE</option>
+                <option value="retirada" className="bg-card text-foreground">RETIRADA LOCAL</option>
+                <option value="sem_definir" className="bg-card text-foreground">SEM DEFINIR</option>
+              </select>
+              <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
+            </div>
           </div>
         </div>
       </div>
@@ -1385,28 +1406,28 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
               <div className="card-section p-12 text-center text-muted-foreground">Nenhuma garantia em produção</div>
             ) : (
               warranties.filter(w => w.status === 'Em produção').map(w => (
-                <div key={w.id} className="card-section p-5 border-primary/20">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
+                <div key={w.id} className="card-section p-4 sm:p-5 border-primary/20">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4 w-full">
+                      <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
                         <HistoryIcon className="w-5 h-5" />
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-extrabold text-foreground">{w.orderNumber}</span>
                           <span className="status-badge bg-primary/10 text-primary text-[9px]">EM PRODUÇÃO</span>
                         </div>
-                        <p className="text-sm font-bold text-foreground">{w.clientName}</p>
-                        <p className="text-xs text-muted-foreground italic mt-1 font-medium">"{w.description}"</p>
+                        <p className="text-sm font-bold text-foreground truncate">{w.clientName}</p>
+                        <p className="text-xs text-muted-foreground italic mt-1 font-medium line-clamp-1">"{w.description}"</p>
                       </div>
                     </div>
-                    <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="flex flex-row sm:flex-row gap-2 w-full sm:w-auto">
                       {w.orderId && (
                         <button
                           onClick={() => setViewOrderId(w.orderId)}
-                          className="btn-modern bg-muted/50 text-foreground hover:bg-muted text-xs font-bold py-2 px-4 border border-border/20"
+                          className="btn-modern flex-1 sm:flex-none justify-center bg-muted/50 text-foreground hover:bg-muted text-[10px] font-bold py-2.5 px-4 border border-border/20"
                         >
-                          <Eye className="w-4 h-4 mr-2" /> Detalhes
+                          <Eye className="w-4 h-4 mr-2" /> <span className="sm:hidden">Ver</span><span className="hidden sm:inline">Detalhes</span>
                         </button>
                       )}
                       <button
@@ -1416,7 +1437,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                             alert('Garantia concluída!');
                           }
                         }}
-                        className="btn-modern bg-success/10 text-success hover:bg-success/20 text-xs font-bold py-2 px-4 border border-success/20"
+                        className="btn-modern flex-1 sm:flex-none justify-center bg-success/10 text-success hover:bg-success/20 text-[10px] font-bold py-2.5 px-4 border border-success/20"
                       >
                         <CheckCircle className="w-4 h-4 mr-2" /> Finalizar
                       </button>
@@ -1457,79 +1478,79 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                   'border-l-muted'
                 } ${late ? 'border-l-destructive shadow-lg shadow-destructive/5' : ''}`}>
                   
-                  <div className="p-5 flex items-center justify-between gap-6 relative z-10">
-                    <div className="flex items-center gap-5 flex-1 min-w-0">
+                  <div className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 relative z-10">
+                    <div className="flex items-center gap-4 sm:gap-5 flex-1 min-w-0">
                       {/* Avatar/Icon Group */}
-                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-inner group-hover:rotate-3 transition-transform duration-500 ${late ? 'bg-destructive/10' : 'bg-muted/30'}`}>
+                      <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-inner group-hover:rotate-3 transition-transform duration-500 ${late ? 'bg-destructive/10' : 'bg-muted/30'}`}>
                         {order.isWarranty || order.notes?.includes('GARANTIA') ? (
-                          <HistoryIcon className={`w-7 h-7 ${late ? 'text-destructive' : 'text-primary'}`} />
+                          <HistoryIcon className={`w-6 h-6 sm:w-7 sm:h-7 ${late ? 'text-destructive' : 'text-primary'}`} />
                         ) : (
-                          <Package className={`w-7 h-7 ${late ? 'text-destructive' : 'text-muted-foreground'}`} />
+                          <Package className={`w-6 h-6 sm:w-7 sm:h-7 ${late ? 'text-destructive' : 'text-muted-foreground'}`} />
                         )}
                       </div>
 
                       {/* Info Group */}
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-3 flex-wrap mb-1.5">
-                          <h3 className="font-black text-foreground text-xl tracking-tighter uppercase flex items-center gap-2">
+                        <div className="flex items-center gap-2 sm:gap-3 flex-wrap mb-1.5">
+                          <h3 className="font-black text-foreground text-lg sm:text-xl tracking-tighter uppercase flex items-center gap-2">
                             {order.number}
                             {(order.isWarranty || order.notes?.toLowerCase().includes('garantia')) && (
-                              <span className="px-2 py-0.5 rounded-lg bg-destructive text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-destructive/20 animate-pulse">
+                              <span className="px-2 py-0.5 rounded-lg bg-destructive text-white text-[8px] sm:text-[10px] font-black uppercase tracking-widest shadow-lg shadow-destructive/20 animate-pulse">
                                 GARANTIA
                               </span>
                             )}
                           </h3>
                           
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 flex-wrap">
                              <StatusBadge status={order.status} />
                              
                              {order.carrier && (
-                               <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm ${carrierInfo.color}`}>
-                                 <carrierInfo.icon className="w-3 h-3" />
+                               <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest shadow-sm ${carrierInfo.color}`}>
+                                 <carrierInfo.icon className="w-2.5 h-2.5" />
                                  {carrierInfo.label}
                                </span>
                              )}
 
                              {/* Badge de Tipo de Pedido */}
-                             <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm ${
+                             <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest shadow-sm ${
                                order.orderType === 'instalacao' ? 'bg-amber-500 text-white' :
                                order.orderType === 'manutencao' ? 'bg-indigo-500 text-white' :
                                order.orderType === 'retirada' ? 'bg-slate-700 text-white' :
                                'bg-muted text-muted-foreground'
                              }`}>
-                               {order.orderType === 'instalacao' ? '🔧 Instalação' :
-                                order.orderType === 'manutencao' ? '🛠️ Manutenção' :
+                               {order.orderType === 'instalacao' ? '🔧 Inst.' :
+                                order.orderType === 'manutencao' ? '🛠️ Manut.' :
                                 order.orderType === 'retirada' ? '🏢 Retirada' :
                                 '📦 Entrega'}
                              </span>
 
                              {(order.orderType === 'instalacao' || order.orderType === 'manutencao' || order.orderType === 'retirada') && order.installationPaymentType && (
-                               <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm animate-in fade-in zoom-in-95 duration-500 ${
-                                 order.installationPaymentType === 'pago' ? 'bg-emerald-600 text-white' : 'bg-rose-500 text-white ring-2 ring-rose-500/20'
+                               <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest shadow-sm ${
+                                 order.installationPaymentType === 'pago' ? 'bg-emerald-600 text-white' : 'bg-rose-500 text-white'
                                }`}>
-                                 {order.installationPaymentType === 'pago' ? '✅ JÁ PAGO' : '💰 PAGAR NA HORA'}
+                                 {order.installationPaymentType === 'pago' ? '✅ PAGO' : '💰 NA HORA'}
                                </span>
                              )}
 
                              {late && (
-                               <span className="px-2.5 py-1 rounded-full bg-destructive text-white text-[9px] font-black uppercase tracking-widest animate-pulse shadow-lg shadow-destructive/20">
+                               <span className="px-2 py-0.5 rounded-full bg-destructive text-white text-[8px] font-black uppercase tracking-widest animate-pulse shadow-lg shadow-destructive/20">
                                  ATRASADO
                                </span>
                              )}
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-3 text-xs mb-3">
-                           <span className="font-extrabold text-foreground/90 flex items-center gap-1.5">
-                             <User className="w-3.5 h-3.5 text-primary" />
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-[10px] sm:text-xs mb-3">
+                           <span className="font-extrabold text-foreground/90 flex items-center gap-1.5 truncate">
+                             <User className="w-3.5 h-3.5 text-primary shrink-0" />
                              {order.clientName}
                            </span>
                            <span className="text-muted-foreground font-bold flex items-center gap-1.5">
-                             <div className="w-1 h-1 rounded-full bg-muted-foreground/30" />
+                             <div className="w-1 h-1 rounded-full bg-muted-foreground/30 hidden sm:block" />
                              Vend: {order.sellerName}
                            </span>
                            {(order.orderType === 'instalacao' || order.orderType === 'manutencao' || order.orderType === 'retirada') && (order.installationDate || order.scheduledDate) && (
-                              <span className="text-primary font-black flex items-center gap-1.5 ml-auto animate-in fade-in slide-in-from-right-2 duration-700 bg-primary/5 px-2 py-0.5 rounded-lg border border-primary/10">
+                              <span className="text-primary font-black flex items-center gap-1.5 sm:ml-auto bg-primary/5 px-2 py-0.5 rounded-lg border border-primary/10">
                                 <Clock className="w-3.5 h-3.5" />
                                 {fmtDate(order.installationDate || order.scheduledDate)} {order.installationTime ? `@ ${order.installationTime}` : ''}
                               </span>
@@ -1537,21 +1558,21 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                         </div>
 
                         {/* Itens Group */}
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-1.5 sm:gap-2">
                           {order.items.map((i, idx) => (
-                            <div key={idx} className="group/item relative">
-                              <div className={`px-3 py-1.5 rounded-xl border flex items-center gap-2.5 transition-all
+                            <div key={idx} className="group/item relative max-w-full">
+                              <div className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border flex items-center gap-2 transition-all
                                 ${i.sensorType === 'com_sensor' 
                                   ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-700 shadow-sm' 
                                   : 'bg-muted/40 border-border/20 text-foreground/80'}
                               `}>
-                                <span className="font-black text-xs">{i.quantity}x</span>
-                                <span className="font-extrabold text-[11px] uppercase tracking-tight">{i.product}</span>
+                                <span className="font-black text-[10px] sm:text-xs">{i.quantity}x</span>
+                                <span className="font-extrabold text-[9px] sm:text-[11px] uppercase tracking-tight truncate max-w-[150px]">{i.product}</span>
                                 
                                 {i.sensorType === 'com_sensor' && (
-                                  <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500 text-white shadow-sm ring-2 ring-emerald-500/10">
-                                    <Zap className="w-2.5 h-2.5 fill-current" />
-                                    <span className="text-[7px] font-black">COM SENSOR</span>
+                                  <div className="flex items-center gap-1 px-1 py-0.5 rounded-md bg-emerald-500 text-white shadow-sm ring-2 ring-emerald-500/10 shrink-0">
+                                    <Zap className="w-2 h-2 fill-current" />
+                                    <span className="text-[6px] sm:text-[7px] font-black">SENSOR</span>
                                   </div>
                                 )}
                               </div>
@@ -1562,10 +1583,10 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                     </div>
 
                     {/* Actions Group */}
-                    <div className="flex flex-col sm:flex-row items-center gap-3">
+                    <div className="flex flex-row sm:flex-row items-center gap-2 sm:gap-3 w-full md:w-auto">
                       <button 
                         onClick={() => setViewOrderId(order.id)} 
-                        className="btn-modern bg-muted/60 text-foreground text-[10px] font-black px-5 py-3 hover:bg-muted border border-border/10 rounded-xl"
+                        className="btn-modern flex-1 md:flex-none justify-center bg-muted/60 text-foreground text-[10px] font-black px-4 sm:px-5 py-3 hover:bg-muted border border-border/10 rounded-xl"
                       >
                         DETALHES
                       </button>
@@ -1573,7 +1594,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                       {order.status === 'aguardando_producao' && (
                         <button 
                           onClick={() => setViewOrderId(order.id)} 
-                          className="btn-primary from-producao to-producao/80 px-8 py-3 text-xs font-black uppercase rounded-xl shadow-xl shadow-producao/20 hover:scale-105 active:scale-95 transition-all"
+                          className={`btn-primary flex-1 md:flex-none justify-center bg-gradient-to-br ${mainGradient} px-6 sm:px-8 py-3 text-[10px] sm:text-xs font-black uppercase rounded-xl shadow-xl ${mainShadow} hover:scale-105 active:scale-95 transition-all text-white border-none`}
                         >
                           INICIAR
                         </button>
@@ -1582,24 +1603,24 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                       {order.status === 'em_producao' && (
                         <button 
                           onClick={() => setViewOrderId(order.id)} 
-                          className="btn-primary from-emerald-500 to-emerald-600 px-8 py-3 text-xs font-black uppercase rounded-xl shadow-xl shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all text-white"
+                          className="btn-primary flex-1 md:flex-none justify-center from-emerald-500 to-emerald-600 px-6 sm:px-8 py-3 text-[10px] sm:text-xs font-black uppercase rounded-xl shadow-xl shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all text-white"
                         >
                           FINALIZAR
                         </button>
                       )}
 
                       {(order.status === 'producao_finalizada' || order.status === 'produto_liberado') && (
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 flex-1 md:flex-none">
                           <button 
                             onClick={(e) => { e.stopPropagation(); setGuia(order.id); }} 
-                            className="btn-modern bg-primary/10 text-primary px-4 py-3 text-xs font-black hover:bg-primary/20 border border-primary/20 rounded-xl shadow-lg shadow-primary/5"
+                            className="btn-modern flex-1 md:flex-none justify-center bg-primary/10 text-primary px-3 sm:px-4 py-3 text-[10px] sm:text-xs font-black hover:bg-primary/20 border border-primary/20 rounded-xl shadow-lg shadow-primary/5"
                           >
                             GUIA
                           </button>
                           {order.orderType === 'entrega' && (
                             <button 
                               onClick={(e) => { e.stopPropagation(); printEtiqueta(order); }} 
-                              className="btn-modern bg-emerald-500/10 text-emerald-600 px-4 py-3 text-xs font-black hover:bg-emerald-500/20 border border-emerald-500/20 rounded-xl"
+                              className="btn-modern justify-center bg-emerald-500/10 text-emerald-600 px-3 sm:px-4 py-3 text-[10px] sm:text-xs font-black hover:bg-emerald-500/20 border border-emerald-500/20 rounded-xl"
                             >
                               <Printer className="w-4 h-4" />
                             </button>
@@ -1610,9 +1631,9 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                       {order.status === 'retirado_entregador' && order.orderType === 'entrega' && (
                         <button 
                           onClick={(e) => { e.stopPropagation(); printEtiqueta(order); }} 
-                          className="btn-modern bg-emerald-500/10 text-emerald-600 px-6 py-3 text-xs font-black hover:bg-emerald-500/20 border border-emerald-500/20 rounded-xl flex items-center gap-2"
+                          className="btn-modern flex-1 md:flex-none justify-center bg-emerald-500/10 text-emerald-600 px-5 sm:px-6 py-3 text-[10px] sm:text-xs font-black hover:bg-emerald-500/20 border border-emerald-500/20 rounded-xl flex items-center gap-2"
                         >
-                          <Printer className="w-4 h-4" /> REIMPRIMIR
+                          <Printer className="w-4 h-4" /> <span className="hidden sm:inline">REIMPRIMIR</span><span className="sm:hidden">ETIQUETA</span>
                         </button>
                       )}
                     </div>

@@ -5,7 +5,7 @@ interface User {
   id: string;
   email: string;
   name: string;
-  role: 'vendedor' | 'gestor' | 'financeiro' | 'producao' | 'admin' | 'garantia';
+  role: 'vendedor' | 'gestor' | 'financeiro' | 'producao' | 'producao_carenagem' | 'admin' | 'garantia';
 
 }
 

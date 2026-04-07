@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useERP } from '@/contexts/ERPContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { StatCard, StatusBadge, formatCurrency, formatDate } from '@/components/shared/StatusBadge';
 import { RealtimeNotificationHandler } from '@/components/shared/RealtimeNotificationHandler';
 import { useRealtimeOrders } from '@/hooks/useRealtimeOrders';
@@ -8,8 +9,17 @@ import { Link, useNavigate } from 'react-router-dom';
 
 const ProducaoDashboard: React.FC = () => {
   const { orders, barcodeScans, loadFromSupabase } = useERP();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [notificationCount, setNotificationCount] = useState(0);
+
+  const isCarenagem = user?.role === 'producao_carenagem';
+  const mainColor = isCarenagem ? 'text-indigo-600' : 'text-producao';
+  const mainIcon = isCarenagem ? Truck : Factory;
+  const mainGradient = isCarenagem ? 'from-indigo-600/20 to-indigo-600/5' : 'from-producao/20 to-producao/5';
+  const mainBorder = isCarenagem ? 'border-indigo-600/20' : 'border-producao/20';
+  const mainShadow = isCarenagem ? 'hover:shadow-indigo-600/10' : 'hover:shadow-producao/10';
+  const mainIconBg = isCarenagem ? 'from-indigo-600/20 to-indigo-600/5' : 'from-producao/20 to-producao/5';
 
   // Monitora em tempo real quando novos pedidos chegam para produção
   useRealtimeOrders((event) => {
@@ -22,10 +32,32 @@ const ProducaoDashboard: React.FC = () => {
 
   const scannedOrderIds = new Set(barcodeScans.filter(s => s.success).map(s => s.orderId));
 
-  const prodOrders = orders.filter(o =>
-    ['aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado', 'retirado_entregador'].includes(o.status) &&
-    !scannedOrderIds.has(o.id)
-  );
+  const prodOrders = orders.filter(o => {
+    const baseStatus = ['aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado', 'retirado_entregador'].includes(o.status) &&
+      !scannedOrderIds.has(o.id);
+    
+    if (!baseStatus) return false;
+
+    const hasCarenagem = o.items.some(item => 
+      item.product.toLowerCase().includes('carenagem') || 
+      item.product.toLowerCase().includes('side skirt') ||
+      item.description?.toLowerCase().includes('carenagem') ||
+      item.description?.toLowerCase().includes('side skirt')
+    );
+
+    if (user?.role === 'producao_carenagem') {
+      return hasCarenagem;
+    }
+    
+    // Na produção normal, vamos mostrar tudo que NÃO é exclusivamente carenagem
+    // ou talvez mostrar apenas o que NÃO tem carenagem.
+    // Seguindo a lógica do usuário, carenagem deve ir para o novo perfil.
+    if (user?.role === 'producao') {
+      return !hasCarenagem;
+    }
+
+    return true;
+  });
 
   const getLocalDateString = (date: Date = new Date()) => {
     const y = date.getFullYear();
@@ -66,7 +98,7 @@ const ProducaoDashboard: React.FC = () => {
 
       {/* Stats principais */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 stagger-children">
-        <Link to="/producao/pedidos?tipo=" className="block relative">
+        <Link to={`/${user?.role}/pedidos?tipo=`} className="block relative">
           <div className="relative">
             <StatCard title="Aguardando" value={aguardando} icon={Clock} color="text-warning" />
             {notificationCount > 0 && (
@@ -79,35 +111,35 @@ const ProducaoDashboard: React.FC = () => {
             )}
           </div>
         </Link>
-        <Link to="/producao/pedidos" className="block">
-          <StatCard title="Em Producao" value={emProducao} icon={Factory} color="text-producao" />
+        <Link to={`/${user?.role}/pedidos`} className="block">
+          <StatCard title="Em Producao" value={emProducao} icon={mainIcon} color={mainColor} />
         </Link>
-        <Link to="/producao/pedidos" className="block">
+        <Link to={`/${user?.role}/pedidos`} className="block">
           <StatCard title="Finalizados" value={finalizados} icon={CheckCircle} color="text-success" />
         </Link>
-        <Link to="/producao/pedidos" className="block">
+        <Link to={`/${user?.role}/pedidos`} className="block">
           <StatCard title="Liberados" value={liberados} icon={Package} color="text-gestor" />
         </Link>
       </div>
 
       {/* Stats secundarias */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 stagger-children">
-        <Link to="/producao/pedidos?tipo=instalacao" className="block">
-          <StatCard title="Instalações" value={instalacoes} icon={Wrench} color="text-producao" />
+        <Link to={`/${user?.role}/pedidos?tipo=instalacao`} className="block">
+          <StatCard title="Instalações" value={instalacoes} icon={Wrench} color={mainColor} />
         </Link>
-        <Link to="/producao/pedidos?tipo=atrasado" className="block">
+        <Link to={`/${user?.role}/pedidos?tipo=atrasado`} className="block">
           <StatCard title="Atrasados" value={atrasados} icon={AlertTriangle} color="text-destructive" />
         </Link>
-        <Link to="/producao/pedidos?view=calendar" className="block">
+        <Link to={`/${user?.role}/pedidos?view=calendar`} className="block">
           <StatCard title="Calendário" value={orders.length} icon={Calendar} color="text-info" />
         </Link>
       </div>
 
       {/* Atalhos rapidos */}
       <div className="grid grid-cols-1 gap-4">
-        <Link to="/producao/pedidos?scan=true" className="card-section p-6 hover:shadow-xl hover:shadow-producao/10 hover:-translate-y-1 transition-all duration-300 group cursor-pointer border-producao/20 bg-gradient-to-br from-card to-producao/[0.02]">
+        <Link to={`/${user?.role}/pedidos?scan=true`} className={`card-section p-6 hover:shadow-xl ${mainShadow} hover:-translate-y-1 transition-all duration-300 group cursor-pointer ${mainBorder} bg-gradient-to-br ${mainGradient}`}>
           <div className="flex items-center gap-6">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-producao/20 to-producao/5 flex items-center justify-center text-producao group-hover:scale-110 transition-transform shadow-inner">
+            <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${mainIconBg} flex items-center justify-center ${mainColor} group-hover:scale-110 transition-transform shadow-inner`}>
               <ScanLine className="w-8 h-8" />
             </div>
             <div>
@@ -122,7 +154,7 @@ const ProducaoDashboard: React.FC = () => {
       <div className="card-section">
         <div className="card-section-header">
           <h2 className="card-section-title">Pedidos Recentes</h2>
-          <Link to="/producao/pedidos" className="text-xs font-semibold text-primary hover:underline">Ver todos →</Link>
+          <Link to={`/${user?.role}/pedidos`} className="text-xs font-semibold text-primary hover:underline">Ver todos →</Link>
         </div>
         <div className="overflow-x-auto">
           <table className="modern-table">
@@ -148,7 +180,7 @@ const ProducaoDashboard: React.FC = () => {
                   <tr
                     key={order.id}
                     className="cursor-pointer hover:bg-muted/30 transition-colors"
-                    onClick={() => navigate(`/producao/pedidos?view=${order.id}`)}
+                    onClick={() => navigate(`/${user?.role}/pedidos?view=${order.id}`)}
                   >
                     <td className="font-bold text-foreground">
                       <div className="flex items-center gap-1.5">
@@ -164,7 +196,7 @@ const ProducaoDashboard: React.FC = () => {
                     <td className="text-foreground">{order.clientName}</td>
                     <td className="hidden md:table-cell">
                       {order.orderType === 'instalacao'
-                        ? <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-producao"><Wrench className="w-3 h-3" /> Instalacao</span>
+                        ? <span className={`inline-flex items-center gap-1 text-[10px] font-semibold ${mainColor}`}><Wrench className="w-3 h-3" /> Instalacao</span>
                         : <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary"><Truck className="w-3 h-3" /> Entrega</span>
                       }
                     </td>

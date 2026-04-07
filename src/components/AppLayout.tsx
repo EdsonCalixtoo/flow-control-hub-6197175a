@@ -74,6 +74,16 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: 
     { label: 'Garantias', icon: ShieldAlert, path: '/producao/pedidos?tipo=garantias' },
     { label: 'Atrasados', icon: AlertTriangle, path: '/producao/pedidos?tipo=atrasado' },
   ],
+  producao_carenagem: [
+    { label: 'Dashboard', icon: LayoutDashboard, path: '/producao_carenagem' },
+    { label: 'Pedidos Carenagem', icon: Truck, path: '/producao_carenagem/pedidos' },
+    { label: 'Instalação', icon: Wrench, path: '/producao_carenagem/pedidos?tipo=instalacao' },
+    { label: 'Retirada', icon: Truck, path: '/producao_carenagem/pedidos?tipo=retirada' },
+    { label: 'Calendário', icon: Calendar, path: '/producao_carenagem/pedidos?view=calendar' },
+    { label: 'Histórico Carenagem', icon: History, path: '/producao_carenagem/pedidos?tipo=historico' },
+    { label: 'Garantias', icon: ShieldAlert, path: '/producao_carenagem/pedidos?tipo=garantias' },
+    { label: 'Atrasados', icon: AlertTriangle, path: '/producao_carenagem/pedidos?tipo=atrasado' },
+  ],
 };
 
 
@@ -82,6 +92,7 @@ const ROLE_COLORS: Record<string, string> = {
   financeiro: 'from-financeiro to-financeiro/70',
   gestor: 'from-gestor to-gestor/70',
   producao: 'from-producao to-producao/70',
+  producao_carenagem: 'from-indigo-600 to-indigo-500/70',
 };
 
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {

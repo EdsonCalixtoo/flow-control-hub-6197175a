@@ -1,0 +1,41 @@
+[
+  {
+    "id": "7b8ac7fe-503d-498b-98c0-87bbcb71604a",
+    "client_id": "031ebc42-fa8a-4cb8-8382-d52de53a7c84",
+    "reward_type": "tier_3",
+    "kits_required": 10,
+    "kits_completed": 3,
+    "kits_consumed": 0,
+    "kits_adjustment": 0,
+    "reward_status": "pendente",
+    "reward_redeemed_at": null,
+    "updated_at": "2026-04-06T18:12:14.774+00:00",
+    "created_at": "2026-04-06T11:45:23.347472+00:00"
+  },
+  {
+    "id": "25143dda-f409-4564-875f-f2491dc6a13f",
+    "client_id": "031ebc42-fa8a-4cb8-8382-d52de53a7c84",
+    "reward_type": "tier_1",
+    "kits_required": 5,
+    "kits_completed": 1,
+    "kits_consumed": 5,
+    "kits_adjustment": 0,
+    "reward_status": "pendente",
+    "reward_redeemed_at": "2026-04-06T11:45:26.758+00:00",
+    "updated_at": "2026-04-06T18:12:14.352+00:00",
+    "created_at": "2026-04-06T11:45:23.177228+00:00"
+  },
+  {
+    "id": "a9893de3-fc7a-4508-b4ae-e31f9b24b9c6",
+    "client_id": "031ebc42-fa8a-4cb8-8382-d52de53a7c84",
+    "reward_type": "tier_2",
+    "kits_required": 7,
+    "kits_completed": 0,
+    "kits_consumed": 0,
+    "kits_adjustment": 0,
+    "reward_status": "pendente",
+    "reward_redeemed_at": null,
+    "updated_at": "2026-04-06T18:12:14.586+00:00",
+    "created_at": "2026-04-06T11:45:23.255098+00:00"
+  }
+]

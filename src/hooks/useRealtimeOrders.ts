@@ -88,8 +88,18 @@ function setupChannel(userId: string, userRole: string, userName: string) {
               }
             }
 
-            // Notificações para PRODUÇÃO
-            if (role === 'producao' && order.status === 'aprovado_financeiro') {
+            // Notificações para PRODUÇÃO ou PRODUÇÃO CARENAGEM
+            const isCarenagem = order.items?.some(i => 
+              i.product.toLowerCase().includes('carenagem') || 
+              i.product.toLowerCase().includes('side skirt')
+            );
+
+            if (role === 'producao_carenagem' && order.status === 'aprovado_financeiro' && isCarenagem) {
+              toast.info(`🏭 Novo Pedido de Carenagem: #${order.number}`, {
+                description: `Cliente: ${order.clientName}`,
+                duration: 6000
+              });
+            } else if (role === 'producao' && order.status === 'aprovado_financeiro' && !isCarenagem) {
               toast.info(`🏭 Novo Pedido para Produção: #${order.number}`, {
                 description: `Cliente: ${order.clientName}`,
                 duration: 6000

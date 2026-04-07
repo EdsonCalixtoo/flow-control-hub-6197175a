@@ -112,6 +112,12 @@ const App = () => (
                 <Route path="/producao/cronograma" element={<ProtectedRoute role="producao"><Suspense fallback={null}><CronogramaProducaoPage /></Suspense></ProtectedRoute>} />
                 <Route path="/producao/historico" element={<ProtectedRoute role="producao"><div className="p-8">Histórico da Produção</div></ProtectedRoute>} />
 
+                {/* Produção Carenagem */}
+                <Route path="/producao_carenagem" element={<ProtectedRoute role="producao_carenagem"><ProducaoDashboard /></ProtectedRoute>} />
+                <Route path="/producao_carenagem/pedidos" element={<ProtectedRoute role="producao_carenagem"><PedidosProducaoPage /></ProtectedRoute>} />
+                <Route path="/producao_carenagem/cronograma" element={<ProtectedRoute role="producao_carenagem"><Suspense fallback={null}><CronogramaProducaoPage /></Suspense></ProtectedRoute>} />
+                <Route path="/producao_carenagem/historico" element={<ProtectedRoute role="producao_carenagem"><div className="p-8">Histórico da Produção Carenagem</div></ProtectedRoute>} />
+
                 {/* Garantia */}
                 <Route path="/garantia" element={<ProtectedRoute role="garantia"><GarantiaVendedorPage /></ProtectedRoute>} />
                 <Route path="/garantia/pedidos" element={<ProtectedRoute role="garantia"><GarantiaVendedorPage /></ProtectedRoute>} />

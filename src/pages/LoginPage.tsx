@@ -5,7 +5,7 @@ import { ROLE_LABELS } from '@/types/erp';
 import {
   ShoppingCart, DollarSign, BarChart3, Factory,
   ArrowRight, ArrowLeft, Eye, EyeOff, Loader2, AlertCircle,
-  Trash2, UserPlus, LogIn, CheckCircle2, User,
+  Trash2, UserPlus, LogIn, CheckCircle2, User, Truck,
 } from 'lucide-react';
 
 const roles: { role: UserRole; icon: React.ElementType; desc: string; gradient: string; iconBg: string }[] = [
@@ -13,6 +13,7 @@ const roles: { role: UserRole; icon: React.ElementType; desc: string; gradient: 
   { role: 'financeiro', icon: DollarSign, desc: 'Pagamentos, aprovações e DRE', gradient: 'from-financeiro/10 to-financeiro/5', iconBg: 'bg-financeiro' },
   { role: 'gestor', icon: BarChart3, desc: 'Conferência e indicadores', gradient: 'from-gestor/10 to-gestor/5', iconBg: 'bg-gestor' },
   { role: 'producao', icon: Factory, desc: 'Produção e liberação', gradient: 'from-producao/10 to-producao/5', iconBg: 'bg-producao' },
+  { role: 'producao_carenagem', icon: Truck, desc: 'Pedidos de carenagem e side skirt', gradient: 'from-indigo-600/10 to-indigo-500/5', iconBg: 'bg-indigo-600' },
 ];
 
 type Step = 'select' | 'auth';

@@ -73,6 +73,7 @@ interface ERPContextType {
   clearAll: () => Promise<void>;
   loadFromSupabase: () => Promise<void>;
   loadOrderDetails: (orderId: string) => Promise<Order | null>;
+  loadOrderByNumber: (orderNumber: string) => Promise<Order | null>;
   // monthly closings
   monthlyClosings: MonthlyClosing[];
   closeMonth: (closing: Omit<MonthlyClosing, 'id' | 'createdAt'>) => Promise<void>;
@@ -384,6 +385,78 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return null;
     } catch (err: any) {
       console.error('[ERP] Erro ao carregar detalhes do pedido:', err.message);
+      return null;
+    }
+  }, []);
+
+  const loadOrderByNumber = useCallback(async (orderNumber: string): Promise<Order | null> => {
+    try {
+      const { fetchOrderByNumberSupabase } = await import('@/lib/orderServiceSupabase');
+      console.log(`[ERP] 🔍 Iniciando Busca Remota God-Mode para: ${orderNumber}`);
+      
+      // 1. TENTA NA TABELA DE PEDIDOS
+      let order = await fetchOrderByNumberSupabase(orderNumber);
+      
+      // 2. SE NÃO ENCONTRAR, TENTA NA TABELA DE GARANTIAS (Fallback Crítico)
+      if (!order) {
+        console.log(`[ERP] 🛠️ Pedido não encontrado. Tentando localizar via tabela de GARANTIAS...`);
+        const { fetchWarrantyByNumberSupabase } = await import('@/lib/warrantyServiceSupabase');
+        const warranty = await fetchWarrantyByNumberSupabase(orderNumber);
+        
+        if (warranty) {
+          console.log(`[ERP] ✅ GARANTIA localizada! OrderNumber: ${warranty.orderNumber} | OrderID: ${warranty.orderId}`);
+          
+          if (warranty.orderId) {
+            // Se a garantia tem um ID de pedido vinculado, tenta carregar esse pedido específico
+            const { fetchOrderById } = await import('@/lib/orderServiceSupabase');
+            order = await fetchOrderById(warranty.orderId);
+            if (order) {
+               console.log(`[ERP] 🦾 Pedido original vinculado à garantia carregado: ${order.number}`);
+            }
+          }
+          
+          // Se ainda não tem pedido (ex: garantia manual sem registro de pedido), sintetiza um "Pedido Virtual"
+          // Isso permite que o scanner de produção processe a garantia como se fosse um pedido
+          if (!order) {
+            console.log(`[ERP] 📦 Sintetizando Pedido Virtual para Garantia Manual: ${warranty.orderNumber}`);
+            order = {
+              id: warranty.id, // Usa o ID da garantia como ID do pedido virtual
+              number: warranty.orderNumber || orderNumber,
+              clientId: warranty.clientId,
+              clientName: warranty.clientName,
+              sellerId: warranty.sellerId,
+              sellerName: warranty.sellerName,
+              status: 'aguardando_producao', // Assume status de produção para permitir o scanner
+              total: 0,
+              subtotal: 0,
+              taxes: 0,
+              notes: '',
+              observation: '',
+              orderType: 'entrega',
+              receiptUrls: [],
+              isCronograma: false,
+              financeiroAprovado: true,
+              statusPagamento: 'pago',
+              items: [{ id: 'v1', product: warranty.product, quantity: 1, unitPrice: 0, total: 0, discount: 0, discountType: 'percentage' }],
+              createdAt: warranty.createdAt,
+              updatedAt: new Date().toISOString(),
+              isWarranty: true,
+              statusHistory: warranty.history || []
+            } as any as Order;
+          }
+        }
+      }
+
+      if (order) {
+        setOrders(prev => {
+          const exists = prev.find(o => o.id === order!.id);
+          if (exists) return prev.map(o => o.id === order!.id ? order! : o);
+          return [order!, ...prev];
+        });
+      }
+      return order;
+    } catch (err: any) {
+      console.error('[ERP] Erro crítico no God-Mode Search:', err.message);
       return null;
     }
   }, []);
@@ -768,6 +841,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (updated.orderId) {
           if (status === 'Garantia aprovada') {
             await updateOrderStatus(updated.orderId, 'aguardando_producao', undefined, userName, 'Garantia aprovada pelo gestor e enviada para produção');
+          } else if (status === 'Em produção') {
+            await updateOrderStatus(updated.orderId, 'em_producao', undefined, userName, 'Garantia em produção');
           } else if (status === 'Garantia finalizada') {
             await updateOrderStatus(updated.orderId, 'producao_finalizada', undefined, userName, 'Garantia concluída na produção');
           }
@@ -821,7 +896,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addClient, editClient, addFinancialEntry, updateFinancialEntry,
       warranties, addWarranty, updateWarrantyStatus, editWarranty,
       addProduct, updateProduct, deleteProduct, deleteClient, addDelayReport, markDelayReportRead, clearAll,
-      loadFromSupabase, loadOrderDetails,
+      loadFromSupabase, loadOrderDetails, loadOrderByNumber,
       monthlyClosings, closeMonth
     }}>
       {children}

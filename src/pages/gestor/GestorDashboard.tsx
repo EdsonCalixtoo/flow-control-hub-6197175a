@@ -1055,9 +1055,13 @@ const GestorDashboard: React.FC = () => {
                           <div className="flex items-center gap-2">
                             <span className="font-black text-xl text-foreground tracking-tight">{w.orderNumber}</span>
                             <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-lg border ${
-                              w.status === 'Garantia criada' ? 'bg-warning/10 text-warning border-warning/20' : 'bg-primary/10 text-primary border-primary/20'
+                              w.status === 'Garantia criada' ? 'bg-warning/10 text-warning border-warning/20' : 
+                              w.status === 'Em produção' ? 'bg-producao/10 text-producao border-producao/20' :
+                              'bg-primary/10 text-primary border-primary/20'
                             }`}>
-                              {w.status === 'Garantia criada' ? 'Aguardando Análise' : 'Aprovada - Aguardando Produção'}
+                              {w.status === 'Garantia criada' ? 'Aguardando Análise' : 
+                               w.status === 'Em produção' ? 'Em Produção' :
+                               'Aprovada - Aguardando Produção'}
                             </span>
                           </div>
                           <p className="text-sm font-bold text-foreground flex items-center gap-1.5">
@@ -1133,7 +1137,7 @@ const GestorDashboard: React.FC = () => {
                               <XCircle className="w-4 h-4 mr-2" /> Reprovar
                             </button>
                           </>
-                        ) : (
+                        ) : w.status === 'Garantia aprovada' ? (
                           <button
                             onClick={async () => {
                               if (window.confirm('Enviar este pedido de garantia para a produção?')) {
@@ -1145,6 +1149,10 @@ const GestorDashboard: React.FC = () => {
                           >
                             <Factory className="w-4 h-4 mr-2" /> Enviar para Linha de Produção
                           </button>
+                        ) : (
+                          <div className="sm:col-span-2 p-3 bg-success/5 border border-success/20 rounded-xl text-center">
+                             <p className="text-xs font-bold text-success">Garantia em processamento na produção</p>
+                          </div>
                         )}
                       </div>
                     </div>

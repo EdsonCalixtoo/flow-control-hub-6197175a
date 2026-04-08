@@ -75,3 +75,21 @@ export const updateWarranty = async (id: string, updates: Partial<Warranty>): Pr
     if (error) throw error;
     return supabaseToWarranty(data);
 };
+
+export const fetchWarrantyByNumberSupabase = async (num: string): Promise<Warranty | null> => {
+    try {
+        const { data, error } = await supabase
+            .from('warranties')
+            .select('*')
+            .or(`order_number.ilike.%${num}%`)
+            .limit(1)
+            .maybeSingle();
+
+        if (error) throw error;
+        if (!data) return null;
+        return supabaseToWarranty(data);
+    } catch (err: any) {
+        console.error('[Warranties] Erro ao buscar garantia por número:', err.message);
+        return null;
+    }
+};

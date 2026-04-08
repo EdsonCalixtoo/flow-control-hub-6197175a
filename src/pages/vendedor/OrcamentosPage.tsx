@@ -273,7 +273,7 @@ const OrcamentosPage: React.FC = () => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [showSuccessAnim, setShowSuccessAnim] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
-  const [activeReward, setActiveReward] = useState<{ id: string; type: string } | null>(null);
+  const [activeReward, setActiveReward] = useState<{ id: string; type: string; quantity: number } | null>(null);
   const [viewCycle, setViewCycle] = useState<'atual' | 'historico'>('atual');
   // ✅ Isolamento e Fechamento Mensal
   const myOrders = useMemo(() => {
@@ -349,9 +349,10 @@ const OrcamentosPage: React.FC = () => {
     if (preSelectedReward && !editingOrder && products.length > 0) {
       const rewardId = preSelectedReward.id;
       const type = preSelectedReward.type;
+      const quantity = preSelectedReward.quantity || 1;
       
       // Armazena no estado local para persistir após limpar location.state
-      setActiveReward({ id: rewardId, type });
+      setActiveReward({ id: rewardId, type, quantity });
 
       let rewardProduct = '';
       let rewardDescription = 'ITEM PREMIADO';
@@ -366,21 +367,24 @@ const OrcamentosPage: React.FC = () => {
         rewardDescription = 'RESGATE DE PRÊMIO: 10 KITS (VALOR PROMO)';
       }
 
-      setNewItems([{
+      // Cria a lista de itens baseada na quantidade solicitada
+      const rewardItems = Array.from({ length: quantity }, () => ({
         product: rewardProduct,
         description: rewardDescription,
         quantity: 1,
         unitPrice: 0,
         isReward: true,
         rewardId: rewardId
-      }]);
+      }));
+
+      setNewItems(rewardItems);
       setShowCreate(true);
 
       const helpMsg = type === 'tier_1'
-        ? 'Prêmio de 5 kits: Selecione o item (Kits desativados para este prêmio).'
-        : 'Prêmio de Meta de Kits: Selecione o modelo de KIT para o resgate.';
+        ? `Você está resgatando ${quantity} prêmio(s) (5 kits cada). Selecione o item.`
+        : `Você está resgatando ${quantity} prêmio(s) de Meta de Kits. Selecione o modelo.`;
 
-      toast.success('Modo de resgate de prêmio!', {
+      toast.success('Modo de resgate múltiplo!', {
         description: helpMsg,
         duration: 8000
       });
@@ -523,8 +527,8 @@ const OrcamentosPage: React.FC = () => {
     setNewRequiresShippingNote(false);
     setFormError('');
     if (activeReward && isSuccess !== true) {
-      cancelRedeemReward(activeReward.id).then(success => {
-        if (success) console.log('[OrcamentosPage] 🔄 Resgate de prêmio cancelado e estornado.');
+      cancelRedeemReward(activeReward.id, activeReward.quantity).then(success => {
+        if (success) console.log(`[OrcamentosPage] 🔄 Resgate de ${activeReward.quantity} prêmio(s) cancelado e estornado.`);
       });
     }
     setActiveReward(null);

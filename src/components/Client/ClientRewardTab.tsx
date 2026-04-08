@@ -23,6 +23,7 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
     const [rewards, setRewards] = useState<ClientReward[]>([]);
     const [loading, setLoading] = useState(true);
     const [redeemingId, setRedeemingId] = useState<string | null>(null);
+    const [redeemQuantities, setRedeemQuantities] = useState<Record<string, number>>({});
     const [resettingId, setResettingId] = useState<string | null>(null);
 
     const loadData = async () => {
@@ -50,11 +51,12 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
     }, [clientId]);
 
     const handleRedeem = async (reward: ClientReward) => {
+        const qty = redeemQuantities[reward.id] || 1;
         setRedeemingId(reward.id);
         try {
-            const success = await redeemReward(reward.id);
+            const success = await redeemReward(reward.id, qty);
             if (success) {
-                toast.success('Prêmio registrado! Redirecionando para o orçamento...');
+                toast.success(`${qty} Prêmio(s) registrado(s)! Redirecionando para o orçamento...`);
                 // Aguarda um pouco para o usuário ver a mensagem antes de redirecionar
                 setTimeout(() => {
                     navigate('/vendedor/orcamentos', {
@@ -62,7 +64,8 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
                             clientId,
                             reward: {
                                 id: reward.id,
-                                type: reward.rewardType
+                                type: reward.rewardType,
+                                quantity: qty
                             }
                         }
                     });
@@ -242,18 +245,50 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
 
                             <div className="flex items-center gap-3">
                                 {isLiberado && (
-                                    <button
-                                        onClick={() => handleRedeem(reward)}
-                                        disabled={redeemingId === reward.id}
-                                        className="btn-primary bg-success hover:bg-success/90 border-none shadow-lg shadow-success/20 py-3 px-6 h-auto text-sm font-bold flex items-center gap-2"
-                                    >
-                                        {redeemingId === reward.id ? (
-                                            <Loader2 className="w-4 h-4 animate-spin" />
-                                        ) : (
-                                            <Trophy className="w-4 h-4" />
-                                        )}
-                                        LIBERAR PRÊMIO
-                                    </button>
+                                    <div className="flex flex-col gap-2">
+                                        {(() => {
+                                            const availableCount = Math.floor(reward.kitsCompleted / reward.kitsRequired);
+                                            const currentQty = redeemQuantities[reward.id] || 1;
+                                            
+                                            if (availableCount <= 1) return null;
+
+                                            return (
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="text-[10px] font-black text-success uppercase text-center">{availableCount} Prêmios Disponíveis</span>
+                                                    <div className="flex items-center bg-white dark:bg-slate-800 rounded-xl border border-success/30 p-1 shadow-sm">
+                                                        <button 
+                                                            onClick={() => setRedeemQuantities(prev => ({ ...prev, [reward.id]: Math.max(1, (prev[reward.id] || 1) - 1) }))}
+                                                            className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center text-foreground font-black transition-colors"
+                                                        >
+                                                            -
+                                                        </button>
+                                                        <div className="w-10 text-center text-sm font-black text-foreground">
+                                                            {currentQty}
+                                                        </div>
+                                                        <button 
+                                                            onClick={() => setRedeemQuantities(prev => ({ ...prev, [reward.id]: Math.min(availableCount, (prev[reward.id] || 1) + 1) }))}
+                                                            className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center text-foreground font-black transition-colors"
+                                                        >
+                                                            +
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+                                        
+                                        <button
+                                            onClick={() => handleRedeem(reward)}
+                                            disabled={redeemingId === reward.id}
+                                            className="btn-primary bg-success hover:bg-success/90 border-none shadow-lg shadow-success/20 py-3 px-6 h-auto text-sm font-bold flex items-center gap-2"
+                                        >
+                                            {redeemingId === reward.id ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                            ) : (
+                                                <Trophy className="w-4 h-4" />
+                                            )}
+                                            RESGATAR {redeemQuantities[reward.id] > 1 ? `${redeemQuantities[reward.id]} PRÊMIOS` : 'PRÊMIO'}
+                                        </button>
+                                    </div>
                                 )}
 
                                 {!isLiberado && !isResgatado && (
@@ -267,38 +302,6 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
                                                 disabled={resettingId === reward.id}
                                                 className="p-2 rounded-xl hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors border border-transparent hover:border-destructive/20"
                                                 title="Zerar progressão atual"
-                                            >
-                                                {resettingId === reward.id ? (
-                                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                                ) : (
-                                                    <RotateCcw className="w-4 h-4" />
-                                                )}
-                                            </button>
-                                        )}
-                                    </div>
-                                )}
-                                
-                                {isLiberado && (
-                                    <div className="flex items-center gap-3">
-                                        <button
-                                            onClick={() => handleRedeem(reward)}
-                                            disabled={redeemingId === reward.id}
-                                            className="btn-primary bg-success hover:bg-success/90 border-none shadow-lg shadow-success/20 py-3 px-6 h-auto text-sm font-bold flex items-center gap-2"
-                                        >
-                                            {redeemingId === reward.id ? (
-                                                <Loader2 className="w-4 h-4 animate-spin" />
-                                            ) : (
-                                                <Trophy className="w-4 h-4" />
-                                            )}
-                                            LIBERAR PRÊMIO
-                                        </button>
-
-                                        {isDeveloperOrGestor && (
-                                            <button
-                                                onClick={() => handleReset(reward)}
-                                                disabled={resettingId === reward.id}
-                                                className="p-2 rounded-xl hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors border border-transparent hover:border-destructive/20"
-                                                title="Zerar progressão atual (ignorar prêmios ganhos)"
                                             >
                                                 {resettingId === reward.id ? (
                                                     <Loader2 className="w-4 h-4 animate-spin" />

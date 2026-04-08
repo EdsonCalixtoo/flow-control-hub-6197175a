@@ -124,7 +124,7 @@ export const fetchClientRewards = async (clientId: string): Promise<ClientReward
     }
 };
 
-export const redeemReward = async (rewardId: string): Promise<boolean> => {
+export const redeemReward = async (rewardId: string, quantity: number = 1): Promise<boolean> => {
     try {
         // Buscar dados atuais para saber quantos kits consumir
         const { data: rewardData, error: fetchError } = await supabase
@@ -135,12 +135,14 @@ export const redeemReward = async (rewardId: string): Promise<boolean> => {
 
         if (fetchError || !rewardData) throw fetchError || new Error('Prêmio não encontrado');
 
+        const totalToConsume = rewardData.kits_required * quantity;
+
         const { error } = await supabase
             .from('client_rewards')
             .update({
-                reward_status: 'resgatado',
+                reward_status: (rewardData.kits_completed - totalToConsume) >= rewardData.kits_required ? 'liberado' : 'resgatado',
                 reward_redeemed_at: new Date().toISOString(),
-                kits_consumed: (rewardData.kits_consumed || 0) + rewardData.kits_required
+                kits_consumed: (rewardData.kits_consumed || 0) + totalToConsume
             })
             .eq('id', rewardId);
 
@@ -152,7 +154,7 @@ export const redeemReward = async (rewardId: string): Promise<boolean> => {
     }
 };
 
-export const cancelRedeemReward = async (rewardId: string): Promise<boolean> => {
+export const cancelRedeemReward = async (rewardId: string, quantity: number = 1): Promise<boolean> => {
     try {
         const { data: rewardData, error: fetchError } = await supabase
             .from('client_rewards')
@@ -162,15 +164,17 @@ export const cancelRedeemReward = async (rewardId: string): Promise<boolean> => 
 
         if (fetchError || !rewardData) throw fetchError || new Error('Prêmio não encontrado');
 
-        // Só cancela se estiver no status 'resgatado'
-        if (rewardData.reward_status !== 'resgatado') return false;
+        // Só cancela se estiver no status 'resgatado' ou 'liberado' (em processo)
+        if (rewardData.reward_status !== 'resgatado' && rewardData.reward_status !== 'liberado') return false;
+
+        const kitsToRestore = rewardData.kits_required * quantity;
 
         const { error } = await supabase
             .from('client_rewards')
             .update({
                 reward_status: 'liberado', 
                 reward_redeemed_at: null,
-                kits_consumed: Math.max(0, (rewardData.kits_consumed || 0) - rewardData.kits_required),
+                kits_consumed: Math.max(0, (rewardData.kits_consumed || 0) - kitsToRestore),
                 updated_at: new Date().toISOString()
             })
             .eq('id', rewardId);

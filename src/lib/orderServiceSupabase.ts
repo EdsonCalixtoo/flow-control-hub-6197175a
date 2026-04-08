@@ -143,6 +143,48 @@ export const fetchOrders = async (role?: string, userId?: string): Promise<Order
     }
 };
 
+export const fetchOrderByNumberSupabase = async (orderNumber: string): Promise<Order | null> => {
+    try {
+        const cleanNumber = orderNumber.toUpperCase();
+        
+        // 1. Tenta Busca Exata Insensível a Caso (mais rápida)
+        const { data: exact, error: exactError } = await supabase
+            .from('orders')
+            .select(BASIC_ORDER_COLUMNS)
+            .ilike('number', cleanNumber)
+            .maybeSingle();
+
+        if (exact) return supabaseToOrder(exact);
+
+        // 2. Tenta Busca por dígitos (se o código tiver letras ou símbolos)
+        const digitPart = cleanNumber.replace(/\D/g, '');
+        if (digitPart && digitPart.length >= 3) { // Mínimo 3 dígitos para evitar falso positivo
+            console.log(`[Orders] 🔍 Tentando busca por dígitos: %${digitPart}%`);
+            const { data: fuzzy, error: fuzzyError } = await supabase
+                .from('orders')
+                .select(BASIC_ORDER_COLUMNS)
+                .ilike('number', `%${digitPart}%`); // Find items that have these digits
+            
+            if (fuzzy && fuzzy.length > 0) {
+                // Tenta encontrar o melhor match exato para os números
+                const bestMatch = fuzzy.find(o => o.number.replace(/\D/g, '') === digitPart);
+                if (bestMatch) {
+                   console.log(`[Orders] ✅ Match numérico perfeito encontrado: ${bestMatch.number}`);
+                   return supabaseToOrder(bestMatch);
+                }
+                // Se não houver match numérico exato, retorna o mais recente
+                console.log(`[Orders] ✅ Match parcial (ilike) retornado: ${fuzzy[0].number}`);
+                return supabaseToOrder(fuzzy[0]);
+            }
+        }
+
+        return null;
+    } catch (err: any) {
+        console.error('[Orders] Erro ao buscar pedido por número (Broad):', err.message);
+        return null;
+    }
+};
+
 export const fetchOrderById = async (orderId: string): Promise<Order | null> => {
     try {
         // AQUI SIM CARREGAMOS TUDO (*) PARA O DETALHAMENTO

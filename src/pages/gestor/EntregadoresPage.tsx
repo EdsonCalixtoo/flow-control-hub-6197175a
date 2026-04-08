@@ -468,8 +468,8 @@ const EntregadoresPage: React.FC = () => {
                                groupMembers.sort((a, b) => a.id.localeCompare(b.id))[0];
 
             // Filtro: Apenas pedidos liberados pela produção ou já retirados
-            if (headerOrder.status !== 'produto_liberado' && headerOrder.status !== 'retirado_entregador' && 
-                originalOrder.status !== 'produto_liberado' && originalOrder.status !== 'retirado_entregador') {
+            if (headerOrder.status !== 'produto_liberado' && headerOrder.status !== 'retirado_entregador' && headerOrder.status !== 'producao_finalizada' &&
+                originalOrder.status !== 'produto_liberado' && originalOrder.status !== 'retirado_entregador' && originalOrder.status !== 'producao_finalizada') {
                 continue;
             }
 
@@ -524,7 +524,7 @@ const EntregadoresPage: React.FC = () => {
         // Pós-processamento: Se houver pedidos que são filhos mas cujos pais NÃO foram bipados ainda, 
         // eles devem aparecer mesmo assim? O usuário disse: "deve conter em entregadores o pedido".
         // Vamos garantir que todos os pedidos unificados apareçam nos grupos de seus pais se os pedidos foram liberados.
-        orders.filter(o => o.parentOrderId && (o.status === 'produto_liberado' || o.status === 'retirado_entregador')).forEach(child => {
+        orders.filter(o => o.parentOrderId && (o.status === 'produto_liberado' || o.status === 'retirado_entregador' || o.status === 'producao_finalizada')).forEach(child => {
             // Segue a mesma lógica determinística do Pai Raiz
             let root = child;
             const visited = new Set<string>();

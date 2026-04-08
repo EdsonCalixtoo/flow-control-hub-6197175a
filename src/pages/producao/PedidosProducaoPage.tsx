@@ -30,7 +30,7 @@ const PRODUCTION_STATUS_OPTS: { value: ProductionStatus; label: string; cls: str
 ];
 
 const PedidosProducaoPage: React.FC = () => {
-  const { orders, clients, barcodeScans, updateOrderStatus, addBarcodeScan, updateOrder, addDelayReport, loadFromSupabase, loading, warranties, updateWarrantyStatus, loadOrderDetails } = useERP();
+  const { orders, clients, barcodeScans, updateOrderStatus, addBarcodeScan, updateOrder, addDelayReport, loadFromSupabase, loading, warranties, updateWarrantyStatus, loadOrderDetails, loadOrderByNumber } = useERP();
   const { user } = useAuth();
   const isCarenagem = user?.role === 'producao_carenagem';
   const mainColor = isCarenagem ? 'indigo-600' : 'producao';
@@ -414,11 +414,48 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
   const processCode = useCallback(async (rawCode: string) => {
     const code = rawCode.trim().toUpperCase();
     if (!code) return;
-    const order = orders.find(o => o.number === code);
     const scannedBy = user?.name || 'Equipe Produção';
     const now = new Date().toISOString();
 
+    // 💡 Busca inteligente: tenta o código exato e se falhar tenta ignorar '.' e '-' 
+    // (Útil para teclados configurados errado ou variações no cadastro)
+    let order = orders.find(o => o.number.toUpperCase() === code);
+
+    if (!order) {
+      const cleanCode = code.replace(/[-.]/g, '');
+      order = orders.find(o => 
+        o.number.toUpperCase().replace(/[-.]/g, '') === cleanCode
+      );
+      if (order) {
+        console.log(`[Scanner] 💡 Pedido ${order.number} localizado via busca flexível (Código lido: ${code})`);
+      }
+    }
+
+    // 🕵️ Busca ultra-flexível: se o código lido tem letras (como D-2745) mas no sistema pode estar apenas como número (2745)
+    if (!order && /[A-Z]/.test(code)) {
+      const digitsOnly = code.replace(/\D/g, '');
+      if (digitsOnly) {
+        order = orders.find(o => o.number.replace(/\D/g, '') === digitsOnly);
+        if (order) {
+          console.log(`[Scanner] 🕵️ Coincidência numérica encontrada: ${order.number} para leitura ${code}`);
+        }
+      }
+    }
+
+    // 🚀 NOVO: Se ainda não encontrou localmente, tenta buscar diretamente no banco (fallback para pedidos muito antigos)
+    if (!order) {
+      setScanResult({ success: true, message: `🔍 Buscando no banco de dados (Modo Inteligente): ${code}...` });
+      console.log(`[Scanner] 🔍 Pedido não encontrado localmente. Tentando busca remota (Fallback Inteligente)...`);
+      const remoteOrder = await loadOrderByNumber(code);
+      if (remoteOrder) {
+        order = remoteOrder;
+        console.log(`[Scanner] ✅ Pedido ${order.number} localizado via busca remota!`);
+      }
+    }
+
     if (order) {
+      console.log(`[Scanner] 🦾 Pedido encontrado: ${order.number} | Status: ${order.status}`);
+
       // Verificar se há scans RECENTES deste pedido nos últimos 60 segundos (aumentado para facilitar uso)
       const recentScans = barcodeScans.filter(scan => {
         if (scan.orderId !== order.id || !scan.success) return false;
@@ -505,17 +542,41 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
           note: 'Releitura — produto já foi retirado pelo entregador',
         });
         setScanResult({ success: true, message: `ℹ️ Pedido ${order.number} já foi retirado pelo entregador.`, orderNumber: order.number });
+      } else if (['aguardando_gestor', 'aprovado_gestor'].includes(order.status)) {
+        await addBarcodeScan({
+          orderId: order.id,
+          orderNumber: order.number,
+          scannedBy,
+          success: false,
+          note: `Pedido aguardando aprovação do Gestor. Status: ${order.status}`,
+        });
+        setScanResult({
+          success: false,
+          message: `❌ Pedido ${order.number} está AGUARDANDO GESTOR. O gestor precisa aprovar a garantia/orçamento antes da produção iniciar.`
+        });
+      } else if (['rascunho', 'enviado', 'aprovado_cliente', 'aguardando_financeiro'].includes(order.status)) {
+        await addBarcodeScan({
+          orderId: order.id,
+          orderNumber: order.number,
+          scannedBy,
+          success: false,
+          note: `Pedido não liberado. Status: ${order.status}`,
+        });
+        setScanResult({
+          success: false,
+          message: `❌ Pedido ${order.number} ainda NÃO foi aprovado pelo financeiro. Status: ${order.status}. Fale com o financeiro para liberar.`
+        });
       } else if (!['aprovado_financeiro', 'aguardando_producao', 'em_producao', 'producao_finalizada'].includes(order.status)) {
         await addBarcodeScan({
           orderId: order.id,
           orderNumber: order.number,
           scannedBy,
           success: false,
-          note: `Pedido não aprovado pelo financeiro. Status: ${order.status}`,
+          note: `Status inválido para escaneamento: ${order.status}`,
         });
         setScanResult({
           success: false,
-          message: `❌ Pedido ${order.number} NÃO foi aprovado pelo financeiro. Status: ${order.status}. Fale com o financeiro para liberar.`
+          message: `❌ Pedido ${order.number} está com status "${order.status}". Não é possível escanear nesta etapa.`
         });
       } else {
         await addBarcodeScan({
@@ -525,13 +586,14 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
           success: false,
           note: `Produção não finalizada. Status atual: ${order.status}`,
         });
-        setScanResult({ success: false, message: `⚠️ Pedido ${order.number} ainda não finalizou a produção. Status atual: ${order.status}. Finalize o pedido antes de liberar.` });
+        setScanResult({ success: false, message: `⚠️ Pedido ${order.number} ainda não finalizou a produção. Status atual: ${order.status}. Finalize o pedido no dashboard antes de liberar pelo scanner.` });
       }
     } else {
-      setScanResult({ success: false, message: '❌ Código não encontrado. Verifique se o código é o número do pedido (ex: PED-001).' });
+      console.warn(`[Scanner] ❌ Código pesquisado não encontrado: ${code}`);
+      setScanResult({ success: false, message: `❌ Código "${code}" não encontrado. Verifique se o número do pedido no sistema é exatamente este (ex: D-2745 ou apenas 2745).` });
     }
     setScanInput('');
-  }, [orders, barcodeScans, addBarcodeScan, updateOrderStatus, user, loadFromSupabase]);
+  }, [orders, barcodeScans, addBarcodeScan, updateOrderStatus, user, loadFromSupabase, loadOrderByNumber]);
 
   const handleConfirmVolumes = useCallback(async () => {
     if (!scannedOrderForVolumes) return;
@@ -770,7 +832,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                 value={scanInput}
                 onChange={e => setScanInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleScan()}
-                placeholder="PED-001 ou código de barras"
+                placeholder="ex: 2745, D-2745 ou PED-001"
                 className="input-modern text-center text-lg font-mono font-bold tracking-widest flex-1"
                 autoFocus={!cameraActive || !barcodeDetectorAvailable}
               />

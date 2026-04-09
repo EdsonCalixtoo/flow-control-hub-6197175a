@@ -5,10 +5,11 @@ import { supabaseToOrder } from './orderServiceSupabase';
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 const isKit = (item: QuoteItem) => {
-    const productName = (item.product || '').toUpperCase();
-    // KITS usually have sensorType set or "KIT" in the name
-    if (item.sensorType) return true;
+    const productName = (item.product || '').toUpperCase().trim();
+    // Qualquer produto que contenha "KIT" ou "SPRINTER" ou tenha sensorType é um kit
     if (productName.includes('KIT')) return true;
+    if (productName.includes('SPRINTER')) return true;
+    if (item.sensorType) return true;
     return false;
 };
 
@@ -26,7 +27,7 @@ export const calculateClientRanking = async (clientId: string): Promise<ClientRa
             'retirado_entregador'
         ];
 
-        // Buscar pedidos aprovados ou em estágios avançados (que implicam aprovação financeira)
+        // Buscar pedidos aprovados
         const { data, error } = await supabase
             .from('orders')
             .select('*')
@@ -45,36 +46,30 @@ export const calculateClientRanking = async (clientId: string): Promise<ClientRa
 
         orders.forEach(order => {
             order.items.forEach(item => {
+                // Pular se não for kit ou se já for um item de prêmio (não gera novos prêmios)
                 if (!isKit(item) || item.isReward) return;
 
                 const qty = item.quantity;
                 const price = item.unitPrice;
 
+                // Totalizador Geral
                 totalKits += qty;
+                
+                // Tier 1: 5 kits (Qualquer Kit conta)
                 tier1Count += qty;
+
+                // Tier 2: 7 kits (Preço entre 1450 e 2000)
+                if (price >= 1450 && price <= 2000) {
+                    tier2Count += qty;
+                }
+
+                // Tier 3: 10 kits (Preço entre 1100 e 1400)
+                if (price >= 1100 && price <= 1400) {
+                    tier3Count += qty;
+                }
 
                 // Breakdown
                 breakdownMap[item.product] = (breakdownMap[item.product] || 0) + qty;
-
-                // Regra de Tier 2 sensível à data (Promoção iniciada em 01/04/2026)
-                const promoStartDate = new Date('2026-04-01T00:00:00Z');
-                const orderDate = new Date(order.createdAt);
-                
-                if (orderDate >= promoStartDate) {
-                    // Regra Nova (Abril/2026 em diante)
-                    if (price >= 1400 && price <= 1650) {
-                        tier2Count += qty;
-                    }
-                } else {
-                    // Regra Legada (Pedidos antigos)
-                    if (price >= 1550 && price <= 1650) {
-                        tier2Count += qty;
-                    }
-                }
-
-                if (price >= 1150 && price <= 1350) {
-                    tier3Count += qty;
-                }
             });
         });
 
@@ -231,8 +226,20 @@ export const updateClientRewardsAuto = async (clientId: string): Promise<void> =
         ];
 
         for (const tier of tiers) {
-            const existing = existingRewards.find(r => r.rewardType === tier.type);
+            // Pegar todas as premiações deste tipo (caso existam duplicados)
+            const matches = existingRewards.filter(r => r.rewardType === tier.type);
+            let existing = matches[0];
             
+            // Se houver mais de um, deletar os extras e manter o primeiro (mais antigo)
+            if (matches.length > 1) {
+                console.warn(`[Rewards] Duplicidade detectada para o cliente ${clientId} no tier ${tier.type}. Removendo extras...`);
+                // Mantém o primeiro, deleta os outros do banco
+                const extras = matches.slice(1);
+                for (const extra of extras) {
+                    await supabase.from('client_rewards').delete().eq('id', extra.id);
+                }
+            }
+
             // Lógica de Cálculo: (Vendas Reais + Ajuste Manual) - (Kits já Consumidos)
             const consumed = existing?.kitsConsumed || 0;
             const adjustment = existing?.kitsAdjustment || 0;
@@ -260,17 +267,17 @@ export const updateClientRewardsAuto = async (clientId: string): Promise<void> =
                         })
                         .eq('id', existing.id);
                 } else {
+                    // Se for resgatado e não tem kits suficientes para novo resgate, só atualiza o saldo
                     await supabase
                         .from('client_rewards')
                         .update({
                             kits_completed: currentEffectiveKits,
-                            reward_status: (existing.rewardStatus === 'resgatado' && currentEffectiveKits < tier.required) ? 'pendente' : existing.rewardStatus,
                             updated_at: new Date().toISOString()
                         })
                         .eq('id', existing.id);
                 }
             } else {
-                // Criar nova premiação (sem ajuste inicial por padrão via código, ajuste vem do SQL)
+                // Criar nova premiação
                 await supabase
                     .from('client_rewards')
                     .insert([{

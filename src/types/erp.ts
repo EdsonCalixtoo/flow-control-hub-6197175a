@@ -105,6 +105,8 @@ export interface Order {
   isSite?: boolean;      // Campo de identificação de pedido de Site
   productionStatus?: ProductionStatus;  // status detalhado de produção
   volumes?: number;  // quantidade de caixas/volumes para entrega (default 1)
+  attachmentUrl?: string;       // PDF técnico do financeiro para produção
+  attachmentName?: string;      // Nome amigável do anexo tecnico
   statusHistory: StatusHistoryEntry[];
   // chat
   chatMessages?: ChatMessage[];

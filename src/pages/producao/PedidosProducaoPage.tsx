@@ -12,6 +12,7 @@ import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import ModernCalendar from '@/components/shared/ModernCalendar';
 import type { ProductionStatus } from '@/types/erp';
+import { cleanR2Url } from '@/lib/storageServiceR2';
 
 const REMETENTE = {
   name: 'Grupo Automozia',
@@ -64,6 +65,8 @@ const PedidosProducaoPage: React.FC = () => {
   const [carrierFilter, setCarrierFilter] = useState<string>('todos');
   const [orderTypeFilter, setOrderTypeFilter] = useState<string>('todos');
   const [scannedOrderForVolumes, setScannedOrderForVolumes] = useState<any>(null);
+  const [scannedOrderForAction, setScannedOrderForAction] = useState<any>(null);
+  const [actionType, setActionType] = useState<'iniciar' | 'finalizar' | null>(null);
 
   // ⚡ OTIMIZAÇÃO: Carrega os detalhes completos (itens, fotos) ao abrir o detalhe
   useEffect(() => {
@@ -566,6 +569,24 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
           success: false,
           message: `❌ Pedido ${order.number} ainda NÃO foi aprovado pelo financeiro. Status: ${order.status}. Fale com o financeiro para liberar.`
         });
+      } else if (order.status === 'aprovado_financeiro' || order.status === 'aguardando_producao') {
+        // Ação: INICIAR PRODUÇÃO VIA SCANNER
+        setScannedOrderForAction(order);
+        setActionType('iniciar');
+        setScanResult({
+          success: true,
+          message: `🎬 Pedido ${order.number} localizado! Deseja INICIAR a produção agora?`,
+          orderNumber: order.number
+        });
+      } else if (order.status === 'em_producao') {
+        // Ação: FINALIZAR PRODUÇÃO VIA SCANNER
+        setScannedOrderForAction(order);
+        setActionType('finalizar');
+        setScanResult({
+          success: true,
+          message: `🏁 Pedido ${order.number} em produção. Deseja FINALIZAR e gerar a guia agora?`,
+          orderNumber: order.number
+        });
       } else if (!['aprovado_financeiro', 'aguardando_producao', 'em_producao', 'producao_finalizada'].includes(order.status)) {
         await addBarcodeScan({
           orderId: order.id,
@@ -584,9 +605,9 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
           orderNumber: order.number,
           scannedBy,
           success: false,
-          note: `Produção não finalizada. Status atual: ${order.status}`,
+          note: `Fuga de lógica no scanner: ${order.status}`,
         });
-        setScanResult({ success: false, message: `⚠️ Pedido ${order.number} ainda não finalizou a produção. Status atual: ${order.status}. Finalize o pedido no dashboard antes de liberar pelo scanner.` });
+        setScanResult({ success: false, message: `⚠️ Pedido ${order.number} com status ${order.status}. Use os botões manuais no dashboard se necessário.` });
       }
     } else {
       console.warn(`[Scanner] ❌ Código pesquisado não encontrado: ${code}`);
@@ -982,6 +1003,76 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
             </div>
           </div>
         )}
+        
+        {/* Modal de Ações sobreposto durante scanner (Iniciar/Finalizar) */}
+        {scannedOrderForAction && actionType && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 backdrop-blur-sm">
+            <div className="card-section p-6 w-96 space-y-4 animate-scale-in shadow-2xl">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-foreground text-lg">
+                  {actionType === 'iniciar' ? '🚀 Iniciar Produção?' : '🏁 Finalizar Produção?'}
+                </h3>
+                <button
+                  onClick={() => {
+                    setScannedOrderForAction(null);
+                    setActionType(null);
+                    setScanResult(null);
+                  }}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="text-center py-4 border-b border-border/30 bg-muted/20 rounded-xl">
+                <p className="text-lg font-black text-foreground">{scannedOrderForAction.number}</p>
+                <p className="text-xs text-muted-foreground">{scannedOrderForAction.clientName}</p>
+                <div className="mt-3 flex justify-center">
+                  <StatusBadge status={scannedOrderForAction.status} />
+                </div>
+              </div>
+
+              <div className="py-2 text-center">
+                <p className="text-sm text-foreground">
+                  {actionType === 'iniciar' 
+                    ? 'Ao confirmar, o status mudará para "Em Produção" e o tempo começará a contar.' 
+                    : 'Ao confirmar, o status mudará para "Finalizado" e a Guia de Produção será gerada.'}
+                </p>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => {
+                    setScannedOrderForAction(null);
+                    setActionType(null);
+                    setScanResult(null);
+                  }}
+                  className="btn-modern bg-muted text-foreground shadow-none flex-1"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    if (actionType === 'iniciar') {
+                      iniciarProducao(scannedOrderForAction.id);
+                    } else {
+                      finalizarProducao(scannedOrderForAction.id);
+                    }
+                    setScannedOrderForAction(null);
+                    setActionType(null);
+                    setScanResult(null);
+                    setShowScanner(false);
+                    toast.success(`Pedido ${scannedOrderForAction.number} ${actionType === 'iniciar' ? 'iniciado' : 'finalizado'} com sucesso!`);
+                  }}
+                  className={`btn-primary flex-1 gap-2 ${actionType === 'iniciar' ? 'from-producao to-producao/80' : 'from-emerald-500 to-emerald-600'}`}
+                >
+                  {actionType === 'iniciar' ? <Play className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
+                  Confirmar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1046,6 +1137,31 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
               </tbody>
             </table>
           </div>
+          {guiaOrder.attachmentUrl && (
+            <div className="p-4 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <FileText className="w-5 h-5 text-indigo-600" />
+                <div>
+                  <p className="text-[10px] font-black uppercase text-indigo-600 tracking-wider">Arquivo Técnico / Informativo (PDF)</p>
+                  <p className="text-sm font-bold text-indigo-900">{guiaOrder.attachmentName || 'Manual'}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  const win = window.open(cleanR2Url(guiaOrder.attachmentUrl!), '_blank');
+                  if (win) {
+                    win.focus();
+                    setTimeout(() => {
+                      try { win.print(); } catch (e) { toast.error("Imprima manualmente pela nova guia."); }
+                    }, 1000);
+                  }
+                }}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-[10px] font-black uppercase hover:bg-indigo-700 transition-colors flex items-center gap-2"
+              >
+                <Printer className="w-3 h-3" /> Imprimir PDF
+              </button>
+            </div>
+          )}
           {guiaOrder.observation && (
             <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/20">
               <p className="text-[10px] font-bold uppercase tracking-wider text-amber-500 mb-1">📋 Observação</p>
@@ -1250,6 +1366,50 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
               </div>
            </div>
         </div>
+
+        {/* ANEXO TÉCNICO (PDF) */}
+        {viewOrder.attachmentUrl && (
+          <div className="p-6 mb-4 rounded-[2rem] bg-indigo-600 text-white shadow-xl shadow-indigo-600/20 relative overflow-hidden group animate-in slide-in-from-bottom-4 duration-700">
+            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+              <FileText className="w-24 h-24" />
+            </div>
+            <div className="relative space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h4 className="text-[11px] font-black uppercase tracking-[0.2em] text-white/70">Anexo Técnico Disponível</h4>
+                  <p className="text-lg font-black tracking-tight">{viewOrder.attachmentName || 'Manual de Instruções / Roteiro PDF'}</p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <a
+                  href={cleanR2Url(viewOrder.attachmentUrl)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-6 py-3 rounded-xl bg-white text-indigo-600 font-black text-xs uppercase tracking-widest hover:bg-slate-50 transition-colors flex items-center gap-2"
+                >
+                  <Eye className="w-4 h-4" /> Visualizar PDF
+                </a>
+                <button
+                  onClick={() => {
+                    const win = window.open(cleanR2Url(viewOrder.attachmentUrl!), '_blank');
+                    if (win) {
+                      win.focus();
+                      setTimeout(() => {
+                        try { win.print(); } catch (e) { toast.error("Por favor, imprima manualmente pela janela aberta."); }
+                      }, 1000);
+                    }
+                  }}
+                  className="px-6 py-3 rounded-xl bg-indigo-900/30 text-white font-black text-xs uppercase tracking-widest hover:bg-indigo-900/50 transition-colors flex items-center gap-2 border border-white/20"
+                >
+                  <Printer className="w-4 h-4" /> Imprimir Anexo
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* COMPONENTES DE MONTAGEM */}
         <div className="glass-card overflow-hidden rounded-[2rem] border-2 border-border/40 shadow-xl">

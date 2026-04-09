@@ -1,15 +1,18 @@
 import React, { useState, useMemo } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { StatCard, StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
-import { Search, Filter, ChevronDown, Eye, CheckCircle, Send, Package, TrendingUp, DollarSign, Clock, Star, Inbox, ArrowLeft, FileText, Image as ImageIcon, Maximize2 } from 'lucide-react';
-import { cleanR2Url } from '@/lib/storageServiceR2';
+import { Search, Filter, ChevronDown, Eye, CheckCircle, Send, Package, TrendingUp, DollarSign, Clock, Star, Inbox, ArrowLeft, FileText, Image as ImageIcon, Maximize2, ScanLine } from 'lucide-react';
+import { cleanR2Url, uploadToR2, generateR2Path } from '@/lib/storageServiceR2';
 import type { Order, FinancialEntry } from '@/types/erp';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 
 const STATUS_VISIVEL_FINANCEIRO = [
+    'rascunho', 'enviado', 'aprovado_cliente',
     'aguardando_financeiro', 'aprovado_financeiro', 'rejeitado_financeiro',
-    'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado', 'retirado_entregador'
+    'aguardando_gestor', 'aprovado_gestor', 'rejeitado_gestor',
+    'aguardando_producao', 'em_producao', 'producao_finalizada', 
+    'produto_liberado', 'retirado_entregador', 'planejamento', 'extraviado'
 ];
 
 type PaymentFilter = 'todos' | 'pago' | 'pendente' | 'vencido' | 'cancelado';
@@ -17,7 +20,7 @@ type PeriodFilter = 'hoje' | '7dias' | '30dias' | 'personalizado' | 'todos';
 
 const PedidosFinanceiroPage: React.FC = () => {
     const navigate = useNavigate();
-    const { orders, clients, financialEntries, updateOrderStatus, addFinancialEntry, loadFromSupabase, loadOrderDetails } = useERP();
+    const { orders, clients, financialEntries, updateOrderStatus, addFinancialEntry, loadFromSupabase, loadOrderDetails, loadOrderByNumber } = useERP();
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<PaymentFilter>('todos');
     const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('todos');
@@ -30,7 +33,42 @@ const PedidosFinanceiroPage: React.FC = () => {
     const selectedOrder = useMemo(() => orders.find(o => o.id === selectedOrderId) || null, [orders, selectedOrderId]);
     const [showReject, setShowReject] = useState(false);
     const [rejectReason, setRejectReason] = useState('');
+    const [isUploading, setIsUploading] = useState(false);
     const itemsPerPage = 12;
+
+    const handleAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !selectedOrderId) return;
+
+        if (!file.type.includes('pdf')) {
+            toast.error('Por favor, envie apenas arquivos PDF (ex: roteiro técnico, manual).');
+            return;
+        }
+
+        setIsUploading(true);
+        try {
+            const path = generateR2Path(file, selectedOrderId);
+            const url = await uploadToR2(file, path);
+            
+            // Usando updateOrderStatus apenas para injetar o campo sem mudar o status
+            const currentOrder = orders.find(o => o.id === selectedOrderId);
+            if (currentOrder) {
+                await updateOrderStatus(
+                    selectedOrderId, 
+                    currentOrder.status, 
+                    { attachmentUrl: url, attachmentName: file.name },
+                    'Financeiro',
+                    `Anexo técnico anexado: ${file.name}`
+                );
+            }
+            toast.success('Anexo técnico enviado com sucesso!');
+        } catch (error) {
+            console.error('Erro no upload de anexo:', error);
+            toast.error('Falha ao enviar anexo.');
+        } finally {
+            setIsUploading(false);
+        }
+    };
 
     // ⚡ OTIMIZAÇÃO: Carregamento sob demanda para economizar egress
     React.useEffect(() => {
@@ -58,6 +96,13 @@ const PedidosFinanceiroPage: React.FC = () => {
         const client = clients.find(c => c.id === order.clientId);
         const actualClient = client || clients.find(c => c.name === order.clientName);
         const isConsignado = actualClient?.consignado === true;
+
+        if (order.isWarranty) {
+            // ✅ Pedidos de GARANTIA: Financeiro aprova e envia para o GESTOR (conforme solicitado pelo usuário)
+            await updateOrderStatus(orderId, 'aguardando_gestor', { financeiroAprovado: true }, 'Financeiro', 'Garantia: Enviado para validação do Gestor');
+            setSelectedOrderId(null);
+            return;
+        }
 
         if (isConsignado) {
             await updateOrderStatus(
@@ -164,6 +209,11 @@ const PedidosFinanceiroPage: React.FC = () => {
                             {selectedOrder.isSite && (
                                 <span className="px-2 py-0.5 rounded-full bg-blue-500 text-white text-[9px] font-black animate-pulse shadow-lg shadow-blue-500/20">
                                     🌐 SITE (PRIORIDADE)
+                                </span>
+                            )}
+                            {selectedOrder.isWarranty && (
+                                <span className="px-2 py-0.5 rounded-full bg-rose-500 text-white text-[9px] font-black animate-pulse shadow-lg shadow-rose-500/20">
+                                    🛡️ GARANTIA
                                 </span>
                             )}
                         </p>
@@ -362,6 +412,55 @@ const PedidosFinanceiroPage: React.FC = () => {
 
                     {/* Sidebar de status e ações */}
                     <div className="space-y-4">
+                        {/* Anexo Técnico (PDF) */}
+                        <div className="card-section p-6 space-y-4 border-indigo-500/20 bg-indigo-500/5">
+                            <h3 className="font-bold text-indigo-600 dark:text-indigo-400 text-sm uppercase tracking-wider flex items-center gap-2">
+                                <FileText className="w-4 h-4" /> Anexo Técnico (PDF)
+                            </h3>
+                            
+                            {selectedOrder.attachmentUrl ? (
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between p-3 rounded-xl bg-white dark:bg-slate-900 border border-indigo-500/20 shadow-sm">
+                                        <div className="flex items-center gap-3 min-w-0">
+                                            <div className="h-8 w-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-500 shrink-0">
+                                                <FileText className="w-4 h-4" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <p className="text-[10px] font-black text-foreground truncate uppercase">{selectedOrder.attachmentName || 'Manual/Técnico.pdf'}</p>
+                                                <a 
+                                                    href={cleanR2Url(selectedOrder.attachmentUrl)} 
+                                                    target="_blank" 
+                                                    rel="noreferrer"
+                                                    className="text-[10px] text-indigo-500 font-bold hover:underline"
+                                                >
+                                                    Visualizar PDF
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <label className="btn-modern bg-muted text-foreground w-full justify-center text-[10px] cursor-pointer hover:bg-muted/80">
+                                        <TrendingUp className="w-3.5 h-3.5" /> {isUploading ? 'Enviando...' : 'Substituir Arquivo'}
+                                        <input type="file" className="hidden" accept=".pdf" onChange={handleAttachmentUpload} disabled={isUploading} />
+                                    </label>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    <p className="text-[10px] text-muted-foreground leading-relaxed font-medium">
+                                        Anexe um PDF (manual, roteiro técnico ou instrução) que ficará disponível para a **Produção**.
+                                    </p>
+                                    <label className={`btn-modern bg-indigo-600 text-white w-full justify-center text-[10px] cursor-pointer hover:bg-indigo-700 shadow-md shadow-indigo-500/20 ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                                        {isUploading ? (
+                                            <> <Clock className="w-3.5 h-3.5 animate-spin" /> Enviando... </>
+                                        ) : (
+                                            <> <FileText className="w-3.5 h-3.5" /> Anexar PDF Técnico </>
+                                        )}
+                                        <input type="file" className="hidden" accept=".pdf" onChange={handleAttachmentUpload} disabled={isUploading} />
+                                    </label>
+                                </div>
+                            )}
+                        </div>
+
                         <div className="card-section p-6 space-y-4">
                             <h3 className="font-bold text-foreground text-sm uppercase tracking-wider">Status Financeiro</h3>
                             <div className="space-y-3">
@@ -555,15 +654,33 @@ const PedidosFinanceiroPage: React.FC = () => {
 
             <div className="card-section p-6 space-y-6 glass-premium">
                 <div className="flex items-center gap-4 flex-wrap">
-                    <div className="relative flex-1 min-w-[300px] group">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40 group-focus-within:text-primary transition-colors" />
-                        <input
-                            type="text"
-                            placeholder="Buscar por número do pedido ou nome do cliente..."
-                            value={searchQuery}
-                            onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-                            className="input-modern pl-11 py-3.5 bg-background shadow-inner border-border/40 focus:border-primary/50 transition-all rounded-2xl"
-                        />
+                    <div className="relative flex-1 min-w-[300px] flex gap-2">
+                        <div className="relative flex-1 group">
+                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/40 group-focus-within:text-primary transition-colors" />
+                            <input
+                                type="text"
+                                placeholder="Buscar nº pedido ou cliente..."
+                                value={searchQuery}
+                                onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                                className="input-modern w-full pl-11 py-3.5 bg-background shadow-inner border-border/40 focus:border-primary/50 transition-all rounded-2xl h-full"
+                            />
+                        </div>
+                        {searchQuery.length >= 3 && (
+                            <button 
+                                onClick={async () => {
+                                    const found = await loadOrderByNumber(searchQuery);
+                                    if (found) {
+                                        setSelectedOrderId(found.id);
+                                        toast.success(`Pedido ${found.number} localizado no banco de dados!`);
+                                    } else {
+                                        toast.error("Pedido não localizado no sistema.");
+                                    }
+                                }}
+                                className="btn-modern bg-indigo-500/10 text-indigo-600 border border-indigo-500/20 whitespace-nowrap px-6 hover:bg-indigo-500/20 transition-all font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-500/5 group"
+                            >
+                                <ScanLine className="w-4 h-4 group-hover:scale-110 transition-transform" /> Busca Global
+                            </button>
+                        )}
                     </div>
                     <button
                         onClick={() => setShowFilters(f => !f)}
@@ -668,6 +785,9 @@ const PedidosFinanceiroPage: React.FC = () => {
                                                 )}
                                                 {order.items.some(i => i.isReward) && (
                                                     <span className="px-1.5 py-0.5 rounded-md bg-emerald-500 text-white text-[8px] font-black animate-pulse">PRÊMIO</span>
+                                                )}
+                                                {order.isWarranty && (
+                                                    <span className="px-1.5 py-0.5 rounded-md bg-rose-500 text-white text-[8px] font-black shadow-lg shadow-rose-500/20 animate-pulse">🛡️ GARANTIA</span>
                                                 )}
                                             </div>
                                         </div>

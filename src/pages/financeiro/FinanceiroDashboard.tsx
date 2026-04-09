@@ -30,6 +30,7 @@ interface FinanceiroDashboardProps {
 const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 'pedidos' }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
   const { orders, clients, financialEntries, products, monthlyClosings, updateOrderStatus, updateOrder, updateFinancialEntry, addFinancialEntry, loadFromSupabase, loadOrderDetails } = useERP();
   const [activeTab, setActiveTab] = useState<'pedidos' | 'vendedores' | 'carenagem'>(defaultTab);
@@ -80,11 +81,9 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
   const ordersVisiveisFinanceiro = useMemo(
     () => orders.filter(o => 
       STATUS_VISIVEL_FINANCEIRO.includes(o.status) && 
-      !o.isWarranty && 
-      (o.total > 0 || o.items.some(item => item.isReward)) && 
-      !o.notes?.toLowerCase().includes('garantia')
+      (!o.isWarranty ? (o.total > 0 || o.items.some(item => item.isReward)) : true)
     ),
-    [orders]
+    [orders, STATUS_VISIVEL_FINANCEIRO]
   );
 
   // Atualiza indicador de último refresh quando orders mudam
@@ -464,6 +463,13 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
     // IMPORTANTE: Se o cliente não for encontrado por ID, tenta por nome como fallback
     const actualClient = client || clients.find(c => c.name === order.clientName);
     const isConsignado = actualClient?.consignado === true;
+    
+    if (order.isWarranty) {
+      // ✅ Pedidos de GARANTIA: Financeiro aprova e envia para o GESTOR (conforme fluxograma)
+      await updateOrderStatus(orderId, 'aguardando_gestor', { financeiroAprovado: true }, 'Financeiro', 'Garantia: Enviado para validação do Gestor');
+      setSelectedOrderId(null);
+      return;
+    }
 
     if (isConsignado) {
       // ✅ Para clientes CONSIGNADOS, permite enviar para produção SEM obrigatoriedade de pagamento total
@@ -544,6 +550,63 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
     } catch (error) {
       console.error('Erro ao rejeitar pedido:', error);
       toast.error('Erro ao rejeitar pedido. Tente novamente.');
+    }
+  };
+
+  const handleAttachmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedOrderId) return;
+
+    if (!file.type.includes('pdf')) {
+      toast.error('Por favor, envie apenas arquivos PDF.');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const path = generateR2Path(file, selectedOrderId);
+      const url = await uploadToR2(file, path);
+      
+      const currentOrder = orders.find(o => o.id === selectedOrderId);
+      if (currentOrder) {
+        await updateOrderStatus(
+          selectedOrderId, 
+          currentOrder.status, 
+          { attachmentUrl: url, attachmentName: file.name },
+          'Financeiro',
+          `Arquivo Produção/NF anexado: ${file.name}`
+        );
+        toast.success(`Arquivo ${file.name} anexado!`);
+      }
+    } catch (error) {
+      console.error('Erro no upload de anexo:', error);
+      toast.error('Falha ao enviar arquivo.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleRemoveAttachment = async () => {
+    if (!selectedOrderId || !window.confirm('Deseja realmente remover este anexo técnico?')) return;
+    
+    setIsUploading(true);
+    try {
+      const currentOrder = orders.find(o => o.id === selectedOrderId);
+      if (currentOrder) {
+        await updateOrderStatus(
+          selectedOrderId, 
+          currentOrder.status, 
+          { attachmentUrl: null, attachmentName: null },
+          'Financeiro',
+          'Anexo técnico/Produção removido'
+        );
+        toast.success('Anexo removido!');
+      }
+    } catch (error) {
+      console.error('Erro ao remover anexo:', error);
+      toast.error('Falha ao remover arquivo.');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -978,32 +1041,89 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                     </div>
                   </div>
 
-                  {/* Nota Fiscal */}
-                  <div className={`flex items-center gap-4 p-5 rounded-3xl border transition-all ${
-                    selectedOrder.requiresInvoice
-                      ? 'bg-primary/5 border-primary/40 shadow-lg shadow-primary/5'
+                  {/* NOTA FISCAL / PRODUÇÃO */}
+                  <div className={`flex items-center gap-4 p-5 rounded-3xl border transition-all md:col-span-2 ${
+                    selectedOrder.attachmentUrl
+                      ? 'bg-indigo-500/5 border-indigo-500/40 shadow-lg shadow-indigo-500/10'
                       : 'bg-slate-50 dark:bg-slate-900/40 border-border/40'
                   }`}>
-                    <div className={`h-12 w-12 rounded-2xl flex items-center justify-center shadow-sm ${
-                      selectedOrder.requiresInvoice ? 'bg-primary text-white' : 'bg-background border border-border/40 text-muted-foreground'
+                    <div className={`h-14 w-14 rounded-2xl flex items-center justify-center shadow-md shrink-0 ${
+                      selectedOrder.attachmentUrl ? 'bg-indigo-600 text-white' : 'bg-background border border-border/40 text-muted-foreground'
                     }`}>
-                      <FileText className="w-5 h-5" />
+                      <FileText className="w-7 h-7" />
                     </div>
-                    <div className="min-w-0 select-text">
-                      <span className="text-[10px] uppercase font-black text-muted-foreground/60 block tracking-widest">Nota Fiscal</span>
-                      <span className={`text-sm font-black block select-all cursor-text pointer-events-auto ${
-                        selectedOrder.requiresInvoice ? 'text-primary' : 'text-foreground'
-                      }`}>
-                        {selectedOrder.requiresInvoice ? '⚠️ COM NOTA FISCAL' : 'Sem Nota Fiscal'}
-                      </span>
-                      {selectedOrder.requiresShippingNote && (
-                        <span className="text-[10px] font-black text-amber-600 block mt-1 uppercase tracking-tight bg-amber-500/10 px-2 py-0.5 rounded-lg w-fit select-all cursor-text pointer-events-auto">
-                          📦 NOTA DE ENVIO SOLICITADA
-                        </span>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[10px] uppercase font-black text-muted-foreground/60 block tracking-widest">Nota Fiscal / Produção</span>
+                      
+                      {selectedOrder.attachmentUrl ? (
+                         <div className="flex items-center justify-between gap-4 mt-1">
+                            <div className="min-w-0">
+                               <p className="text-sm font-black text-indigo-600 truncate">{selectedOrder.attachmentName || 'Arquivo de Produção.pdf'}</p>
+                               <a 
+                                 href={cleanR2Url(selectedOrder.attachmentUrl)} 
+                                 target="_blank" 
+                                 rel="noreferrer" 
+                                 className="text-[10px] font-bold text-indigo-400 hover:underline pointer-events-auto relative z-10"
+                               >
+                                 Visualizar PDF Técnico
+                               </a>
+                            </div>
+                            <input 
+                              type="file" 
+                              id="attachment-upload-replace"
+                              className="hidden" 
+                              accept=".pdf" 
+                              onChange={handleAttachmentUpload} 
+                            />
+                            <div className="flex items-center gap-2">
+                               <button 
+                                  onClick={handleRemoveAttachment}
+                                  className="h-9 w-9 rounded-xl bg-rose-500/10 text-rose-500 flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all pointer-events-auto relative z-10"
+                                  title="Remover Anexo"
+                                  disabled={isUploading}
+                               >
+                                  <Trash2 className="w-4 h-4" />
+                               </button>
+                               <button 
+                                  onClick={() => document.getElementById('attachment-upload-replace')?.click()}
+                                  className="btn-modern bg-indigo-600/10 text-indigo-600 px-4 py-2 rounded-xl text-[10px] font-black hover:bg-indigo-600/20 transition-all shrink-0 pointer-events-auto relative z-10"
+                                  disabled={isUploading}
+                               >
+                                  {isUploading ? '...' : 'SUBSTITUIR'}
+                               </button>
+                            </div>
+                         </div>
+                      ) : (
+                         <div className="flex items-center justify-between gap-4 mt-1">
+                            <p className="text-xs font-bold text-muted-foreground italic">Nenhum arquivo técnico anexado para a produção.</p>
+                            <input 
+                              type="file" 
+                              id="attachment-upload-new"
+                              className="hidden" 
+                              accept=".pdf" 
+                              onChange={handleAttachmentUpload} 
+                            />
+                            <button 
+                               onClick={() => document.getElementById('attachment-upload-new')?.click()}
+                               className={`btn-modern bg-indigo-600 text-white px-4 py-2 rounded-xl text-[10px] font-black hover:bg-indigo-700 transition-all shrink-0 shadow-lg shadow-indigo-500/30 pointer-events-auto relative z-10 ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}
+                               disabled={isUploading}
+                            >
+                               {isUploading ? 'ENVIANDO...' : 'ANEXAR PDF'}
+                            </button>
+                         </div>
                       )}
-                      <span className="text-[10px] text-muted-foreground block mt-0.5 select-all cursor-text pointer-events-auto">
-                        {selectedOrder.requiresInvoice ? 'Emitir NF-e obrigatoriamente' : 'Operação sem faturamento'}
-                      </span>
+
+                      {selectedOrder.requiresInvoice && (
+                        <div className="mt-2 flex items-center gap-2">
+                           <span className="px-2 py-0.5 rounded-md bg-primary/10 text-primary text-[8px] font-black uppercase tracking-tighter">Obrigatório NF-e</span>
+                           {selectedOrder.requiresShippingNote && (
+                              <span className="px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-600 text-[8px] font-black uppercase tracking-tighter">Nota de Envio</span>
+                           )}
+                           {selectedOrder.isWarranty && (
+                              <span className="px-2 py-0.5 rounded-md bg-rose-500 text-white text-[8px] font-black uppercase tracking-tighter shadow-lg shadow-rose-500/20 animate-pulse">🛡️ GARANTIA</span>
+                           )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -2651,6 +2771,9 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                                   )}
                                   {order.requiresShippingNote && (
                                     <span className="px-1.5 py-0.5 rounded-md bg-amber-500 text-white text-[8px] font-black shadow-lg shadow-amber-500/20">📦 NOTA ENVIO</span>
+                                  )}
+                                  {order.isWarranty && (
+                                    <span className="px-1.5 py-0.5 rounded-md bg-rose-500 text-white text-[8px] font-black shadow-lg shadow-rose-500/20 animate-pulse">🛡️ GARANTIA</span>
                                   )}
                                   {order.receiptUrls && order.receiptUrls.length > (order.comprovantesVistos || 0) && (
                                     <span className="px-1.5 py-0.5 rounded-md bg-emerald-500 text-white text-[8px] font-black shadow-lg shadow-emerald-500/20 animate-bounce">💰 NOVO COMPROVANTE</span>

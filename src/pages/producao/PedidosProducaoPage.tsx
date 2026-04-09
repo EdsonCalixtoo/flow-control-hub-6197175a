@@ -68,6 +68,44 @@ const PedidosProducaoPage: React.FC = () => {
   const [scannedOrderForAction, setScannedOrderForAction] = useState<any>(null);
   const [actionType, setActionType] = useState<'iniciar' | 'finalizar' | null>(null);
 
+  const revertStatus = async (orderId: string, currentStatus: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) {
+      toast.error('Pedido não encontrado localmente.');
+      return;
+    }
+
+    let previousStatus = '';
+    if (currentStatus === 'em_producao') previousStatus = 'aguardando_producao';
+    else if (currentStatus === 'producao_finalizada' || currentStatus === 'produto_liberado') previousStatus = 'em_producao';
+    else if (currentStatus === 'retirado_entregador') previousStatus = 'produto_liberado';
+
+    if (!previousStatus) {
+      toast.error('Não é possível reverter este status automaticamente.');
+      return;
+    }
+
+    if (!window.confirm(`Deseja realmente RETORNAR o pedido ${order.number} para ${previousStatus}?`)) return;
+
+    try {
+      await updateOrderStatus(
+        orderId,
+        previousStatus as any,
+        {
+          releasedAt: null,
+          releasedBy: null,
+          volumes: 1
+        },
+        user?.name || 'Sistema',
+        `Status revertido manualmente (Estorno de escaneamento por ${user?.name || 'usuário'})`
+      );
+      toast.success(`Pedido ${order.number} revertido para ${previousStatus}`);
+      loadFromSupabase();
+    } catch (err) {
+      toast.error('Erro ao reverter status.');
+    }
+  };
+
   // ⚡ OTIMIZAÇÃO: Carrega os detalhes completos (itens, fotos) ao abrir o detalhe
   useEffect(() => {
     if (viewOrderId) {
@@ -894,7 +932,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                 <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Últimas leituras</p>
               </div>
               {recentScans.map(scan => (
-                <div key={scan.id} className={`flex items-center justify-between gap-3 p-2.5 rounded-lg border ${scan.success ? 'bg-success/5 border-success/20' : 'bg-destructive/5 border-destructive/20'}`}>
+                <div key={scan.id} className={`flex items-center justify-between gap-3 p-2.5 rounded-lg border group relative ${scan.success ? 'bg-success/5 border-success/20' : 'bg-destructive/5 border-destructive/20'}`}>
                   <div className="flex items-center gap-2">
                     {scan.success
                       ? <CheckCircle className="w-3.5 h-3.5 text-success shrink-0" />
@@ -904,9 +942,24 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                       <p className="text-[10px] text-muted-foreground">{scan.scannedBy}</p>
                     </div>
                   </div>
-                  <p className="text-[10px] text-muted-foreground">
-                    {new Date(scan.scannedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                  </p>
+                  <div className="flex items-center gap-2">
+                    {scan.success && (
+                      <button 
+                         onClick={() => {
+                           const ord = orders.find(o => o.number === scan.orderNumber || o.number.includes(scan.orderNumber));
+                           if (ord) revertStatus(ord.id, ord.status);
+                           else toast.error('Pedido não localizado para estorno.');
+                         }}
+                         className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md bg-destructive/10 text-destructive hover:bg-destructive/20"
+                         title="Estornar / Voltar Status"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                      </button>
+                    )}
+                    <p className="text-[10px] text-muted-foreground">
+                      {new Date(scan.scannedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>

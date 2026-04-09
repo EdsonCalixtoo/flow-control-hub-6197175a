@@ -5,6 +5,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import {
     Truck, Package, CheckCircle, X, Camera, PenLine, RefreshCw,
     ClipboardList, ChevronDown, ChevronUp, User, Calendar, Hash,
+    Search
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -423,6 +424,8 @@ const EntregadoresPage: React.FC = () => {
     const [selectedCarrier, setSelectedCarrier] = useState<string>('TODOS');
     const [loadingInitial, setLoadingInitial] = useState(true);
 
+    const [search, setSearch] = useState('');
+
     // Sincroniza data ao montar - resolve "entregadores precisa atualizar página para ver pedidos"
     useEffect(() => {
         console.log('[EntregadoresPage] 🔄 Página carregada - iniciando sincronização Realtime');
@@ -571,7 +574,19 @@ const EntregadoresPage: React.FC = () => {
         const sCarrier = selectedCarrier.trim().toUpperCase();
         const matchCarrier = sCarrier === 'TODOS' || gCarrier === sCarrier;
 
-        return matchStatus && matchCarrier;
+        let matchSearch = true;
+        if (search.trim()) {
+            const query = search.toLowerCase();
+            const inHeader = g.orderNumber.toLowerCase().includes(query) || 
+                             g.clientName.toLowerCase().includes(query) ||
+                             g.orderId.toLowerCase().includes(query);
+            const inUnified = g.unifiedOrders?.some(uo => 
+                uo.number.toLowerCase().includes(query)
+            );
+            matchSearch = inHeader || inUnified;
+        }
+
+        return matchStatus && matchCarrier && matchSearch;
     });
 
     const carriers = React.useMemo(() => {
@@ -860,6 +875,18 @@ const EntregadoresPage: React.FC = () => {
                         </button>
                     </div>
                 )}
+
+                {/* Search Bar */}
+                <div className="relative">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
+                    <input 
+                        type="text" 
+                        placeholder="Buscar por Pedido, Cliente ou Pedido Unificado..." 
+                        value={search} 
+                        onChange={e => setSearch(e.target.value)} 
+                        className="input-modern pl-10 py-3 bg-background/50 border-primary/10 focus:border-primary/30" 
+                    />
+                </div>
 
                 {/* Filter tabs */}
                 <div className="space-y-3">

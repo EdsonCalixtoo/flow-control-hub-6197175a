@@ -142,10 +142,10 @@ const GarantiasPage: React.FC = () => {
                         id: `ni${i}`, product: item.product, description: item.description, quantity: item.quantity, unitPrice: 0, discount: 0, discountType: 'value', total: 0, sensorType: item.sensorType
                     })),
                     subtotal: 0, taxes: 0, total: 0,
-                    status: 'aguardando_producao',
+                    status: 'aguardando_financeiro',
                     notes: `PEDIDO DE GARANTIA (SISTEMA ANTIGO) REFERENTE AO ${manualOrderNumber}\n\nMotivo: ${reason}\n\nDetalhes: ${description}`,
                     createdAt: now, updatedAt: now,
-                    statusHistory: [{ status: 'aguardando_producao' as any, timestamp: now, user: user?.name || 'Vendedor', note: `Garantia do ${manualOrderNumber} - Enviado direto para produção` }],
+                    statusHistory: [{ status: 'aguardando_financeiro' as any, timestamp: now, user: user?.name || 'Vendedor', note: `Garantia do ${manualOrderNumber} - Enviado para validação do Financeiro` }],
                     carrier: carrier,
                     isWarranty: true,
                     orderType,
@@ -203,10 +203,10 @@ const GarantiasPage: React.FC = () => {
                             id: `ni${i}`, product: item.product, description: item.description, quantity: item.quantity, unitPrice: 0, discount: 0, discountType: 'value', total: 0, sensorType: item.sensorType
                         })),
                         subtotal: 0, taxes: 0, total: 0,
-                        status: (isErica || isVendedor) ? 'aguardando_gestor' : 'aguardando_producao',
+                        status: 'aguardando_financeiro',
                         notes: `PEDIDO DE GARANTIA REFERENTE AO ${selectedOrder!.number}\n\nMotivo: ${reason}\n\nDetalhes: ${description}`,
                         createdAt: now, updatedAt: now,
-                        statusHistory: [{ status: (isErica || isVendedor) ? 'aguardando_gestor' : ('aguardando_producao' as any), timestamp: now, user: user?.name || 'Vendedor', note: `Garantia do ${selectedOrder!.number} (Edição - Novo Pedido)` }],
+                        statusHistory: [{ status: 'aguardando_financeiro' as any, timestamp: now, user: user?.name || 'Vendedor', note: `Garantia do ${selectedOrder!.number} (Edição - Novo Pedido) - Enviado para Financeiro` }],
                         carrier: carrier,
                         isWarranty: true,
                         orderType,
@@ -301,10 +301,10 @@ const GarantiasPage: React.FC = () => {
                             id: `ni${i}`, product: item.product, description: item.description, quantity: item.quantity, unitPrice: 0, discount: 0, discountType: 'value', total: 0, sensorType: item.sensorType
                         })),
                         subtotal: 0, taxes: 0, total: 0,
-                        status: 'aguardando_gestor',
+                        status: 'aguardando_financeiro',
                         notes: `PEDIDO DE GARANTIA REFERENTE AO ${selectedOrder!.number}\n\nMotivo: ${reason}\n\nDetalhes: ${description}`,
                         createdAt: now, updatedAt: now,
-                        statusHistory: [{ status: 'aguardando_gestor' as any, timestamp: now, user: user?.name || 'Vendedor', note: `Garantia do ${selectedOrder!.number} - Aguardando aprovação do gestor` }],
+                        statusHistory: [{ status: 'aguardando_financeiro' as any, timestamp: now, user: user?.name || 'Vendedor', note: `Garantia do ${selectedOrder!.number} - Aguardando aprovação do financeiro` }],
                         carrier: carrier,
                         isWarranty: true,
                         orderType,
@@ -714,7 +714,7 @@ const GarantiasPage: React.FC = () => {
                         className={`btn-primary w-full h-12 justify-center font-bold transition-all ${loading ? 'opacity-50 cursor-not-allowed grayscale' : 'hover:scale-[1.01] active:scale-[0.99]'
                             }`}
                     >
-                        <Send className="w-4 h-4" /> {loading ? 'Sincronizando...' : editingWarranty ? 'Confirmar Edição' : 'Enviar para Gestor'}
+                        <Send className="w-4 h-4" /> {loading ? 'Sincronizando...' : editingWarranty ? 'Confirmar Edição' : 'Enviar para Financeiro'}
                     </button>
 
                     {/* Modal de Escolha - NOVO PEDIDO OU MANTER */}

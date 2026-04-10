@@ -76,11 +76,14 @@ const AprovacoesPage: React.FC = () => {
     // Fluxo: Financeiro aprova e envia direto para Produção (sem Gestor)
     // Se for Carenagem, pula a produção e vai direto para 'produto_liberado'
     const isCarenagem = isOrderCarenagem(order);
+    const isWarranty = order.isWarranty === true;
 
-    const nextStatus = isCarenagem ? 'produto_liberado' : 'aguardando_producao';
-    const finalNote = isCarenagem
-      ? 'Carenagem: Aprovado e Liberado (Sem Produção)'
-      : (isConsignado ? 'Consignado: Aprovado para produção' : (isInstalacao ? 'Instalação: Aprovado para produção' : (isRetirada ? 'Retirada: Aprovado para produção' : 'Pagamento aprovado - Enviando para produção')));
+    const nextStatus = isWarranty ? 'aguardando_gestor' : (isCarenagem ? 'produto_liberado' : 'aguardando_producao');
+    const finalNote = isWarranty 
+      ? 'Garantia: Aprovado pelo financeiro - Enviando para validação do Gestor'
+      : (isCarenagem 
+        ? 'Carenagem: Aprovado e Liberado (Sem Produção)'
+        : (isConsignado ? 'Consignado: Aprovado para produção' : (isInstalacao ? 'Instalação: Aprovado para produção' : (isRetirada ? 'Retirada: Aprovado para produção' : 'Pagamento aprovado - Enviando para produção'))));
 
     await updateOrderStatus(
       orderId,

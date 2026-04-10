@@ -245,7 +245,10 @@ const GestorDashboard: React.FC = () => {
           { key: 'problemas', label: 'Problemas', icon: AlertTriangle, badge: unreadErrors },
           { key: 'devolvidos', label: 'Devoluções', icon: RotateCcw, badge: orderReturns.filter(r => !r.resolved).length },
           { key: 'extravios', label: 'Extravios', icon: Package, badge: orders.filter(o => o.status === 'extraviado').length },
-          { key: 'garantias', label: 'Garantias', icon: ShieldCheck, badge: warranties.filter(w => ['Garantia criada', 'Garantia aprovada'].includes(w.status)).length },
+          { key: 'garantias', label: 'Garantias', icon: ShieldCheck, badge: warranties.filter(w => {
+            const order = orders.find(o => o.id === w.orderId);
+            return (w.status === 'Garantia criada' && order?.status === 'aguardando_gestor') || (w.status === 'Garantia aprovada');
+          }).length },
           { key: 'erros', label: 'Relatórios', icon: FileText, badge: 0 },
         ] as { key: GestorTab; label: string; icon: React.ElementType; badge: number }[]).map(tab => (
           <button
@@ -1041,14 +1044,21 @@ const GestorDashboard: React.FC = () => {
                 </h3>
               </div>
               
-              {warranties.filter(w => ['Garantia criada', 'Garantia aprovada'].includes(w.status)).length === 0 ? (
+              {warranties.filter(w => {
+                const order = orders.find(o => o.id === w.orderId);
+                // Só mostra para o gestor se o financeiro já aprovou (status aguardando_gestor) ou se já foi aprovado pelo próprio gestor
+                return (w.status === 'Garantia criada' && order?.status === 'aguardando_gestor') || (w.status === 'Garantia aprovada');
+              }).length === 0 ? (
                 <div className="card-section p-16 text-center bg-muted/10">
                   <ShieldCheck className="w-12 h-12 text-muted-foreground/20 mx-auto mb-3" />
                   <p className="text-muted-foreground font-medium text-sm">Nenhuma garantia aguardando ação do gestor.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-4">
-                  {warranties.filter(w => ['Garantia criada', 'Garantia aprovada'].includes(w.status)).map(w => (
+                  {warranties.filter(w => {
+                    const order = orders.find(o => o.id === w.orderId);
+                    return (w.status === 'Garantia criada' && order?.status === 'aguardando_gestor') || (w.status === 'Garantia aprovada');
+                  }).map(w => (
                     <div key={w.id} className="card-section p-6 space-y-4 border-primary/20 shadow-sm hover:shadow-md transition-all">
                       <div className="flex items-start justify-between">
                         <div className="space-y-1">

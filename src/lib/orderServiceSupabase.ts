@@ -82,7 +82,11 @@ export const orderToSupabase = (order: Partial<Order>) => {
     if (order.isWarranty !== undefined) data.is_warranty = order.isWarranty;
     if (order.statusPagamento !== undefined) data.status_pagamento = order.statusPagamento;
     if (order.paymentStatus !== undefined) data.status_pagamento = order.paymentStatus;
+    
+    // Mapeamento de Produção
     if (order.statusProducao !== undefined) data.status_producao = order.statusProducao;
+    if (order.productionStatus !== undefined) data.status_producao = order.productionStatus; 
+    
     if (order.scheduledDate !== undefined) data.scheduled_date = order.scheduledDate;
     if (order.volumes !== undefined) data.volumes = order.volumes;
     if (order.requiresInvoice !== undefined) data.requires_invoice = order.requiresInvoice;
@@ -94,8 +98,13 @@ export const orderToSupabase = (order: Partial<Order>) => {
     if (order.attachmentUrl !== undefined) data.attachment_url = order.attachmentUrl;
     if (order.attachmentName !== undefined) data.attachment_name = order.attachmentName;
 
+    // Metadados e Histórico
     if (order.items) data.items = order.items;
     if (order.statusHistory) data.status_history = order.statusHistory;
+    
+    // Atualiza o updatedAt para o banco
+    data.updated_at = new Date().toISOString();
+
     return data;
 };
 
@@ -218,9 +227,9 @@ export const createOrderSupabase = async (order: Order): Promise<Order | null> =
 export const updateOrderSupabase = async (orderId: string, fields: Partial<Order>): Promise<Order | null> => {
     try {
         const payload = orderToSupabase(fields);
-        const { data, error } = await supabase.from('orders').update(payload).eq('id', orderId).select().single();
+        const { data, error } = await supabase.from('orders').update(payload).eq('id', orderId).select();
         if (error) throw error;
-        return supabaseToOrder(data);
+        return data && data.length > 0 ? supabaseToOrder(data[0]) : null;
     } catch (err: any) {
         console.error('[Orders] Erro ao atualizar pedido:', err.message);
         throw err;

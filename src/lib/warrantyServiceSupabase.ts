@@ -69,11 +69,10 @@ export const updateWarranty = async (id: string, updates: Partial<Warranty>): Pr
         .from('warranties')
         .update(payload)
         .eq('id', id)
-        .select()
-        .single();
+        .select();
 
     if (error) throw error;
-    return supabaseToWarranty(data);
+    return data && data.length > 0 ? supabaseToWarranty(data[0]) : null;
 };
 
 export const fetchWarrantyByNumberSupabase = async (num: string): Promise<Warranty | null> => {

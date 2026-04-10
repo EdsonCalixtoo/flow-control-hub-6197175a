@@ -349,8 +349,9 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
     const isActuallyScanned = scannedOrderIds.has(o.id);
     const filterToUse = tipoFiltro === 'historico' ? 'historico' : statusFilter;
 
-    // Pedido é considerado "Concluído" para a produção se já foi Finalizado, Liberado, Retirado ou Escaneado
-    const isCompleted = ['producao_finalizada', 'produto_liberado', 'retirado_entregador'].includes(o.status) || isActuallyScanned;
+    // Pedido é considerado "Concluído" para a produção se já foi Liberado para entrega ou Retirado pelo entregador
+    // 'producao_finalizada' permanece na lista para que o usuário possa escanear o código de barras antes de sumir.
+    const isCompleted = ['produto_liberado', 'retirado_entregador'].includes(o.status) || isActuallyScanned;
 
     // No histórico, mostramos tudo que está concluído
     if (filterToUse === 'historico') return isCompleted;
@@ -417,11 +418,18 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 
     updateOrderStatus(orderId, nextStatus, {
       productionFinishedAt: now,
-      qrCode: order.orderType === 'retirada' || isFieldWork ? undefined : qrCode,
       productionStatus: 'finalizado',
+      productionFinishedBy: finishedBy,
       releasedAt: isFieldWork ? now : undefined,
       releasedBy: isFieldWork ? finishedBy : undefined,
     }, finishedBy, isFieldWork ? 'Produção finalizada e liberada para o campo' : 'Producao finalizada');
+
+    if (!isFieldWork) {
+      toast.success('Produção finalizada! Escaneie o código de barras agora para enviar aos entregadores.', {
+        duration: 5000,
+        icon: '🚀'
+      });
+    }
 
     setGuia(orderId);
   };
@@ -1530,13 +1538,13 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
               </div>
 
               <div className="flex items-center gap-2">
-                 {viewOrder.status === 'aguardando_producao' && (
+                 {['aguardando_producao', 'aprovado_financeiro', 'aprovado_gestor'].includes(viewOrder.status) && (
                     <button onClick={() => { iniciarProducao(viewOrder.id); setViewOrderId(null); }} className="btn-primary from-producao to-producao/80 px-6 py-3 text-xs font-black uppercase rounded-xl transition-all text-white">
                        <Play className="w-4 h-4 mr-2" /> Iniciar
                     </button>
                  )}
                  {viewOrder.status === 'em_producao' && (
-                    <button onClick={() => { finalizarProducao(viewOrder.id); setViewOrderId(null); }} className="btn-primary from-emerald-500 to-emerald-600 px-6 py-3 text-xs font-black uppercase rounded-xl transition-all text-white">
+                    <button onClick={() => { finalizarProducao(viewOrder.id); setViewOrderId(null); }} className="btn-primary bg-gradient-to-br from-emerald-500 to-emerald-600 px-6 py-3 text-xs font-black uppercase rounded-xl transition-all text-white">
                        <CheckCircle className="w-4 h-4 mr-2" /> Finalizar
                     </button>
                  )}
@@ -1876,42 +1884,43 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                         DETALHES
                       </button>
 
-                      {order.status === 'aguardando_producao' && (
+                      {['aguardando_producao', 'aprovado_financeiro', 'aprovado_gestor'].includes(order.status) && (
                         <button 
-                          onClick={() => setViewOrderId(order.id)} 
+                          onClick={(e) => { e.stopPropagation(); iniciarProducao(order.id); }} 
                           className={`btn-primary flex-1 md:flex-none justify-center bg-gradient-to-br ${mainGradient} px-6 sm:px-8 py-3 text-[10px] sm:text-xs font-black uppercase rounded-xl shadow-xl ${mainShadow} hover:scale-105 active:scale-95 transition-all text-white border-none`}
                         >
-                          INICIAR
+                          <Play className="w-4 h-4 mr-2" /> INICIAR
                         </button>
                       )}
 
                       {order.status === 'em_producao' && (
                         <button 
-                          onClick={() => setViewOrderId(order.id)} 
-                          className="btn-primary flex-1 md:flex-none justify-center from-emerald-500 to-emerald-600 px-6 sm:px-8 py-3 text-[10px] sm:text-xs font-black uppercase rounded-xl shadow-xl shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all text-white"
+                          onClick={(e) => { e.stopPropagation(); finalizarProducao(order.id); }} 
+                          className="btn-primary flex-1 md:flex-none justify-center bg-gradient-to-br from-emerald-500 to-emerald-600 px-6 sm:px-8 py-3 text-[10px] sm:text-xs font-black uppercase rounded-xl shadow-xl shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all text-white"
                         >
-                          FINALIZAR
+                          <CheckCircle className="w-4 h-4 mr-2" /> FINALIZAR
                         </button>
                       )}
 
-                      {(order.status === 'producao_finalizada' || order.status === 'produto_liberado') && (
-                        <div className="flex gap-2 flex-1 md:flex-none">
+                      <div className="flex gap-2 flex-1 md:flex-none">
+                        {(order.status === 'producao_finalizada' || order.status === 'produto_liberado') && (
                           <button 
                             onClick={(e) => { e.stopPropagation(); setGuia(order.id); }} 
                             className="btn-modern flex-1 md:flex-none justify-center bg-primary/10 text-primary px-3 sm:px-4 py-3 text-[10px] sm:text-xs font-black hover:bg-primary/20 border border-primary/20 rounded-xl shadow-lg shadow-primary/5"
                           >
                             GUIA
                           </button>
-                          {order.orderType === 'entrega' && (
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); printEtiqueta(order); }} 
-                              className="btn-modern justify-center bg-emerald-500/10 text-emerald-600 px-3 sm:px-4 py-3 text-[10px] sm:text-xs font-black hover:bg-emerald-500/20 border border-emerald-500/20 rounded-xl"
-                            >
-                              <Printer className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      )}
+                        )}
+                        {order.orderType === 'entrega' && (
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); printEtiqueta(order); }} 
+                            className="btn-modern justify-center bg-emerald-500/10 text-emerald-600 px-3 sm:px-4 py-3 text-[10px] sm:text-xs font-black hover:bg-emerald-500/20 border border-emerald-500/20 rounded-xl"
+                            title="Imprimir Etiqueta"
+                          >
+                            <Printer className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
 
                       {order.status === 'retirado_entregador' && order.orderType === 'entrega' && (
                         <button 

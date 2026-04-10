@@ -20,7 +20,12 @@ export const logAction = async (entry: LogEntry) => {
       .insert([entry]);
 
     if (error) {
-      console.error('[LoggingService] Erro ao gravar log:', error.message);
+      // Se for erro de RLS (403/42501), apenas avisamos no console de forma discreta
+      if (error.code === '42501' || error.message.includes('row-level security')) {
+        console.warn(`[LoggingService] Usuário ${entry.user_role} não tem permissão para persistir logs. Ação ignorada: ${entry.action}`);
+      } else {
+        console.error('[LoggingService] Erro ao gravar log:', error.message);
+      }
     }
   } catch (err) {
     console.error('[LoggingService] Falha crítica no log:', err);

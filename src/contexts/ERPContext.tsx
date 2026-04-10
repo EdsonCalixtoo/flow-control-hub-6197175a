@@ -342,76 +342,106 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     try {
-      const updated = await updateOrderSupabase(orderId, updateFields);
+      let updated: Order|null = null;
+      let updateError: any = null;
+
+      // 1. ATUALIZAÇÃO OTIMISTA (Melhora UX instantaneamente)
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updateFields } : o));
+
+      // 2. TENTA ATUALIZAR TABELA DE PEDIDOS NO BANCO
+      try {
+        console.log(`[ERP] 🔄 Persistindo status do pedido ${currentOrder.number} no Supabase...`);
+        updated = await updateOrderSupabase(orderId, updateFields);
+      } catch (err: any) {
+        updateError = err;
+        console.warn('[ERP] Falha ao persistir na tabela orders (pode ser RLS ou erro de rede):', err.message);
+      }
+
+      // 3. SE FOR GARANTIA, ATUALIZA TAMBÉM A TABELA DE GARANTIAS
+      if (currentOrder.isWarranty) {
+        try {
+          const { updateWarranty } = await import('@/lib/warrantyServiceSupabase');
+          let wStatus: any = currentOrder.status;
+          if (status === 'em_producao') wStatus = 'Em produção';
+          else if (status === 'producao_finalizada') wStatus = 'Garantia finalizada';
+
+          await updateWarranty(orderId, {
+            status: wStatus,
+            history: updateFields.statusHistory,
+            updatedAt: now
+          });
+          console.log('[ERP] ✅ Tabela de garantias sincronizada');
+        } catch (wErr: any) {
+          console.error('[ERP] Erro ao sincronizar tabela de garantias:', wErr.message);
+        }
+      }
+
+      // 4. SINCRONIZA ESTADO FINAL SE O SUPABASE RETORNOU ALGO DIFERENTE (OU CONFIRMA O OTIMISTA)
       if (updated) {
-        setOrders(prev => prev.map(o => o.id === orderId ? updated : o));
-        setWarranties(prev => (prev || []).map(w => {
-          if (w.orderId === orderId || w.id === orderId) {
-            const wStatus: WarrantyStatus = (status as any) === 'producao_finalizada' ? 'Garantia finalizada' : w.status;
-            return { ...w, status: wStatus, updatedAt: now };
+        setOrders(prev => prev.map(o => o.id === orderId ? updated! : o));
+        console.log('[ERP] ✅ Persistência concluída com sucesso:', status);
+      } else if (!updateError) {
+         // Se não deu erro mas não voltou nada (ex: select vazio), mantemos o otimista
+         console.warn('[ERP] ⚠️ Supabase não retornou o objeto atualizado. Mantendo estado otimista.');
+      }
+
+      await logAction({
+        user_id: user?.id || 'system',
+        user_name: user?.name || 'Sistema',
+        user_role: user?.role || 'producao',
+        action: `Alteração de Status (#${currentOrder.number}): ${status}`,
+        entity_type: 'order',
+        entity_id: orderId,
+        old_data: { status: currentOrder.status },
+        new_data: { status }
+      }).catch(e => console.warn('[ERP] Falha ao registrar log:', e.message));
+
+      // 📦 GESTÃO AUTOMÁTICA DE ESTOQUE
+
+      // 1. DEDUÇÃO (RESERVA): Quando o pedido é enviado para o financeiro ou pula para produção
+      const isReserving = (status === 'aguardando_financeiro' || status === 'aguardando_producao') &&
+        !['aguardando_financeiro', 'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'].includes(currentOrder.status);
+
+      if (isReserving) {
+        console.log('[ERP] 📦 Deduzindo estoque (Reserva):', currentOrder.number);
+        // Busca produtos mais recentes para evitar desync de estoque
+        const latestProducts = await fetchProducts();
+
+        for (const item of currentOrder.items) {
+          const product = latestProducts.find(p => p.name === item.product);
+          if (product) {
+            const newQuantity = Math.max(0, product.stockQuantity - item.quantity);
+            await updateProduct({
+              ...product,
+              stockQuantity: newQuantity,
+              status: newQuantity === 0 ? 'esgotado' : product.status
+            });
+            // Atualiza o objeto local para o próximo item no loop (caso o mesmo produto apareça 2x)
+            product.stockQuantity = newQuantity;
           }
-          return w;
-        }));
-        console.log('[ERP] Status atualizado no Supabase:', status);
+        }
+        toast.success('Estoque reservado/deduzido com sucesso!');
+      }
 
-        await logAction({
-          user_id: user?.id || 'system',
-          user_name: user?.name || 'Sistema',
-          user_role: user?.role || 'vendedor',
-          action: `Alteração de Status (#${currentOrder.number}): ${status}`,
-          entity_type: 'order',
-          entity_id: orderId,
-          old_data: { status: currentOrder.status },
-          new_data: { status }
-        });
-
-        // 📦 GESTÃO AUTOMÁTICA DE ESTOQUE
-
-        // 1. DEDUÇÃO (RESERVA): Quando o pedido é enviado para o financeiro ou pula para produção
-        const isReserving = (status === 'aguardando_financeiro' || status === 'aguardando_producao') &&
-          !['aguardando_financeiro', 'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'].includes(currentOrder.status);
-
-        if (isReserving) {
-          console.log('[ERP] 📦 Deduzindo estoque (Reserva):', currentOrder.number);
-          // Busca produtos mais recentes para evitar desync de estoque
-          const latestProducts = await fetchProducts();
-
+      // 2. ESTORNO: Quando o pedido é rejeitado pelo financeiro e estava anteriormente reservado
+      if (status === 'rejeitado_financeiro' && currentOrder.status === 'aguardando_financeiro') {
+        try {
+          console.log('[ERP] 📦 Estornando estoque (Pedido Rejeitado):', currentOrder.number);
           for (const item of currentOrder.items) {
-            const product = latestProducts.find(p => p.name === item.product);
+            const product = productsRef.current.find(p => p.name === item.product);
             if (product) {
-              const newQuantity = Math.max(0, product.stockQuantity - item.quantity);
-              await updateProduct({
+              const newQuantity = product.stockQuantity + item.quantity;
+              await updateProductRef.current({
                 ...product,
                 stockQuantity: newQuantity,
-                status: newQuantity === 0 ? 'esgotado' : product.status
+                status: 'ativo'
               });
-              // Atualiza o objeto local para o próximo item no loop (caso o mesmo produto apareça 2x)
-              product.stockQuantity = newQuantity;
             }
           }
-          toast.success('Estoque reservado/deduzido com sucesso!');
-        }
-
-        // 2. ESTORNO: Quando o pedido é rejeitado pelo financeiro e estava anteriormente reservado
-        if (status === 'rejeitado_financeiro' && currentOrder.status === 'aguardando_financeiro') {
-          try {
-            console.log('[ERP] 📦 Estornando estoque (Pedido Rejeitado):', currentOrder.number);
-            for (const item of currentOrder.items) {
-              const product = productsRef.current.find(p => p.name === item.product);
-              if (product) {
-                const newQuantity = product.stockQuantity + item.quantity;
-                await updateProductRef.current({
-                  ...product,
-                  stockQuantity: newQuantity,
-                  status: 'ativo'
-                });
-              }
-            }
-            toast.info('Estoque retornado ao sistema.');
-          } catch (stockErr: any) {
-            console.warn('[ERP] ⚠️ Erro ao estornar estoque (não crítico):', stockErr.message);
-            // Não bloqueia a rejeição do pedido
-          }
+          toast.info('Estoque retornado ao sistema.');
+        } catch (stockErr: any) {
+          console.warn('[ERP] ⚠️ Erro ao estornar estoque (não crítico):', stockErr.message);
+          // Não bloqueia a rejeição do pedido
         }
       }
     } catch (err: any) {

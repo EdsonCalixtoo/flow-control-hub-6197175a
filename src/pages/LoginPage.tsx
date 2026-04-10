@@ -5,8 +5,9 @@ import { ROLE_LABELS } from '@/types/erp';
 import {
   ShoppingCart, DollarSign, BarChart3, Factory,
   ArrowRight, ArrowLeft, Eye, EyeOff, Loader2, AlertCircle,
-  Trash2, UserPlus, LogIn, CheckCircle2, User, Truck,
+  Trash2, UserPlus, LogIn, CheckCircle2, User, Truck, ShieldCheck
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 const roles: { role: UserRole; icon: React.ElementType; desc: string; gradient: string; iconBg: string }[] = [
   { role: 'vendedor', icon: ShoppingCart, desc: 'Orçamentos, clientes e vendas', gradient: 'from-vendedor/10 to-vendedor/5', iconBg: 'bg-vendedor' },
@@ -14,6 +15,7 @@ const roles: { role: UserRole; icon: React.ElementType; desc: string; gradient: 
   { role: 'gestor', icon: BarChart3, desc: 'Conferência e indicadores', gradient: 'from-gestor/10 to-gestor/5', iconBg: 'bg-gestor' },
   { role: 'producao', icon: Factory, desc: 'Produção e liberação', gradient: 'from-producao/10 to-producao/5', iconBg: 'bg-producao' },
   { role: 'producao_carenagem', icon: Truck, desc: 'Pedidos de carenagem e side skirt', gradient: 'from-indigo-600/10 to-indigo-500/5', iconBg: 'bg-indigo-600' },
+  { role: 'admin', icon: ShieldCheck, desc: 'Administração total do sistema', gradient: 'from-slate-900/10 to-slate-800/5', iconBg: 'bg-slate-900' },
 ];
 
 type Step = 'select' | 'auth';

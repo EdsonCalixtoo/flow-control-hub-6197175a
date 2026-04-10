@@ -1183,10 +1183,14 @@ const OrcamentosPage: React.FC = () => {
                             .filter(p => p.category !== 'Carenagem' || user?.email === 'higorfeerreira9@gmail.com')
                             .filter(p => {
                               if (!item.isReward) return true;
-                              const isKit = p.name.toUpperCase().includes('KIT');
-                              // Tier 1: NAO PODE TER KIT
+                              const isKit = p.name.toUpperCase().includes('KIT') || p.name.toUpperCase().includes('SPRINTER');
+                              
+                              // Tier 1: TUDO MENOS KITS
                               if (activeReward?.type === 'tier_1') return !isKit;
-                              // Tier 2/3: PODE TER KIT (Geralmente são KITS)
+                              
+                              // Tier 2/3: APENAS KITS
+                              if (activeReward?.type === 'tier_2' || activeReward?.type === 'tier_3') return isKit;
+                              
                               return true;
                             })
                             .map(p => ({

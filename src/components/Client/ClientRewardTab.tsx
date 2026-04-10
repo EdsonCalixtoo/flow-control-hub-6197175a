@@ -6,7 +6,8 @@ import {
     fetchClientRewards,
     redeemReward,
     resetReward,
-    updateClientRewardsAuto
+    updateClientRewardsAuto,
+    adjustReward
 } from '@/lib/rewardServiceSupabase';
 import type { ClientReward, ClientRanking } from '@/types/erp';
 import { toast } from 'sonner';
@@ -25,6 +26,7 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
     const [redeemingId, setRedeemingId] = useState<string | null>(null);
     const [redeemQuantities, setRedeemQuantities] = useState<Record<string, number>>({});
     const [resettingId, setResettingId] = useState<string | null>(null);
+    const [adjustingId, setAdjustingId] = useState<string | null>(null);
 
     const loadData = async () => {
         setLoading(true);
@@ -102,6 +104,26 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
         }
     };
 
+    const handleAdjust = async (reward: ClientReward, amount: number) => {
+        if (!isDeveloperOrGestor) {
+            toast.error('Você não tem permissão para ajustar premiações.');
+            return;
+        }
+
+        setAdjustingId(`${reward.id}-${amount > 0 ? 'inc' : 'dec'}`);
+        try {
+            const success = await adjustReward(reward.id, amount);
+            if (success) {
+                toast.success(`Progresso ${amount > 0 ? 'aumentado' : 'reduzido'} com sucesso!`);
+                loadData();
+            } else {
+                toast.error('Erro ao ajustar progresso');
+            }
+        } finally {
+            setAdjustingId(null);
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center py-20 animate-pulse">
@@ -114,15 +136,15 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
     const getRewardTitle = (type: string) => {
         switch (type) {
             case 'tier_1': return '1ª Premiação (5 Kits)';
-            case 'tier_2': return '2ª Premiação (7 Kits - Valor Cheio)';
-            case 'tier_3': return '3ª Premiação (10 Kits - Promoção)';
+            case 'tier_2': return '2ª Premiação (7 Kits - R$ 1450 a 2000)';
+            case 'tier_3': return '3ª Premiação (10 Kits - R$ 1100 a 1400)';
             default: return 'Premiação';
         }
     };
 
     const getRewardDescription = (type: string) => {
         switch (type) {
-            case 'tier_1': return 'Prêmio: 1 Plaquinha de Nylon';
+            case 'tier_1': return 'Prêmio: 1 Resgate (Exceto Kits)';
             case 'tier_2': return 'Prêmio: 1 Kit Completo';
             case 'tier_3': return 'Prêmio: 1 Kit Completo';
             default: return '';
@@ -224,7 +246,29 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
                                         <div className="mt-3 w-full md:w-64">
                                             <div className="flex items-center justify-between text-[10px] font-bold uppercase mb-1">
                                                 <span>Progresso</span>
-                                                <span>{reward.kitsCompleted} / {reward.kitsRequired} Kits</span>
+                                                <div className="flex items-center gap-1.5">
+                                                    {isDeveloperOrGestor && (
+                                                        <button 
+                                                          onClick={() => handleAdjust(reward, -1)}
+                                                          disabled={adjustingId !== null}
+                                                          className="w-4 h-4 rounded bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors active:scale-90"
+                                                          title="Remover 1 Kit"
+                                                        >
+                                                            -
+                                                        </button>
+                                                    )}
+                                                    <span className="text-foreground">{reward.kitsCompleted} / {reward.kitsRequired} Kits</span>
+                                                    {isDeveloperOrGestor && (
+                                                        <button 
+                                                          onClick={() => handleAdjust(reward, 1)}
+                                                          disabled={adjustingId !== null}
+                                                          className="w-4 h-4 rounded bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors active:scale-90"
+                                                          title="Adicionar 1 Kit"
+                                                        >
+                                                            +
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
                                             <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
                                                 <div

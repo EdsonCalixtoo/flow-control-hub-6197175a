@@ -214,6 +214,35 @@ export const resetReward = async (rewardId: string, currentBalance: number): Pro
     }
 };
 
+export const adjustReward = async (rewardId: string, amount: number): Promise<boolean> => {
+    try {
+        const { data: rewardData, error: fetchError } = await supabase
+            .from('client_rewards')
+            .select('kits_adjustment')
+            .eq('id', rewardId)
+            .single();
+
+        if (fetchError || !rewardData) throw fetchError || new Error('Prêmio não encontrado');
+
+        const currentAdjustment = rewardData.kits_adjustment || 0;
+        const newAdjustment = currentAdjustment + amount;
+
+        const { error } = await supabase
+            .from('client_rewards')
+            .update({
+                kits_adjustment: newAdjustment,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', rewardId);
+
+        if (error) throw error;
+        return true;
+    } catch (err: any) {
+        console.error('[Rewards] Erro ao ajustar premiação:', err.message);
+        return false;
+    }
+};
+
 export const updateClientRewardsAuto = async (clientId: string): Promise<void> => {
     try {
         const ranking = await calculateClientRanking(clientId);

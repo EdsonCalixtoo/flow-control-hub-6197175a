@@ -28,6 +28,7 @@ import {
   Tag,
   Calendar,
   ShieldAlert,
+  Factory,
 } from 'lucide-react';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -84,6 +85,21 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: 
     { label: 'Garantias', icon: ShieldAlert, path: '/producao_carenagem/pedidos?tipo=garantias' },
     { label: 'Atrasados', icon: AlertTriangle, path: '/producao_carenagem/pedidos?tipo=atrasado' },
   ],
+  admin: [
+    { label: 'Gestão Vendas', icon: LayoutDashboard, path: '/gestor' },
+    { label: 'Clientes', icon: Users, path: '/vendedor/clientes' },
+    { label: 'Orçamentos', icon: FileText, path: '/vendedor/orcamentos' },
+    { label: 'Aprovações', icon: CheckSquare, path: '/financeiro/aprovacoes' },
+    { label: 'Financeiro', icon: DollarSign, path: '/financeiro' },
+    { label: 'Fluxo Caixa', icon: TrendingUp, path: '/financeiro/fluxo' },
+    { label: 'Produção', icon: Factory, path: '/producao/pedidos' },
+    { label: 'Entregadores', icon: Truck, path: '/gestor/entregadores' },
+    { label: 'Calendário', icon: Calendar, path: '/vendedor/calendario' },
+    { label: 'Relatórios', icon: BarChart3, path: '/gestor/relatorios' },
+    { label: 'Garantias', icon: Shield, path: '/vendedor/garantias' },
+    { label: 'Produtos/Estoque', icon: Package, path: '/gestor/produtos' },
+    { label: 'TI/Ajustes', icon: Wrench, path: '/gestor/corrigir-pedido' },
+  ],
 };
 
 
@@ -93,6 +109,7 @@ const ROLE_COLORS: Record<string, string> = {
   gestor: 'from-gestor to-gestor/70',
   producao: 'from-producao to-producao/70',
   producao_carenagem: 'from-indigo-600 to-indigo-500/70',
+  admin: 'from-slate-900 to-slate-800/70',
 };
 
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {

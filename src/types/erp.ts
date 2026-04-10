@@ -1,4 +1,4 @@
-export type UserRole = 'vendedor' | 'financeiro' | 'gestor' | 'producao' | 'producao_carenagem';
+export type UserRole = 'vendedor' | 'financeiro' | 'gestor' | 'producao' | 'producao_carenagem' | 'admin';
 
 export interface User {
   id: string;
@@ -275,8 +275,8 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
   aguardando_producao: 'Aguardando Produção',
   em_producao: 'Em Produção',
   producao_finalizada: 'Produção Finalizada',
-  produto_liberado: 'Finalizado (Pronto)',
-  retirado_entregador: 'Retirado p/ Entregador',
+  produto_liberado: 'Aguardando entregador',
+  retirado_entregador: 'Retirado pelo entregador',
   extraviado: 'Extraviado',
   planejamento: 'Previsão de Produção',
 };
@@ -306,6 +306,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   gestor: 'Gestor',
   producao: 'Produção',
   producao_carenagem: 'Produção Carenagem',
+  admin: 'Administrador (TI)',
 };
 
 export const ROLE_COLORS: Record<UserRole, string> = {
@@ -314,6 +315,7 @@ export const ROLE_COLORS: Record<UserRole, string> = {
   gestor: 'bg-gestor',
   producao: 'bg-producao',
   producao_carenagem: 'bg-indigo-600',
+  admin: 'bg-slate-900',
 };
 
 export const PRODUCTION_STATUS_LABELS: Record<ProductionStatus, string> = {

@@ -17,6 +17,7 @@ import {
 } from '@/lib/gestorServiceSupabase';
 import { fetchWarranties, createWarranty as createWarrantySupabase, updateWarranty as updateWarrantySupabase } from '@/lib/warrantyServiceSupabase';
 import { fetchMonthlyClosings, createMonthlyClosing } from '@/lib/fechamentoServiceSupabase';
+import { logAction } from '@/lib/loggingService';
 
 import type { MonthlyClosing } from '@/types/erp';
 
@@ -58,7 +59,7 @@ interface ERPContextType {
   addOrder: (order: Order) => Promise<void>;
   deleteOrder: (orderId: string) => Promise<void>;
   updateOrderStatus: (orderId: string, status: OrderStatus, extra?: Partial<Order>, userName?: string, note?: string) => Promise<void>;
-  updateOrder: (orderId: string, fields: Partial<Order>) => void;
+  updateOrder: (orderId: string, fields: Partial<Order>) => Promise<void>;
   editOrderFull: (order: Order) => Promise<void>;
   addClient: (client: Client) => Promise<void>;
   editClient: (client: Client) => void;
@@ -82,7 +83,7 @@ interface ERPContextType {
 const ERPContext = createContext<ERPContextType | null>(null);
 
 export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   // ── Persistência local (Somente para itens não críticos ou ainda não migrados) ──────
   const [orders, setOrders] = React.useState<Order[]>([]);
@@ -206,6 +207,16 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (newProduct) {
         setProducts(prev => [newProduct, ...prev]);
         console.log('[ERP] ✅ Produto criado no Supabase:', newProduct.id);
+        
+        await logAction({
+          user_id: user?.id || 'system',
+          user_name: user?.name || 'Sistema',
+          user_role: user?.role || 'vendedor',
+          action: `Criação de Produto: ${newProduct.name}`,
+          entity_type: 'product',
+          entity_id: newProduct.id,
+          new_data: newProduct
+        });
       } else {
         throw new Error('Falha ao criar produto no Supabase');
       }
@@ -222,8 +233,20 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.log('[ERP] 📦 Atualizando produto:', product.name);
       const updated = await updateProductSupabase(product);
       if (updated) {
+        const productBefore = products.find(p => p.id === product.id);
         setProducts(prev => prev.map(p => p.id === product.id ? updated : p));
         console.log('[ERP] ✅ Produto atualizado no Supabase:', updated.id);
+        
+        await logAction({
+          user_id: user?.id || 'system',
+          user_name: user?.name || 'Sistema',
+          user_role: user?.role || 'vendedor',
+          action: `Atualização de Produto: ${updated.name}`,
+          entity_type: 'product',
+          entity_id: updated.id,
+          old_data: productBefore,
+          new_data: updated
+        });
       } else {
         throw new Error('Falha ao atualizar produto no Supabase');
       }
@@ -244,9 +267,20 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteProduct = useCallback(async (productId: string) => {
     try {
       console.log('[ERP] 🗑️ Deletando produto:', productId);
+      const productBefore = products.find(p => p.id === productId);
       await deleteProductSupabase(productId);
       setProducts(prev => prev.filter(p => p.id !== productId));
       console.log('[ERP] ✅ Produto deletado do Supabase:', productId);
+      
+      await logAction({
+        user_id: user?.id || 'system',
+        user_name: user?.name || 'Sistema',
+        user_role: user?.role || 'vendedor',
+        action: `Exclusão de Produto: ${productBefore?.name || productId}`,
+        entity_type: 'product',
+        entity_id: productId,
+        old_data: productBefore
+      });
     } catch (err: any) {
       console.error('[ERP] ❌ Erro ao deletar produto:', err.message);
       // fallback local
@@ -262,6 +296,16 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (newOrder) {
         setOrders(prev => [newOrder, ...prev]);
         console.log('[ERP] ✨ Pedido criado no Supabase:', newOrder.number);
+        
+        await logAction({
+          user_id: user?.id || 'system',
+          user_name: user?.name || 'Sistema',
+          user_role: user?.role || 'vendedor',
+          action: `Criação de Pedido: ${newOrder.number}`,
+          entity_type: 'order',
+          entity_id: newOrder.id,
+          new_data: newOrder
+        });
       }
     } catch (err: any) {
       console.error('[ERP] Erro ao criar pedido:', err.message);
@@ -309,6 +353,17 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return w;
         }));
         console.log('[ERP] Status atualizado no Supabase:', status);
+
+        await logAction({
+          user_id: user?.id || 'system',
+          user_name: user?.name || 'Sistema',
+          user_role: user?.role || 'vendedor',
+          action: `Alteração de Status (#${currentOrder.number}): ${status}`,
+          entity_type: 'order',
+          entity_id: orderId,
+          old_data: { status: currentOrder.status },
+          new_data: { status }
+        });
 
         // 📦 GESTÃO AUTOMÁTICA DE ESTOQUE
 
@@ -463,20 +518,26 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateOrder = useCallback(async (orderId: string, fields: Partial<Order>) => {
     try {
+      const orderBefore = orders.find(o => o.id === orderId);
       const updated = await updateOrderSupabase(orderId, fields);
       if (updated) {
         setOrders(prev => prev.map(o => o.id === orderId ? updated : o));
-        setWarranties(prev => (prev || []).map(w => {
-          if (w.orderId === orderId || w.id === orderId) {
-            return { ...w, updatedAt: new Date().toISOString() };
-          }
-          return w;
-        }));
+        
+        await logAction({
+          user_id: user?.id || 'system',
+          user_name: user?.name || 'Sistema',
+          user_role: user?.role || 'vendedor',
+          action: `Atualização de Pedido (#${updated.number})`,
+          entity_type: 'order',
+          entity_id: orderId,
+          old_data: orderBefore,
+          new_data: updated
+        });
       }
     } catch (err: any) {
       console.error('[ERP] Erro ao atualizar pedido:', err.message);
     }
-  }, []);
+  }, [orders, user]);
 
   const editOrderFull = useCallback(async (order: Order) => {
     try {
@@ -502,7 +563,16 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setOrders(prev => prev.filter(o => o.id !== orderId));
       console.log('[ERP] ✅ Pedido deletado do Supabase');
 
-      // 3. ESTORNO NA EXCLUSÃO: Se o pedido já tinha deduzido estoque
+      // Registra a ação
+      await logAction({
+        user_id: user?.id || 'system',
+        user_name: user?.name || 'Sistema',
+        user_role: user?.role || 'vendedor',
+        action: `Exclusão de Pedido: ${orderToDelete?.number || orderId}`,
+        entity_type: 'order',
+        entity_id: orderId,
+        old_data: orderToDelete
+      });
       if (orderToDelete && ['aguardando_financeiro', 'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'].includes(orderToDelete.status)) {
         console.log('[ERP] 📦 Estornando estoque (Pedido Excluído):', orderToDelete.number);
         for (const item of orderToDelete.items) {

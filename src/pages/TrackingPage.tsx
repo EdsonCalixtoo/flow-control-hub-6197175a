@@ -128,12 +128,12 @@ const TrackingPage: React.FC = () => {
         },
         {
             key: ['producao_finalizada', 'produto_liberado'],
-            label: 'Pronto para Retirada',
+            label: 'Pedido aguardando entregador',
             icon: Package,
         },
         {
             key: 'retirado_entregador',
-            label: 'Pedido Entregue',
+            label: 'Pedido retirado pelo entregador',
             icon: Truck,
         },
     ];

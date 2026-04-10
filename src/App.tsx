@@ -35,6 +35,9 @@ import PedidosProducaoPage from "@/pages/producao/PedidosProducaoPage";
 import TrackingPage from "@/pages/TrackingPage";
 import WarrantyTrackingPage from "@/pages/WarrantyTrackingPage";
 import QRCodePage from "@/pages/QRCodePage";
+import AdminDashboard from "@/pages/admin/AdminDashboard";
+import AdminLogsPage from "@/pages/admin/AdminLogsPage";
+import UsersManagementPage from "@/pages/admin/UsersManagementPage";
 import NotFound from "./pages/NotFound";
 import { lazy, Suspense } from "react";
 
@@ -50,7 +53,13 @@ const ProtectedRoute: React.FC<{ role: string; children: React.ReactNode }> = ({
     </div>
   );
   if (!isAuthenticated) return <Navigate to="/" replace />;
+  
+  // O admin tem acesso a TUDO
+  if (user?.role === 'admin') return <AppLayout>{children}</AppLayout>;
+  
+  // Outros perfis são restritos às suas roles
   if (user?.role !== role) return <Navigate to={`/${user?.role}`} replace />;
+  
   return <AppLayout>{children}</AppLayout>;
 };
 
@@ -121,6 +130,11 @@ const App = () => (
                 {/* Garantia */}
                 <Route path="/garantia" element={<ProtectedRoute role="garantia"><GarantiaVendedorPage /></ProtectedRoute>} />
                 <Route path="/garantia/pedidos" element={<ProtectedRoute role="garantia"><GarantiaVendedorPage /></ProtectedRoute>} />
+
+                {/* Admin */}
+                <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
+                <Route path="/admin/logs" element={<ProtectedRoute role="admin"><AdminLogsPage /></ProtectedRoute>} />
+                <Route path="/admin/usuarios" element={<ProtectedRoute role="admin"><UsersManagementPage /></ProtectedRoute>} />
 
 
                 <Route path="/qr/:orderId" element={<QRCodePage />} />

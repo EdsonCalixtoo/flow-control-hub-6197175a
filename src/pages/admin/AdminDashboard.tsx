@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { 
   ShieldCheck, ShoppingCart, DollarSign, BarChart3, Factory, 
   Settings, Users, History, AlertTriangle, ArrowRight,
-  Package, Truck, Clock, RefreshCcw, Database
+  Package, Truck, Clock, RefreshCcw, Database, Wrench
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getLogs, rollbackAction } from '@/lib/loggingService';
@@ -46,6 +46,7 @@ const AdminDashboard: React.FC = () => {
   };
 
   const menuItems = [
+    { label: 'Administrador T.I', icon: Wrench, path: '/admin/ti', color: 'bg-slate-900', desc: 'Saúde do sistema e ferramentas' },
     { label: 'Gestão de Pedidos', icon: ShoppingCart, path: '/gestor/corrigir-pedido', color: 'bg-vendedor', desc: 'Corrigir e unificar pedidos' },
     { label: 'Financeiro Total', icon: DollarSign, path: '/financeiro', color: 'bg-financeiro', desc: 'Controle de caixa e pagamentos' },
     { label: 'Logística', icon: Truck, path: '/gestor/entregadores', color: 'bg-indigo-600', desc: 'Entregas e transportadoras' },
@@ -62,7 +63,7 @@ const AdminDashboard: React.FC = () => {
         <div>
           <h1 className="text-3xl font-black text-foreground flex items-center gap-3">
             <ShieldCheck className="w-8 h-8 text-slate-900" />
-            Painel Administrativo
+            Painel Central Administrador
           </h1>
           <p className="text-muted-foreground font-medium">Controle total da operação e auditoria do sistema</p>
         </div>

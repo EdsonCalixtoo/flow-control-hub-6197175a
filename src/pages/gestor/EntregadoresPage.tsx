@@ -81,8 +81,8 @@ const SignatureCanvas: React.FC<{
         ctx.beginPath();
         ctx.moveTo(lastPos.current.x, lastPos.current.y);
         ctx.lineTo(pos.x, pos.y);
-        ctx.strokeStyle = '#1e40af';
-        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = '#2563eb';
+        ctx.lineWidth = 3;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
         ctx.stroke();
@@ -112,28 +112,31 @@ const SignatureCanvas: React.FC<{
 
     if (captured) {
         return (
-            <div className="space-y-2">
-                <div className="relative rounded-xl overflow-hidden border-2 border-success/40 bg-white">
+            <div className="space-y-3">
+                <div className="relative rounded-[2rem] overflow-hidden border-2 border-primary/20 bg-white shadow-inner p-4">
                     <img src={captured} alt="Assinatura" className="w-full h-32 object-contain" />
-                    <div className="absolute top-2 right-2 w-6 h-6 rounded-full bg-success flex items-center justify-center">
-                        <CheckCircle className="w-3.5 h-3.5 text-white" />
+                    <div className="absolute top-4 right-4 w-8 h-8 rounded-full bg-success flex items-center justify-center shadow-lg animate-scale-in">
+                        <CheckCircle className="w-5 h-5 text-white" />
                     </div>
                 </div>
-                <button onClick={handleClear} className="btn-modern bg-muted text-foreground shadow-none text-xs w-full justify-center">
-                    <RefreshCw className="w-3.5 h-3.5" /> Limpar e Refazer
+                <button 
+                  onClick={handleClear} 
+                  className="w-full h-12 rounded-2xl bg-muted/50 text-muted-foreground font-black text-[10px] uppercase tracking-widest hover:bg-muted transition-all flex items-center justify-center gap-2"
+                >
+                    <RefreshCw className="w-4 h-4" /> Limpar e Assinar Novamente
                 </button>
             </div>
         );
     }
 
     return (
-        <div className="space-y-2">
-            <div className="rounded-xl overflow-hidden border-2 border-dashed border-border/60 bg-white/50 touch-none">
+        <div className="space-y-3">
+            <div className="rounded-[2.5rem] overflow-hidden border-2 border-dashed border-primary/20 bg-primary/[0.02] touch-none transition-all focus-within:border-primary/40 focus-within:bg-primary/[0.04]">
                 <canvas
                     ref={canvasRef}
                     width={800}
                     height={320}
-                    className="w-full h-56 md:h-64 cursor-crosshair bg-white"
+                    className="w-full h-48 md:h-56 cursor-crosshair"
                     onMouseDown={startDraw}
                     onMouseMove={draw}
                     onMouseUp={stopDraw}
@@ -143,13 +146,19 @@ const SignatureCanvas: React.FC<{
                     onTouchEnd={stopDraw}
                 />
             </div>
-            <p className="text-[10px] text-muted-foreground text-center">Assine dentro do campo acima usando o dedo ou mouse</p>
+            <p className="text-[10px] font-black text-muted-foreground/60 text-center uppercase tracking-widest">Utilize o dedo ou mouse para assinar campo acima</p>
             <div className="flex gap-2">
-                <button onClick={handleCapture} className="btn-primary flex-1 justify-center text-xs">
-                    <CheckCircle className="w-3.5 h-3.5" /> Confirmar Assinatura
+                <button 
+                  onClick={handleCapture} 
+                  className="flex-1 h-12 rounded-2xl bg-primary text-white font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2"
+                >
+                    <CheckCircle className="w-4 h-4" /> Validar Assinatura
                 </button>
-                <button onClick={handleClear} className="btn-modern bg-muted text-foreground shadow-none text-xs">
-                    <RefreshCw className="w-3.5 h-3.5" />
+                <button 
+                  onClick={handleClear} 
+                  className="w-12 h-12 rounded-2xl bg-muted/50 text-muted-foreground hover:bg-muted transition-all flex items-center justify-center"
+                >
+                    <RefreshCw className="w-5 h-5" />
                 </button>
             </div>
         </div>
@@ -659,9 +668,20 @@ const EntregadoresPage: React.FC = () => {
                 `Retirado pelo entregador: ${delivererName.trim()}`
             );
 
-            // 🔗 Sincroniza pedidos unificados
+            // 🔗 Sincroniza pedidos unificados (Garante que cada um tenha seu registro de coleta)
             if (group.unifiedOrders && group.unifiedOrders.length > 0) {
                 for (const uo of group.unifiedOrders) {
+                    // ✅ Cria registro de retirada também para o pedido unificado (herda fotos/assinaturas/lote)
+                    await addDeliveryPickup({
+                        orderId: uo.id,
+                        orderNumber: uo.number,
+                        delivererName: delivererName.trim(),
+                        photoUrl: r2PhotoUrl,
+                        signatureUrl: r2SigUrl,
+                        batchId: batchId,
+                        note: `Coleta unificada com ${group.orderNumber}`
+                    });
+
                     await updateOrderStatus(
                         uo.id,
                         'retirado_entregador',
@@ -744,9 +764,20 @@ const EntregadoresPage: React.FC = () => {
                         `Retirado pelo entregador: ${delivererName.trim()}`
                     );
 
-                    // 🔗 Sincroniza pedidos unificados no lote
+                    // 🔗 Sincroniza pedidos unificados no lote (Garante registro para todos)
                     if (group.unifiedOrders && group.unifiedOrders.length > 0) {
                         for (const uo of group.unifiedOrders) {
+                            // ✅ Herda fotos e lote para o pedido unificado
+                            await addDeliveryPickup({
+                                orderId: uo.id,
+                                orderNumber: uo.number,
+                                delivererName: delivererName.trim(),
+                                photoUrl: r2PhotoUrl,
+                                signatureUrl: r2SigUrl,
+                                batchId: batchId,
+                                note: `Coleta unificada (Lote) com ${group.orderNumber}`
+                            });
+
                             await updateOrderStatus(
                                 uo.id,
                                 'retirado_entregador',
@@ -781,55 +812,128 @@ const EntregadoresPage: React.FC = () => {
     };
 
     return (
-        <div className="space-y-4 md:space-y-5 pb-24">
-            {/* Header */}
-            <div className="flex flex-col gap-3 md:gap-4">
-                <div>
-                    <h1 className="page-header flex items-center gap-2 text-lg md:text-3xl">
-                        <div className="w-9 h-9 md:w-10 md:h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                            <Truck className="w-5 h-5 md:w-6 md:h-6 text-primary" />
+        <div className="space-y-6 pb-24">
+            {/* Header Modernizado */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-[1.5rem] bg-primary/10 flex items-center justify-center shadow-inner group">
+                        <Truck className="w-7 h-7 text-primary group-hover:scale-110 transition-transform" />
+                    </div>
+                    <div>
+                        <h1 className="text-3xl font-black text-foreground uppercase tracking-tighter">Entregadores</h1>
+                        <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
+                            <p className="text-xs text-muted-foreground font-semibold">Monitoramento e confirmação de coletas</p>
                         </div>
-                        Entregadores
-                    </h1>
-                    <p className="page-subtitle text-xs md:text-sm mt-1">Gerencie retirada de pedidos</p>
+                    </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <div className="flex bg-muted/40 p-1.5 rounded-2xl border border-border/20 backdrop-blur-md">
+                        {([
+                            { key: 'pendente', label: '⏳ Aguardando', count: groups.filter(g => !g.alreadyPickedUp).length },
+                            { key: 'retirado', label: '✅ Retirados', count: groups.filter(g => g.alreadyPickedUp).length },
+                            { key: 'todos', label: '📦 Todos', count: groups.length },
+                        ] as const).map(f => (
+                            <button
+                                key={f.key}
+                                onClick={() => setFilterStatus(f.key)}
+                                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${filterStatus === f.key ? 'bg-white text-primary shadow-sm ring-1 ring-border/30' : 'text-muted-foreground hover:bg-white/40'}`}
+                            >
+                                {f.label} ({f.count})
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
 
-            {/* Stats Summary - Responsivo para tablets */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
-                <div className="card-section p-3 md:p-4 bg-amber-500/[0.03] border-amber-500/20">
-                    <p className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider text-amber-500/70 mb-1">Aguardando</p>
-                    <p className="text-xl md:text-2xl font-black text-amber-500">{pendingCount}</p>
+            {/* Stats Dashboard - Estilo Premium */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="p-4 rounded-[2rem] bg-amber-500/[0.03] border border-amber-500/10 flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                        <Package className="w-5 h-5 text-amber-500" />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black text-muted-foreground/60 uppercase">Aguardando</p>
+                        <p className="text-2xl font-black text-foreground">{pendingCount}</p>
+                    </div>
                 </div>
-                <div className="card-section p-3 md:p-4 bg-success/[0.03] border-success/20">
-                    <p className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider text-success/70 mb-1">Retirados</p>
-                    <p className="text-xl md:text-2xl font-black text-success">{doneCount}</p>
+                <div className="p-4 rounded-[2rem] bg-success/[0.03] border border-success/10 flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-success/10 flex items-center justify-center">
+                        <CheckCircle className="w-5 h-5 text-success" />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black text-muted-foreground/60 uppercase">Retirados</p>
+                        <p className="text-2xl font-black text-foreground">{doneCount}</p>
+                    </div>
                 </div>
-                <div className="card-section p-3 md:p-4 bg-primary/[0.03] border-primary/20">
-                    <p className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider text-primary/70 mb-1">Total</p>
-                    <p className="text-xl md:text-2xl font-black text-primary">{groups.length}</p>
+                <div className="p-4 rounded-[2rem] bg-primary/[0.03] border border-primary/10 flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                        <ClipboardList className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black text-muted-foreground/60 uppercase">Total Geral</p>
+                        <p className="text-2xl font-black text-foreground">{groups.length}</p>
+                    </div>
                 </div>
-                <div className="card-section p-3 md:p-4 bg-secondary/[0.03] border-secondary/20">
-                    <p className="text-[9px] md:text-[10px] font-bold uppercase tracking-wider text-secondary-foreground/70 mb-1">Leituras</p>
-                    <p className="text-xl md:text-2xl font-black text-secondary-foreground">{barcodeScans.length}</p>
+                <div className="p-4 rounded-[2rem] bg-secondary/[0.03] border border-secondary/20 flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-secondary/20 flex items-center justify-center">
+                        <Hash className="w-5 h-5 text-secondary-foreground" />
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-black text-muted-foreground/60 uppercase">Leituras</p>
+                        <p className="text-2xl font-black text-foreground">{barcodeScans.length}</p>
+                    </div>
                 </div>
             </div>
-
-
 
             {success && (
-                <div className="flex items-center gap-3 p-4 rounded-2xl bg-success/10 border border-success/30 text-success animate-scale-in">
-                    <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                <div className="flex items-center gap-4 p-5 rounded-[2rem] bg-success/10 border border-success/30 text-success animate-scale-in">
+                    <div className="w-10 h-10 rounded-full bg-success/20 flex items-center justify-center shadow-lg">
+                        <CheckCircle className="w-6 h-6" />
+                    </div>
                     <div className="flex-1">
-                        <p className="text-sm font-bold">Confirmação Realizada!</p>
-                        <p className="text-xs opacity-80">Pedido(s) {success} atualizado(s) com sucesso.</p>
+                        <p className="text-sm font-black uppercase tracking-wider">Confirmação Realizada!</p>
+                        <p className="text-xs font-bold opacity-80 mt-0.5">Pedido(s) {success} atualizado(s) com sucesso.</p>
                     </div>
                 </div>
             )}
 
-            {/* Batch mode button + Filter tabs */}
-            <div className="space-y-3">
-                {/* Batch mode button */}
+            {/* Ações e Filtros Secundários */}
+            <div className="space-y-4">
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                    {/* Search Bar Premium */}
+                    <div className="relative group flex-1 max-w-xl">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                        <input 
+                            type="text" 
+                            placeholder="Buscar por Pedido, Cliente ou Pedido Unificado..." 
+                            value={search} 
+                            onChange={e => setSearch(e.target.value)} 
+                            className="input-modern pl-10 h-12 text-xs w-full bg-white/50 border-border/40 focus:bg-white transition-all shadow-sm rounded-2xl" 
+                        />
+                    </div>
+
+                    {/* Carrier Tabs Premium */}
+                    {carriers.length > 2 && (
+                        <div className="flex gap-2 flex-wrap p-1.5 bg-muted/30 rounded-2xl border border-border/20 backdrop-blur-md">
+                            {carriers.map(c => (
+                                <button
+                                    key={c}
+                                    onClick={() => setSelectedCarrier(c)}
+                                    className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${selectedCarrier === c
+                                        ? 'bg-background text-primary shadow-sm ring-1 ring-primary/10'
+                                        : 'text-muted-foreground hover:bg-background/40'
+                                        }`}
+                                >
+                                    {c}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* Batch mode activation */}
                 {pendingCount > 0 && (
                     <button
                         onClick={() => {
@@ -844,132 +948,78 @@ const EntregadoresPage: React.FC = () => {
                             }
                             setConfirmingId(null);
                         }}
-                        className={`w-full px-3 py-2.5 md:py-3 rounded-lg text-xs md:text-sm font-semibold transition-colors flex items-center justify-center md:justify-start gap-2 ${confirmingBatchMode
-                            ? 'bg-warning/20 text-warning border border-warning/40'
-                            : 'bg-gradient-to-r from-primary/20 to-primary/10 text-primary border border-primary/20 hover:border-primary/40'
+                        className={`w-full group relative h-14 rounded-[1.5rem] font-bold transition-all flex items-center justify-between px-6 overflow-hidden ${confirmingBatchMode
+                            ? 'bg-warning/10 text-warning border-2 border-warning/30'
+                            : 'bg-primary text-white shadow-lg shadow-primary/20 hover:scale-[1.01] active:scale-[0.99] border-none'
                             }`}
                     >
-                        <ClipboardList className="w-4 h-4 shrink-0" />
-                        <span className="hidden md:inline">{confirmingBatchMode ? `Modo Lote Ativo (${pendingCount})` : 'Modo Lote'}</span>
-                        <span className="md:hidden">{confirmingBatchMode ? 'Lote' : 'Modo'}</span>
+                        <div className="flex items-center gap-3">
+                            <ClipboardList className="w-5 h-5" />
+                            <span className="text-sm font-black uppercase tracking-[0.2em]">
+                                {confirmingBatchMode ? `Modo Lote Ativo (${pendingCount})` : 'Ativar Confirmação em Lote'}
+                            </span>
+                        </div>
+                        <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${confirmingBatchMode ? 'bg-warning/20' : 'bg-white/20'}`}>
+                            {confirmingBatchMode ? 'Clique para Sair' : 'Modo Rápido'}
+                        </div>
+                        {confirmingBatchMode && <div className="absolute inset-0 bg-warning/5 animate-pulse pointer-events-none" />}
                     </button>
                 )}
-
-                {confirmingBatchMode && pendingCount > 0 && (
-                    <div className="flex gap-2 flex-wrap">
-                        <button
-                            onClick={() => {
-                                const newMap = new Map();
-                                filtered.forEach(g => { if (!g.alreadyPickedUp) newMap.set(g.orderId, true); });
-                                setSelectedGroupIds(newMap);
-                            }}
-                            className="flex-1 min-w-[100px] px-3 py-2 rounded-lg text-xs font-semibold bg-primary/10 text-primary border border-primary/30 hover:bg-primary/20"
-                        >
-                            Refiltrar
-                        </button>
-                        <button
-                            onClick={() => setSelectedGroupIds(new Map())}
-                            className="flex-1 min-w-[100px] px-3 py-2 rounded-lg text-xs font-semibold bg-muted text-foreground border border-border/40 hover:bg-muted/80"
-                        >
-                            Limpar
-                        </button>
-                    </div>
-                )}
-
-                {/* Search Bar */}
-                <div className="relative">
-                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
-                    <input 
-                        type="text" 
-                        placeholder="Buscar por Pedido, Cliente ou Pedido Unificado..." 
-                        value={search} 
-                        onChange={e => setSearch(e.target.value)} 
-                        className="input-modern pl-10 py-3 bg-background/50 border-primary/10 focus:border-primary/30" 
-                    />
-                </div>
-
-                {/* Filter tabs */}
-                <div className="space-y-3">
-                    <div className="flex gap-1.5 md:gap-2 flex-wrap">
-                        {([
-                            { key: 'pendente', label: '⏳ Aguard.', count: groups.filter(g => !g.alreadyPickedUp).length },
-                            { key: 'retirado', label: '✅ Retir.', count: groups.filter(g => g.alreadyPickedUp).length },
-                            { key: 'todos', label: '📦 Todos', count: groups.length },
-                        ] as { key: typeof filterStatus; label: string; count: number }[]).map(f => (
-                            <button
-                                key={f.key}
-                                onClick={() => setFilterStatus(f.key)}
-                                className={`flex-1 md:flex-none px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm ${filterStatus === f.key ? 'bg-primary text-primary-foreground transform scale-105' : 'bg-muted/50 text-muted-foreground hover:bg-muted'}`}
-                            >
-                                {f.label} ({f.count})
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Carrier Tabs */}
-                    {carriers.length > 2 && (
-                        <div className="flex gap-1.5 md:gap-2 flex-wrap p-1.5 bg-muted/30 rounded-2xl border border-border/40">
-                            {carriers.map(c => (
-                                <button
-                                    key={c}
-                                    onClick={() => setSelectedCarrier(c)}
-                                    className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedCarrier === c
-                                        ? 'bg-background text-primary shadow-[0_2px_10px_rgba(0,0,0,0.05)] ring-1 ring-primary/20'
-                                        : 'text-muted-foreground hover:bg-background/50'
-                                        }`}
-                                >
-                                    {c}
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                </div>
             </div>
 
-            {/* Batch confirmation panel - REMOVIDO STICKY PARA EVITAR SOBREPOSIÇÃO */}
+            {/* Painel de confirmação em Lote (Redesenhado) */}
             {confirmingBatchMode && Array.from(selectedGroupIds.values()).filter(v => v).length > 0 && (
-                <div className="card-section p-4 md:p-8 border-2 border-primary/40 bg-primary/5 space-y-6 shadow-xl animate-in slide-in-from-top-4 duration-500">
-                    <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <div className="flex items-center gap-2 md:gap-3 min-w-0">
-                            <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
-                                <ClipboardList className="w-4 h-4 md:w-5 md:h-5 text-primary" />
+                <div className="card-section p-0 border-primary/30 bg-primary/[0.01] overflow-hidden shadow-2xl animate-in slide-in-from-top-4 duration-500 rounded-[2.5rem]">
+                    <div className="bg-primary p-8 text-white relative">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center">
+                                    <ClipboardList className="w-8 h-8 text-white" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-80">Processamento em Lote</p>
+                                    <h2 className="text-3xl font-black uppercase leading-none">Confirmar Retirada</h2>
+                                </div>
                             </div>
-                            <div className="min-w-0">
-                                <p className="font-bold text-foreground text-sm md:text-base">Confirmar Lote</p>
-                                <p className="text-xs text-muted-foreground">{Array.from(selectedGroupIds.values()).filter(v => v).length} pedidos</p>
-                            </div>
+                            <button
+                                onClick={() => { setConfirmingBatchMode(false); setSelectedGroupIds(new Map()); }}
+                                className="w-12 h-12 rounded-2xl bg-white/10 hover:bg-white/20 transition-all flex items-center justify-center"
+                            >
+                                <X className="w-6 h-6" />
+                            </button>
                         </div>
-                        <button
-                            onClick={() => { setConfirmingBatchMode(false); setSelectedGroupIds(new Map()); }}
-                            className="btn-modern bg-muted text-foreground shadow-none p-2 md:px-3 shrink-0"
-                        >
-                            <X className="w-4 h-4" />
-                        </button>
+                        
+                        <div className="flex items-center gap-6 mt-8">
+                            <div className="flex items-center gap-2">
+                                <span className="w-2 h-2 rounded-full bg-success shadow-[0_0_10px_rgba(34,197,94,0.8)]" />
+                                <span className="text-xs font-black uppercase tracking-widest">{Array.from(selectedGroupIds.values()).filter(v => v).length} Pedidos Selecionados</span>
+                            </div>
+                            <div className="h-1 w-24 bg-white/20 rounded-full" />
+                        </div>
                     </div>
 
-                    {/* Form grid - Responsivo */}
-                    <div className="space-y-4">
-                        {/* Name - Full width */}
-                        <div className="space-y-1">
-                            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                                <User className="w-3 h-3" /> Nome *
-                            </label>
-                            <input
-                                type="text"
-                                value={delivererName}
-                                onChange={e => setDelivererName(e.target.value)}
-                                placeholder="Nome do entregador"
-                                className="input-modern w-full text-sm"
-                            />
-                        </div>
+                    <div className="p-8 space-y-8">
+                        {/* Formulário Grid */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                            {/* Lado Esquerdo: Identificação e Foto */}
+                            <div className="space-y-8">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+                                        <User className="w-4 h-4 text-primary" /> Identificação do Entregador *
+                                    </label>
+                                    <input
+                                        type="text"
+                                        value={delivererName}
+                                        onChange={e => setDelivererName(e.target.value)}
+                                        placeholder="Digite o nome completo"
+                                        className="h-14 w-full rounded-2xl bg-muted/30 border-2 border-transparent focus:border-primary/30 focus:bg-white transition-all px-6 font-bold text-lg"
+                                    />
+                                </div>
 
-                        {/* Photo and Signature areas - Vertical on everything for maximum usability */}
-                        <div className="flex flex-col gap-6">
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                                    <Camera className="w-3 h-3" /> Foto *
-                                </label>
-                                <div className="w-full">
+                                <div className="space-y-3">
+                                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+                                        <Camera className="w-4 h-4 text-primary" /> Reconhecimento Facial *
+                                    </label>
                                     <CameraCapture
                                         onCapture={setPhoto}
                                         captured={photo}
@@ -978,66 +1028,62 @@ const EntregadoresPage: React.FC = () => {
                                 </div>
                             </div>
 
-                            <div className="space-y-2">
-                                <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                                    <PenLine className="w-3 h-3" /> Assinatura *
+                            {/* Lado Direito: Assinatura */}
+                            <div className="space-y-3">
+                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+                                    <PenLine className="w-4 h-4 text-primary" /> Assinatura Digital do Recebedor *
                                 </label>
-                                <div className="w-full">
-                                    <SignatureCanvas
-                                        onCapture={setSignature}
-                                        captured={signature}
-                                        onClear={() => setSignature(null)}
-                                    />
-                                </div>
+                                <SignatureCanvas
+                                    onCapture={setSignature}
+                                    captured={signature}
+                                    onClear={() => setSignature(null)}
+                                />
                             </div>
                         </div>
-                    </div>
 
-                    {/* Missing fields hint */}
-                    {!canConfirm && (
-                        <div className="p-3 rounded-xl bg-warning/10 border border-warning/20">
-                            <p className="text-[10px] font-semibold text-warning">
-                                {!delivererName.trim() && '• Nome. '}
-                                {!photo && '• Foto. '}
-                                {!signature && '• Assinatura.'}
-                            </p>
+                        {/* Footer do Painel */}
+                        <div className="pt-8 border-t border-border/20 flex flex-col md:flex-row items-center justify-between gap-6">
+                            {!canConfirm ? (
+                                <div className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600">
+                                    <ClipboardList className="w-5 h-5 opacity-60" />
+                                    <p className="text-[10px] font-black uppercase tracking-widest leading-tight">
+                                        Aguardando: {!delivererName.trim() ? 'Nome' : !photo ? 'Foto' : 'Assinatura'}
+                                    </p>
+                                </div>
+                            ) : <div />}
+
+                            <div className="flex gap-4 w-full md:w-auto">
+                                <button
+                                    onClick={() => { setConfirmingBatchMode(false); setSelectedGroupIds(new Map()); setPhoto(null); setSignature(null); setDelivererName(''); }}
+                                    className="h-14 px-8 rounded-2xl bg-muted/50 text-muted-foreground font-black text-xs uppercase tracking-widest hover:bg-muted transition-all"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={() => handleBatchConfirm()}
+                                    disabled={!canConfirm || submitting}
+                                    className="flex-1 md:flex-none h-14 px-12 rounded-2xl bg-success text-white font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-success/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center gap-3"
+                                >
+                                    {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />}
+                                    {submitting ? 'PROCESSANDO...' : `CONFIRMAR ${Array.from(selectedGroupIds.values()).filter(v => v).length} PEDIDOS`}
+                                </button>
+                            </div>
                         </div>
-                    )}
-
-                    {/* Confirm button */}
-                    <div className="flex gap-2 flex-col md:flex-row pt-2 md:pt-4 border-t border-primary/20">
-                        <button
-                            onClick={() => handleBatchConfirm()}
-                            disabled={!canConfirm || submitting}
-                            className="btn-modern flex-1 justify-center py-2.5 md:py-3 text-xs md:text-sm font-bold bg-gradient-to-r from-success to-success/80 text-success-foreground disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                            <CheckCircle className="w-4 h-4 md:w-5 md:h-5" />
-                            <span className="hidden md:inline">{submitting ? 'Confirmando...' : `Confirmar ${Array.from(selectedGroupIds.values()).filter(v => v).length}`}</span>
-                            <span className="md:hidden">{submitting ? '...' : 'OK'}</span>
-                        </button>
-                        <button
-                            onClick={() => { setConfirmingBatchMode(false); setSelectedGroupIds(new Map()); setPhoto(null); setSignature(null); setDelivererName(''); }}
-                            className="btn-modern bg-muted text-foreground shadow-none px-3 md:px-4 py-2.5 md:py-3"
-                        >
-                            <X className="w-4 h-4" />
-                        </button>
                     </div>
                 </div>
             )}
 
-            {/* List */}
+            {/* Listagem Estilizada */}
             {filtered.length === 0 ? (
-                <div className="card-section p-12 text-center">
-                    <ClipboardList className="w-12 h-12 text-muted-foreground/30 mx-auto mb-4" />
-                    <p className="font-bold text-foreground text-lg">Nenhum lote encontrado</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                        {filterStatus === 'pendente'
-                            ? 'Nenhum pedido aguardando retirada. Aguarde a produção escanear os códigos.'
-                            : 'Nenhum pedido nesta categoria.'}
-                    </p>
+                <div className="py-24 text-center bg-white/40 rounded-[2.5rem] border-2 border-dashed border-border/40 backdrop-blur-sm animate-pulse">
+                    <div className="w-24 h-24 rounded-full bg-muted/40 flex items-center justify-center mx-auto mb-6">
+                        <Package className="w-12 h-12 text-muted-foreground/40" />
+                    </div>
+                    <p className="text-xl font-black text-foreground uppercase tracking-[0.2em]">Nada por aqui</p>
+                    <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto font-medium">Todos os pedidos estão em dia!</p>
                 </div>
             ) : (
-                <div className="space-y-3">
+                <div className="grid grid-cols-1 gap-4">
                     {filtered.map(group => {
                         const isExpanded = expandedId === group.orderId;
                         const isConfirming = confirmingId === group.orderId;
@@ -1046,279 +1092,279 @@ const EntregadoresPage: React.FC = () => {
                         return (
                             <div
                                 key={group.groupKey}
-                                className={`card-section overflow-hidden transition-all duration-300 ${group.alreadyPickedUp ? 'opacity-70' : 'border-primary/20'}`}
+                                className={`group relative flex flex-col bg-white rounded-[2rem] border transition-all duration-500 overflow-hidden ${isExpanded ? 'ring-2 ring-primary/20 shadow-2xl' : 'border-border/20 shadow-sm hover:shadow-xl hover:-translate-y-1'}`}
                             >
-                                {/* Card header */}
-                                <div className="p-5">
-                                    <div className="flex items-center justify-between flex-wrap gap-3">
-                                        <div className="flex items-center gap-4">
-                                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${group.alreadyPickedUp ? 'bg-success/10' : 'bg-primary/10'}`}>
+                                {/* Banner indicador de status */}
+                                <div className={`h-1.5 w-full bg-gradient-to-r ${group.alreadyPickedUp ? 'from-success to-emerald-600' : 'from-primary to-blue-600'}`} />
+
+                                <div className="p-6">
+                                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+                                        <div className="flex items-center gap-5">
+                                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-inner ${group.alreadyPickedUp ? 'bg-success/5' : 'bg-primary/5'}`}>
                                                 {group.alreadyPickedUp
-                                                    ? <CheckCircle className="w-5 h-5 text-success" />
-                                                    : <Truck className="w-5 h-5 text-primary" />}
+                                                    ? <CheckCircle className="w-7 h-7 text-success" />
+                                                    : <Truck className="w-7 h-7 text-primary" />}
                                             </div>
-                                            <div>
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    <p className="font-bold text-foreground text-sm">
+                                            
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-3 flex-wrap mb-1">
+                                                    <h2 className="text-xl font-black text-foreground uppercase truncate tracking-tight">
                                                         {group.orderNumber}
                                                         {group.unifiedOrders && group.unifiedOrders.length > 0 && (
-                                                            <span className="ml-1 text-primary animate-pulse">
-                                                                + {group.unifiedOrders.map(u => u.number).join(' + ')}
-                                                            </span>
+                                                            <span className="text-primary ml-2">+ {group.unifiedOrders.length} unificados</span>
                                                         )}
-                                                    </p>
+                                                    </h2>
                                                     {group.totalVolumes && group.totalVolumes > 1 && (
-                                                        <span className="status-badge bg-producao/10 text-producao text-[9px]">
-                                                            📦 Volume {(group.volumeIndex || 0) + 1} de {group.totalVolumes}
+                                                        <span className="px-3 py-1 rounded-full bg-producao/10 text-producao text-[9px] font-black uppercase tracking-widest ring-1 ring-producao/20">
+                                                            📦 Vol. {(group.volumeIndex || 0) + 1} / {group.totalVolumes}
                                                         </span>
                                                     )}
                                                     {order && <StatusBadge status={order.status} />}
                                                     {group.carrier && (
-                                                        <span className="status-badge bg-primary/10 text-primary text-[9px] font-black uppercase italic border border-primary/20 flex items-center gap-1">
+                                                        <span className="px-3 py-1 rounded-full bg-foreground text-background text-[9px] font-black uppercase tracking-widest italic flex items-center gap-1.5">
                                                             <Truck className="w-3 h-3" /> {group.carrier}
                                                         </span>
                                                     )}
-                                                    {group.alreadyPickedUp && (
-                                                        <span className="status-badge bg-success/10 text-success text-[9px]">
-                                                            ✓ RETIRADO
-                                                        </span>
-                                                    )}
                                                 </div>
-                                                <p className="text-xs text-muted-foreground mt-0.5">
-                                                    <span className="font-semibold text-foreground">{group.clientName}</span>
-                                                    <span className="mx-1">•</span>
-                                                    Vendedor: <span className="font-semibold">{group.sellerName}</span>
-                                                </p>
-                                                <div className="flex items-center gap-3 mt-1 flex-wrap">
-                                                    <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                                                        <Hash className="w-3 h-3" />
-                                                        {group.scans.length} leitura(s)
-                                                    </span>
-                                                    <span className="text-[10px] font-bold text-primary flex items-center gap-1">
-                                                        <Package className="w-3 h-3" />
-                                                        {group.totalQty} produto(s) total
-                                                    </span>
-                                                    {group.alreadyPickedUp && group.pickupInfo && (
-                                                        <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                                                            <User className="w-3 h-3" />
-                                                            {group.pickupInfo.delivererName}
-                                                            <span className="mx-1">•</span>
-                                                            <Calendar className="w-3 h-3" />
-                                                            {new Date(group.pickupInfo.pickedUpAt).toLocaleDateString('pt-BR')} às{' '}
-                                                            {new Date(group.pickupInfo.pickedUpAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                                        </span>
-                                                    )}
+                                                
+                                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground font-medium">
+                                                    <p className="text-foreground font-black uppercase tracking-wide truncate max-w-[200px]">{group.clientName}</p>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <User className="w-3.5 h-3.5 opacity-40" />
+                                                        <span className="opacity-60">{group.sellerName}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Package className="w-3.5 h-3.5 opacity-40" />
+                                                        <span className="opacity-60">{group.totalQty} itens</span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="flex gap-2">
+                                        <div className="flex items-center gap-3 shrink-0">
                                             <button
                                                 onClick={() => setExpandedId(isExpanded ? null : group.orderId)}
-                                                className="btn-modern bg-muted text-foreground shadow-none text-xs px-3 py-2"
+                                                className={`h-11 px-6 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-2 ${isExpanded ? 'bg-foreground text-background shadow-lg' : 'bg-muted/50 text-muted-foreground hover:bg-muted'}`}
                                             >
-                                                {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                                                Detalhes
+                                                {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                                {isExpanded ? 'FECHAR' : 'PEDIDOS'}
                                             </button>
+
                                             {!group.alreadyPickedUp && !confirmingBatchMode && (
-                                                <>
-                                                    <button
-                                                        onClick={() => {
-                                                            setConfirmingId(isConfirming ? null : group.orderId);
-                                                            setPhoto(null);
-                                                            setSignature(null);
-                                                            setDelivererName('');
-                                                        }}
-                                                        className="btn-modern bg-gradient-to-r from-primary to-primary/80 text-primary-foreground text-xs px-4 py-2"
-                                                    >
-                                                        <Truck className="w-3.5 h-3.5" /> Confirmar Retirada
-                                                    </button>
-                                                </>
+                                                <button
+                                                    onClick={() => {
+                                                        setConfirmingId(isConfirming ? null : group.orderId);
+                                                        setPhoto(null);
+                                                        setSignature(null);
+                                                        setDelivererName('');
+                                                    }}
+                                                    className={`h-11 px-8 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-2 ${isConfirming ? 'bg-warning/10 text-warning ring-2 ring-warning/30' : 'bg-primary text-white shadow-lg shadow-primary/20 hover:scale-105 active:scale-95'}`}
+                                                >
+                                                    <Truck className="w-4 h-4" /> 
+                                                    {isConfirming ? 'CANCELAR' : 'RETIRAR'}
+                                                </button>
                                             )}
+
                                             {!group.alreadyPickedUp && confirmingBatchMode && (
-                                                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-success/10 border border-success/30">
-                                                    <CheckCircle className="w-3.5 h-3.5 text-success" />
-                                                    <span className="text-xs font-bold text-success uppercase">Incluído no Lote</span>
+                                                <div className="h-11 px-5 rounded-xl bg-success/10 border-2 border-success/30 flex items-center gap-2">
+                                                    <CheckCircle className="w-4 h-4 text-success" />
+                                                    <span className="text-[10px] font-black text-success uppercase tracking-wider">NO LOTE</span>
                                                 </div>
                                             )}
                                         </div>
                                     </div>
-                                </div>
 
-                                {/* Expanded: scans + order items */}
-                                {isExpanded && (
-                                    <div className="border-t border-border/40 p-5 space-y-4 animate-fade-in">
-                                        {/* Products from order */}
-                                        {order && (
-                                            <div>
-                                                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Produtos do Pedido</p>
-                                                <div className="rounded-xl border border-border/40 overflow-hidden">
-                                                    <table className="modern-table">
-                                                        <thead>
-                                                            <tr>
-                                                                <th>Pedido</th>
-                                                                <th>Produto</th>
-                                                                <th>Descrição</th>
-                                                                <th className="text-right">Qtd</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody>
-                                                            {[order, ...(group.unifiedOrders?.map(uo => orders.find(o => o.id === uo.id)) || [])].filter(Boolean).map(o => (
-                                                                <React.Fragment key={o!.id}>
-                                                                    {o!.items.map(item => (
-                                                                        <tr key={item.id}>
-                                                                            <td className="text-[10px] font-bold text-primary">{o!.number}</td>
-                                                                            <td className="font-semibold text-foreground">
-                                                                                {item.product}
-                                                                                {item.product.toUpperCase().includes('KIT') && item.sensorType && (
-                                                                                    <span className="ml-2 text-xs font-semibold px-2 py-1 rounded-full bg-primary/20 text-primary">
-                                                                                        {item.sensorType === 'com_sensor' ? '✅ COM SENSOR' : '⚪ SEM SENSOR'}
-                                                                                    </span>
-                                                                                )}
-                                                                            </td>
-                                                                            <td className="text-muted-foreground text-xs">{item.description || '—'}</td>
-                                                                            <td className="text-right">
-                                                                                <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-primary/10 text-primary font-extrabold text-sm">
-                                                                                    {item.quantity}
-                                                                                </span>
-                                                                            </td>
-                                                                        </tr>
-                                                                    ))}
-                                                                </React.Fragment>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
+                                    {/* Comprovante resumido se já retirado */}
+                                    {group.alreadyPickedUp && group.pickupInfo && !isExpanded && (
+                                        <div className="mt-6 flex items-center gap-4 p-4 rounded-2xl bg-muted/20 border border-border/10">
+                                            <div className="flex -space-x-3">
+                                                <div className="w-10 h-10 rounded-full border-2 border-white overflow-hidden bg-muted shadow-sm">
+                                                    <img src={group.pickupInfo.photoUrl} alt="Foto" className="w-full h-full object-cover" />
+                                                </div>
+                                                <div className="w-10 h-10 rounded-full border-2 border-white overflow-hidden bg-white shadow-sm flex items-center justify-center p-1">
+                                                    <img src={group.pickupInfo.signatureUrl} alt="Assinatura" className="w-full h-full object-contain" />
                                                 </div>
                                             </div>
-                                        )}
+                                            <div className="min-w-0">
+                                                <p className="text-[10px] font-black uppercase text-muted-foreground leading-none mb-1">Entregue para</p>
+                                                <p className="text-xs font-black text-foreground truncate uppercase">{group.pickupInfo.delivererName}</p>
+                                            </div>
+                                            <div className="ml-auto flex items-center gap-2 text-[10px] font-bold text-muted-foreground">
+                                                <Calendar className="w-3.5 h-3.5" />
+                                                {new Date(group.pickupInfo.pickedUpAt).toLocaleDateString('pt-BR')}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
 
-                                        {/* Scans history */}
-                                        <div>
-                                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">
-                                                Histórico de Leituras ({group.scans.length})
-                                            </p>
-                                            <div className="space-y-2">
-                                                {group.scans.map((scan, idx) => (
-                                                    <div key={scan.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-muted/30 border border-border/30">
-                                                        <span className="text-[10px] font-bold text-muted-foreground w-5 text-center">#{idx + 1}</span>
-                                                        <div className="flex-1">
-                                                            <p className="text-xs font-semibold text-foreground">{scan.scannedBy}</p>
-                                                            <p className="text-[10px] text-muted-foreground">
-                                                                {new Date(scan.scannedAt).toLocaleDateString('pt-BR')} às{' '}
-                                                                {new Date(scan.scannedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                                                            </p>
-                                                        </div>
-                                                        <span className="status-badge bg-success/10 text-success text-[9px]">✓ Lido</span>
-                                                    </div>
-                                                ))}
+                                {/* Seção Expandida: Itens e Leituras */}
+                                {isExpanded && (
+                                    <div className="px-8 pb-8 space-y-8 animate-in slide-in-from-top-2 duration-300">
+                                        {/* Tabela de Itens Premium */}
+                                        <div className="space-y-4">
+                                            <div className="flex items-center gap-2">
+                                                <Package className="w-4 h-4 text-primary" />
+                                                <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Itens na embalagem</p>
+                                            </div>
+                                            <div className="rounded-3xl border border-border/20 overflow-hidden bg-muted/10 shadow-inner">
+                                                <table className="w-full text-left border-collapse">
+                                                    <thead>
+                                                        <tr className="bg-muted/30 border-b border-border/10">
+                                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-muted-foreground tracking-widest">Pedido</th>
+                                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-muted-foreground tracking-widest">Produto</th>
+                                                            <th className="px-6 py-4 text-[10px] font-black uppercase text-muted-foreground tracking-widest text-right">Quantidade</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {[order, ...(group.unifiedOrders?.map(uo => orders.find(o => o.id === uo.id)) || [])].filter(Boolean).map(o => (
+                                                            <React.Fragment key={o!.id}>
+                                                                {o!.items.map(item => (
+                                                                    <tr key={item.id} className="border-b border-border/5 hover:bg-white/40 transition-colors">
+                                                                        <td className="px-6 py-4 text-xs font-black text-primary">{o!.number}</td>
+                                                                        <td className="px-6 py-4">
+                                                                            <p className="text-sm font-black text-foreground mb-0.5 uppercase tracking-tight">{item.product}</p>
+                                                                            <p className="text-[10px] text-muted-foreground/60 uppercase font-bold">{item.description || 'N/A'}</p>
+                                                                        </td>
+                                                                        <td className="px-6 py-4 text-right">
+                                                                            <span className="inline-flex h-9 min-w-[36px] items-center justify-center rounded-xl bg-primary/10 text-primary font-black text-sm px-2">
+                                                                                {item.quantity}
+                                                                            </span>
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </React.Fragment>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
                                             </div>
                                         </div>
 
-                                        {/* Already picked up info */}
-                                        {group.alreadyPickedUp && group.pickupInfo && (
-                                            <div>
-                                                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-2">Comprovante de Retirada</p>
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    <div className="space-y-1">
-                                                        <p className="text-[10px] text-muted-foreground">Foto do Entregador</p>
-                                                        <img
-                                                            src={group.pickupInfo.photoUrl}
-                                                            alt="Foto do entregador"
-                                                            className="rounded-xl border border-border/40 w-full h-28 object-cover"
-                                                        />
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <p className="text-[10px] text-muted-foreground">Assinatura Digital</p>
-                                                        <img
-                                                            src={group.pickupInfo.signatureUrl}
-                                                            alt="Assinatura"
-                                                            className="rounded-xl border border-border/40 w-full h-28 object-contain bg-white"
-                                                        />
-                                                    </div>
+                                        {/* Histórico e Comprovante */}
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                            <div className="space-y-4">
+                                                <div className="flex items-center gap-2">
+                                                    <ClipboardList className="w-4 h-4 text-primary" />
+                                                    <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Histórico de Conferência</p>
+                                                </div>
+                                                <div className="space-y-3">
+                                                    {group.scans.map((scan, idx) => (
+                                                        <div key={scan.id} className="flex items-center gap-4 p-4 rounded-2xl bg-muted/20 border border-border/10 group/item hover:bg-white transition-all shadow-sm">
+                                                            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center font-black text-[10px] text-muted-foreground/40 group-hover/item:text-primary transition-colors">
+                                                                {idx + 1}
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <p className="text-xs font-black text-foreground uppercase tracking-widest">{scan.scannedBy}</p>
+                                                                <p className="text-[10px] text-muted-foreground font-bold">{new Date(scan.scannedAt).toLocaleString('pt-BR')}</p>
+                                                            </div>
+                                                            <span className="px-2 py-0.5 rounded-full bg-success/10 text-success text-[8px] font-black uppercase">Confirmado</span>
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             </div>
-                                        )}
+
+                                            {group.alreadyPickedUp && group.pickupInfo && (
+                                                <div className="space-y-4">
+                                                    <div className="flex items-center gap-2">
+                                                        <CheckCircle className="w-4 h-4 text-success" />
+                                                        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Comprovante de Retirada</p>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div className="space-y-1.5">
+                                                            <p className="text-[9px] font-black text-muted-foreground uppercase opacity-60">Foto Coletada</p>
+                                                            <div className="aspect-[4/3] rounded-3xl border border-border/20 overflow-hidden bg-muted/10">
+                                                                <img src={group.pickupInfo.photoUrl} alt="Face" className="w-full h-full object-cover" />
+                                                            </div>
+                                                        </div>
+                                                        <div className="space-y-1.5">
+                                                            <p className="text-[9px] font-black text-muted-foreground uppercase opacity-60">Assinatura Digital</p>
+                                                            <div className="aspect-[4/3] rounded-3xl border border-border/20 overflow-hidden bg-white flex items-center justify-center p-6">
+                                                                <img src={group.pickupInfo.signatureUrl} alt="Sig" className="w-full h-full object-contain" />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
 
-                                {/* Confirmation form */}
+                                {/* Formulário de Retirada (dentro do card) */}
                                 {isConfirming && !group.alreadyPickedUp && (
-                                    <div className="border-t border-primary/20 p-5 space-y-5 bg-primary/5 animate-fade-in">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                                                <Truck className="w-4 h-4 text-primary" />
+                                    <div className="px-8 pb-8 pt-4 space-y-8 bg-primary/[0.02] border-t border-primary/20 animate-in slide-in-from-top-4">
+                                        <div className="flex items-center justify-between">
+                                           <div className="flex items-center gap-3">
+                                               <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                                                   <Camera className="w-5 h-5 text-primary" />
+                                               </div>
+                                               <div>
+                                                   <p className="text-sm font-black text-foreground uppercase tracking-tight">Finalizar Retirada Individual</p>
+                                                   <p className="text-[9px] font-bold text-muted-foreground uppercase">Complete os campos obrigatórios abaixo</p>
+                                               </div>
+                                           </div>
+                                           <button 
+                                             onClick={() => { setConfirmingId(null); setPhoto(null); setSignature(null); setDelivererName(''); }}
+                                             className="w-10 h-10 rounded-xl bg-muted/50 text-muted-foreground hover:bg-muted transition-all flex items-center justify-center"
+                                           >
+                                              <X className="w-5 h-5" />
+                                           </button>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                            <div className="space-y-6">
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 flex items-center gap-2">
+                                                        <User className="w-4 h-4" /> Nome do Entregador *
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={delivererName}
+                                                        onChange={e => setDelivererName(e.target.value)}
+                                                        placeholder="Digite o nome completo"
+                                                        className="h-12 w-full rounded-xl bg-muted/50 border-2 border-transparent focus:border-primary/20 focus:bg-white transition-all px-5 font-bold text-sm"
+                                                    />
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 flex items-center gap-2">
+                                                        <Camera className="w-4 h-4" /> Foto de Confirmação *
+                                                    </label>
+                                                    <CameraCapture
+                                                        onCapture={setPhoto}
+                                                        captured={photo}
+                                                        onClear={() => setPhoto(null)}
+                                                    />
+                                                </div>
                                             </div>
-                                            <div>
-                                                <p className="text-sm font-bold text-foreground">Confirmação de Retirada</p>
-                                                <p className="text-[10px] text-muted-foreground">Foto + Assinatura obrigatórias para confirmar</p>
+
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 flex items-center gap-2">
+                                                    <PenLine className="w-4 h-4" /> Assinatura do Recebedor *
+                                                </label>
+                                                <SignatureCanvas
+                                                    onCapture={setSignature}
+                                                    captured={signature}
+                                                    onClear={() => setSignature(null)}
+                                                />
                                             </div>
                                         </div>
 
-                                        {/* Name */}
-                                        <div className="space-y-1">
-                                            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                                                <User className="w-3 h-3" /> Nome do Entregador *
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={delivererName}
-                                                onChange={e => setDelivererName(e.target.value)}
-                                                placeholder="Nome completo do entregador"
-                                                className="input-modern w-full text-sm"
-                                            />
-                                        </div>
-
-                                        {/* Camera */}
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                                                <Camera className="w-3 h-3" /> Foto do Rosto *
-                                            </label>
-                                            <CameraCapture
-                                                onCapture={setPhoto}
-                                                captured={photo}
-                                                onClear={() => setPhoto(null)}
-                                            />
-                                        </div>
-
-                                        {/* Signature */}
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                                                <PenLine className="w-3 h-3" /> Assinatura Digital *
-                                            </label>
-                                            <SignatureCanvas
-                                                onCapture={setSignature}
-                                                captured={signature}
-                                                onClear={() => setSignature(null)}
-                                            />
-                                        </div>
-
-                                        {/* Missing fields hint */}
-                                        {!canConfirm && (
-                                            <div className="p-3 rounded-xl bg-warning/10 border border-warning/20">
-                                                <p className="text-[10px] font-semibold text-warning">
-                                                    {!delivererName.trim() && '• Informe o nome do entregador. '}
-                                                    {!photo && '• Tire uma foto do rosto. '}
-                                                    {!signature && '• Assine digitalmente.'}
-                                                </p>
+                                        <div className="flex flex-col md:flex-row items-center justify-between gap-6 pt-6 border-t border-border/10">
+                                            <div className="flex items-center gap-3">
+                                                {!canConfirm && (
+                                                   <p className="text-[10px] font-black text-warning uppercase bg-warning/5 px-4 py-2 rounded-xl ring-1 ring-warning/20">
+                                                      Campos pendentes: {!delivererName.trim() ? 'Nome' : !photo ? 'Foto' : 'Assinatura'}
+                                                   </p>
+                                                )}
                                             </div>
-                                        )}
-
-                                        {/* Confirm button */}
-                                        <div className="flex gap-2">
-                                            <button
-                                                onClick={() => handleConfirm(group)}
-                                                disabled={!canConfirm || submitting}
-                                                className="btn-modern flex-1 justify-center py-3 text-sm font-bold bg-gradient-to-r from-success to-success/80 text-success-foreground disabled:opacity-40 disabled:cursor-not-allowed"
-                                            >
-                                                <CheckCircle className="w-5 h-5" />
-                                                {submitting ? 'Registrando...' : 'Confirmar Retirada'}
-                                            </button>
-                                            <button
-                                                onClick={() => { setConfirmingId(null); setPhoto(null); setSignature(null); setDelivererName(''); }}
-                                                className="btn-modern bg-muted text-foreground shadow-none px-4"
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </button>
+                                            <div className="flex gap-3 w-full md:w-auto">
+                                                <button
+                                                    onClick={() => handleConfirm(group)}
+                                                    disabled={!canConfirm || submitting}
+                                                    className="flex-1 h-14 px-12 rounded-2xl bg-primary text-white font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-primary/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center gap-2"
+                                                >
+                                                    {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />}
+                                                    {submitting ? 'Salvando...' : 'Confirmar Retirada'}
+                                                </button>
+                                            </div>
                                         </div>
                                     </div>
                                 )}

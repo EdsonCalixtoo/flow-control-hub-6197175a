@@ -98,7 +98,9 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: 
     { label: 'Relatórios', icon: BarChart3, path: '/gestor/relatorios' },
     { label: 'Garantias', icon: Shield, path: '/vendedor/garantias' },
     { label: 'Produtos/Estoque', icon: Package, path: '/gestor/produtos' },
-    { label: 'TI/Ajustes', icon: Wrench, path: '/gestor/corrigir-pedido' },
+    { label: 'Administrador TI', icon: Wrench, path: '/admin/ti' },
+    { label: 'Gestão de Usuários', icon: Users, path: '/admin/usuarios' },
+    { label: 'Logs de Auditoria', icon: History, path: '/admin/logs' },
   ],
 };
 

@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { HashRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ERPProvider } from "@/contexts/ERPContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
@@ -38,6 +38,7 @@ import QRCodePage from "@/pages/QRCodePage";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import AdminLogsPage from "@/pages/admin/AdminLogsPage";
 import UsersManagementPage from "@/pages/admin/UsersManagementPage";
+import TIPage from "@/pages/admin/TIPage";
 import NotFound from "./pages/NotFound";
 import { lazy, Suspense } from "react";
 
@@ -82,7 +83,7 @@ const App = () => (
         <Sonner />
         <AuthProvider>
           <ERPProvider>
-            <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
               <Routes>
                 <Route path="/" element={<AuthGate />} />
 
@@ -135,7 +136,7 @@ const App = () => (
                 <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
                 <Route path="/admin/logs" element={<ProtectedRoute role="admin"><AdminLogsPage /></ProtectedRoute>} />
                 <Route path="/admin/usuarios" element={<ProtectedRoute role="admin"><UsersManagementPage /></ProtectedRoute>} />
-
+                <Route path="/admin/ti" element={<ProtectedRoute role="admin"><TIPage /></ProtectedRoute>} />
 
                 <Route path="/qr/:orderId" element={<QRCodePage />} />
                 <Route path="/rastreio/:orderId" element={<TrackingPage />} />
@@ -143,7 +144,7 @@ const App = () => (
 
                 <Route path="*" element={<NotFound />} />
               </Routes>
-            </BrowserRouter>
+            </HashRouter>
           </ERPProvider>
         </AuthProvider>
       </TooltipProvider>

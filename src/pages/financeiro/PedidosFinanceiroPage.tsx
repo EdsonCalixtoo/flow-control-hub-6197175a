@@ -503,7 +503,7 @@ const PedidosFinanceiroPage: React.FC = () => {
                                                     <button
                                                         onClick={async () => {
                                                             try {
-                                                                await updateOrderStatus(selectedOrder.id, 'rejeitado_financeiro', {}, 'Financeiro', `Rejeitado: ${rejectReason}`);
+                                                                await updateOrderStatus(selectedOrder.id, 'rejeitado_financeiro', { rejectionReason: rejectReason }, 'Financeiro', `Rejeitado: ${rejectReason}`);
                                                                 toast.success('Pedido rejeitado com sucesso');
                                                                 setSelectedOrderId(null);
                                                                 setShowReject(false);

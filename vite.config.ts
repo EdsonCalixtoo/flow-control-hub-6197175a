@@ -5,13 +5,13 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  base: './', // Garante que os caminhos sejam relativos para o Electron
   server: {
     host: "::",
     port: 8080,
     hmr: {
       overlay: false,
     },
-    // Redireciona rotas SPA para index.html (corrige erro 404 no F5)
     historyApiFallback: true,
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),

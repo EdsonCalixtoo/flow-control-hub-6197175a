@@ -540,11 +540,10 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
   const rejeitarPedido = async (orderId: string) => {
     if (!rejectReason.trim()) return;
     try {
-      // Passa APENAS o status — o motivo vai gravado no statusHistory.note com prefixo 'Rejeitado:'
-      await updateOrderStatus(orderId, 'rejeitado_financeiro', {}, 'Financeiro', `Rejeitado: ${rejectReason}`);
+      // ✅ Passa o status e o motivo no metadata (extra) para persistência e exibição correta
+      await updateOrderStatus(orderId, 'rejeitado_financeiro', { rejectionReason: rejectReason }, 'Financeiro', `Rejeitado: ${rejectReason}`);
       toast.success('Pedido rejeitado com sucesso');
-      setShowReject(false);
-      
+      setSelectedOrderId(null); // Retorna para a lista após rejeitar
       setShowReject(false);
       setRejectReason('');
     } catch (error) {
@@ -1448,13 +1447,13 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                         <button
                           onClick={() => rejeitarPedido(selectedOrder.id)}
                           disabled={!rejectReason.trim()}
-                          className="flex-1 py-3 rounded-xl bg-rose-500 text-white font-black text-[10px] uppercase tracking-widest disabled:opacity-50 hover:bg-rose-600 transition-colors"
+                          className="flex-1 py-3 rounded-xl bg-rose-500 text-white font-black text-[10px] uppercase tracking-widest disabled:opacity-50 hover:bg-rose-600 transition-all active:scale-95 relative z-[70] pointer-events-auto"
                         >
                           Confirmar Rejeição
                         </button>
                         <button
                           onClick={() => { setShowReject(false); setRejectReason(''); }}
-                          className="px-4 py-3 rounded-xl bg-muted text-muted-foreground font-black text-[10px] uppercase tracking-widest hover:bg-muted/80 transition-colors"
+                          className="px-4 py-3 rounded-xl bg-muted text-muted-foreground font-black text-[10px] uppercase tracking-widest hover:bg-muted/80 transition-all active:scale-95 relative z-[70] pointer-events-auto"
                         >
                           Voltar
                         </button>

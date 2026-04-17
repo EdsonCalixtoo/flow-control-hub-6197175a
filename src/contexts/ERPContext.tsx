@@ -741,6 +741,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     } catch (err: any) {
       console.error('[ERP] Erro ao criar financeiro:', err.message);
+      toast.error('Erro ao salvar lançamento financeiro: ' + err.message);
     }
   }, []);
 

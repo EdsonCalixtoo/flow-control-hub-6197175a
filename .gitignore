@@ -43,3 +43,7 @@ build/
 !*.ico
 !*.pdf
 
+# Build artifacts
+dist_electron/
+release/
+.temp/

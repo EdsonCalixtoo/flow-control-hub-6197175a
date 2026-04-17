@@ -132,8 +132,10 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
       setLastUpdate(new Date());
     }
 
-    // Sempre recarrega a lista para garantir sincronização
-    loadFromSupabase?.();
+    // Carrega a lista com um pequeno delay para garantir que o banco já processou as inserções
+    setTimeout(() => {
+      loadFromSupabase?.();
+    }, 1500);
   }, [loadFromSupabase, orders]);
 
 
@@ -145,12 +147,31 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
     financialEntries.filter(e => e.type === 'receita' && e.status === 'pago').reduce((s, e) => s + e.amount, 0)
     , [financialEntries]);
 
-  // Função para calcular saldo devedor de um pedido
-  const getSaldoDevedor = (orderId: string, orderTotal: number) => {
+  // Função para calcular saldo devedor de um pedido - VERSÃO BLINDADA E FUZZY
+  const getSaldoDevedor = (orderId: string, orderTotal: number, paymentStatus?: string, orderNumber?: string) => {
+    // Se o status já é PAGO, o saldo devedor é ABSOLUTAMENTE zero
+    if (paymentStatus?.toLowerCase() === 'pago') return 0;
+
+    const cleanNum = (n: string) => n.replace('#', '').trim().toLowerCase();
+    const targetNum = orderNumber ? cleanNum(orderNumber) : null;
+
+    // ✅ CRUCIAL: Busca pagamentos por ID ou por Número Limpo (PED-024 === #PED-024)
     const pagos = financialEntries
-      .filter(e => e.orderId === orderId && e.type === 'receita' && e.status === 'pago')
+      .filter(e => {
+        const matchesId = e.orderId === orderId;
+        const matchesNumber = targetNum && e.orderNumber && cleanNum(e.orderNumber) === targetNum;
+        const isReceita = e.type?.toLowerCase() === 'receita';
+        const isNotCancelled = e.status?.toLowerCase() !== 'cancelado';
+        return (matchesId || matchesNumber) && isReceita && isNotCancelled;
+      })
       .reduce((s, e) => s + e.amount, 0);
-    return Math.max(0, orderTotal - pagos);
+    
+    const saldoRaw = orderTotal - pagos;
+    
+    // ✅ TRATAMENTO DE CENTAVOS: Saldo menor que 0.10 é considerado quitado
+    if (saldoRaw < 0.10) return 0;
+    
+    return saldoRaw;
   };
 
   const isOrderCarenagem = useCallback((order: Order) => {
@@ -185,45 +206,69 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
 
   const totalPendenteNormal = useMemo(() => {
     return ordersVisiveisFinanceiro
-      .filter(o => o.status !== 'rejeitado_financeiro') // ✅ Ignora rejeitados no 'A Receber'
+      .filter(o => o.status !== 'rejeitado_financeiro')
       .filter(o => {
-        // Excluir produtos de Carenagem aqui
         if (isOrderCarenagem(o)) return false;
-
-        if (o.isConsigned !== undefined) return !o.isConsigned;
-        const client = clients.find(c => c.id === o.clientId) || clients.find(c => c.name === o.clientName);
-        return !client?.consignado;
+        
+        // UNIFICAÇÃO: Mesma lógica da lista detalhada
+        const isConsigned = o.isConsigned !== undefined 
+          ? o.isConsigned 
+          : clients.find(c => c.id === o.clientId || c.name === o.clientName)?.consignado === true;
+          
+        return !isConsigned;
       })
-      .reduce((s, o) => s + getSaldoDevedor(o.id, o.total), 0);
+      .filter(o => getSaldoDevedor(o.id, o.total, o.paymentStatus, o.number) >= 0.10)
+      .reduce((s, o) => s + getSaldoDevedor(o.id, o.total, o.paymentStatus, o.number), 0);
   }, [ordersVisiveisFinanceiro, financialEntries, clients, products]);
 
   const totalConsignadoOwed = useMemo(() => {
     return ordersVisiveisFinanceiro
-      .filter(o => o.status !== 'rejeitado_financeiro') // ✅ Ignora rejeitados
+      .filter(o => o.status !== 'rejeitado_financeiro')
       .filter(o => {
-        // Excluir produtos de Carenagem aqui
-        if (isOrderCarenagem(o)) return false;
-
-        if (o.isConsigned !== undefined) return o.isConsigned;
-        const client = clients.find(c => c.id === o.clientId) || clients.find(c => c.name === o.clientName);
-        return client?.consignado;
+        // UNIFICAÇÃO: Mesma lógica da lista detalhada
+        const isConsigned = o.isConsigned !== undefined 
+          ? o.isConsigned 
+          : clients.find(c => c.id === o.clientId || c.name === o.clientName)?.consignado === true;
+          
+        return isConsigned;
       })
-      .reduce((s, o) => s + getSaldoDevedor(o.id, o.total), 0);
+      .filter(o => getSaldoDevedor(o.id, o.total, o.paymentStatus, o.number) >= 0.10)
+      .reduce((s, o) => s + getSaldoDevedor(o.id, o.total, o.paymentStatus, o.number), 0);
   }, [ordersVisiveisFinanceiro, financialEntries, clients, products]);
 
   const totalInstallationsOwed = useMemo(() => {
     return ordersVisiveisFinanceiro
-      .filter(o => o.status !== 'rejeitado_financeiro') // ✅ Ignora rejeitados
-      .filter(o => o.orderType === 'instalacao')
-      .reduce((s, o) => s + getSaldoDevedor(o.id, o.total), 0);
-  }, [ordersVisiveisFinanceiro, financialEntries]);
+      .filter(o => o.status !== 'rejeitado_financeiro')
+      .filter(o => {
+        if (o.orderType !== 'instalacao') return false;
+        
+        // EXCLUIR CONSIGNADOS (pois já estão no card de Consignados)
+        const isConsigned = o.isConsigned !== undefined 
+          ? o.isConsigned 
+          : clients.find(c => c.id === o.clientId || c.name === o.clientName)?.consignado === true;
+          
+        return !isConsigned;
+      })
+      .filter(o => getSaldoDevedor(o.id, o.total, o.paymentStatus, o.number) >= 0.10)
+      .reduce((s, o) => s + getSaldoDevedor(o.id, o.total, o.paymentStatus, o.number), 0);
+  }, [ordersVisiveisFinanceiro, financialEntries, clients]);
 
   const totalRetiradasOwed = useMemo(() => {
     return ordersVisiveisFinanceiro
-      .filter(o => o.status !== 'rejeitado_financeiro') // ✅ Ignora rejeitados
-      .filter(o => o.orderType === 'retirada')
-      .reduce((s, o) => s + getSaldoDevedor(o.id, o.total), 0);
-  }, [ordersVisiveisFinanceiro, financialEntries]);
+      .filter(o => o.status !== 'rejeitado_financeiro')
+      .filter(o => {
+        if (o.orderType !== 'retirada') return false;
+        
+        // EXCLUIR CONSIGNADOS (pois já estão no card de Consignados)
+        const isConsigned = o.isConsigned !== undefined 
+          ? o.isConsigned 
+          : clients.find(c => c.id === o.clientId || c.name === o.clientName)?.consignado === true;
+          
+        return !isConsigned;
+      })
+      .filter(o => getSaldoDevedor(o.id, o.total, o.paymentStatus, o.number) >= 0.10)
+      .reduce((s, o) => s + getSaldoDevedor(o.id, o.total, o.paymentStatus, o.number), 0);
+  }, [ordersVisiveisFinanceiro, financialEntries, clients]);
 
   const handleDeleteReceipt = async () => {
     if (!deletingReceipt || !selectedOrder) return;
@@ -256,13 +301,31 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
   };
 
   // Pedidos de CARENAGEM
-  const carenagemOrders = useMemo(() => ordersVisiveisFinanceiro.filter(isOrderCarenagem), [ordersVisiveisFinanceiro, products]);
+  const carenagemOrders = useMemo(() => ordersVisiveisFinanceiro.filter(o => {
+    if (!isOrderCarenagem(o)) return false;
+    
+    // EXCLUIR CONSIGNADOS (regra de exclusividade)
+    const isConsigned = o.isConsigned !== undefined 
+      ? o.isConsigned 
+      : clients.find(c => c.id === o.clientId || c.name === o.clientName)?.consignado === true;
+      
+    return !isConsigned;
+  }), [ordersVisiveisFinanceiro, products, clients]);
 
   const totalCarenagemOwed = useMemo(() => {
     return carenagemOrders
       .filter(o => o.status !== 'rejeitado_financeiro')
-      .reduce((s, o) => s + getSaldoDevedor(o.id, o.total), 0);
-  }, [carenagemOrders, financialEntries]);
+      .filter(o => {
+        // UNIFICAÇÃO: Mesma lógica da lista detalhada
+        const isConsigned = o.isConsigned !== undefined 
+          ? o.isConsigned 
+          : clients.find(c => c.id === o.clientId || c.name === o.clientName)?.consignado === true;
+          
+        return !isConsigned;
+      })
+      .filter(o => getSaldoDevedor(o.id, o.total, o.paymentStatus, o.number) >= 0.10) // ✅ Blindado
+      .reduce((s, o) => s + getSaldoDevedor(o.id, o.total, o.paymentStatus, o.number), 0);
+  }, [carenagemOrders, financialEntries, clients]);
 
   const grandTotalPending = useMemo(() => {
     return totalPendenteNormal + totalConsignadoOwed + totalInstallationsOwed + totalRetiradasOwed + totalCarenagemOwed;
@@ -272,12 +335,17 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
   const aguardandoLiberacao = ordersVisiveisFinanceiro.filter(o => (o.status === 'aprovado_financeiro' || o.status === 'aguardando_producao') && !isOrderCarenagem(o)).length;
   const aguardandoFinanceiro = ordersVisiveisFinanceiro.filter(o => o.status === 'aguardando_financeiro' && !isOrderCarenagem(o)).length;
 
-  // Pedidos de clientes consignados
+  // Pedidos de clientes consignados que ainda possuem saldo devedor
   const consignadosOrders = useMemo(() => ordersVisiveisFinanceiro.filter(o => {
-    if (o.isConsigned !== undefined) return o.isConsigned;
-    const client = clients.find(c => c.id === o.clientId) || clients.find(c => c.name === o.clientName);
-    return client?.consignado === true;
-  }), [ordersVisiveisFinanceiro, clients]);
+    const isConsigned = o.isConsigned !== undefined ? o.isConsigned : clients.find(c => c.id === o.clientId || c.name === o.clientName)?.consignado === true;
+    if (!isConsigned) return false;
+    
+    // Filtro crucial: SÓ mostra se ainda houver saldo devedor relevante ou novos comprovantes pendentes de análise
+    const hasSaldo = getSaldoDevedor(o.id, o.total, o.paymentStatus, o.number) >= 0.10;
+    const hasUnseenReceipts = (o.receiptUrls?.length || 0) > (o.comprovantesVistos || 0);
+    
+    return hasSaldo || hasUnseenReceipts;
+  }), [ordersVisiveisFinanceiro, clients, financialEntries]);
 
   // 🔔 Contador de novos comprovantes especificamente para consignados
   const newReceiptsInConsigned = useMemo(() => {
@@ -317,10 +385,36 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
   }, []); // Executa apenas 1x ao montar o componente
 
   // Pedidos de instalação
-  const installationOrders = useMemo(() => ordersVisiveisFinanceiro.filter(o => o.orderType === 'instalacao'), [ordersVisiveisFinanceiro]);
+  const installationOrders = useMemo(() => ordersVisiveisFinanceiro.filter(o => {
+    if (o.orderType !== 'instalacao') return false;
+    
+    // EXCLUIR CONSIGNADOS (regra de exclusividade)
+    const isConsigned = o.isConsigned !== undefined 
+      ? o.isConsigned 
+      : clients.find(c => c.id === o.clientId || c.name === o.clientName)?.consignado === true;
+      
+    if (isConsigned) return false;
+
+    const hasSaldo = getSaldoDevedor(o.id, o.total, o.paymentStatus, o.number) >= 0.10;
+    const hasUnseenReceipts = (o.receiptUrls?.length || 0) > (o.comprovantesVistos || 0);
+    return hasSaldo || hasUnseenReceipts;
+  }), [ordersVisiveisFinanceiro, clients, financialEntries]);
 
   // Pedidos de retirada
-  const retiradaOrders = useMemo(() => ordersVisiveisFinanceiro.filter(o => o.orderType === 'retirada'), [ordersVisiveisFinanceiro]);
+  const retiradaOrders = useMemo(() => ordersVisiveisFinanceiro.filter(o => {
+    if (o.orderType !== 'retirada') return false;
+    
+    // EXCLUIR CONSIGNADOS (regra de exclusividade)
+    const isConsigned = o.isConsigned !== undefined 
+      ? o.isConsigned 
+      : clients.find(c => c.id === o.clientId || c.name === o.clientName)?.consignado === true;
+      
+    if (isConsigned) return false;
+
+    const hasSaldo = getSaldoDevedor(o.id, o.total, o.paymentStatus, o.number) >= 0.10;
+    const hasUnseenReceipts = (o.receiptUrls?.length || 0) > (o.comprovantesVistos || 0);
+    return hasSaldo || hasUnseenReceipts;
+  }), [ordersVisiveisFinanceiro, clients, financialEntries]);
 
 
   const [showCarenagem, setShowCarenagem] = useState(defaultTab === 'carenagem');
@@ -363,6 +457,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
       sellerId: string;
       items: { product: string; sensorType?: string; quantity: number; total: number }[];
       totalVendas: number;
+      totalDivida: number;
       qtdPedidos: number;
     }> = {};
 
@@ -384,10 +479,12 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
           sellerId: order.sellerId,
           items: [],
           totalVendas: 0,
+          totalDivida: 0,
           qtdPedidos: 0,
         };
       }
       stats[key].totalVendas += order.total;
+      stats[key].totalDivida += getSaldoDevedor(order.id, order.total, order.paymentStatus, order.number);
       stats[key].qtdPedidos += 1;
       for (const item of order.items) {
         // Apenas itens com valor real contam como "venda"
@@ -1395,15 +1492,115 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                   </div>
                 )}
                 
-                {/* Botão de Quitação Rápida */}
-                {selectedOrder.paymentStatus !== 'pago' && saldoDevedor <= 0 && (
-                   <button
-                    onClick={async () => {
-                      const newStatus = selectedOrder.status === 'aguardando_financeiro' ? 'aguardando_producao' : selectedOrder.status;
-                      await updateOrderStatus(selectedOrder.id, newStatus, { paymentStatus: 'pago', statusPagamento: 'pago', financeiroAprovado: true }, 'Financeiro', 'Quitação manual confirmada');
-                      toast.success('Pagamento quitado com sucesso!');
+                {/* Botão Dar Baixa Total — aparece enquanto houver saldo devedor */}
+                {saldoDevedor > 0 && selectedOrder.status !== 'rejeitado_financeiro' && (
+                  <div className="p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 space-y-3 relative z-30 pointer-events-auto">
+                    <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4" /> Quitação Rápida
+                    </p>
+                    <p className="text-[10px] text-muted-foreground font-medium leading-relaxed">
+                      Registra o saldo restante de <span className="font-black text-emerald-600">{formatCurrency(saldoDevedor)}</span> como recebido e finaliza o financeiro deste pedido.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!window.confirm(`Confirmar quitação de ${formatCurrency(saldoDevedor)} e finalizar o pedido #${selectedOrder.number}?`)) return;
+                        const toastId = toast.loading('Processando baixa e finalizando pedido...');
+                        try {
+                          // 1. Cria lançamento financeiro pelo valor restante para compor o Total Recebido
+                          const entry: FinancialEntry = {
+                            id: crypto.randomUUID(),
+                            type: 'receita',
+                            description: `Baixa Total (Manual) - ${selectedOrder.number}`,
+                            amount: saldoDevedor,
+                            category: 'Baixa Manual',
+                            date: new Date().toISOString().split('T')[0],
+                            status: 'pago',
+                            orderId: selectedOrder.id,
+                            orderNumber: selectedOrder.number,
+                            clientId: selectedOrder.clientId,
+                            clientName: selectedOrder.clientName,
+                            paymentMethod: selectedOrder.paymentMethod || 'Manual',
+                            createdAt: new Date().toISOString(),
+                          };
+                          
+                          await addFinancialEntry(entry);
+
+                          // 2. Determina próximo status operacional
+                          const newStatus = selectedOrder.status === 'aguardando_financeiro' ? 'aguardando_producao' : selectedOrder.status;
+                          
+                          // 3. Atualiza o status do pedido
+                          await updateOrderStatus(
+                            selectedOrder.id,
+                            newStatus,
+                            { paymentStatus: 'pago', statusPagamento: 'pago', financeiroAprovado: true },
+                            'Financeiro',
+                            `Quitação total de ${formatCurrency(saldoDevedor)} realizada.`
+                          );
+
+                          // 4. Sincroniza dados globais para atualizar os cards do Dashboard
+                          if (loadFromSupabase) await loadFromSupabase();
+
+                          toast.success(`Baixa de ${formatCurrency(saldoDevedor)} realizada com sucesso!`, { id: toastId });
+                          setSelectedOrderId(null);
+                        } catch (err: any) {
+                          toast.error('Erro ao processar baixa: ' + (err?.message || 'Tente novamente'), { id: toastId });
+                        }
+                      }}
+                      className="w-full py-3.5 rounded-2xl bg-emerald-500 text-white font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-emerald-500/20 hover:bg-emerald-600 active:scale-95 transition-all flex items-center justify-center gap-2 pointer-events-auto relative z-30"
+                    >
+                      <CheckCircle className="w-4 h-4" /> Confirmar Baixa e Finalizar
+                    </button>
+                  </div>
+                )}
+
+                {/* Botão Finalizar — aparece quando saldo já está zerado mas o status ainda não é 'pago' */}
+                {saldoDevedor <= 0 && selectedOrder.paymentStatus !== 'pago' && (
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      const toastId = toast.loading('Finalizando pedido...');
+                      try {
+                        const newStatus = selectedOrder.status === 'aguardando_financeiro' ? 'aguardando_producao' : selectedOrder.status;
+                        
+                        // Para pedidos de valor zero (garantia/brinde), cria um lançamento simbólico se ainda não houver nenhum
+                        if (selectedOrder.total === 0 && pagamentos.length === 0) {
+                          const entry: FinancialEntry = {
+                            id: crypto.randomUUID(),
+                            type: 'receita',
+                            description: `Finalização Financeira - ${selectedOrder.number}`,
+                            amount: 0,
+                            category: 'Baixa Manual',
+                            date: new Date().toISOString().split('T')[0],
+                            status: 'pago',
+                            orderId: selectedOrder.id,
+                            orderNumber: selectedOrder.number,
+                            clientId: selectedOrder.clientId,
+                            clientName: selectedOrder.clientName,
+                            createdAt: new Date().toISOString(),
+                          };
+                          await addFinancialEntry(entry);
+                        }
+
+                        await updateOrderStatus(
+                          selectedOrder.id,
+                          newStatus,
+                          { paymentStatus: 'pago', statusPagamento: 'pago', financeiroAprovado: true },
+                          'Financeiro',
+                          'Pedido finalizado manualmente.'
+                        );
+
+                        if (loadFromSupabase) await loadFromSupabase();
+                        
+                        toast.success('Pedido finalizado com sucesso!', { id: toastId });
+                        setSelectedOrderId(null);
+                      } catch (err: any) {
+                        toast.error('Erro ao finalizar: ' + (err?.message || 'Tente novamente'), { id: toastId });
+                      }
                     }}
-                    className="w-full py-4 rounded-2xl bg-emerald-500 text-white font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2"
+                    className="w-full py-4 rounded-2xl bg-emerald-500 text-white font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20 hover:bg-emerald-600 active:scale-95 transition-all flex items-center justify-center gap-2 pointer-events-auto relative z-30"
                   >
                     <CheckCircle className="w-4 h-4" /> Finalizar Pedido
                   </button>
@@ -1821,7 +2018,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                     seller: o.sellerName,
                     status: o.status,
                     total: o.total,
-                    pending: getSaldoDevedor(o.id, o.total)
+                    pending: getSaldoDevedor(o.id, o.total, o.paymentStatus, o.number)
                   }))
                 });
                 toast.success('Relatório Financeiro gerado com sucesso!');
@@ -1986,7 +2183,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
             ) : (
               <>
                 {consignadosOrders.map(order => {
-                  const saldo = getSaldoDevedor(order.id, order.total);
+                  const saldo = getSaldoDevedor(order.id, order.total, order.paymentStatus, order.number);
                   return (
                     <div key={order.id} className="card-section p-4 flex items-center justify-between flex-wrap gap-3 bg-amber-500/5 border border-amber-500/20">
                       <div className="flex-1 min-w-[200px]">
@@ -2002,7 +2199,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                         <p className="text-[10px] text-amber-500 font-bold mt-1 uppercase tracking-wider">
                           PAGO: {formatCurrency(order.total - saldo)}
                         </p>
-                        {saldo > 0 && (
+                        {saldo > 0 && order.paymentStatus !== 'pago' && (
                           <div className="flex items-center gap-1.5 mt-1">
                             <Clock className="w-3 h-3 text-destructive" />
                             <span className="text-[10px] font-bold text-destructive uppercase">
@@ -2013,8 +2210,8 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                       </div>
                       <div className="text-right">
                         <p className="font-bold text-foreground text-sm">{formatCurrency(order.total)}</p>
-                        <p className="text-[10px] font-extrabold text-amber-500 mb-1">
-                          SALDO: {formatCurrency(saldo)}
+                        <p className={`text-[10px] font-extrabold mb-1 ${saldo > 0 && order.paymentStatus !== 'pago' ? 'text-amber-500' : 'text-success'}`}>
+                          SALDO: {formatCurrency(order.paymentStatus === 'pago' ? 0 : saldo)}
                         </p>
                         <div className="flex items-center justify-end gap-2">
                           <StatusBadge status={order.status} />
@@ -2065,7 +2262,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
             ) : (
               <>
                 {installationOrders.map(order => {
-                  const saldo = getSaldoDevedor(order.id, order.total);
+                  const saldo = getSaldoDevedor(order.id, order.total, order.paymentStatus, order.number);
                   return (
                     <div key={order.id} className="card-section p-4 flex items-center justify-between flex-wrap gap-3 bg-producao/5 border border-producao/20">
                       <div className="flex-1 min-w-[200px]">
@@ -2076,7 +2273,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                         <p className="text-[10px] text-producao font-bold mt-1 uppercase tracking-wider">
                           Status: {order.installationPaymentType === 'pago' ? '✓ PAGO' : '💰 PAGAR NA HORA'}
                         </p>
-                        {saldo > 0 && (
+                        {saldo > 0 && order.paymentStatus !== 'pago' && (
                           <div className="flex items-center gap-1.5 mt-1">
                             <Clock className="w-3 h-3 text-destructive" />
                             <span className="text-[10px] font-bold text-destructive uppercase">
@@ -2087,8 +2284,8 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                       </div>
                       <div className="text-right">
                         <p className="font-bold text-foreground text-sm">{formatCurrency(order.total)}</p>
-                        <p className={`text-[10px] font-extrabold mb-1 ${saldo > 0 ? 'text-destructive' : 'text-success'}`}>
-                          SALDO: {formatCurrency(saldo)}
+                        <p className={`text-[10px] font-extrabold mb-1 ${saldo > 0 && order.paymentStatus !== 'pago' ? 'text-destructive' : 'text-success'}`}>
+                          SALDO: {formatCurrency(order.paymentStatus === 'pago' ? 0 : saldo)}
                         </p>
                         <div className="flex items-center justify-end gap-2">
                           <StatusBadge status={order.status} />
@@ -2147,9 +2344,9 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                           {order.clientName} • Pedido em: {new Date(order.createdAt).toLocaleDateString('pt-BR')}
                         </p>
                         <p className="text-[10px] text-amber-500 font-bold mt-1 uppercase tracking-wider">
-                          Status Pagam.: {order.installationPaymentType === 'pago' ? '✓ PAGO' : '💰 COBRAR NO LOCAL'}
+                          Status Pagam.: {order.paymentStatus === 'pago' ? '✓ PAGO' : '💰 COBRAR NO LOCAL'}
                         </p>
-                        {saldo > 0 && (
+                        {saldo > 0 && order.paymentStatus !== 'pago' && (
                           <div className="flex items-center gap-1.5 mt-1">
                             <Clock className="w-3 h-3 text-destructive" />
                             <span className="text-[10px] font-bold text-destructive uppercase">
@@ -2160,8 +2357,8 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                       </div>
                       <div className="text-right">
                         <p className="font-bold text-foreground text-sm">{formatCurrency(order.total)}</p>
-                        <p className={`text-[10px] font-extrabold mb-1 ${saldo > 0 ? 'text-destructive' : 'text-success'}`}>
-                          SALDO: {formatCurrency(saldo)}
+                        <p className={`text-[10px] font-extrabold mb-1 ${saldo > 0 && order.paymentStatus !== 'pago' ? 'text-destructive' : 'text-success'}`}>
+                          SALDO: {formatCurrency(order.paymentStatus === 'pago' ? 0 : saldo)}
                         </p>
                         <div className="flex items-center justify-end gap-2">
                           <StatusBadge status={order.status} />
@@ -2333,8 +2530,8 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                     </div>
                     <div className="text-right">
                       <p className="font-bold text-foreground text-sm">{formatCurrency(order.total)}</p>
-                      <p className="text-[10px] font-extrabold text-warning mb-1">
-                        SALDO: {formatCurrency(saldo)}
+                      <p className={`text-[10px] font-extrabold mb-1 ${saldo > 0 && order.paymentStatus !== 'pago' ? 'text-warning' : 'text-success'}`}>
+                        SALDO: {formatCurrency(order.paymentStatus === 'pago' ? 0 : saldo)}
                       </p>
                       <div className="flex items-center justify-end gap-2">
                         <StatusBadge status={order.status} />
@@ -2441,8 +2638,8 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                       </div>
                       <div className="text-right">
                         <p className="font-bold text-foreground text-sm">{formatCurrency(order.total)}</p>
-                        <p className={`text-[10px] font-extrabold mb-1 ${saldo > 0 ? 'text-destructive' : 'text-success'}`}>
-                          SALDO: {formatCurrency(saldo)}
+                        <p className={`text-[10px] font-extrabold mb-1 ${saldo > 0 && order.paymentStatus !== 'pago' ? 'text-destructive' : 'text-success'}`}>
+                          SALDO: {formatCurrency(order.paymentStatus === 'pago' ? 0 : saldo)}
                         </p>
                         <div className="flex items-center justify-end gap-2">
                           <StatusBadge status={order.status} />
@@ -2553,9 +2750,17 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                             </div>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Faturamento Bruto</p>
-                          <p className="text-2xl font-black text-emerald-500 tabular-nums tracking-tighter">{formatCurrency(seller.totalVendas)}</p>
+                        <div className="flex items-center gap-8">
+                          <div className="text-right">
+                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Faturamento Bruto</p>
+                            <p className="text-2xl font-black text-emerald-500 tabular-nums tracking-tighter">{formatCurrency(seller.totalVendas)}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-1">Saldo Devedor</p>
+                            <p className={`text-2xl font-black tabular-nums tracking-tighter ${seller.totalDivida > 0 ? 'text-rose-500' : 'text-emerald-500/50'}`}>
+                              {formatCurrency(seller.totalDivida)}
+                            </p>
+                          </div>
                         </div>
                       </div>
 
@@ -2908,7 +3113,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                   ) : (
                     <div className="grid grid-cols-1 gap-4">
                       {carenagemOrders.map(order => {
-                        const saldo = getSaldoDevedor(order.id, order.total);
+                        const saldo = getSaldoDevedor(order.id, order.total, order.paymentStatus, order.number);
                         return (
                           <div key={order.id} className="group p-5 rounded-[2rem] bg-white dark:bg-slate-800/40 border border-border/40 hover:border-primary/50 hover:shadow-2xl hover:shadow-primary/[0.05] transition-all duration-500">
                             <div className="flex items-center justify-between flex-wrap gap-6">

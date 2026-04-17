@@ -5,7 +5,7 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  base: './', // Garante que os caminhos sejam relativos para o Electron
+  base: process.env.VERCEL ? "/" : "./", // '/' para Vercel (Web), './' para Electron (Desktop)
   server: {
     host: "::",
     port: 8080,

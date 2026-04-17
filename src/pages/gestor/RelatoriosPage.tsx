@@ -189,7 +189,7 @@ const RelatoriosPage: React.FC = () => {
       const matchesSearch = !query || 
         (p.delivererName || '').toLowerCase().includes(query) ||
         (p.orderNumber || '').toLowerCase().includes(query) ||
-        (p.batchId || '').toLowerCase().includes(query);
+        (p.batchId || '').toString().toLowerCase().includes(query);
 
       const matchesCarrier = selectedCarrier === 'TODOS' || carrier === selectedCarrier;
       
@@ -467,7 +467,7 @@ const RelatoriosPage: React.FC = () => {
                        </div>
                        <div className="overflow-hidden">
                           <p className="text-[10px] font-black uppercase text-muted-foreground/50 tracking-widest leading-none mb-1">Cód. Rastreio / Lote</p>
-                          <p className="text-xs font-black text-foreground truncate uppercase">{batch.id.replace('SINGLE-', '').replace('RESGATADO-', '')}</p>
+                          <p className="text-xs font-black text-foreground truncate uppercase">{(batch.id || '').toString().replace('SINGLE-', '').replace('RESGATADO-', '')}</p>
                        </div>
                     </div>
                   </div>
@@ -668,7 +668,7 @@ const RelatoriosPage: React.FC = () => {
                          <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Listagem Completa de Pedidos</h3>
                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                             {selectedBatch.orders.map(o => {
-                               const orderInfo = allOrders.find(ao => ao.id === o.id || ao.number === o.number || ao.number === o.number.replace('PED-', ''));
+                               const orderInfo = allOrders.find(ao => ao.id === o.id || ao.number === o.number || (o.number && ao.number === o.number.replace('PED-', '')));
                                return (
                                   <div key={o.number} className="p-4 rounded-2xl bg-muted/30 border border-border/10 hover:border-primary/30 transition-all group">
                                      <div className="flex items-start justify-between mb-2">

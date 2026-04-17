@@ -154,20 +154,20 @@ const WarrantyTrackingPage: React.FC = () => {
                         <div>
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Pedido de Produção</p>
                             <h2 className="text-2xl font-black text-slate-800">#{warranty.orderNumber}</h2>
-                            {(() => {
-                                const m = warranty.description.match(/REFERENTE AO ([A-Z0-9-]+)/i);
-                                return m ? (
-                                    <p className="text-[10px] text-primary font-black uppercase mt-1 leading-none">
-                                        (Garantia do {m[1]})
-                                    </p>
-                                ) : null;
-                            })()}
+                                {(() => {
+                                    const m = (warranty.description || '').match(/REFERENTE AO ([A-Z0-9-]+)/i);
+                                    return m ? (
+                                        <p className="text-[10px] text-primary font-black uppercase mt-1 leading-none">
+                                            (Garantia do {m[1]})
+                                        </p>
+                                    ) : null;
+                                })()}
                         </div>
                         <div className="text-right">
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Abertura</p>
                             <div className="flex items-center gap-1.5 text-slate-800 font-bold justify-end">
                                 <Calendar className="w-4 h-4 text-primary" />
-                                {format(new Date(warranty.createdAt), 'dd/MM/yyyy')}
+                                {warranty.createdAt ? format(new Date(warranty.createdAt), 'dd/MM/yyyy') : '—'}
                             </div>
                         </div>
                     </div>

@@ -35,9 +35,9 @@ const CorrigirPedidoPage: React.FC = () => {
     }
     const term = searchTerm.toLowerCase();
     return orders.filter(o => 
-      o.number.toLowerCase().includes(term) ||
-      o.clientName.toLowerCase().includes(term) ||
-      o.sellerName.toLowerCase().includes(term)
+      (o.number || '').toLowerCase().includes(term) ||
+      (o.clientName || '').toLowerCase().includes(term) ||
+      (o.sellerName || '').toLowerCase().includes(term)
     ).slice(0, 100);
   }, [orders, searchTerm]);
 

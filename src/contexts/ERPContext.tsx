@@ -186,6 +186,34 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // Sincronização inicial
     loadFromSupabase();
 
+    // ── CONFIGURAÇÃO REALTIME (SUPABASE) ──────────────────
+    // Ouve mudanças na tabela de pedidos e atualiza o estado instantaneamente
+    const channel = supabase
+      .channel('erp_orders_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', table: 'orders', schema: 'public' },
+        (payload) => {
+          console.log('[ERP] 🔔 Mudança detectada (Realtime):', payload.eventType);
+          
+          if (payload.eventType === 'INSERT') {
+            const newOrder = supabaseToOrder(payload.new);
+            setOrders(prev => {
+              if (prev.find(o => o.id === newOrder.id)) return prev;
+              return [newOrder, ...prev];
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedOrder = supabaseToOrder(payload.new);
+            setOrders(prev => prev.map(o => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o));
+          } else if (payload.eventType === 'DELETE') {
+            setOrders(prev => prev.filter(o => o.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('[ERP] 📡 Status do canal Realtime:', status);
+      });
+
     const interval = setInterval(() => {
       // ⚡ OTIMIZAÇÃO: Polling de segurança aumentado para 5 minutos (300.000ms)
       // O Realtime já cuida de atualizações imediatas de pedidos.
@@ -194,7 +222,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       loadFromSupabase();
     }, 300000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
   }, [loadFromSupabase, isAuthenticated]);
 
 

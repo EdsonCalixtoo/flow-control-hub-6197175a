@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
     Package, Truck, Clock, CheckCircle2, Factory,
-    Search, ShieldCheck, ChevronRight, MapPin,
-    Calendar, CreditCard, ShoppingBag
+    Search, Calendar, CreditCard, ShoppingBag
 } from 'lucide-react';
 import { StatusBadge, formatDate } from '@/components/shared/StatusBadge';
 import { supabasePublic } from '@/lib/supabasePublic';
@@ -31,9 +30,9 @@ const fetchOrderByIdPublic = async (orderId: string): Promise<Order | null> => {
             clientName: data.client_name,
             sellerId: data.seller_id,
             sellerName: data.seller_name,
-            subtotal: Number(data.subtotal),
-            taxes: Number(data.taxes),
-            total: Number(data.total),
+            subtotal: Number(data.subtotal || 0),
+            taxes: Number(data.taxes || 0),
+            total: Number(data.total || 0),
             status: data.status as OrderStatus,
             notes: data.notes || '',
             observation: data.observation || '',
@@ -52,14 +51,25 @@ const fetchOrderByIdPublic = async (orderId: string): Promise<Order | null> => {
     }
 };
 
-// ── Componente ──────────────────────────────────────────────────────────────
+// ── Definição dos Passos do Fluxo (Conforme solicitado pelo usuário) ──────────
+const STEPS = [
+    { key: 'orcamento', label: 'Orçamento Criado', icon: ShoppingBag },
+    { key: 'aguardando_financeiro', label: 'Aguardando Financeiro', icon: Clock },
+    { key: 'processamento_financeiro', label: 'Processamento Financeiro', icon: CreditCard },
+    { key: 'producao', label: 'Em Produção', icon: Factory },
+    { key: 'expedicao', label: 'Aguardando entregador', icon: Truck },
+    { key: 'finalizado', label: 'Pedido retirado pelo entregador', icon: CheckCircle2 },
+];
+
 const TrackingPage: React.FC = () => {
     const { orderId } = useParams<{ orderId: string }>();
     const [order, setOrder] = useState<Order | null>(null);
     const [loading, setLoading] = useState(true);
 
-    const loadOrder = async () => {
+    // ── Lógica de Sincronização e Realtime ──
+    const loadOrder = async (isSilent = false) => {
         if (!orderId) return;
+        if (!isSilent) setLoading(true);
         const data = await fetchOrderByIdPublic(orderId);
         if (data) setOrder(data);
         setLoading(false);
@@ -67,9 +77,65 @@ const TrackingPage: React.FC = () => {
 
     useEffect(() => {
         loadOrder();
-        const interval = setInterval(loadOrder, 10000);
-        return () => clearInterval(interval);
+
+        // 📡 CONFIGURAÇÃO REALTIME: Ouve mudanças apenas para ESTE pedido específico
+        if (orderId) {
+            console.log('[Tracking] 🛰️ Ativando Realtime para pedido:', orderId);
+            const channel = supabasePublic
+                .channel(`public_track_${orderId}`)
+                .on(
+                    'postgres_changes',
+                    { 
+                        event: 'UPDATE', 
+                        table: 'orders', 
+                        schema: 'public',
+                        filter: `id=eq.${orderId}`
+                    },
+                    (payload) => {
+                        console.log('[Tracking] 🔔 Atualização instantânea recebida no Cliente!');
+                        loadOrder(true); // Atualização silenciosa para não mostrar loading toda hora
+                    }
+                )
+                .subscribe();
+
+            return () => {
+                supabasePublic.removeChannel(channel);
+            };
+        }
     }, [orderId]);
+
+    // ── Função de Mapeamento de Status para Step State ──
+    const getStepState = (stepKey: string, currentStatus: OrderStatus): 'completed' | 'current' | 'pending' => {
+        // Mapeia o progresso do pedido em níveis (0 a 5)
+        const statusMap: Record<string, number> = {
+            'rascunho': 0,
+            'aguardando_financeiro': 1,
+            'rejeitado_financeiro': 1, // Se rejected, stay on level 1
+            'aprovado_financeiro': 2,
+            'aguardando_producao': 2,
+            'em_producao': 3,
+            'producao_finalizada': 4,
+            'produto_liberado': 4,
+            'pronto_para_retirada': 4,
+            'retirado_entregador': 5,
+        };
+
+        const currentLevel = statusMap[currentStatus] || 0;
+        const stepLevel = STEPS.findIndex(s => s.key === stepKey);
+
+        if (stepLevel < currentLevel) return 'completed';
+        if (stepLevel === currentLevel) {
+            // Orçamento criado (nível 0) sempre concluído por regra do usuário
+            if (currentLevel === 0 && stepKey === 'orcamento') return 'completed';
+            if (currentLevel === 0 && stepKey === 'aguardando_financeiro') return 'pending';
+            
+            // Se for o estágio final e status está correto, é concluído
+            if (currentLevel === 5 && stepKey === 'finalizado') return 'completed';
+
+            return 'current';
+        }
+        return 'pending';
+    };
 
     // ── Loading ──
     if (loading) {
@@ -92,149 +158,121 @@ const TrackingPage: React.FC = () => {
                 <p className="text-slate-500 max-w-xs mt-2">
                     Verifique se o link está correto ou entre em contato com seu vendedor.
                 </p>
-
-                {/* Botão WhatsApp para suporte — NÃO redireciona para o sistema */}
                 <a
                     href="https://wa.me/5562999999999?text=Olá, preciso de ajuda com meu link de rastreio"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-8 inline-flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-2xl transition-colors shadow-lg shadow-emerald-500/20"
+                    className="mt-8 px-6 py-3 bg-white border border-slate-200 rounded-2xl flex items-center gap-2 text-sm font-bold text-slate-600 shadow-sm hover:bg-slate-50 transition-all"
                 >
-                    <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24">
-                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-                    </svg>
-                    Falar com o vendedor
+                    Falar com Suporte
                 </a>
-
-                <p className="mt-4 text-xs text-slate-400">
-                    Grupo Automatiza Vans
-                </p>
             </div>
         );
     }
 
-    // ── Pipeline de status ──
-    const steps = [
-        { key: 'rascunho', label: 'Orçamento Criado', icon: ShoppingBag },
-        {
-            key: ['enviado_financeiro', 'aguardando_aprovacao_financeira', 'financeiro_aprovado'],
-            label: 'Processamento Financeiro',
-            icon: CreditCard,
-        },
-        {
-            key: ['aguardando_producao', 'em_producao'],
-            label: 'Em Produção',
-            icon: Factory,
-        },
-        {
-            key: ['producao_finalizada', 'produto_liberado'],
-            label: 'Pedido aguardando entregador',
-            icon: Package,
-        },
-        {
-            key: 'retirado_entregador',
-            label: 'Pedido retirado pelo entregador',
-            icon: Truck,
-        },
-    ];
-
-    const getCurrentStepIndex = () => {
-        if (order.status === 'retirado_entregador') return 4;
-        if (['producao_finalizada', 'produto_liberado'].includes(order.status)) return 3;
-        if (['aguardando_producao', 'em_producao'].includes(order.status)) return 2;
-        if (['enviado_financeiro', 'aguardando_aprovacao_financeira', 'financeiro_aprovado'].includes(order.status)) return 1;
-        return 0;
-    };
-
-    const currentStep = getCurrentStepIndex();
-
     return (
-        <div className="min-h-screen bg-slate-50 pb-12">
-            {/* Header */}
-            <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-10 shadow-sm">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
-                        <ShieldCheck className="w-6 h-6 text-primary" />
+        <div className="min-h-screen bg-[#F8FAFC]">
+            {/* Header / Nav */}
+            <div className="bg-white border-b border-slate-200/60 sticky top-0 z-50">
+                <div className="max-w-2xl mx-auto px-6 h-16 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                            <Package className="w-5 h-5 text-primary" />
+                        </div>
+                        <span className="font-black text-slate-800 tracking-tight">Rastreio de Pedido</span>
                     </div>
-                    <div>
-                        <h1 className="text-sm font-black text-slate-800 leading-tight">AUTOMATIZA VANS</h1>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Rastreio de Pedido</p>
-                    </div>
-                </div>
-                <div className="hidden sm:block">
                     <StatusBadge status={order.status} />
                 </div>
             </div>
 
-            <div className="max-w-xl mx-auto p-4 sm:p-6 space-y-6">
-                {/* Resumo do Pedido */}
-                <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
-                    <div className="flex justify-between items-start mb-6">
+            <main className="max-w-2xl mx-auto p-6 space-y-6">
+                {/* Resumo Card */}
+                <div className="bg-white rounded-[32px] p-8 border border-slate-200/60 shadow-sm relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full -mr-16 -mt-16 blur-3xl group-hover:bg-primary/10 transition-colors" />
+                    
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative">
                         <div>
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">ID do Pedido</p>
-                            <h2 className="text-2xl font-black text-slate-800">#{order.number}</h2>
+                            <h2 className="text-3xl font-black text-slate-800 tracking-tighter">#{order.number}</h2>
                         </div>
-                        <div className="text-right">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Previsão</p>
-                            <div className="flex items-center gap-1.5 text-slate-800 font-bold justify-end">
-                                <Calendar className="w-4 h-4 text-primary" />
-                                {order.deliveryDate
-                                    ? formatDate(order.deliveryDate)
-                                    : 'A definir'}
-                            </div>
+                        <div className="flex items-center gap-4 bg-slate-50 p-2 pr-4 rounded-2xl border border-slate-100">
+                             <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-primary shadow-sm">
+                                <Calendar className="w-6 h-6" />
+                             </div>
+                             <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Previsão</p>
+                                <span className="text-sm font-black text-slate-800">{order.deliveryDate ? formatDate(order.deliveryDate) : 'A definir'}</span>
+                             </div>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 pt-6 border-t border-slate-100">
-                        <div className="space-y-1">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Cliente</span>
-                            <p className="font-bold text-slate-800 text-sm">{order.clientName}</p>
+                    <div className="grid grid-cols-2 gap-8 mt-10 pt-10 border-t border-slate-100">
+                        <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Cliente</span>
+                            <span className="text-sm font-black text-slate-800 line-clamp-1">{order.clientName}</span>
                         </div>
-                        <div className="space-y-1">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Vendedor</span>
-                            <p className="font-bold text-slate-800 text-sm">{order.sellerName}</p>
+                        <div>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Vendedor</span>
+                            <span className="text-sm font-black text-slate-800 uppercase line-clamp-1">{order.sellerName}</span>
                         </div>
                     </div>
                 </div>
 
-                {/* Pipeline de Status */}
-                <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200">
-                    <h3 className="text-sm font-black text-slate-800 mb-8 flex items-center gap-2">
+                {/* Status Timeline */}
+                <div className="bg-white rounded-[32px] p-8 border border-slate-200/60 shadow-sm">
+                    <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2 mb-8">
                         <Clock className="w-4 h-4 text-primary" />
                         Status do Pedido
                     </h3>
 
-                    <div className="relative space-y-8 ml-3">
-                        <div className="absolute left-4 top-2 bottom-2 w-0.5 bg-slate-100" />
+                    <div className="relative space-y-0 pl-1">
+                        {/* Linha da Timeline */}
+                        <div className="absolute left-[19px] top-6 bottom-6 w-0.5 bg-slate-100" />
 
-                        {steps.map((step, idx) => {
-                            const isCompleted = idx < currentStep;
-                            const isCurrent = idx === currentStep;
-                            const isFuture = idx > currentStep;
-                            const StepIcon = step.icon;
-
+                        {STEPS.map((step, idx) => {
+                            const state = getStepState(step.key, order.status);
+                            const Icon = step.icon;
+                            
                             return (
-                                <div key={idx} className="flex gap-6 relative">
+                                <div key={step.key} className="relative flex items-start gap-4 pb-8 last:pb-0 group">
+                                    {/* Link de preenchimento para itens concluídos */}
+                                    {idx < STEPS.length - 1 && state === 'completed' && (
+                                        <div className="absolute left-[18px] top-6 bottom-0 w-0.5 bg-emerald-500 z-10 animate-in slide-in-from-top-4 duration-1000" />
+                                    )}
+
                                     <div className={`
-                                        w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 transition-all duration-500
-                                        ${isCompleted ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' :
-                                            isCurrent ? 'bg-primary text-white shadow-lg shadow-primary/30 scale-110 ring-4 ring-primary/10' :
-                                                'bg-slate-100 text-slate-400 scale-90'}
+                                        z-20 w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500 border-2
+                                        ${state === 'completed' ? 'bg-emerald-500 border-emerald-500 shadow-lg shadow-emerald-500/20' : 
+                                          state === 'current' ? 'bg-white border-primary shadow-lg shadow-primary/20 scale-110' : 
+                                          'bg-white border-slate-100'}
                                     `}>
-                                        {isCompleted ? <CheckCircle2 className="w-5 h-5" /> : <StepIcon className="w-4 h-4" />}
+                                        {state === 'completed' ? (
+                                            <CheckCircle2 className="w-5 h-5 text-white" />
+                                        ) : (
+                                            <div className="relative flex items-center justify-center">
+                                                {state === 'current' && (
+                                                    <span className="absolute inset-0 w-full h-full bg-primary/10 rounded-full animate-ping" />
+                                                )}
+                                                <Icon className={`w-5 h-5 ${state === 'current' ? 'text-primary animate-pulse' : 'text-slate-300'}`} />
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="pt-1">
-                                        <h4 className={`text-sm font-black tracking-tight ${isFuture ? 'text-slate-400' : 'text-slate-800'}`}>
+
+                                    <div className="pt-2">
+                                        <h4 className={`text-sm font-black tracking-tight ${state === 'pending' ? 'text-slate-300' : 'text-slate-800'}`}>
                                             {step.label}
                                         </h4>
-                                        {isCurrent && (
-                                            <p className="text-xs text-primary font-bold mt-1 flex items-center gap-1">
-                                                <RefreshCw className="w-3 h-3 animate-spin" /> Em andamento...
-                                            </p>
-                                        )}
-                                        {isCompleted && (
-                                            <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-wider mt-0.5">Concluído</p>
-                                        )}
+                                        <div className="flex items-center gap-1.5 mt-0.5">
+                                            {state === 'completed' ? (
+                                                <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-wider">Concluído</p>
+                                            ) : state === 'current' ? (
+                                                <div className="flex items-center gap-1.5">
+                                                    <p className="text-[10px] text-primary font-bold uppercase tracking-wider">Em andamento...</p>
+                                                </div>
+                                            ) : (
+                                                <p className="text-[10px] text-slate-300 font-bold uppercase tracking-wider">Pendente</p>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             );
@@ -242,24 +280,26 @@ const TrackingPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Itens */}
-                <div className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-200">
-                    <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-                        <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Resumo dos Itens</h3>
-                    </div>
-                    <div className="divide-y divide-slate-100">
+                {/* Resumo Itens */}
+                <div className="bg-white rounded-[32px] p-8 border border-slate-200/60 shadow-sm overflow-hidden">
+                    <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest flex items-center gap-2 mb-6">
+                        <ShoppingBag className="w-4 h-4 text-primary" />
+                        Resumo dos itens
+                    </h3>
+                    
+                    <div className="space-y-4">
                         {order.items.map((item, idx) => (
-                            <div key={idx} className="p-4 flex justify-between items-center group">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center text-slate-500 group-hover:bg-primary/10 group-hover:text-primary transition-colors">
-                                        <Package className="w-4 h-4" />
+                            <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 group hover:border-primary/20 transition-all">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-slate-400 group-hover:text-primary transition-colors">
+                                        <Package className="w-5 h-5" />
                                     </div>
-                                    <div>
-                                        <p className="text-sm font-bold text-slate-800">{item.product}</p>
-                                        <p className="text-[10px] text-slate-400">{item.description || '—'}</p>
+                                    <div className="max-w-[150px] md:max-w-xs">
+                                        <p className="text-sm font-black text-slate-800 line-clamp-1">{item.product}</p>
+                                        <p className="text-[10px] text-slate-400 leading-none mt-1 line-clamp-1">{item.description}</p>
                                     </div>
                                 </div>
-                                <span className="inline-flex items-center justify-center w-7 h-7 bg-slate-100 rounded-lg text-xs font-black text-slate-600">
+                                <span className="w-8 h-8 flex items-center justify-center bg-white rounded-lg border border-slate-200 text-xs font-black text-slate-800 shadow-sm">
                                     {item.quantity}
                                 </span>
                             </div>
@@ -267,49 +307,18 @@ const TrackingPage: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Rodapé de ajuda */}
-                <div className="text-center space-y-4 pt-4">
-                    <p className="text-xs text-slate-400 px-8">
-                        Este é um link de rastreio automático. Atualizações ocorrem em tempo real conforme a fábrica processa seu pedido.
-                    </p>
-                    <div className="p-4 bg-primary/5 rounded-2xl inline-block border border-primary/10">
-                        <p className="text-[10px] font-bold text-primary uppercase tracking-widest mb-1.5">Precisa de ajuda com seu pedido?</p>
-                        <a
-                            href={`https://wa.me/5562999999999?text=Olá, preciso de informações sobre o pedido ${order.number}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs font-black text-slate-800 flex items-center justify-center gap-2 hover:text-primary transition-colors"
-                        >
-                            <svg className="w-4 h-4 fill-emerald-500" viewBox="0 0 24 24">
-                                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
-                            </svg>
-                            Falar com Suporte / Vendedor
-                        </a>
-                    </div>
+                {/* Suporte Footer */}
+                <div className="text-center pt-4 pb-12">
+                     <p className="text-[11px] text-slate-400 font-medium">Alguma dúvida? Estamos aqui para ajudar.</p>
+                     <div className="flex justify-center gap-4 mt-4">
+                        <a href={`https://wa.me/5562999999999?text=Olá, preciso de informações sobre o pedido ${order.number}`} target="_blank" className="text-[11px] font-bold text-primary hover:underline">Falar com Consultor</a>
+                        <span className="text-slate-200">•</span>
+                        <a href="https://automatiza.com.br" target="_blank" className="text-[11px] font-bold text-slate-400 hover:text-slate-600 transition-colors">Automatiza.com.br</a>
+                     </div>
                 </div>
-            </div>
+            </main>
         </div>
     );
 };
-
-// ── Ícone local ──────────────────────────────────────────────────────────────
-const RefreshCw = (props: any) => (
-    <svg
-        {...props}
-        xmlns="http://www.w3.org/2000/svg"
-        width="24" height="24"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-    >
-        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-        <path d="M21 3v5h-5" />
-        <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-        <path d="M3 21v-5h5" />
-    </svg>
-);
 
 export default TrackingPage;

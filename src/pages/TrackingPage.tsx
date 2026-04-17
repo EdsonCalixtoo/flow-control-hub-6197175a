@@ -51,11 +51,10 @@ const fetchOrderByIdPublic = async (orderId: string): Promise<Order | null> => {
     }
 };
 
-// ── Definição dos Passos do Fluxo (Conforme solicitado pelo usuário) ──────────
+// ── Definição dos Passos do Fluxo (Simplificado para 5 estágios) ──────────
 const STEPS = [
     { key: 'orcamento', label: 'Orçamento Criado', icon: ShoppingBag },
-    { key: 'aguardando_financeiro', label: 'Aguardando Financeiro', icon: Clock },
-    { key: 'processamento_financeiro', label: 'Processamento Financeiro', icon: CreditCard },
+    { key: 'financeiro', label: 'Aguardando Financeiro', icon: CreditCard },
     { key: 'producao', label: 'Em Produção', icon: Factory },
     { key: 'expedicao', label: 'Aguardando entregador', icon: Truck },
     { key: 'finalizado', label: 'Pedido retirado pelo entregador', icon: CheckCircle2 },
@@ -78,9 +77,7 @@ const TrackingPage: React.FC = () => {
     useEffect(() => {
         loadOrder();
 
-        // 📡 CONFIGURAÇÃO REALTIME: Ouve mudanças apenas para ESTE pedido específico
         if (orderId) {
-            console.log('[Tracking] 🛰️ Ativando Realtime para pedido:', orderId);
             const channel = supabasePublic
                 .channel(`public_track_${orderId}`)
                 .on(
@@ -91,10 +88,7 @@ const TrackingPage: React.FC = () => {
                         schema: 'public',
                         filter: `id=eq.${orderId}`
                     },
-                    (payload) => {
-                        console.log('[Tracking] 🔔 Atualização instantânea recebida no Cliente!');
-                        loadOrder(true); // Atualização silenciosa para não mostrar loading toda hora
-                    }
+                    () => loadOrder(true)
                 )
                 .subscribe();
 
@@ -106,18 +100,16 @@ const TrackingPage: React.FC = () => {
 
     // ── Função de Mapeamento de Status para Step State ──
     const getStepState = (stepKey: string, currentStatus: OrderStatus): 'completed' | 'current' | 'pending' => {
-        // Mapeia o progresso do pedido em níveis (0 a 5)
         const statusMap: Record<string, number> = {
             'rascunho': 0,
             'aguardando_financeiro': 1,
-            'rejeitado_financeiro': 1, // Se rejected, stay on level 1
             'aprovado_financeiro': 2,
             'aguardando_producao': 2,
-            'em_producao': 3,
-            'producao_finalizada': 4,
-            'produto_liberado': 4,
-            'pronto_para_retirada': 4,
-            'retirado_entregador': 5,
+            'em_producao': 2,
+            'producao_finalizada': 3,
+            'produto_liberado': 3,
+            'pronto_para_retirada': 3,
+            'retirado_entregador': 4,
         };
 
         const currentLevel = statusMap[currentStatus] || 0;
@@ -125,13 +117,11 @@ const TrackingPage: React.FC = () => {
 
         if (stepLevel < currentLevel) return 'completed';
         if (stepLevel === currentLevel) {
-            // Orçamento criado (nível 0) sempre concluído por regra do usuário
+            // Orçamento (0) sempre concluído
             if (currentLevel === 0 && stepKey === 'orcamento') return 'completed';
-            if (currentLevel === 0 && stepKey === 'aguardando_financeiro') return 'pending';
+            // Passo final concluído se o status for o correto
+            if (currentLevel === 4 && stepKey === 'finalizado') return 'completed';
             
-            // Se for o estágio final e status está correto, é concluído
-            if (currentLevel === 5 && stepKey === 'finalizado') return 'completed';
-
             return 'current';
         }
         return 'pending';

@@ -22,7 +22,8 @@ import {
     AlertCircle,
     CheckCircle2,
     Zap,
-    XCircle
+    XCircle,
+    Trash2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import ModernCalendar from '@/components/shared/ModernCalendar';
@@ -33,7 +34,7 @@ import { StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
 import type { Order } from '@/types/erp';
 
 const CalendarioProducaoVendedorPage: React.FC = () => {
-    const { clients, products, addOrder, orders } = useERP();
+    const { clients, products, addOrder, orders, deleteOrder } = useERP();
     const { user } = useAuth();
     
     // Estados para o calendário e filtros
@@ -169,6 +170,19 @@ const CalendarioProducaoVendedorPage: React.FC = () => {
             toast.error('Erro ao agendar: ' + err.message);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleDeletePlanning = async () => {
+        if (!selectedOrder) return;
+        if (!confirm('Tem certeza que deseja excluir esta previsão do planejamento? Esta ação não pode ser desfeita.')) return;
+
+        try {
+            await deleteOrder(selectedOrder.id);
+            toast.success('Previsão removida do planejamento com sucesso!');
+            setSelectedOrder(null);
+        } catch (err: any) {
+            toast.error('Erro ao excluir: ' + err.message);
         }
     };
 
@@ -343,7 +357,13 @@ const CalendarioProducaoVendedorPage: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="p-8 border-t border-border/10 bg-muted/5 flex justify-end">
+                        <div className="p-8 border-t border-border/10 bg-muted/5 flex justify-end gap-3">
+                            <button
+                                onClick={handleDeletePlanning}
+                                className="px-6 py-4 rounded-2xl bg-destructive/10 text-destructive text-[10px] font-black uppercase tracking-widest hover:bg-destructive hover:text-white transition-all flex items-center gap-2 border border-destructive/20"
+                            >
+                                <Trash2 className="w-4 h-4" /> Excluir Previsão
+                            </button>
                             <button 
                                 onClick={() => setSelectedOrder(null)}
                                 className="px-8 py-4 rounded-2xl bg-foreground text-background text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-foreground/10"

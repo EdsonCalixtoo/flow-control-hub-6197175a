@@ -13,7 +13,8 @@ import {
     Truck,
     Clock,
     CheckCircle2,
-    Info
+    Info,
+    Trash2
 } from 'lucide-react';
 import { format, isSameDay } from 'date-fns';
 import { ptBR as localePtBR } from 'date-fns/locale';
@@ -24,7 +25,7 @@ import type { Order } from '@/types/erp';
 import { toast } from 'sonner';
 
 const CronogramaProducaoPage: React.FC = () => {
-    const { orders, updateOrderStatus } = useERP();
+    const { orders, updateOrderStatus, deleteOrder } = useERP();
     const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
     const [selectedDate, setSelectedDate] = useState<Date | null>(null);
     const [showDayDetails, setShowDayDetails] = useState(false);
@@ -79,6 +80,20 @@ const CronogramaProducaoPage: React.FC = () => {
             setSelectedOrder(prev => prev ? { ...prev, status: 'producao_finalizada' } : null);
         } catch (error) {
             toast.error('Erro ao finalizar produção');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDeletePlanning = async (orderId: string) => {
+        if (!confirm('Tem certeza que deseja remover esta previsão do planejamento?')) return;
+        setLoading(true);
+        try {
+            await deleteOrder(orderId);
+            toast.success('Previsão excluída');
+            setSelectedOrder(null);
+        } catch (error) {
+            toast.error('Erro ao excluir');
         } finally {
             setLoading(false);
         }
@@ -240,7 +255,17 @@ const CronogramaProducaoPage: React.FC = () => {
                                     <Printer className="w-4 h-4 mr-2" /> {financeiroAprovado ? 'Imprimir Etiqueta' : 'Etiqueta Bloqueada'}
                                 </button>
 
-                                {!financeiroAprovado && (
+                                 {order.status === 'planejamento' && (
+                                    <button
+                                        onClick={() => handleDeletePlanning(order.id)}
+                                        disabled={loading}
+                                        className="btn-modern w-full justify-center h-12 bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive hover:text-white transition-all font-black text-xs uppercase"
+                                    >
+                                        <Trash2 className="w-4 h-4 mr-2" /> EXCLUIR PLANEJAMENTO
+                                    </button>
+                                )}
+
+                                {!financeiroAprovado && order.status !== 'planejamento' && (
                                     <p className="text-[9px] text-center text-warning font-black uppercase px-4 leading-relaxed tracking-tighter">
                                         ⚠ Liberação financeira pendente. Etiqueta bloqueada por segurança.
                                     </p>

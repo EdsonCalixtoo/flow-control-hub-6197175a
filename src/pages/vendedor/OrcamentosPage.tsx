@@ -6,7 +6,7 @@ import { cleanR2Url } from '@/lib/storageServiceR2';
 import { StatusBadge, formatCurrency, formatDate } from '@/components/shared/StatusBadge';
 import { OrderPipeline, OrderHistory } from '@/components/shared/OrderTimeline';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
-import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check, Download, Link2, DollarSign, CheckCircle, Users, Package, Truck, CheckCircle2, XCircle, ChevronDown, Calendar as CalendarIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check, Download, Link2, DollarSign, CheckCircle, Users, Package, Truck, CheckCircle2, XCircle, ChevronDown, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Zap } from 'lucide-react';
 import type { Order, QuoteItem } from '@/types/erp';
 import { useLocation, useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
@@ -1039,41 +1039,44 @@ const OrcamentosPage: React.FC = () => {
       alert('Erro ao gerar PDF. Tente novamente.');
     }
   };
-
   // ── Formulário de criação/edição ────────────────────────────
   if (showCreate || editingOrder) {
     const isEdit = !!editingOrder;
     return (
-      <div className="space-y-8 animate-scale-in pb-20">
-        <div className="flex items-center justify-between flex-wrap gap-4 px-2">
-          <div className="space-y-1">
-            <h1 className="page-header text-3xl flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-white shadow-xl shadow-primary/20 rotate-3 transition-transform hover:rotate-0">
-                {isEdit ? <Edit2 className="w-6 h-6" /> : <Plus className="w-6 h-6" />}
-              </div>
-              {isEdit ? `Editar Orçamento` : 'Novo Orçamento'}
-            </h1>
-            <p className="page-subtitle font-medium">
-              {isEdit ? `Ajustando detalhes do ${editingOrder?.number}` : 'Crie orçamentos profissionais em poucos segundos'}
-            </p>
+      <div className="space-y-8 animate-scale-in pb-20 max-w-[1400px] mx-auto">
+        {/* Header Elegante */}
+        <div className="flex items-center justify-between flex-wrap gap-6 px-4 py-6 rounded-[2.5rem] bg-gradient-to-r from-primary/5 via-white/40 to-transparent border border-white/40 shadow-sm backdrop-blur-md">
+          <div className="flex items-center gap-5">
+            <div className="w-16 h-16 rounded-[2rem] bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center text-white shadow-2xl shadow-primary/30 -rotate-3 transition-transform hover:rotate-0">
+               {isEdit ? <Edit2 className="w-8 h-8" /> : <Plus className="w-8 h-8" />}
+            </div>
+            <div>
+              <h1 className="text-3xl font-black text-foreground tracking-tight flex items-center gap-3">
+                {isEdit ? `Editar Orçamento` : 'Novo Orçamento'}
+              </h1>
+              <p className="text-sm font-bold text-muted-foreground/80 tracking-wide uppercase">
+                {isEdit ? `Ajustando detalhes do ${editingOrder?.number}` : 'Crie orçamentos premium em poucos segundos'}
+              </p>
+            </div>
           </div>
           <button
             onClick={() => resetForm()}
-            className="btn-modern bg-destructive/10 text-destructive hover:bg-destructive/20 border border-destructive/20 shadow-none text-xs font-black uppercase tracking-widest px-6"
+            className="flex items-center gap-3 px-8 py-4 rounded-2xl bg-destructive/5 text-destructive hover:bg-destructive hover:text-white border border-destructive/20 shadow-none text-xs font-black uppercase tracking-widest transition-all hover:scale-105 active:scale-95"
           >
-            <X className="w-4 h-4" /> Cancelar
+            <X className="w-4 h-4" /> Cancelar Edição
           </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-8">
-            <div className="glass-card p-8 rounded-[2rem] space-y-8 border-white/40 shadow-2xl relative group focus-within:z-[50]">
-              <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full -mr-32 -mt-32 blur-3xl group-hover:bg-primary/10 transition-colors duration-700" />
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                    <Users className="w-3 h-3 text-primary" /> Cliente
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          <div className="lg:col-span-8 space-y-8">
+            {/* Seção Cliente e Info */}
+            <div className="glass-card p-10 rounded-[3rem] space-y-10 border-white/60 shadow-2xl relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full -mr-64 -mt-64 blur-[100px] transition-colors duration-1000 group-hover:bg-primary/10" />
+              
+              <div className="relative grid grid-cols-1 md:grid-cols-2 gap-10">
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black uppercase tracking-[0.3em] text-primary flex items-center gap-2 mb-1.5 ml-1">
+                    <Users className="w-3.5 h-3.5" /> Cliente do Orçamento
                   </label>
                   <SearchableSelect
                     value={newClientId}
@@ -1087,7 +1090,7 @@ const OrcamentosPage: React.FC = () => {
                         }
                       }
                     }}
-                    placeholder="Selecione um cliente..."
+                    placeholder="Selecione um cliente para prosseguir..."
                     icon={Users}
                     options={myClients.map(c => ({
                       id: c.id,
@@ -1097,88 +1100,88 @@ const OrcamentosPage: React.FC = () => {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                    <History className="w-3 h-3 text-primary" /> Observações Gerais
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black uppercase tracking-[0.3em] text-primary flex items-center gap-2 mb-1.5 ml-1">
+                    <History className="w-3.5 h-3.5" /> Notas Internas
                   </label>
                   <textarea
                     value={newObservation}
                     onChange={e => setNewObservation(e.target.value)}
-                    placeholder="Algo que o financeiro ou produção devam saber?"
-                    className="input-modern min-h-[48px] bg-white/50 border-white/40 focus:bg-white resize-none"
+                    placeholder="Observações que aparecerão para o financeiro e produção..."
+                    className="input-modern min-h-[56px] py-4 bg-white/70 border-white/60 focus:bg-white resize-none shadow-sm focus:shadow-md transition-all text-sm font-medium"
                   />
                 </div>
               </div>
 
-              <div className={`p-6 rounded-3xl border-2 transition-all duration-500 ${newRequiresInvoice ? 'bg-primary/10 border-primary ring-8 ring-primary/5 shadow-xl shadow-primary/10' : 'bg-muted/30 border-dashed border-border/60 hover:border-primary/40'}`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-xl transition-all duration-700 ${newRequiresInvoice ? 'bg-primary rotate-0 scale-110 shadow-primary/30' : 'bg-muted-foreground/30 scale-100 rotate-12 opacity-60'}`}>
-                      <FileText className="w-7 h-7" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
+                <div 
+                  onClick={() => setNewRequiresInvoice(!newRequiresInvoice)}
+                  className={`p-6 rounded-[2.5rem] border-2 cursor-pointer transition-all duration-500 group/card ${newRequiresInvoice ? 'bg-primary/10 border-primary ring-8 ring-primary/5 shadow-2xl shadow-primary/10' : 'bg-muted/30 border-dashed border-border/60 hover:border-primary/40'}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-5">
+                      <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-white shadow-2xl transition-all duration-700 ${newRequiresInvoice ? 'bg-primary rotate-0 scale-110 shadow-primary/40' : 'bg-muted-foreground/30 scale-100 rotate-6 opacity-60 group-hover/card:rotate-0'}`}>
+                        <FileText className="w-8 h-8" />
+                      </div>
+                      <div>
+                        <h3 className={`text-base font-black uppercase tracking-tight transition-colors ${newRequiresInvoice ? 'text-primary' : 'text-foreground'}`}>Nota Fiscal (NF)</h3>
+                        <p className="text-[11px] text-muted-foreground font-bold italic tracking-wide mt-0.5">Fluxo financeiro oficial</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className={`text-base font-black uppercase tracking-tight transition-colors ${newRequiresInvoice ? 'text-primary' : 'text-foreground'}`}>Precisa de Nota Fiscal?</h3>
-                      <p className="text-[11px] text-muted-foreground font-bold italic tracking-wide">Pedidos com NF seguem um fluxo financeiro diferenciado</p>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500 ${newRequiresInvoice ? 'bg-primary text-white' : 'bg-muted-foreground/10 text-muted-foreground'}`}>
+                       {newRequiresInvoice ? <Check className="w-6 h-6 animate-scale-in" /> : <Plus className="w-6 h-6" />}
                     </div>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setNewRequiresInvoice(!newRequiresInvoice)}
-                    className={`relative inline-flex h-10 w-20 items-center rounded-full transition-all focus:outline-none ring-offset-2 shadow-inner group ${newRequiresInvoice ? 'bg-primary ring-4 ring-primary/10' : 'bg-muted-foreground/20 ring-0'}`}
-                  >
-                    <span className={`inline-block h-8 w-8 transform rounded-full bg-white shadow-xl transition-transform duration-500 ease-in-out ${newRequiresInvoice ? 'translate-x-11' : 'translate-x-1'}`} />
-                  </button>
                 </div>
-              </div>
 
-              <div className={`p-6 rounded-3xl border-2 transition-all duration-500 ${newRequiresShippingNote ? 'bg-amber-500/10 border-amber-500 ring-8 ring-amber-500/5 shadow-xl shadow-amber-500/10' : 'bg-muted/30 border-dashed border-border/60 hover:border-amber-500/40'}`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-white shadow-xl transition-all duration-700 ${newRequiresShippingNote ? 'bg-amber-500 rotate-0 scale-110 shadow-amber-500/30' : 'bg-muted-foreground/30 scale-100 rotate-12 opacity-60'}`}>
-                      <Truck className="w-7 h-7" />
+                <div 
+                  onClick={() => setNewRequiresShippingNote(!newRequiresShippingNote)}
+                  className={`p-6 rounded-[2.5rem] border-2 cursor-pointer transition-all duration-500 group/card ${newRequiresShippingNote ? 'bg-amber-500/10 border-amber-500 ring-8 ring-amber-500/5 shadow-2xl shadow-amber-500/10' : 'bg-muted/30 border-dashed border-border/60 hover:border-amber-500/40 hover:bg-white/40'}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-5">
+                      <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-white shadow-2xl transition-all duration-700 ${newRequiresShippingNote ? 'bg-amber-500 rotate-0 scale-110 shadow-amber-500/40' : 'bg-muted-foreground/30 scale-100 rotate-6 opacity-60 group-hover/card:rotate-0'}`}>
+                        <Truck className="w-8 h-8" />
+                      </div>
+                      <div>
+                        <h3 className={`text-base font-black uppercase tracking-tight transition-colors ${newRequiresShippingNote ? 'text-amber-600' : 'text-foreground'}`}>Nota de Envio</h3>
+                        <p className="text-[11px] text-muted-foreground font-bold italic tracking-wide mt-0.5">Acompanhamento simples</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className={`text-base font-black uppercase tracking-tight transition-colors ${newRequiresShippingNote ? 'text-amber-600' : 'text-foreground'}`}>Precisa de Nota de Envio?</h3>
-                      <p className="text-[11px] text-muted-foreground font-bold italic tracking-wide">Documento simples para acompanhamento da mercadoria</p>
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500 ${newRequiresShippingNote ? 'bg-amber-500 text-white' : 'bg-muted-foreground/10 text-muted-foreground'}`}>
+                       {newRequiresShippingNote ? <Check className="w-6 h-6 animate-scale-in" /> : <Plus className="w-6 h-6" />}
                     </div>
                   </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setNewRequiresShippingNote(!newRequiresShippingNote)}
-                    className={`relative inline-flex h-10 w-20 items-center rounded-full transition-all focus:outline-none ring-offset-2 shadow-inner group ${newRequiresShippingNote ? 'bg-amber-500 ring-4 ring-amber-500/10' : 'bg-muted-foreground/20 ring-0'}`}
-                  >
-                    <span className={`inline-block h-8 w-8 transform rounded-full bg-white shadow-xl transition-transform duration-500 ease-in-out ${newRequiresShippingNote ? 'translate-x-11' : 'translate-x-1'}`} />
-                  </button>
                 </div>
               </div>
             </div>
 
-            <div className="space-y-4">
-              <div className="flex items-center justify-between px-2">
-                <h2 className="text-lg font-black uppercase tracking-[0.2em] text-foreground flex items-center gap-3">
-                  <Package className="w-5 h-5 text-primary" /> Carrinho de Itens
+            <div className="space-y-6">
+              <div className="flex items-center justify-between px-4">
+                <h2 className="text-xl font-black uppercase tracking-[0.3em] text-foreground flex items-center gap-4">
+                  <div className="p-3 rounded-xl bg-primary/10 text-primary"><Package className="w-6 h-6" /></div>
+                  Carrinho de Itens
                 </h2>
                 <button
                   onClick={addItem}
-                  className="btn-modern bg-primary/10 text-primary hover:bg-primary hover:text-white border border-primary/20 shadow-sm px-6 py-2 rounded-2xl text-[11px] font-black uppercase tracking-[0.15em] transition-all group"
+                  className="btn-modern bg-primary text-white hover:bg-primary/90 px-8 py-4 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-primary/20 transition-all hover:scale-105 active:scale-95 group"
                 >
-                  <Plus className="w-4 h-4 transition-transform group-hover:rotate-90" /> Adicionar Item
+                  <Plus className="w-4 h-4 transition-transform group-hover:rotate-90" /> Adicionar Produto
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 gap-6">
+              <div className="space-y-6">
                 {newItems.map((item, i) => (
-                  <div key={i} className={`glass-card p-6 rounded-[2rem] border-white/40 shadow-xl relative animate-in fade-in slide-in-from-bottom-4 duration-500 focus-within:z-[50] ${item.isReward ? '!bg-blue-50/90 dark:!bg-blue-900/30 border-blue-500/60 ring-2 ring-blue-500/30 shadow-blue-500/20' : ''}`}>
+                  <div key={i} className={`glass-card p-8 rounded-[2.5rem] border-white/60 shadow-xl relative animate-in fade-in slide-in-from-bottom-6 duration-700 hover:shadow-2xl transition-all ${item.isReward ? '!bg-blue-50/90 dark:!bg-blue-900/10 border-blue-500/40 ring-4 ring-blue-500/5 shadow-blue-500/10' : ''}`}>
                     {item.isReward && (
-                      <div className="absolute -top-3 -left-3 px-4 py-1.5 rounded-xl bg-blue-600 text-white text-[10px] font-black uppercase tracking-[0.2em] shadow-lg shadow-blue-600/30 z-10 animate-pulse">
+                      <div className="absolute -top-3 left-8 px-5 py-2 rounded-xl bg-blue-600 text-white text-[9px] font-black uppercase tracking-[0.2em] shadow-lg shadow-blue-600/30 z-10 animate-pulse">
                         🏆 Item de Premiação
                       </div>
                     )}
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
-                      <div className="md:col-span-5 space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground pl-1">Produto</label>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
+                      <div className="md:col-span-12 lg:col-span-6 space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Produto / Serviço</label>
                         <SearchableSelect
                           value={item.product}
                           onChange={val => {
@@ -1196,112 +1199,104 @@ const OrcamentosPage: React.FC = () => {
                             updated[i] = newItem;
                             setNewItems(updated);
                           }}
-                          placeholder="Buscar produto..."
+                          placeholder="Digite ou selecione o produto..."
                           icon={Package}
                           options={products
                             .filter(p => p.category !== 'Carenagem' || user?.email === 'higorfeerreira9@gmail.com')
                             .filter(p => {
-                              if (!item.isReward) return true;
-                              const isKit = p.name.toUpperCase().includes('KIT') || p.name.toUpperCase().includes('SPRINTER');
-                              
-                              // Tier 1: TUDO MENOS KITS
-                              if (activeReward?.type === 'tier_1') return !isKit;
-                              
-                              // Tier 2/3: APENAS KITS
-                              if (activeReward?.type === 'tier_2' || activeReward?.type === 'tier_3') return isKit;
-                              
-                              return true;
+                               if (!item.isReward) return true;
+                               const isKit = p.name.toUpperCase().includes('KIT') || p.name.toUpperCase().includes('SPRINTER');
+                               if (activeReward?.type === 'tier_1') return !isKit;
+                               if (activeReward?.type === 'tier_2' || activeReward?.type === 'tier_3') return isKit;
+                               return true;
                             })
                             .map(p => ({
                               id: p.name,
                               label: p.name,
-                              sublabel: p.name.toUpperCase().includes('KIT') ? '🏷️ KIT DE INSTALAÇÃO' : p.category
+                              sublabel: p.name.toUpperCase().includes('KIT') ? '🏷️ KIT COMPLETO' : p.category
                             }))
                           }
                         />
                       </div>
 
-                      <div className="md:col-span-2 space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground pl-1">Qtd</label>
+                      <div className="md:col-span-12 lg:col-span-2 space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1 text-center block">Qtd</label>
                         <input
                           type="number"
                           value={item.quantity}
                           min="1"
                           disabled={item.isReward}
                           onChange={e => updateItem(i, 'quantity', parseInt(e.target.value) || 0)}
-                          className={`input-modern text-center text-sm font-black h-12 bg-white/60 border-white/40 ${item.isReward ? 'bg-muted/50 cursor-not-allowed opacity-60' : ''}`}
+                          className={`input-modern text-center text-lg font-black h-14 bg-white/50 border-white/40 shadow-inner ${item.isReward ? 'bg-muted/50 cursor-not-allowed opacity-60' : ''}`}
                         />
                       </div>
 
-                      <div className="md:col-span-3 space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground pl-1">Valor Unitário</label>
+                      <div className="md:col-span-12 lg:col-span-4 space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Preço Unitário</label>
                         <div className="relative">
                           <input
                             type="text"
                             value={item.unitPrice}
                             disabled={item.isReward}
                             onChange={e => updateItem(i, 'unitPrice', formatMoeda(e.target.value))}
-                            className={`input-modern pl-10 text-sm font-black h-12 bg-white/60 border-white/40 ${item.isReward ? 'bg-muted/50 cursor-not-allowed opacity-60' : ''}`}
+                            className={`input-modern pl-12 text-base font-black h-14 bg-white/50 border-white/40 shadow-inner ${item.isReward ? 'bg-muted/50 cursor-not-allowed opacity-60' : 'text-primary'}`}
                           />
-                          <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" />
-                        </div>
-                      </div>
-
-                      <div className="md:col-span-2 flex items-end justify-end h-full self-end pb-1.5 px-2">
-                        <div className="text-right">
-                          <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest mb-1 block">Subtotal</span>
-                          <span className="text-lg font-black text-foreground">{formatCurrency(parsePrice(item.unitPrice) * item.quantity)}</span>
+                          <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground/60" />
+                          
+                          <div className="absolute top-1/2 -translate-y-1/2 right-4 text-right">
+                             <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest mb-0.5">Subtotal</p>
+                             <p className="text-sm font-black text-foreground leading-none">{formatCurrency(parsePrice(item.unitPrice) * item.quantity)}</p>
+                          </div>
                         </div>
                       </div>
                     </div>
 
-                    <div className="mt-6 pt-6 border-t border-border/40 grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground pl-1 italic">Descrição</label>
+                    <div className="mt-8 pt-8 border-t border-border/10 flex flex-col md:flex-row gap-8 items-end">
+                      <div className="flex-1 space-y-2 w-full">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1 italic opacity-60">Especificações Técnicas / Observações do Item</label>
                         <input
-                          placeholder="Detalhes específicos deste item..."
+                          placeholder="Ex: Cor personalizada, voltagem especial, detalhes de montagem..."
                           value={item.description}
                           onChange={e => updateItem(i, 'description', e.target.value)}
-                          className="input-modern py-2 text-xs h-10 bg-white/40 border-white/40"
+                          className="input-modern py-3 text-xs h-12 bg-white/70 border-white/60 shadow-sm"
                         />
                       </div>
 
-                      <div className="flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-4 self-stretch md:self-end">
                         {item.product.toUpperCase().includes('KIT') ? (
-                          <div className="flex flex-col gap-1.5 grow">
-                            <label className="text-[9px] font-black uppercase tracking-widest text-primary">Configurar Sensor</label>
-                            <div className="flex gap-2 p-1 bg-black/5 rounded-xl">
+                          <div className="flex flex-col gap-2">
+                            <label className="text-[9px] font-black uppercase tracking-widest text-primary ml-1">Kit Sensor</label>
+                            <div className="flex gap-2 p-1.5 bg-black/5 rounded-2xl border border-black/5">
                               <button
                                 type="button"
                                 onClick={() => updateItem(i, 'sensorType', 'com_sensor')}
-                                className={`flex-1 py-2 px-3 rounded-lg text-[9px] font-black uppercase transition-all flex items-center justify-center gap-1.5 ${item.sensorType === 'com_sensor'
-                                  ? 'bg-primary text-white shadow-md'
-                                  : 'text-muted-foreground hover:bg-white/40'
+                                className={`px-5 py-3 rounded-xl text-[9px] font-black uppercase transition-all flex items-center justify-center gap-2 ${item.sensorType === 'com_sensor'
+                                  ? 'bg-primary text-white shadow-lg'
+                                  : 'bg-white/40 text-muted-foreground hover:bg-white'
                                   }`}
                               >
-                                <CheckCircle2 className="w-3 h-3" /> COM SENSOR
+                                {item.sensorType === 'com_sensor' && <CheckCircle2 className="w-3 h-3 animate-scale-in" />} COM SENSOR
                               </button>
                               <button
                                 type="button"
                                 onClick={() => updateItem(i, 'sensorType', 'sem_sensor')}
-                                className={`flex-1 py-2 px-3 rounded-lg text-[9px] font-black uppercase transition-all flex items-center justify-center gap-1.5 ${item.sensorType === 'sem_sensor'
-                                  ? 'bg-slate-500 text-white shadow-md'
-                                  : 'text-muted-foreground hover:bg-white/40'
+                                className={`px-5 py-3 rounded-xl text-[9px] font-black uppercase transition-all flex items-center justify-center gap-2 ${item.sensorType === 'sem_sensor'
+                                  ? 'bg-slate-500 text-white shadow-lg'
+                                  : 'bg-white/40 text-muted-foreground hover:bg-white'
                                   }`}
                               >
-                                <XCircle className="w-3 h-3" /> SEM SENSOR
+                                {item.sensorType === 'sem_sensor' && <CheckCircle2 className="w-3 h-3 animate-scale-in" />} SEM SENSOR
                               </button>
                             </div>
                           </div>
-                        ) : <div className="grow" />}
-
+                        ) : null}
 
                         {newItems.length > 1 && (
                           <button
                             onClick={() => removeItem(i)}
-                            className="w-10 h-10 rounded-xl bg-destructive/5 text-destructive hover:bg-destructive hover:text-white transition-all flex items-center justify-center border border-destructive/10"
+                            className="w-12 h-12 rounded-2xl bg-destructive/10 text-destructive hover:bg-destructive hover:text-white transition-all flex items-center justify-center border border-destructive/10 shadow-lg shadow-destructive/5 self-end mb-1"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-5 h-5" />
                           </button>
                         )}
                       </div>
@@ -1312,163 +1307,180 @@ const OrcamentosPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="lg:col-span-1 space-y-8">
-            <div className="glass-card p-6 rounded-[2rem] border-white/40 shadow-2xl space-y-8 sticky top-24">
-              <div className="space-y-4">
-                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                  <Truck className="w-4 h-4 text-primary" /> Logística
+          <div className="lg:col-span-4 space-y-8 sticky top-24">
+            <div className="glass-card p-8 rounded-[3rem] border-white/60 shadow-2xl space-y-10 group overflow-hidden">
+               <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-primary/5 rounded-full blur-[80px]" />
+
+              <div className="space-y-6 relative">
+                <label className="text-[11px] font-black uppercase tracking-[0.3em] text-primary flex items-center gap-3 ml-1">
+                  <Truck className="w-4 h-4" /> Modalidade de Logística
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-4">
                   {(['entrega', 'instalacao', 'manutencao', 'retirada'] as const).map(t => (
                     <button
                       key={t}
                       type="button"
                       onClick={() => setNewOrderType(t)}
-                      className={`py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 transition-all flex flex-col items-center gap-1 ${newOrderType === t
-                        ? 'bg-primary/10 border-primary text-primary'
-                        : 'bg-white/40 border-border/40 text-muted-foreground'
+                      className={`relative overflow-hidden py-5 px-4 rounded-[2rem] text-[10px] font-black uppercase tracking-widest border-2 transition-all duration-500 flex flex-col items-center gap-3 ${newOrderType === t
+                        ? 'bg-primary border-primary text-white shadow-2xl shadow-primary/30 scale-[1.03] ring-8 ring-primary/10'
+                        : 'bg-white/50 border-white/80 text-muted-foreground hover:bg-white hover:border-primary/40'
                         }`}
                     >
-                      <span className="text-lg">
+                      <span className={`text-3xl transition-transform duration-500 ${newOrderType === t ? 'scale-110' : 'grayscale opacity-70 group-hover:grayscale-0 group-hover:opacity-100'}`}>
                         {t === 'entrega' ? '🚚' : t === 'instalacao' ? '🔧' : t === 'manutencao' ? '🛠️' : '📦'}
                       </span>
-                      {t}
+                      <span className="relative z-10">{t}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
-              {newOrderType === 'entrega' && (
-                <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground pl-1">Data Prevista de Entrega</label>
-                    <ModernDatePicker
-                      value={newDeliveryDate}
-                      onChange={setNewDeliveryDate}
-                      placeholder="Selecione a data de entrega..."
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground pl-1">Transportadora / Responsável</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {['JADLOG', 'LALAMOVE', 'KLEYTON', 'MOTOBOY', 'OUTRO'].map(c => {
-                        const isPredefined = ['JADLOG', 'LALAMOVE', 'KLEYTON', 'MOTOBOY'].includes(newCarrier);
-                        const isActive = c === 'OUTRO' ? !isPredefined && newCarrier !== '' : newCarrier === c;
+              <div className="relative space-y-8">
+                {newOrderType === 'entrega' && (
+                  <div className="space-y-8 animate-in fade-in slide-in-from-right-10 duration-700">
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-2">Previsão para Entrega</label>
+                      <ModernDatePicker
+                        value={newDeliveryDate}
+                        onChange={setNewDeliveryDate}
+                        placeholder="Clique para selecionar a data..."
+                      />
+                    </div>
+                    <div className="space-y-4">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-2">Transportador / Responsável</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        {['JADLOG', 'LALAMOVE', 'KLEYTON', 'MOTOBOY', 'OUTRO'].map(c => {
+                          const isPredefined = ['JADLOG', 'LALAMOVE', 'KLEYTON', 'MOTOBOY'].includes(newCarrier);
+                          const isActive = c === 'OUTRO' ? !isPredefined && newCarrier !== '' : newCarrier === c;
 
-                        return (
+                          return (
+                            <button
+                              key={c}
+                              type="button"
+                              onClick={() => setNewCarrier(c === 'OUTRO' ? '' : c)}
+                              className={`py-4 rounded-2xl text-[9px] font-black uppercase tracking-widest border-2 transition-all ${isActive
+                                ? 'bg-primary/10 border-primary text-primary shadow-xl shadow-primary/5'
+                                : 'bg-white/60 border-white/80 text-muted-foreground hover:border-primary/20'
+                                }`}
+                            >
+                              {c}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {(!['JADLOG', 'LALAMOVE', 'KLEYTON', 'MOTOBOY'].includes(newCarrier) || newCarrier === '') && (
+                        <div className="animate-in fade-in slide-in-from-top-4 duration-500">
+                          <input
+                            type="text"
+                            placeholder="Nome da Transportadora Especial..."
+                            value={newCarrier === 'OUTRO' ? '' : newCarrier}
+                            onChange={e => setNewCarrier(e.target.value.toUpperCase())}
+                            className="input-modern bg-white/90 border-primary/20 shadow-lg h-14 focus:border-primary transition-all font-black text-xs px-6 rounded-2xl"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {newOrderType === 'retirada' && (
+                  <div className="space-y-8 animate-in fade-in slide-in-from-right-10 duration-700">
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-2">Data Marcada para Retirada</label>
+                      <ModernDatePicker
+                        value={newDeliveryDate}
+                        onChange={setNewDeliveryDate}
+                        placeholder="Quando o cliente vem buscar?"
+                      />
+                    </div>
+                    <div className="space-y-4">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-2">Condição de Pagamento</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        {(['pago', 'pagar_na_hora'] as const).map(p => (
                           <button
-                            key={c}
+                            key={p}
                             type="button"
-                            onClick={() => setNewCarrier(c === 'OUTRO' ? '' : c)}
-                            className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${isActive
-                              ? 'bg-primary/10 border-primary text-primary shadow-lg shadow-primary/5'
-                              : 'bg-white/40 border-border/40 text-muted-foreground'
+                            onClick={() => setNewInstallationPaymentType(p)}
+                            className={`py-5 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${newInstallationPaymentType === p
+                              ? 'bg-success border-success text-white shadow-2xl shadow-success/20 scale-[1.03]'
+                              : 'bg-white/60 border-white/80 text-muted-foreground'
                               }`}
                           >
-                            {c}
+                            {p === 'pago' ? '💳 Já Pago' : '🤝 Na Hora'}
                           </button>
-                        );
-                      })}
-                    </div>
-                    {(!['JADLOG', 'LALAMOVE', 'KLEYTON', 'MOTOBOY'].includes(newCarrier) || newCarrier === '') && (
-                      <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                        <input
-                          type="text"
-                          placeholder="Digite o nome da transportadora..."
-                          value={newCarrier === 'OUTRO' ? '' : newCarrier}
-                          onChange={e => setNewCarrier(e.target.value.toUpperCase())}
-                          className="input-modern bg-white/60 border-primary/20 shadow-inner mt-2 h-12 focus:border-primary transition-all font-bold"
-                        />
-                        <p className="text-[9px] text-muted-foreground mt-1 ml-1 italic font-medium">Você selecionou uma transportadora personalizada</p>
+                        ))}
                       </div>
-                    )}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {newOrderType === 'retirada' && (
-                <div className="space-y-4 animate-in fade-in slide-in-from-top-4 duration-500">
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground pl-1">Data da Retirada</label>
-                    <ModernDatePicker
-                      value={newDeliveryDate}
-                      onChange={setNewDeliveryDate}
-                      placeholder="Selecione a data da retirada..."
+                {(newOrderType === 'instalacao' || newOrderType === 'manutencao') && (
+                  <div className="space-y-8 animate-in fade-in slide-in-from-right-10 duration-700">
+                    <InstallationCalendar
+                      selectedDate={newDeliveryDate}
+                      selectedTime={newInstallationTime}
+                      onSelect={(date, time) => {
+                        setNewDeliveryDate(date);
+                        setNewInstallationTime(time);
+                      }}
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground pl-1">Status do Pagamento</label>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-3">
                       {(['pago', 'pagar_na_hora'] as const).map(p => (
                         <button
                           key={p}
                           type="button"
                           onClick={() => setNewInstallationPaymentType(p)}
-                          className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${newInstallationPaymentType === p
-                            ? 'bg-success/10 border-success text-success shadow-lg shadow-success/5'
-                            : 'bg-white/40 border-border/40 text-muted-foreground'
+                          className={`py-5 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${newInstallationPaymentType === p
+                            ? 'bg-success border-success text-white shadow-2xl shadow-success/20'
+                            : 'bg-white/60 border-white/80 text-muted-foreground'
                             }`}
                         >
-                          {p === 'pago' ? 'Já Pago' : 'Na Hora'}
+                          {p === 'pago' ? '💳 Já Pago' : '🤝 Na Hora'}
                         </button>
                       ))}
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
-              {(newOrderType === 'instalacao' || newOrderType === 'manutencao') && (
-                <div className="space-y-4 animate-in fade-in duration-500">
-                  <InstallationCalendar
-                    selectedDate={newDeliveryDate}
-                    selectedTime={newInstallationTime}
-                    onSelect={(date, time) => {
-                      setNewDeliveryDate(date);
-                      setNewInstallationTime(time);
-                    }}
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    {(['pago', 'pagar_na_hora'] as const).map(p => (
-                      <button
-                        key={p}
-                        type="button"
-                        onClick={() => setNewInstallationPaymentType(p)}
-                        className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${newInstallationPaymentType === p
-                          ? 'bg-success/10 border-success text-success shadow-lg shadow-success/5'
-                          : 'bg-white/40 border-border/40 text-muted-foreground'
-                          }`}
-                      >
-                        {p === 'pago' ? 'Já Pago' : 'Na Hora'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="pt-8 border-t border-border/40 space-y-6">
-                <div className="flex justify-between items-center px-1">
+              <div className="pt-10 border-t border-border/10 space-y-8 relative">
+                <div className="flex justify-between items-center bg-gradient-to-br from-white/40 to-white/10 p-6 rounded-[2rem] border border-white/60 shadow-inner">
                   <div className="space-y-1">
-                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Total Geral</p>
-                    <p className="text-3xl font-black text-foreground">{formatCurrency(totalGeral)}</p>
+                    <p className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.3em]">Total Acumulado</p>
+                    <p className="text-4xl font-black text-foreground drop-shadow-sm">{formatCurrency(totalGeral)}</p>
                   </div>
-                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
-                    <DollarSign className="w-6 h-6" />
+                  <div className="w-16 h-16 rounded-[1.5rem] bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center text-white shadow-2xl shadow-primary/30">
+                    <DollarSign className="w-8 h-8" />
                   </div>
                 </div>
 
                 {formError && (
-                  <div className="p-4 rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive text-[10px] font-black uppercase text-center animate-bounce">
-                    {formError}
+                  <div className="p-5 rounded-2xl bg-destructive/10 border-2 border-destructive/20 text-destructive text-[10px] font-black uppercase text-center animate-bounce shadow-xl">
+                    ⚠️ {formError}
                   </div>
                 )}
 
                 <button
                   onClick={handleCreateOrder}
                   disabled={savingOrder}
-                  className="w-full h-14 rounded-2xl bg-primary text-white font-black uppercase tracking-[0.2em] text-xs shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
+                  className="group relative w-full h-20 rounded-3xl bg-primary text-white font-black uppercase tracking-[0.3em] text-sm shadow-2xl shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 overflow-hidden"
                 >
-                  {savingOrder ? 'Processando...' : isEdit ? 'Salvar Alterações' : 'Criar Orçamento'}
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer" />
+                  <span className="relative flex items-center justify-center gap-4">
+                    {savingOrder ? (
+                       <Zap className="w-6 h-6 animate-pulse" />
+                    ) : (
+                      <CheckCircle2 className="w-6 h-6" />
+                    )}
+                    {savingOrder ? 'Processando Pedido...' : isEdit ? 'Salvar Alterações' : 'Finalizar e Gerar Orçamento'}
+                  </span>
                 </button>
+                
+                {!isEdit && (
+                  <p className="text-[9px] text-center text-muted-foreground font-bold uppercase tracking-widest opacity-60">
+                    Ao criar o orçamento, você poderá gerar o PDF e enviar ao cliente
+                  </p>
+                )}
               </div>
             </div>
           </div>

@@ -73,6 +73,7 @@ interface ERPContextType {
   markDelayReportRead: (reportId: string) => void;
   clearAll: () => Promise<void>;
   loadFromSupabase: () => Promise<void>;
+  loadBarcodeScans: () => Promise<void>;
   loadOrderDetails: (orderId: string) => Promise<Order | null>;
   loadOrderByNumber: (orderNumber: string) => Promise<Order | null>;
   // monthly closings
@@ -1016,6 +1017,15 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     console.log('[ERP] Todos os dados locais foram removidos.');
   }, [setOrders, setClients, setFinancialEntries, setProducts, setDelayReports, setOrderReturns, setProductionErrors, setBarcodeScans, setDeliveryPickups]);
 
+  const loadBarcodeScans = useCallback(async () => {
+    try {
+      const scans = await fetchBarcodeScans();
+      setBarcodeScans(scans);
+    } catch (err: any) {
+      console.error('[ERP] Erro ao recarregar scans:', err.message);
+    }
+  }, [setBarcodeScans]);
+
   return (
     <ERPContext.Provider value={{
       orders, clients, financialEntries, products, delayReports, unreadDelayReports, overduePaymentsCount, loading,
@@ -1028,7 +1038,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addClient, editClient, addFinancialEntry, updateFinancialEntry,
       warranties, addWarranty, updateWarrantyStatus, editWarranty,
       addProduct, updateProduct, deleteProduct, deleteClient, addDelayReport, markDelayReportRead, clearAll,
-      loadFromSupabase, loadOrderDetails, loadOrderByNumber,
+      loadFromSupabase, loadBarcodeScans, loadOrderDetails, loadOrderByNumber,
       monthlyClosings, closeMonth
     }}>
       {children}

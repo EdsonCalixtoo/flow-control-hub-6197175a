@@ -14,6 +14,74 @@ import ModernCalendar from '@/components/shared/ModernCalendar';
 import type { ProductionStatus } from '@/types/erp';
 import { cleanR2Url } from '@/lib/storageServiceR2';
 
+const ModernSelect: React.FC<{
+  value: string;
+  onChange: (val: string) => void;
+  options: { value: string; label: string; icon?: string }[];
+  icon: React.ElementType;
+  title: string;
+}> = ({ value, onChange, options, icon: Icon, title }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const selected = options.find(o => o.value === value) || options[0];
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <div 
+      className={`flex-1 min-w-[200px] flex items-center gap-3 bg-card/60 backdrop-blur-md p-2 rounded-[1.5rem] border border-border/60 shadow-sm transition-all hover:shadow-md group relative ${isOpen ? 'z-50' : 'z-20'}`} 
+      ref={containerRef}
+    >
+      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0 transition-transform group-hover:scale-110">
+        <Icon className="w-4 h-4" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-0.5">{title}</p>
+        <button 
+          onClick={() => setIsOpen(!isOpen)}
+          className="w-full flex items-center justify-between text-[10px] font-black text-foreground uppercase tracking-widest outline-none"
+        >
+          <span className="truncate flex items-center gap-2">
+            {selected.icon && <span>{selected.icon}</span>}
+            {selected.label}
+          </span>
+          <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground/50 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+        </button>
+      </div>
+
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-card/90 backdrop-blur-xl border border-border/60 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+          <div className="p-1.5 py-2">
+            {options.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => {
+                  onChange(opt.value);
+                  setIsOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                  value === opt.value ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-muted/50'
+                }`}
+              >
+                {opt.icon && <span>{opt.icon}</span>}
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const REMETENTE = {
   name: 'Grupo Automozia',
   address: 'R. Dr. Élton César, 910',
@@ -349,9 +417,9 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
     const isActuallyScanned = scannedOrderIds.has(o.id);
     const filterToUse = tipoFiltro === 'historico' ? 'historico' : statusFilter;
 
-    // Pedido é considerado "Concluído" para a produção se já foi Liberado para entrega ou Retirado pelo entregador
-    // 'producao_finalizada' permanece na lista para que o usuário possa escanear o código de barras antes de sumir.
-    const isCompleted = ['produto_liberado', 'retirado_entregador'].includes(o.status) || isActuallyScanned;
+    // Pedido é considerado "Concluído" para a produção se já foi Finalizado, Liberado para entrega ou Retirado
+    // 'producao_finalizada' agora é considerado concluído para desaparecer da lista de trabalho da fábrica
+    const isCompleted = ['producao_finalizada', 'produto_liberado', 'retirado_entregador'].includes(o.status) || isActuallyScanned;
 
     // No histórico, mostramos tudo que está concluído
     if (filterToUse === 'historico') return isCompleted;
@@ -399,11 +467,23 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
     return matchSearch && matchStatus && matchCarrier && matchDateForPlanning && matchTypeFilter;
   });
 
+  const groupedOrders = useMemo(() => {
+    const groups: Record<string, typeof filteredOrders> = {};
+    filteredOrders.forEach(order => {
+      const client = order.clientName || 'Cliente não identificado';
+      if (!groups[client]) groups[client] = [];
+      groups[client].push(order);
+    });
+    return groups;
+  }, [filteredOrders]);
+
   const iniciarProducao = (orderId: string) => {
+    const startedBy = user?.name || 'Equipe Producao';
     updateOrderStatus(orderId, 'em_producao', {
       productionStartedAt: new Date().toISOString(),
       productionStatus: 'em_producao',
-    }, 'Equipe Producao', 'Producao iniciada');
+      productionStartedBy: startedBy,
+    }, startedBy, 'Producao iniciada');
   };
 
   const finalizarProducao = (orderId: string) => {
@@ -809,327 +889,364 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 
   const handleScan = () => processCode(scanInput);
 
-  // Scanner screen
   if (showScanner) {
-    const recentScans = barcodeScans.slice(0, 5);
+    const recentScans = barcodeScans.slice(0, 20);
     return (
-      <div className="space-y-6 animate-scale-in">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <h1 className="page-header">Leitura de Código de Barras</h1>
-            <p className="page-subtitle">Escaneie via câmera {barcodeDetectorAvailable ? '(se disponível)' : ''}, leitor USB ou digite manualmente</p>
-          </div>
-          <button onClick={() => { setShowScanner(false); setScanResult(null); stopCamera(); }} className="btn-modern bg-muted text-foreground shadow-none text-xs">
-            <X className="w-4 h-4" /> Fechar
-          </button>
-        </div>
-        <div className="max-w-lg mx-auto space-y-6">
-          {/* Camera scanner */}
-          <div className="card-section p-6 space-y-4">
-            <div className="text-center">
-              <div className="w-16 h-16 rounded-3xl bg-gradient-to-br from-producao/20 to-producao/5 flex items-center justify-center mx-auto mb-3">
-                <ScanLine className="w-8 h-8 text-producao" />
+      <div className="min-h-[80vh] flex flex-col space-y-10 animate-in fade-in zoom-in-95 duration-500 pb-20">
+        {/* Header Imersivo */}
+        <div className="relative overflow-hidden rounded-[2.5rem] bg-card/40 backdrop-blur-3xl border border-border/40 p-8 shadow-2xl group">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-producao/10 rounded-full blur-3xl -mr-32 -mt-32" />
+          <div className="flex items-center justify-between relative z-10">
+            <div className="flex items-center gap-5">
+              <div className="w-16 h-16 rounded-2xl bg-producao flex items-center justify-center text-white shadow-2xl shadow-producao/40 transform transition-transform hover:scale-110 active:scale-95 duration-300">
+                <ScanLine className="w-8 h-8" />
               </div>
-              <h2 className="text-base font-bold text-foreground">Leitura de Código</h2>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {barcodeDetectorAvailable ? 'Use câmera, leitor USB ou digite' : 'Usa leitor USB ou digite manualmente'}
-              </p>
+              <div>
+                <h1 className="text-3xl font-black tracking-tighter text-foreground uppercase">Leitura de Código de Barras</h1>
+                <p className="text-sm text-muted-foreground font-semibold mt-0.5">Validação industrial via scanner USB, Câmera ou Manual</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => { setShowScanner(false); setScanResult(null); stopCamera(); }} 
+              className="w-12 h-12 rounded-2xl bg-card border border-border/60 text-foreground flex items-center justify-center hover:bg-destructive hover:text-white hover:border-destructive transition-all group/close shadow-lg"
+            >
+              <X className="w-6 h-6 transition-transform group-hover/close:rotate-90" />
+            </button>
+          </div>
+        </div>
+
+        <div className="max-w-2xl mx-auto w-full space-y-8">
+          {/* Main Scanner Box */}
+          <div className="glass-card relative overflow-hidden p-8 sm:p-10 border-2 border-border/40 shadow-[0_30px_70px_-15px_rgba(0,0,0,0.1)]">
+            <div className="text-center space-y-2 mb-10">
+               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-black uppercase tracking-[0.2em] animate-pulse mb-2">
+                 <Zap className="w-3 h-3 fill-current" /> Pronto para Scannear
+               </div>
+               <h2 className="text-2xl font-black text-foreground uppercase tracking-tight">Posicione o Código</h2>
+               <p className="text-sm text-muted-foreground font-medium">Aponte o leitor ou digite o identificador do pedido</p>
             </div>
 
-            {/* Aviso se BarcodeDetector não disponível */}
-            {!barcodeDetectorAvailable && (
-              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-600 text-xs space-y-1">
-                <p className="font-semibold">⚠️ Detecção automática indisponível neste navegador</p>
-                <p>Use um dos métodos abaixo:</p>
-                <ul className="ml-3 mt-1 space-y-0.5">
-                  <li>• 📱 <strong>Leitor USB</strong>: Conecte um scanner de código de barras</li>
-                  <li>• ⌨️ <strong>Digitar</strong>: Digite o número do pedido manualmente</li>
-                  <li>• 🌐 <strong>Navegador</strong>: Use Chrome/Edge/Safari 14+ para câmera</li>
-                </ul>
-              </div>
-            )}
-
-            {/* Video — sempre no DOM para que videoRef.current esteja sempre válido */}
-            {barcodeDetectorAvailable && (
-              <div className={`space-y-3 ${!cameraActive ? 'hidden' : ''}`}>
-                <div className="relative rounded-xl overflow-hidden border-2 border-producao/40 bg-black">
+            {/* Camera Area Modernizada */}
+            {barcodeDetectorAvailable && cameraActive ? (
+              <div className="space-y-6 animate-in zoom-in-95 duration-500">
+                <div className="relative rounded-[2rem] overflow-hidden border-4 border-producao/50 bg-black shadow-2xl aspect-video sm:aspect-[21/9]">
                   <video
                     ref={videoRef}
-                    className="w-full h-48 object-cover"
-                    playsInline
-                    autoPlay
-                    muted
+                    className="w-full h-full object-cover opacity-90"
+                    playsInline autoPlay muted
                     onCanPlay={() => { videoRef.current?.play().catch(() => { }); }}
                   />
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="w-48 h-32 border-2 border-white/70 rounded-xl" />
+                  
+                  {/* Laser Animation */}
+                  <div className="absolute inset-0 z-10 pointer-events-none">
+                    <div className="w-full h-[2px] bg-producao shadow-[0_0_15px_rgba(var(--producao),0.8)] absolute top-0 animate-scanner-laser" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-producao/5 via-transparent to-producao/5" />
                   </div>
-                  <div className="absolute bottom-2 left-0 right-0 text-center">
-                    <span className="text-[10px] text-white/80 bg-black/50 px-2 py-0.5 rounded-full">Aponte para o código de barras</span>
+
+                  {/* Focus Box */}
+                  <div className="absolute inset-x-8 inset-y-6 border-2 border-white/20 rounded-[1.5rem] flex items-center justify-center pointer-events-none">
+                     <div className="w-8 h-8 absolute top-0 left-0 border-t-4 border-l-4 border-producao rounded-tl-xl" />
+                     <div className="w-8 h-8 absolute top-0 right-0 border-t-4 border-r-4 border-producao rounded-tr-xl" />
+                     <div className="w-8 h-8 absolute bottom-0 left-0 border-b-4 border-l-4 border-producao rounded-bl-xl" />
+                     <div className="w-8 h-8 absolute bottom-0 right-0 border-b-4 border-r-4 border-producao rounded-br-xl" />
                   </div>
                 </div>
-                <button onClick={stopCamera} className="btn-modern bg-destructive/10 text-destructive shadow-none text-xs w-full justify-center">
-                  <StopCircle className="w-4 h-4" /> Parar Câmera
+                <button onClick={stopCamera} className="w-full py-4 rounded-2xl bg-destructive/10 text-destructive border border-destructive/20 text-xs font-black uppercase tracking-[0.2em] hover:bg-destructive hover:text-white transition-all flex items-center justify-center gap-3 shadow-lg">
+                  <StopCircle className="w-5 h-5" /> Encerrar Captura de Câmera
                 </button>
+              </div>
+            ) : barcodeDetectorAvailable ? (
+              <button 
+                onClick={startCamera} 
+                className="w-full relative group overflow-hidden p-8 rounded-[2rem] border-2 border-dashed border-primary/30 hover:border-primary transition-all bg-primary/[0.02]"
+              >
+                <div className="relative z-10 flex flex-col items-center gap-3">
+                  <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary group-hover:scale-110 transition-transform duration-500">
+                    <Camera className="w-7 h-7" />
+                  </div>
+                  <p className="text-xs font-black text-foreground uppercase tracking-[0.2em]">Ativar Câmera Integrada</p>
+                  <p className="text-[10px] text-muted-foreground font-bold italic">Usar webcam ou câmera frontal do mobile</p>
+                </div>
+              </button>
+            ) : null}
+
+            {/* Aviso Estilizado */}
+            {!barcodeDetectorAvailable && (
+              <div className="bg-amber-500/[0.03] border border-amber-500/20 rounded-2xl p-5 flex items-start gap-4">
+                 <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600 shrink-0">
+                    <AlertTriangle className="w-5 h-5" />
+                 </div>
+                 <div className="space-y-1">
+                    <p className="text-xs font-black text-amber-600 uppercase tracking-tight">Scanner Industrial Recomendado</p>
+                    <p className="text-[11px] font-bold text-amber-600/70 leading-relaxed">
+                      Conecte o leitor USB ou digite o número do pedido no campo abaixo para prosseguir.
+                    </p>
+                 </div>
               </div>
             )}
 
             {cameraError && (
-              <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/30 text-destructive text-xs space-y-2">
-                <p className="font-semibold">Erro na câmera:</p>
-                <p>{cameraError}</p>
+              <div className="p-4 rounded-2xl bg-destructive/5 border border-destructive/20 text-destructive text-[11px] font-bold mt-4 flex items-center gap-3">
+                <AlertTriangle className="w-4 h-4" /> {cameraError}
               </div>
             )}
 
-            {barcodeDetectorAvailable && !cameraActive && (
-              <button onClick={startCamera} className="btn-modern bg-producao/10 text-producao shadow-none w-full justify-center py-3 hover:bg-producao/20 border border-producao/20">
-                <Camera className="w-4 h-4" /> Ativar Câmera
-              </button>
-            )}
+            {/* Input Manual Moderno */}
+            <div className="mt-10 space-y-6">
+              <div className="flex items-center gap-4">
+                 <div className="h-px flex-1 bg-gradient-to-r from-transparent to-border/40" />
+                 <span className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.3em]">Entrada de Dados</span>
+                 <div className="h-px flex-1 bg-gradient-to-l from-transparent to-border/40" />
+              </div>
 
-            <div className="flex items-center gap-3">
-              <div className="h-px flex-1 bg-border/40" />
-              <span className="text-[10px] text-muted-foreground font-semibold">DIGITAR / LEITOR USB</span>
-              <div className="h-px flex-1 bg-border/40" />
-            </div>
-
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={scanInput}
-                onChange={e => setScanInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleScan()}
-                placeholder="ex: 2745, D-2745 ou PED-001"
-                className="input-modern text-center text-lg font-mono font-bold tracking-widest flex-1"
-                autoFocus={!cameraActive || !barcodeDetectorAvailable}
-              />
-              <button onClick={handleScan} className="btn-primary px-6" disabled={!scanInput.trim()}>Validar</button>
+              <div className="flex gap-3">
+                <div className="relative flex-1 group">
+                   <div className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 text-muted-foreground transition-colors group-focus-within:text-primary pointer-events-none">
+                      <Zap className="w-full h-full fill-current opacity-20" />
+                   </div>
+                   <input
+                    type="text"
+                    value={scanInput}
+                    onChange={e => setScanInput(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleScan()}
+                    placeholder="PED-0000"
+                    className="w-full bg-muted/30 border-2 border-border/40 hover:border-primary/20 focus:border-primary pl-14 pr-6 py-5 rounded-2xl text-2xl font-black font-mono tracking-[0.2em] text-foreground placeholder:text-muted-foreground/30 focus:ring-8 focus:ring-primary/5 transition-all outline-none text-center sm:text-left"
+                    autoFocus={!cameraActive || !barcodeDetectorAvailable}
+                  />
+                </div>
+                <button 
+                  onClick={handleScan} 
+                  disabled={!scanInput.trim()}
+                  className="px-8 bg-foreground text-background font-black uppercase tracking-widest rounded-2xl hover:bg-primary hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed group shadow-xl active:scale-95"
+                >
+                  Validar
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Scan result */}
+          {/* Scan result com visual Premium */}
           {scanResult && (
-            <div className={`card-section p-6 text-center animate-scale-in ${scanResult.success ? 'border-success/40' : 'border-destructive/40'}`}>
-              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 ${scanResult.success ? 'bg-success/10' : 'bg-destructive/10'}`}>
-                {scanResult.success ? <CheckCircle className="w-8 h-8 text-success" /> : <X className="w-8 h-8 text-destructive" />}
+            <div className={`glass-card p-10 text-center animate-in zoom-in-95 duration-500 border-2 ${
+              scanResult.success ? 'border-success/30 bg-success/[0.02]' : 'border-destructive/30 bg-destructive/[0.02]'
+            }`}>
+              <div className={`w-24 h-24 rounded-3xl flex items-center justify-center mx-auto mb-6 transform transition-transform animate-bounce-subtle ${
+                scanResult.success ? 'bg-success text-white shadow-2xl shadow-success/40' : 'bg-destructive text-white shadow-2xl shadow-destructive/40'
+              }`}>
+                {scanResult.success ? <CheckCircle className="w-12 h-12" /> : <X className="w-12 h-12" />}
               </div>
-              <p className={`font-bold text-sm ${scanResult.success ? 'text-success' : 'text-destructive'}`}>
-                {scanResult.success ? '✅ Sucesso!' : '❌ Erro'}
-              </p>
-              <p className="text-sm text-foreground mt-1">{scanResult.message}</p>
+              <h3 className={`text-2xl font-black uppercase tracking-tight ${scanResult.success ? 'text-success' : 'text-destructive'}`}>
+                {scanResult.success ? 'Lançamento Efetuado!' : 'Falha na Validação'}
+              </h3>
+              <p className="text-base font-bold text-foreground mt-2 opacity-80">{scanResult.message}</p>
 
               {!scanResult.success && (
-                <div className="mt-4 p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground text-left space-y-1">
-                  <p className="font-semibold">💡 Dicas de solução:</p>
-                  <ul className="ml-3 space-y-1">
-                    <li>• Verifique se o número do pedido está correto</li>
-                    <li>• Confirme que o código de barras corresponde ao número do pedido</li>
-                    <li>• Se usar leitor USB, certifique-se que está configurado como teclado</li>
-                    <li>• Limpe a câmera se usar modo câmera</li>
+                <div className="mt-8 p-6 rounded-2xl bg-destructive/5 text-left border border-destructive/10">
+                  <p className="text-xs font-black uppercase tracking-widest text-destructive mb-3 flex items-center gap-2">
+                    <Info className="w-4 h-4" /> Instruções de Resolução:
+                  </p>
+                  <ul className="space-y-2 text-xs font-bold text-muted-foreground italic">
+                    <li className="flex items-center gap-2">• Verifique se o pedido está em status compatível</li>
+                    <li className="flex items-center gap-2">• Limite de caracteres ou formato incorreto</li>
+                    <li className="flex items-center gap-2">• O leitor USB pode precisar de reconfiguração</li>
                   </ul>
                 </div>
               )}
             </div>
           )}
 
-          {/* Recent scans */}
+          {/* Últimas Leituras - Listagem Moderna */}
           {recentScans.length > 0 && (
-            <div className="card-section p-4 space-y-3">
-              <div className="flex items-center gap-2">
-                <HistoryIcon className="w-4 h-4 text-muted-foreground" />
-                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Últimas leituras</p>
+            <div className="card-section p-8 space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-muted text-muted-foreground font-black">
+                    <HistoryIcon className="w-5 h-5" />
+                  </div>
+                  <h2 className="text-base font-black uppercase tracking-tight">Histórico de Fluxo Recente</h2>
+                </div>
+                <div className="text-[10px] font-black uppercase text-muted-foreground/60 tracking-widest">Tempo Real</div>
               </div>
-              {recentScans.map(scan => (
-                <div key={scan.id} className={`flex items-center justify-between gap-3 p-2.5 rounded-lg border group relative ${scan.success ? 'bg-success/5 border-success/20' : 'bg-destructive/5 border-destructive/20'}`}>
-                  <div className="flex items-center gap-2">
-                    {scan.success
-                      ? <CheckCircle className="w-3.5 h-3.5 text-success shrink-0" />
-                      : <X className="w-3.5 h-3.5 text-destructive shrink-0" />}
-                    <div>
-                      <p className="text-xs font-bold text-foreground">{scan.orderNumber}</p>
-                      <p className="text-[10px] text-muted-foreground">{scan.scannedBy}</p>
+
+              <div className="space-y-3 max-h-[450px] overflow-y-auto pr-3 custom-scrollbar">
+                {recentScans.map((scan, idx) => (
+                  <div 
+                    key={scan.id} 
+                    className={`flex items-center justify-between gap-6 p-4 rounded-2xl border-2 transition-all group relative animate-in slide-in-from-right-4 fade-in duration-500`}
+                    style={{ animationDelay: `${idx * 100}ms` }}
+                  >
+                    {/* Linha lateral de status */}
+                    <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-full ${scan.success ? 'bg-success' : 'bg-destructive'}`} />
+                    
+                    <div className="flex items-center gap-4 flex-1">
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${scan.success ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
+                        {scan.success ? <BadgeCheck className="w-6 h-6" /> : <AlertTriangle className="w-6 h-6" />}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-foreground uppercase tracking-tight leading-none mb-1.5">{scan.orderNumber}</p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-muted-foreground uppercase opacity-60 flex items-center gap-1">
+                            <User className="w-3 h-3" /> {scan.scannedBy}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4">
+                      {scan.success && (
+                        <button 
+                           onClick={() => {
+                             const ord = orders.find(o => o.number === scan.orderNumber || o.number.includes(scan.orderNumber));
+                             if (ord) revertStatus(ord.id, ord.status);
+                             else toast.error('Pedido não localizado.');
+                           }}
+                           className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive text-[9px] font-black uppercase hover:bg-destructive hover:text-white"
+                        >
+                          <RefreshCw className="w-3 h-3" /> Estornar
+                        </button>
+                      )}
+                      <div className="text-right">
+                        <p className="text-xs font-black text-foreground">{new Date(scan.scannedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</p>
+                        <p className="text-[9px] font-bold text-muted-foreground uppercase opacity-60">{new Date(scan.scannedAt).toLocaleDateString('pt-BR')}</p>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {scan.success && (
-                      <button 
-                         onClick={() => {
-                           const ord = orders.find(o => o.number === scan.orderNumber || o.number.includes(scan.orderNumber));
-                           if (ord) revertStatus(ord.id, ord.status);
-                           else toast.error('Pedido não localizado para estorno.');
-                         }}
-                         className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-md bg-destructive/10 text-destructive hover:bg-destructive/20"
-                         title="Estornar / Voltar Status"
-                      >
-                        <RefreshCw className="w-3 h-3" />
-                      </button>
-                    )}
-                    <p className="text-[10px] text-muted-foreground">
-                      {new Date(scan.scannedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                    </p>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           )}
         </div>
 
-        {/* Modal de Volumes sobreposto durante scanner */}
+        {/* Modal de Volumes Modernizado */}
         {showVolumesDialog && scannedOrderForVolumes && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 backdrop-blur-sm">
-            <div className="card-section p-6 w-96 space-y-4 animate-scale-in shadow-2xl">
-              <div className="flex items-center justify-between">
-                <h3 className="font-bold text-foreground text-lg">Quantos volumes?</h3>
-                <button
-                  onClick={() => {
-                    setShowVolumesDialog(false);
-                    setScannedOrderForVolumes(null);
-                    setVolumesInput('1');
-                    setScanResult(null);
-                  }}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-background/40 backdrop-blur-3xl animate-in fade-in duration-500" />
+            <div className="glass-card p-10 w-full max-w-md relative z-10 animate-in zoom-in-95 slide-in-from-bottom-8 duration-500 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.3)]">
+              <div className="flex flex-col items-center text-center space-y-6">
+                <div className="w-20 h-20 rounded-[2rem] bg-producao/20 flex items-center justify-center text-producao animate-bounce-subtle">
+                   <Package className="w-10 h-10" />
+                </div>
+                
+                <div className="space-y-1">
+                   <h3 className="text-3xl font-black text-foreground uppercase tracking-tighter italic">Carga & Volumes</h3>
+                   <p className="text-sm text-muted-foreground font-medium uppercase tracking-widest opacity-60">Pedido {scannedOrderForVolumes.number}</p>
+                </div>
 
-              <div className="text-center py-3 border-b border-border/30">
-                <p className="text-sm font-bold text-foreground">{scannedOrderForVolumes.number}</p>
-                <p className="text-xs text-muted-foreground">{scannedOrderForVolumes.clientName}</p>
-              </div>
+                <div className="w-full h-px bg-border/40" />
 
-              <div className="space-y-3">
-                <label className="text-sm font-bold text-foreground block">
-                  Quantidade de Volumes / Caixas
-                </label>
-                <div className="flex items-center gap-2 justify-center">
-                  <button
-                    onClick={() => setVolumesInput(Math.max(1, parseInt(volumesInput) - 1).toString())}
-                    className="w-10 h-10 rounded-lg bg-muted hover:bg-muted/80 flex items-center justify-center font-bold text-lg"
+                <div className="w-full space-y-6">
+                   <div className="flex items-center justify-center gap-6">
+                      <button
+                        onClick={() => setVolumesInput(Math.max(1, parseInt(volumesInput) - 1).toString())}
+                        className="w-14 h-14 rounded-2xl bg-muted/50 hover:bg-producao hover:text-white transition-all text-2xl font-black shadow-lg"
+                      >
+                        −
+                      </button>
+                      <div className="relative">
+                         <input
+                          type="number"
+                          min="1"
+                          value={volumesInput}
+                          onChange={e => setVolumesInput(Math.max(1, parseInt(e.target.value) || 1).toString())}
+                          className="w-32 bg-transparent text-center text-6xl font-black text-foreground outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          autoFocus
+                        />
+                        <span className="absolute -bottom-4 left-0 right-0 text-[10px] font-black text-muted-foreground tracking-[0.3em] uppercase">Volumes</span>
+                      </div>
+                      <button
+                        onClick={() => setVolumesInput((parseInt(volumesInput) + 1).toString())}
+                        className="w-14 h-14 rounded-2xl bg-muted/50 hover:bg-producao hover:text-white transition-all text-2xl font-black shadow-lg"
+                      >
+                        +
+                      </button>
+                   </div>
+
+                   <button
+                     onClick={() => handleConfirmVolumes()}
+                     className="w-full py-5 bg-foreground text-background rounded-2xl text-sm font-black uppercase tracking-[0.2em] hover:bg-producao hover:text-white transition-all shadow-2xl active:scale-95"
+                   >
+                     Confirmar Despacho
+                   </button>
+                   
+                   <button
+                    onClick={() => {
+                      setShowVolumesDialog(false);
+                      setScannedOrderForVolumes(null);
+                      setVolumesInput('1');
+                      setScanResult(null);
+                    }}
+                    className="w-full py-2 text-[10px] font-black text-muted-foreground uppercase tracking-widest hover:text-foreground transition-colors"
                   >
-                    −
-                  </button>
-                  <input
-                    type="number"
-                    min="1"
-                    value={volumesInput}
-                    onChange={e => setVolumesInput(Math.max(1, parseInt(e.target.value) || 1).toString())}
-                    className="input-modern text-center text-3xl font-bold w-24 py-2"
-                    autoFocus
-                  />
-                  <button
-                    onClick={() => setVolumesInput((parseInt(volumesInput) + 1).toString())}
-                    className="w-10 h-10 rounded-lg bg-muted hover:bg-muted/80 flex items-center justify-center font-bold text-lg"
-                  >
-                    +
+                    Cancelar
                   </button>
                 </div>
-                <p className="text-xs text-muted-foreground text-center">
-                  💡 Escanear 2 vezes = {volumesInput} {parseInt(volumesInput) === 1 ? "volume" : "volumes"}
-                </p>
-              </div>
-
-              <div className="p-3 rounded-xl bg-producao/5 border border-producao/20 space-y-1">
-                <p className="text-xs text-muted-foreground">
-                  ✓ Pedido <span className="font-bold text-foreground">{scannedOrderForVolumes.number}</span>
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  ✓ Será liberado com <span className="font-bold text-producao">{volumesInput} {parseInt(volumesInput) === 1 ? "volume" : "volumes"}</span>
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  ✓ Seguirá para <span className="font-bold text-success">entregadores</span>
-                </p>
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setShowVolumesDialog(false);
-                    setScannedOrderForVolumes(null);
-                    setVolumesInput('1');
-                    setScanResult(null);
-                  }}
-                  className="btn-modern bg-muted text-foreground shadow-none flex-1"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleConfirmVolumes}
-                  disabled={!volumesInput || parseInt(volumesInput) < 1}
-                  className="btn-primary flex-1 gap-2"
-                >
-                  <CheckCircle className="w-4 h-4" /> Confirmar
-                </button>
               </div>
             </div>
           </div>
         )}
-        
-        {/* Modal de Ações sobreposto durante scanner (Iniciar/Finalizar) */}
+
+        {/* Modal de Ações Modernizado (Iniciar/Finalizar via Scanner) */}
         {scannedOrderForAction && actionType && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/30 backdrop-blur-sm">
-            <div className="card-section p-6 w-96 space-y-4 animate-scale-in shadow-2xl">
-              <div className="flex items-center justify-between">
-                <h3 className="font-bold text-foreground text-lg">
-                  {actionType === 'iniciar' ? '🚀 Iniciar Produção?' : '🏁 Finalizar Produção?'}
-                </h3>
-                <button
-                  onClick={() => {
-                    setScannedOrderForAction(null);
-                    setActionType(null);
-                    setScanResult(null);
-                  }}
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="text-center py-4 border-b border-border/30 bg-muted/20 rounded-xl">
-                <p className="text-lg font-black text-foreground">{scannedOrderForAction.number}</p>
-                <p className="text-xs text-muted-foreground">{scannedOrderForAction.clientName}</p>
-                <div className="mt-3 flex justify-center">
-                  <StatusBadge status={scannedOrderForAction.status} />
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-background/40 backdrop-blur-3xl animate-in fade-in duration-500" />
+            <div className="glass-card p-10 w-full max-w-md relative z-10 animate-in zoom-in-95 slide-in-from-bottom-8 duration-500 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.3)] border-producao/20">
+              <div className="flex flex-col items-center text-center space-y-6">
+                <div className={`w-20 h-20 rounded-[2rem] flex items-center justify-center text-white shadow-2xl animate-bounce-subtle ${
+                  actionType === 'iniciar' ? 'bg-producao shadow-producao/40' : 'bg-emerald-500 shadow-emerald-500/40'
+                }`}>
+                   {actionType === 'iniciar' ? <Play className="w-10 h-10" /> : <CheckCircle className="w-10 h-10" />}
                 </div>
-              </div>
+                
+                <div className="space-y-1">
+                   <h3 className="text-3xl font-black text-foreground uppercase tracking-tighter italic">
+                     {actionType === 'iniciar' ? 'Iniciar Fluxo' : 'Finalizar Fluxo'}
+                   </h3>
+                   <div className="flex items-center justify-center gap-2 mt-1">
+                      <span className="px-2 py-0.5 rounded-md bg-muted text-muted-foreground text-[10px] font-black uppercase">{scannedOrderForAction.number}</span>
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase opacity-60">{scannedOrderForAction.clientName}</span>
+                   </div>
+                </div>
 
-              <div className="py-2 text-center">
-                <p className="text-sm text-foreground">
+                <div className="w-full h-px bg-border/40" />
+
+                <div className="text-sm font-bold text-muted-foreground leading-relaxed">
                   {actionType === 'iniciar' 
-                    ? 'Ao confirmar, o status mudará para "Em Produção" e o tempo começará a contar.' 
-                    : 'Ao confirmar, o status mudará para "Finalizado" e a Guia de Produção será gerada.'}
-                </p>
-              </div>
+                    ? 'Confirmar entrada do pedido na linha de produção agora?' 
+                    : 'Confirmar conclusão e liberação técnica deste pedido?'}
+                </div>
 
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={() => {
-                    setScannedOrderForAction(null);
-                    setActionType(null);
-                    setScanResult(null);
-                  }}
-                  className="btn-modern bg-muted text-foreground shadow-none flex-1"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={() => {
-                    if (actionType === 'iniciar') {
-                      iniciarProducao(scannedOrderForAction.id);
-                    } else {
-                      finalizarProducao(scannedOrderForAction.id);
-                    }
-                    setScannedOrderForAction(null);
-                    setActionType(null);
-                    setScanResult(null);
-                    setShowScanner(false);
-                    toast.success(`Pedido ${scannedOrderForAction.number} ${actionType === 'iniciar' ? 'iniciado' : 'finalizado'} com sucesso!`);
-                  }}
-                  className={`btn-primary flex-1 gap-2 ${actionType === 'iniciar' ? 'from-producao to-producao/80' : 'from-emerald-500 to-emerald-600'}`}
-                >
-                  {actionType === 'iniciar' ? <Play className="w-4 h-4" /> : <CheckCircle className="w-4 h-4" />}
-                  Confirmar
-                </button>
+                <div className="w-full space-y-3">
+                   <button
+                    onClick={() => {
+                      if (actionType === 'iniciar') {
+                        iniciarProducao(scannedOrderForAction.id);
+                      } else {
+                        finalizarProducao(scannedOrderForAction.id);
+                      }
+                      setScannedOrderForAction(null);
+                      setActionType(null);
+                      setScanResult(null);
+                      setShowScanner(false);
+                      toast.success(`Pedido ${scannedOrderForAction.number} processado!`);
+                    }}
+                    className={`w-full py-5 text-white rounded-2xl text-sm font-black uppercase tracking-[0.2em] transition-all shadow-2xl active:scale-95 ${
+                      actionType === 'iniciar' ? 'bg-producao hover:bg-producao-dark' : 'bg-emerald-500 hover:bg-emerald-600'
+                    }`}
+                   >
+                     Confirmar Operação
+                   </button>
+                   
+                   <button
+                    onClick={() => {
+                      setScannedOrderForAction(null);
+                      setActionType(null);
+                      setScanResult(null);
+                    }}
+                    className="w-full py-2 text-[10px] font-black text-muted-foreground uppercase tracking-widest hover:text-foreground transition-colors"
+                  >
+                    Voltar
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1137,7 +1254,6 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
       </div>
     );
   }
-
   // Guia de produção
   const guiaOrder = guia ? orders.find(o => o.id === guia) : null;
   if (guiaOrder) {
@@ -1569,46 +1685,72 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-10 pb-20 relative">
+      {/* Decorative Orbs */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10">
+        <div className="absolute top-[-10%] right-[-5%] w-[400px] h-[400px] bg-primary/5 rounded-full blur-[120px]" />
+        <div className="absolute bottom-[10%] left-[-5%] w-[300px] h-[300px] bg-success/5 rounded-full blur-[100px]" />
+      </div>
+
       <RealtimeNotificationHandler />
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="relative">
-          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground flex items-center gap-3">
-             <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${mainGradient} flex items-center justify-center text-white shadow-lg ${mainShadow} shrink-0`}>
-                <MainIcon className="w-5 h-5" />
-             </div>
-             <span className="gradient-text">{PAGE_TITLES[tipoFiltro] ?? 'Pedidos de Produção'}</span>
-          </h1>
-          <p className="text-[10px] text-muted-foreground ml-[3.25rem] font-bold uppercase tracking-wider">
-            {tipoFiltro === 'entrega' ? 'Aguardando despacho' :
-              tipoFiltro === 'instalacao' ? 'Equipe de campo' :
-                tipoFiltro === 'atrasado' ? 'Pendências críticas' :
-                  'Gestão da fábrica industrial'}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0 no-scrollbar">
-          {tipoFiltro === 'instalacao' && (
-            <div className="flex items-center gap-2 bg-muted/30 p-1.5 rounded-xl border border-border/10 shrink-0">
-              <Calendar className="w-4 h-4 text-muted-foreground ml-1" />
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={e => setSelectedDate(e.target.value)}
-                className="bg-transparent border-none text-xs font-bold focus:outline-none"
-              />
+      
+      {/* Premium Header */}
+      <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-card to-card/50 border border-border/40 p-8 sm:p-10 shadow-2xl shadow-primary/5 group">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-32 -mt-32 transition-transform duration-1000 group-hover:scale-110" />
+        <div className="absolute bottom-0 left-0 w-64 h-64 bg-[hsl(var(--gestor))]/5 rounded-full blur-3xl -ml-32 -mb-32 transition-transform duration-1000 group-hover:scale-110" />
+        
+        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-8">
+          <div className="space-y-3">
+            <div className="flex items-center gap-4">
+              <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${mainGradient} flex items-center justify-center text-white shadow-2xl ${mainShadow} transform transition-transform duration-500 hover:rotate-12`}>
+                <MainIcon className="w-7 h-7" />
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-4xl font-black tracking-tight text-foreground flex items-center gap-3">
+                  <span className="gradient-text">{PAGE_TITLES[tipoFiltro] ?? 'Pedidos de Produção'}</span>
+                </h1>
+                <div className="flex items-center gap-3 mt-1.5">
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${mainGradient} text-white shadow-sm`}>
+                    Fábrica Industrial
+                  </span>
+                  <div className="w-1 h-1 rounded-full bg-muted-foreground/30" />
+                  <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider">
+                    {tipoFiltro === 'entrega' ? 'Aguardando despacho' :
+                      tipoFiltro === 'instalacao' ? 'Equipe de campo' :
+                        tipoFiltro === 'atrasado' ? 'Pendências críticas' :
+                          'Gestão da fábrica industrial'}
+                  </p>
+                </div>
+              </div>
             </div>
-          )}
-          <button
-            onClick={() => setShowCalendar(!showCalendar)}
-            className={`btn-modern gap-2 text-xs font-bold shrink-0 ${showCalendar ? 'bg-primary text-primary-foreground' : 'bg-primary/10 text-primary border-primary/20'}`}
-          >
-            <Calendar className="w-4 h-4" />
-            <span className="hidden xs:inline">{showCalendar ? 'Ocultar Calendário' : 'Ver Calendário'}</span>
-            <span className="xs:hidden">{showCalendar ? 'Ocultar' : 'Calendário'}</span>
-          </button>
-          <button onClick={() => setShowScanner(true)} className={`btn-modern bg-gradient-to-r ${mainGradient} text-primary-foreground shrink-0`}>
-            <ScanLine className="w-4 h-4" /> <span className="hidden xs:inline">Ler Código</span>
-          </button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {tipoFiltro === 'instalacao' && (
+              <div className="flex items-center gap-2 bg-muted/40 p-2 rounded-2xl border border-border/20 backdrop-blur-md">
+                <Calendar className="w-4 h-4 text-primary ml-1" />
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={e => setSelectedDate(e.target.value)}
+                  className="bg-transparent border-none text-xs font-black focus:outline-none uppercase"
+                />
+              </div>
+            )}
+            <button
+              onClick={() => setShowCalendar(!showCalendar)}
+              className={`btn-modern gap-3 px-6 py-3.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all duration-500 ${showCalendar ? 'bg-primary text-primary-foreground shadow-xl shadow-primary/20 scale-105' : 'bg-card border border-border/40 hover:border-primary/40 text-foreground shadow-lg'}`}
+            >
+              <CalendarClock className={`w-4 h-4 ${showCalendar ? 'animate-bounce' : ''}`} />
+              {showCalendar ? 'Ocultar Calendário' : 'Ver Calendário'}
+            </button>
+            <button 
+              onClick={() => setShowScanner(true)} 
+              className={`btn-modern bg-gradient-to-r ${mainGradient} text-white px-6 py-3.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-2xl ${mainShadow} hover:scale-105 active:scale-95 duration-300`}
+            >
+              <ScanLine className="w-4 h-4 mr-2" /> <span>Ler Código de Barras</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1637,53 +1779,49 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
         </div>
       )}
 
-      <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
-          <input type="text" placeholder="Filtre por Pedido, Cliente ou Vendedor..." value={search} onChange={e => setSearch(e.target.value)} className="input-modern pl-10 py-3" />
+      {/* Modern Toolbar Area */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="lg:col-span-6 relative group">
+          <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
+          <input 
+            type="text" 
+            placeholder="Buscar por Pedido, Cliente ou Vendedor..." 
+            value={search} 
+            onChange={e => setSearch(e.target.value)} 
+            className="w-full bg-card/60 backdrop-blur-md border border-border/60 hover:border-primary/30 pl-14 pr-6 py-4 rounded-[1.5rem] text-sm font-semibold text-foreground placeholder:text-muted-foreground/50 focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all shadow-inner outline-none" 
+          />
         </div>
-        <div className="flex flex-row items-center gap-3 w-full lg:w-auto">
-          <div className="flex flex-1 items-center gap-2 bg-muted/20 p-2 rounded-2xl border border-border/10">
-            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
-               <Filter className="w-4 h-4" />
-            </div>
-            <div className="relative flex-1 min-w-[100px]">
-              <select 
-                value={orderTypeFilter} 
-                onChange={e => setOrderTypeFilter(e.target.value)}
-                className="w-full bg-transparent border-none text-[9px] font-black focus:outline-none uppercase tracking-widest appearance-none cursor-pointer pr-6"
-              >
-                <option value="todos" className="bg-card text-foreground">TODOS OS TIPOS</option>
-                <option value="entrega" className="bg-card text-foreground">📦 ENTREGA</option>
-                <option value="instalacao" className="bg-card text-foreground">🔧 INSTALAÇÃO</option>
-                <option value="retirada" className="bg-card text-foreground">🏢 RETIRADA</option>
-                <option value="manutencao" className="bg-card text-foreground">🛠️ MANUTENÇÃO</option>
-              </select>
-              <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
-            </div>
-          </div>
-  
-          <div className="flex flex-1 items-center gap-2 bg-muted/20 p-2 rounded-2xl border border-border/10">
-            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0">
-              <Truck className="w-4 h-4" />
-            </div>
-            <div className="relative flex-1 min-w-[100px]">
-              <select 
-                value={carrierFilter} 
-                onChange={e => setCarrierFilter(e.target.value)}
-                className="w-full bg-transparent border-none text-[9px] font-black focus:outline-none uppercase tracking-widest appearance-none cursor-pointer pr-6"
-              >
-                <option value="todos" className="bg-card text-foreground">TODOS OS MEIOS</option>
-                <option value="jadlog" className="bg-card text-foreground">JADLOG</option>
-                <option value="motoboy" className="bg-card text-foreground">MOTOBOY</option>
-                <option value="kleyton" className="bg-card text-foreground">KLEYTON</option>
-                <option value="lalamove" className="bg-card text-foreground">LALAMOVE</option>
-                <option value="retirada" className="bg-card text-foreground">RETIRADA LOCAL</option>
-                <option value="sem_definir" className="bg-card text-foreground">SEM DEFINIR</option>
-              </select>
-              <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
-            </div>
-          </div>
+        
+        <div className="lg:col-span-6 flex items-center gap-4">
+          <ModernSelect 
+            title="Tipo de Pedido"
+            icon={Filter}
+            value={orderTypeFilter}
+            onChange={setOrderTypeFilter}
+            options={[
+              { value: 'todos', label: 'TODOS OS TIPOS' },
+              { value: 'entrega', label: 'ENTREGA', icon: '📦' },
+              { value: 'instalacao', label: 'INSTALAÇÃO', icon: '🔧' },
+              { value: 'retirada', label: 'RETIRADA', icon: '🏢' },
+              { value: 'manutencao', label: 'MANUTENÇÃO', icon: '🛠️' },
+            ]}
+          />
+
+          <ModernSelect 
+            title="Meio de Envio"
+            icon={Truck}
+            value={carrierFilter}
+            onChange={setCarrierFilter}
+            options={[
+              { value: 'todos', label: 'TODOS OS MEIOS' },
+              { value: 'jadlog', label: 'JADLOG', icon: '🚛' },
+              { value: 'motoboy', label: 'MOTOBOY', icon: '🛵' },
+              { value: 'kleyton', label: 'KLEYTON', icon: '👤' },
+              { value: 'lalamove', label: 'LALAMOVE', icon: '🚚' },
+              { value: 'retirada', label: 'RETIRADA LOCAL', icon: '🏢' },
+              { value: 'sem_definir', label: 'SEM DEFINIR', icon: '❓' },
+            ]}
+          />
         </div>
       </div>
       
@@ -1744,197 +1882,218 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
             <p className="text-sm text-muted-foreground mt-2 font-medium">Aguardando novos fluxos da fábrica ou critérios de busca</p>
           </div>
         ) : (
-          <div className="space-y-4 stagger-children">
-            {filteredOrders.map(order => {
-              const late = isLate(order);
-              const scheduled = isScheduled(order);
-              const isPlanning = order.status === 'planejamento';
-              
-              // Cores e Ícones por transportadora
-              const carrierInfo = {
-                jadlog: { color: 'bg-[#002d72] text-white', label: 'JADLOG', icon: Truck },
-                motoboy: { color: 'bg-emerald-500 text-white', label: 'MOTOBOY', icon: ShieldCheck },
-                kleyton: { color: 'bg-orange-500 text-white', label: 'KLEYTON', icon: User },
-                retirada: { color: 'bg-slate-800 text-white', label: 'RETIRADA LOCAL', icon: Package },
-              }[(order.carrier || '').toLowerCase()] || { color: 'bg-muted text-muted-foreground', label: order.carrier || 'TRANSF...', icon: Package };
-
-              return (
-                <div key={order.id} className={`glass-card p-0 hover:shadow-2xl hover:shadow-primary/10 transition-all duration-300 rounded-2xl relative overflow-hidden group border-l-4 ${
-                  order.status === 'aguardando_producao' ? 'border-l-warning' :
-                  order.status === 'em_producao' ? 'border-l-primary' :
-                  order.status === 'producao_finalizada' ? 'border-l-success' :
-                  'border-l-muted'
-                } ${late ? 'border-l-destructive shadow-lg shadow-destructive/5' : ''} ${order.isSite ? 'shadow-xl shadow-blue-500/10' : ''}`}>
-                  
-                  <div className="p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 relative z-10">
-                    <div className="flex items-center gap-4 sm:gap-5 flex-1 min-w-0">
-                      {/* Avatar/Icon Group */}
-                      <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center shrink-0 shadow-inner group-hover:rotate-3 transition-transform duration-500 ${late ? 'bg-destructive/10' : 'bg-muted/30'}`}>
-                        {order.isWarranty || order.notes?.includes('GARANTIA') ? (
-                          <HistoryIcon className={`w-6 h-6 sm:w-7 sm:h-7 ${late ? 'text-destructive' : 'text-primary'}`} />
-                        ) : (
-                          <Package className={`w-6 h-6 sm:w-7 sm:h-7 ${late ? 'text-destructive' : 'text-muted-foreground'}`} />
-                        )}
+          <div className="space-y-12 mt-4">
+            {Object.entries(groupedOrders).map(([clientName, clientOrders]) => (
+              <div key={clientName} className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-700">
+                <div className="flex items-center justify-between group/header cursor-default px-2">
+                  <div className="flex items-center gap-5">
+                    <div className={`w-2 h-10 bg-gradient-to-b ${mainGradient} rounded-full shadow-lg ${mainShadow}`} />
+                    <div>
+                      <h2 className="text-xl font-black text-foreground uppercase tracking-tight leading-none group-hover/header:text-primary transition-colors">{clientName}</h2>
+                      <div className="flex items-center gap-3 mt-1.5">
+                        <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.1em] flex items-center gap-2">
+                           Linha de Montagem • <span className="text-primary">{clientOrders.length} {clientOrders.length === 1 ? 'Pedido' : 'Pedidos'} em fila</span>
+                        </p>
                       </div>
-
-                      {/* Info Group */}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 sm:gap-3 flex-wrap mb-1.5">
-                          <h3 className="font-black text-foreground text-lg sm:text-xl tracking-tighter uppercase flex items-center gap-2">
-                            {order.number}
-                            {order.isSite && (
-                              <span className="px-2 py-0.5 rounded-full bg-blue-600 text-white text-[8px] sm:text-[10px] font-black uppercase tracking-wider shadow-lg shadow-blue-500/20 animate-pulse flex items-center gap-1.5">
-                                🌐 VENDA DO SITE
-                              </span>
-                            )}
-                            {(order.isWarranty || order.notes?.toLowerCase().includes('garantia')) && (
-                              <span className="px-2 py-0.5 rounded-lg bg-destructive text-white text-[8px] sm:text-[10px] font-black uppercase tracking-widest shadow-lg shadow-destructive/20 animate-pulse">
-                                GARANTIA
-                              </span>
-                            )}
-                          </h3>
-                          
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                             <StatusBadge status={order.status} />
-                             
-                             {order.carrier && (
-                               <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest shadow-sm ${carrierInfo.color}`}>
-                                 <carrierInfo.icon className="w-2.5 h-2.5" />
-                                 {carrierInfo.label}
-                               </span>
-                             )}
-
-                             {/* Badge de Tipo de Pedido */}
-                             <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest shadow-sm ${
-                               order.orderType === 'instalacao' ? 'bg-amber-500 text-white' :
-                               order.orderType === 'manutencao' ? 'bg-indigo-500 text-white' :
-                               order.orderType === 'retirada' ? 'bg-slate-700 text-white' :
-                               'bg-muted text-muted-foreground'
-                             }`}>
-                               {order.orderType === 'instalacao' ? '🔧 Inst.' :
-                                order.orderType === 'manutencao' ? '🛠️ Manut.' :
-                                order.orderType === 'retirada' ? '🏢 Retirada' :
-                                '📦 Entrega'}
-                             </span>
-
-                             {(order.orderType === 'instalacao' || order.orderType === 'manutencao' || order.orderType === 'retirada') && order.installationPaymentType && (
-                               <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest shadow-sm ${
-                                 order.installationPaymentType === 'pago' ? 'bg-emerald-600 text-white' : 'bg-rose-500 text-white'
-                               }`}>
-                                 {order.installationPaymentType === 'pago' ? '✅ PAGO' : '💰 NA HORA'}
-                               </span>
-                             )}
-
-                             {late && (
-                               <span className="px-2 py-0.5 rounded-full bg-destructive text-white text-[8px] font-black uppercase tracking-widest animate-pulse shadow-lg shadow-destructive/20">
-                                 ATRASADO
-                               </span>
-                             )}
-                          </div>
-                        </div>
-
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-[10px] sm:text-xs mb-3">
-                           <span className="font-extrabold text-foreground/90 flex items-center gap-1.5 truncate">
-                             <User className="w-3.5 h-3.5 text-primary shrink-0" />
-                             {order.clientName}
-                           </span>
-                           <span className="text-muted-foreground font-bold flex items-center gap-1.5">
-                             <div className="w-1 h-1 rounded-full bg-muted-foreground/30 hidden sm:block" />
-                             Vend: {order.sellerName}
-                           </span>
-                           {(order.orderType === 'instalacao' || order.orderType === 'manutencao' || order.orderType === 'retirada') && (order.installationDate || order.scheduledDate) && (
-                              <span className="text-primary font-black flex items-center gap-1.5 sm:ml-auto bg-primary/5 px-2 py-0.5 rounded-lg border border-primary/10">
-                                <Clock className="w-3.5 h-3.5" />
-                                {fmtDate(order.installationDate || order.scheduledDate)} {order.installationTime ? `@ ${order.installationTime}` : ''}
-                              </span>
-                           )}
-                        </div>
-
-                        {/* Itens Group */}
-                        <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                          {order.items.map((i, idx) => (
-                            <div key={idx} className="group/item relative max-w-full">
-                              <div className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl border flex items-center gap-2 transition-all
-                                ${i.sensorType === 'com_sensor' 
-                                  ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-700 shadow-sm' 
-                                  : 'bg-muted/40 border-border/20 text-foreground/80'}
-                              `}>
-                                <span className="font-black text-[10px] sm:text-xs">{i.quantity}x</span>
-                                <span className="font-extrabold text-[9px] sm:text-[11px] uppercase tracking-tight truncate max-w-[150px]">{i.product}</span>
-                                
-                                {i.sensorType === 'com_sensor' && (
-                                  <div className="flex items-center gap-1 px-1 py-0.5 rounded-md bg-emerald-500 text-white shadow-sm ring-2 ring-emerald-500/10 shrink-0">
-                                    <Zap className="w-2 h-2 fill-current" />
-                                    <span className="text-[6px] sm:text-[7px] font-black">SENSOR</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Actions Group */}
-                    <div className="flex flex-row sm:flex-row items-center gap-2 sm:gap-3 w-full md:w-auto">
-                      <button 
-                        onClick={() => setViewOrderId(order.id)} 
-                        className="btn-modern flex-1 md:flex-none justify-center bg-muted/60 text-foreground text-[10px] font-black px-4 sm:px-5 py-3 hover:bg-muted border border-border/10 rounded-xl"
-                      >
-                        DETALHES
-                      </button>
-
-                      {['aguardando_producao', 'aprovado_financeiro', 'aprovado_gestor'].includes(order.status) && (
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); iniciarProducao(order.id); }} 
-                          className={`btn-primary flex-1 md:flex-none justify-center bg-gradient-to-br ${mainGradient} px-6 sm:px-8 py-3 text-[10px] sm:text-xs font-black uppercase rounded-xl shadow-xl ${mainShadow} hover:scale-105 active:scale-95 transition-all text-white border-none`}
-                        >
-                          <Play className="w-4 h-4 mr-2" /> INICIAR
-                        </button>
-                      )}
-
-                      {order.status === 'em_producao' && (
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); finalizarProducao(order.id); }} 
-                          className="btn-primary flex-1 md:flex-none justify-center bg-gradient-to-br from-emerald-500 to-emerald-600 px-6 sm:px-8 py-3 text-[10px] sm:text-xs font-black uppercase rounded-xl shadow-xl shadow-emerald-500/20 hover:scale-105 active:scale-95 transition-all text-white"
-                        >
-                          <CheckCircle className="w-4 h-4 mr-2" /> FINALIZAR
-                        </button>
-                      )}
-
-                      <div className="flex gap-2 flex-1 md:flex-none">
-                        {(order.status === 'producao_finalizada' || order.status === 'produto_liberado') && (
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); setGuia(order.id); }} 
-                            className="btn-modern flex-1 md:flex-none justify-center bg-primary/10 text-primary px-3 sm:px-4 py-3 text-[10px] sm:text-xs font-black hover:bg-primary/20 border border-primary/20 rounded-xl shadow-lg shadow-primary/5"
-                          >
-                            GUIA
-                          </button>
-                        )}
-                        {order.orderType === 'entrega' && (
-                          <button 
-                            onClick={(e) => { e.stopPropagation(); printEtiqueta(order); }} 
-                            className="btn-modern justify-center bg-emerald-500/10 text-emerald-600 px-3 sm:px-4 py-3 text-[10px] sm:text-xs font-black hover:bg-emerald-500/20 border border-emerald-500/20 rounded-xl"
-                            title="Imprimir Etiqueta"
-                          >
-                            <Printer className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-
-                      {order.status === 'retirado_entregador' && order.orderType === 'entrega' && (
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); printEtiqueta(order); }} 
-                          className="btn-modern flex-1 md:flex-none justify-center bg-emerald-500/10 text-emerald-600 px-5 sm:px-6 py-3 text-[10px] sm:text-xs font-black hover:bg-emerald-500/20 border border-emerald-500/20 rounded-xl flex items-center gap-2"
-                        >
-                          <Printer className="w-4 h-4" /> <span className="hidden sm:inline">REIMPRIMIR</span><span className="sm:hidden">ETIQUETA</span>
-                        </button>
-                      )}
                     </div>
                   </div>
+                  <div className="hidden lg:block h-px flex-1 bg-gradient-to-r from-border/40 to-transparent ml-12" />
                 </div>
-              );
-            })}
+
+                <div className="grid grid-cols-1 gap-5 ml-2 border-l border-border/20 pl-6 stagger-children">
+                  {clientOrders.map(order => {
+                    const late = isLate(order);
+                    const scheduled = isScheduled(order);
+                    const isPlanning = order.status === 'planejamento';
+                    
+                    // Cores e Ícones por transportadora
+                    const carrierInfo = {
+                      jadlog: { color: 'bg-[#002d72] text-white', label: 'JADLOG', icon: Truck },
+                      motoboy: { color: 'bg-emerald-500 text-white', label: 'MOTOBOY', icon: ShieldCheck },
+                      kleyton: { color: 'bg-orange-500 text-white', label: 'KLEYTON', icon: User },
+                      retirada: { color: 'bg-slate-800 text-white', label: 'RETIRADA LOCAL', icon: Package },
+                    }[(order.carrier || '').toLowerCase()] || { color: 'bg-muted text-muted-foreground', label: order.carrier || 'TRANSF...', icon: Package };
+
+                    return (
+                      <div key={order.id} className={`bg-card/80 backdrop-blur-md border border-border/40 transition-all duration-500 rounded-[2rem] relative overflow-hidden group/card
+                        hover:bg-card hover:shadow-[0_20px_50px_-12px_rgba(var(--primary),0.08)] hover:-translate-y-1.5 active:scale-[0.99]
+                        dark:hover:shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)]
+                        ${late ? 'ring-2 ring-destructive/20 border-destructive/30' : ''} 
+                        ${order.isSite ? 'ring-2 ring-blue-500/20 border-blue-500/30' : ''}`}>
+                        
+                        <div className="absolute inset-x-0 bottom-0 h-1.5 bg-muted/20" />
+                        <div className={`absolute inset-x-0 bottom-0 h-1.5 transition-all duration-500 w-0 group-hover/card:w-full ${
+                          order.status === 'aguardando_producao' ? 'bg-warning' :
+                          order.status === 'em_producao' ? 'bg-primary' :
+                          'bg-success'
+                        }`} />
+
+                        <div className="p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+                          <div className="flex items-center gap-5 sm:gap-6 flex-1 min-w-0">
+                            {/* Avatar/Icon Group */}
+                            <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-[1.25rem] flex items-center justify-center shrink-0 shadow-inner overflow-hidden relative group/icon transition-transform duration-700 group-hover/card:rotate-6 ${late ? 'bg-destructive/10' : 'bg-muted/30'}`}>
+                              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
+                              {order.isWarranty || order.notes?.includes('GARANTIA') ? (
+                                <HistoryIcon className={`w-7 h-7 sm:w-8 sm:h-8 relative z-10 transition-transform group-hover/icon:scale-110 ${late ? 'text-destructive' : 'text-primary'}`} />
+                              ) : (
+                                <Package className={`w-7 h-7 sm:w-8 sm:h-8 relative z-10 transition-transform group-hover/icon:scale-110 ${late ? 'text-destructive' : 'text-muted-foreground'}`} />
+                              )}
+                            </div>
+
+                            {/* Info Group */}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-3 flex-wrap mb-2">
+                                <h3 className="font-black text-foreground text-xl sm:text-2xl tracking-tighter uppercase flex items-center gap-3">
+                                  {order.number}
+                                  <div className="flex items-center gap-1.5">
+                                    {order.isSite && (
+                                      <span className="px-2.5 py-0.5 rounded-full bg-blue-600 text-white text-[9px] font-black uppercase tracking-wider shadow-lg shadow-blue-500/30 animate-pulse">
+                                        LOJA ONLINE
+                                      </span>
+                                    )}
+                                    {(order.isWarranty || order.notes?.toLowerCase().includes('garantia')) && (
+                                      <span className="px-2.5 py-0.5 rounded-full bg-destructive text-white text-[9px] font-black uppercase tracking-widest shadow-lg shadow-destructive/30">
+                                        GARANTIA
+                                      </span>
+                                    )}
+                                  </div>
+                                </h3>
+                                
+                                <div className="flex items-center gap-2 flex-wrap">
+                                   <StatusBadge status={order.status} />
+                                   
+                                   {order.carrier && (
+                                     <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm ${carrierInfo.color}`}>
+                                       <carrierInfo.icon className="w-3 h-3" />
+                                       {carrierInfo.label}
+                                     </span>
+                                   )}
+
+                                   {/* Badge de Tipo de Pedido */}
+                                   <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm ${
+                                     order.orderType === 'instalacao' ? 'bg-amber-500 text-white' :
+                                     order.orderType === 'manutencao' ? 'bg-indigo-500 text-white' :
+                                     order.orderType === 'retirada' ? 'bg-slate-700 text-white' :
+                                     'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                                   }`}>
+                                     {order.orderType === 'instalacao' ? '🔧 Inst.' :
+                                      order.orderType === 'manutencao' ? '🛠️ Manut.' :
+                                      order.orderType === 'retirada' ? '🏢 Retirada' :
+                                      '📦 Entrega'}
+                                   </span>
+
+                                   {late && (
+                                     <span className="px-3 py-1 rounded-full bg-destructive text-white text-[9px] font-black uppercase tracking-widest animate-bounce shadow-lg shadow-destructive/40">
+                                       ATRASADO
+                                     </span>
+                                   )}
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5 text-xs mb-4">
+                                 <span className="font-extrabold text-foreground/90 flex items-center gap-2 group/client transition-colors hover:text-primary cursor-default">
+                                   <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                                     <User className="w-3.5 h-3.5" />
+                                   </div>
+                                   {order.clientName}
+                                 </span>
+                                 <div className="flex items-center gap-3">
+                                   <span className="text-muted-foreground font-bold flex items-center gap-2">
+                                     Vendedor: <span className="text-foreground">{order.sellerName}</span>
+                                   </span>
+                                   {(order.orderType === 'instalacao' || order.orderType === 'manutencao' || order.orderType === 'retirada') && (order.installationDate || order.scheduledDate) && (
+                                      <span className="text-primary font-black flex items-center gap-2 bg-primary/5 px-3 py-1 rounded-full border border-primary/10 transition-transform group-hover/card:scale-105">
+                                        <Clock className="w-3.5 h-3.5" />
+                                        {fmtDate(order.installationDate || order.scheduledDate)} {order.installationTime ? `@ ${order.installationTime}` : ''}
+                                      </span>
+                                   )}
+                                 </div>
+                              </div>
+
+                              {/* Modern Itens List */}
+                              <div className="flex flex-wrap gap-2 sm:gap-2.5">
+                                {order.items.map((i, idx) => (
+                                  <div key={idx} className="group/item relative">
+                                    <div className={`px-4 py-2 rounded-2xl border flex items-center gap-3 transition-all duration-300
+                                      group-hover/card:shadow-sm
+                                      ${i.sensorType === 'com_sensor' 
+                                        ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-700 dark:text-emerald-400 group-hover/item:bg-emerald-500/10' 
+                                        : 'bg-muted/40 border-border/20 text-foreground/80 group-hover/item:bg-muted/60'}
+                                    `}>
+                                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black ${
+                                        i.sensorType === 'com_sensor' ? 'bg-emerald-500 text-white' : 'bg-muted-foreground/10 text-muted-foreground'
+                                      }`}>
+                                        {i.quantity}x
+                                      </div>
+                                      <span className="font-bold text-[10px] sm:text-[11px] uppercase tracking-tight truncate max-w-[150px]">{i.product}</span>
+                                      
+                                      {i.sensorType === 'com_sensor' && (
+                                        <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 group-hover/item:animate-pulse">
+                                          <Zap className="w-2.5 h-2.5 fill-current" />
+                                          <span className="text-[7px] font-black tracking-widest">SENSOR</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Refined Actions Group */}
+                          <div className="flex flex-row items-center gap-3 w-full md:w-auto shrink-0 self-end md:self-center">
+                            <button 
+                              onClick={() => setViewOrderId(order.id)} 
+                              className="h-12 flex-1 md:flex-none justify-center btn-modern bg-muted/50 text-foreground text-[10px] sm:px-6 font-black hover:bg-muted border border-border/10 rounded-2xl transition-all"
+                            >
+                              DETALHES
+                            </button>
+
+                            {['aguardando_producao', 'aprovado_financeiro', 'aprovado_gestor'].includes(order.status) && (
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); iniciarProducao(order.id); }} 
+                                className={`h-12 flex-1 md:flex-none justify-center btn-primary bg-gradient-to-br ${mainGradient} px-8 text-xs font-black uppercase rounded-2xl shadow-xl ${mainShadow} transform active:scale-95 transition-all text-white border-none group/btn`}
+                              >
+                                <Play className="w-4 h-4 mr-2 group-hover/btn:translate-x-1 transition-transform" /> INICIAR
+                              </button>
+                            )}
+
+                            {order.status === 'em_producao' && (
+                              <button 
+                                onClick={(e) => { e.stopPropagation(); finalizarProducao(order.id); }} 
+                                className="h-12 flex-1 md:flex-none justify-center btn-primary bg-gradient-to-br from-emerald-500 to-emerald-600 px-8 text-xs font-black uppercase rounded-2xl shadow-xl shadow-success/20 transform active:scale-95 transition-all text-white group/btn"
+                              >
+                                <CheckCircle className="w-4 h-4 mr-2 group-hover/btn:scale-110 transition-transform" /> FINALIZAR
+                              </button>
+                            )}
+
+                            <div className="flex gap-2.5 flex-1 md:flex-none">
+                              {(order.status === 'producao_finalizada' || order.status === 'produto_liberado') && (
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); setGuia(order.id); }} 
+                                  className="h-12 flex-1 md:flex-none justify-center btn-modern bg-primary/10 text-primary px-6 text-xs font-black hover:bg-primary/20 border border-primary/20 rounded-2xl shadow-lg shadow-primary/5 transition-all"
+                                >
+                                  GUIA
+                                </button>
+                              )}
+                              {order.orderType === 'entrega' && (
+                                <button 
+                                  onClick={(e) => { e.stopPropagation(); printEtiqueta(order); }} 
+                                  className="h-12 w-12 flex items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all shadow-sm"
+                                  title="Imprimir Etiqueta"
+                                >
+                                  <Printer className="w-5 h-5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         )}
     </div>

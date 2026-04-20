@@ -27,6 +27,25 @@ const getNextOrderNumber = (existingOrders: Order[]): number => {
     .filter(n => !isNaN(n));
   return Math.max(...numbers, 0) + 1;
 };
+// Helper para parse de valores monetários (suporta vírgula brasileira)
+const parsePrice = (val: string | number): number => {
+  if (typeof val === 'number') return val;
+  if (!val) return 0;
+  const clean = String(val).replace(/\./g, '').replace(',', '.');
+  return parseFloat(clean) || 0;
+};
+
+// Helper para formatar input de moeda enquanto digita (máscara)
+const formatMoeda = (val: string): string => {
+  const digits = val.replace(/\D/g, '');
+  if (!digits) return '';
+  const cents = parseInt(digits, 10);
+  if (isNaN(cents)) return '';
+  return new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(cents / 100);
+};
 
 // Status que bloqueiam a edição do orçamento
 // Fluxo: Vendedor → Financeiro → Produção (sem etapa de Gestor)
@@ -484,7 +503,7 @@ const OrcamentosPage: React.FC = () => {
   };
 
   const totalGeral = useMemo(() => newItems.reduce((s, item) => {
-    const price = typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) || 0 : item.unitPrice;
+    const price = parsePrice(item.unitPrice);
     return s + (item.quantity * price);
   }, 0), [newItems]);
 
@@ -496,7 +515,7 @@ const OrcamentosPage: React.FC = () => {
       product: i.product,
       description: i.description || '',
       quantity: i.quantity,
-      unitPrice: i.unitPrice,
+      unitPrice: formatMoeda(String((i.unitPrice || 0) * 100)),
       sensorType: i.sensorType,
     })));
     setNewNotes(order.notes || '');
@@ -565,7 +584,7 @@ const OrcamentosPage: React.FC = () => {
     }
 
     if (newItems.some(i => {
-      const price = typeof i.unitPrice === 'string' ? parseFloat(i.unitPrice) : i.unitPrice;
+      const price = parsePrice(i.unitPrice);
       return isNaN(price) || price < 0;
     })) {
       setFormError('⚠️ Todos os itens devem ter preço unitário válido (0 ou maior).');
@@ -573,7 +592,7 @@ const OrcamentosPage: React.FC = () => {
     }
 
     if (user?.role === 'vendedor' && newItems.some(i => {
-      const price = typeof i.unitPrice === 'string' ? parseFloat(i.unitPrice) || 0 : i.unitPrice;
+      const price = parsePrice(i.unitPrice);
       return price === 0 && !i.isReward;
     })) {
       setFormError('⚠️ Vendedores não podem criar itens com valor R$ 0,00, exceto se forem de Premiação.');
@@ -615,7 +634,7 @@ const OrcamentosPage: React.FC = () => {
           clientId: client.id,
           clientName: client.name,
           items: newItems.map((item, i) => {
-            const price = typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) || 0 : item.unitPrice;
+            const price = parsePrice(item.unitPrice);
             return {
               id: editingOrder.items[i]?.id || `ni${i}`,
               product: item.product,
@@ -706,7 +725,7 @@ const OrcamentosPage: React.FC = () => {
             sellerId: user?.id || '1',
             sellerName: user?.name || 'Vendedor',
             items: newItems.map((item, i) => {
-              const price = typeof item.unitPrice === 'string' ? parseFloat(item.unitPrice) || 0 : item.unitPrice;
+              const price = parsePrice(item.unitPrice);
               return {
                 id: `ni${i}`,
                 product: item.product,
@@ -1221,7 +1240,7 @@ const OrcamentosPage: React.FC = () => {
                             type="text"
                             value={item.unitPrice}
                             disabled={item.isReward}
-                            onChange={e => updateItem(i, 'unitPrice', e.target.value)}
+                            onChange={e => updateItem(i, 'unitPrice', formatMoeda(e.target.value))}
                             className={`input-modern pl-10 text-sm font-black h-12 bg-white/60 border-white/40 ${item.isReward ? 'bg-muted/50 cursor-not-allowed opacity-60' : ''}`}
                           />
                           <DollarSign className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" />
@@ -1231,7 +1250,7 @@ const OrcamentosPage: React.FC = () => {
                       <div className="md:col-span-2 flex items-end justify-end h-full self-end pb-1.5 px-2">
                         <div className="text-right">
                           <span className="text-[9px] font-black uppercase text-muted-foreground tracking-widest mb-1 block">Subtotal</span>
-                          <span className="text-lg font-black text-foreground">{formatCurrency((Number(item.unitPrice) || 0) * item.quantity)}</span>
+                          <span className="text-lg font-black text-foreground">{formatCurrency(parsePrice(item.unitPrice) * item.quantity)}</span>
                         </div>
                       </div>
                     </div>

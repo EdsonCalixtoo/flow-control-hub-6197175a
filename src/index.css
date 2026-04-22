@@ -126,6 +126,7 @@
 }
 
 @layer utilities {
+
   /* Modern glass card */
   .glass-card {
     @apply bg-card/70 backdrop-blur-2xl border border-border/40 shadow-lg shadow-primary/[0.02];
@@ -133,9 +134,7 @@
 
   /* Stat card with hover lift */
   .stat-card {
-    @apply relative bg-card rounded-2xl border border-border/60 p-6 shadow-sm
-      hover:shadow-xl hover:shadow-primary/[0.06] hover:-translate-y-0.5
-      transition-all duration-300 ease-out overflow-hidden;
+    @apply relative bg-card rounded-2xl border border-border/60 p-6 shadow-sm hover:shadow-xl hover:shadow-primary/[0.06] hover:-translate-y-0.5 transition-all duration-300 ease-out overflow-hidden;
   }
 
   .stat-card::before {
@@ -177,11 +176,10 @@
 
   /* Animated gradient background */
   .gradient-bg {
-    background: linear-gradient(135deg, 
-      hsl(var(--gradient-start)) 0%, 
-      hsl(var(--gradient-end)) 50%, 
-      hsl(var(--gradient-start)) 100%
-    );
+    background: linear-gradient(135deg,
+        hsl(var(--gradient-start)) 0%,
+        hsl(var(--gradient-end)) 50%,
+        hsl(var(--gradient-start)) 100%);
     background-size: 200% 200%;
     animation: gradient-shift 8s ease infinite;
   }
@@ -194,12 +192,10 @@
   .shimmer::after {
     content: '';
     @apply absolute inset-0;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      hsl(var(--primary) / 0.04),
-      transparent
-    );
+    background: linear-gradient(90deg,
+        transparent,
+        hsl(var(--primary) / 0.04),
+        transparent);
     animation: shimmer 3s ease-in-out infinite;
   }
 
@@ -210,10 +206,7 @@
 
   /* Interactive Card */
   .card-premium {
-    @apply relative overflow-hidden rounded-3xl border border-border/50 bg-card p-6
-           transition-all duration-500 ease-out
-           hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] hover:-translate-y-2
-           dark:hover:shadow-[0_20px_50px_rgba(0,0,0,0.3)];
+    @apply relative overflow-hidden rounded-3xl border border-border/50 bg-card p-6 transition-all duration-500 ease-out hover:shadow-[0_20px_50px_rgba(0,0,0,0.1)] hover:-translate-y-2 dark:hover:shadow-[0_20px_50px_rgba(0,0,0,0.3)];
   }
 
   .card-premium::before {
@@ -236,8 +229,7 @@
 
   /* Premium Sidebar item */
   .sidebar-link {
-    @apply flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition-all duration-300
-           hover:bg-primary/10 hover:text-primary hover:translate-x-1;
+    @apply flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition-all duration-300 hover:bg-primary/10 hover:text-primary hover:translate-x-1;
   }
 
   .sidebar-link-active {
@@ -267,22 +259,16 @@
 
   /* Modern button styles */
   .btn-modern {
-    @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold
-      shadow-sm hover:shadow-md active:scale-[0.98]
-      transition-all duration-200 ease-out;
+    @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold shadow-sm hover:shadow-md active:scale-[0.98] transition-all duration-200 ease-out;
   }
 
   .btn-primary {
-    @apply btn-modern bg-gradient-to-r from-primary to-primary/90 text-primary-foreground
-      hover:from-primary/90 hover:to-primary;
+    @apply btn-modern bg-gradient-to-r from-primary to-primary/90 text-primary-foreground hover:from-primary/90 hover:to-primary;
   }
 
   /* Modern input */
   .input-modern {
-    @apply w-full px-4 py-3 bg-card border border-border/60 rounded-xl text-sm text-foreground
-      placeholder:text-muted-foreground/60
-      focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40
-      transition-all duration-200;
+    @apply w-full px-4 py-3 bg-card border border-border/60 rounded-xl text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40 transition-all duration-200;
   }
 
   /* Card section */
@@ -300,28 +286,63 @@
 }
 
 @keyframes gradient-shift {
-  0%, 100% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
+
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
 }
 
 @keyframes shimmer {
-  0%, 100% { transform: translateX(-100%); }
-  50% { transform: translateX(100%); }
+
+  0%,
+  100% {
+    transform: translateX(-100%);
+  }
+
+  50% {
+    transform: translateX(100%);
+  }
 }
 
 @keyframes fade-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes slide-in-right {
-  from { opacity: 0; transform: translateX(12px); }
-  to { opacity: 1; transform: translateX(0); }
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 @keyframes scale-in {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .animate-fade-in {
@@ -337,19 +358,43 @@
 }
 
 /* Staggered children animation */
-.stagger-children > * {
+.stagger-children>* {
   opacity: 0;
   animation: fade-in 0.4s ease-out forwards;
 }
 
-.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
-.stagger-children > *:nth-child(2) { animation-delay: 60ms; }
-.stagger-children > *:nth-child(3) { animation-delay: 120ms; }
-.stagger-children > *:nth-child(4) { animation-delay: 180ms; }
-.stagger-children > *:nth-child(5) { animation-delay: 240ms; }
-.stagger-children > *:nth-child(6) { animation-delay: 300ms; }
-.stagger-children > *:nth-child(7) { animation-delay: 360ms; }
-.stagger-children > *:nth-child(8) { animation-delay: 420ms; }
+.stagger-children>*:nth-child(1) {
+  animation-delay: 0ms;
+}
+
+.stagger-children>*:nth-child(2) {
+  animation-delay: 60ms;
+}
+
+.stagger-children>*:nth-child(3) {
+  animation-delay: 120ms;
+}
+
+.stagger-children>*:nth-child(4) {
+  animation-delay: 180ms;
+}
+
+.stagger-children>*:nth-child(5) {
+  animation-delay: 240ms;
+}
+
+.stagger-children>*:nth-child(6) {
+  animation-delay: 300ms;
+}
+
+.stagger-children>*:nth-child(7) {
+  animation-delay: 360ms;
+}
+
+.stagger-children>*:nth-child(8) {
+  animation-delay: 420ms;
+}
+
 /* Checkmark Animation */
 .checkmark-circle {
   width: 100px;
@@ -379,15 +424,25 @@
 }
 
 @keyframes check-popup {
-  0% { transform: scale(0); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 @keyframes bounce-subtle {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateY(-5%);
     animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
   }
+
   50% {
     transform: translateY(0);
     animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
@@ -403,9 +458,21 @@
 }
 
 @keyframes scanner-laser {
-  0%, 100% { top: 0%; opacity: 0; }
-  10%, 90% { opacity: 1; }
-  50% { top: 100%; }
+
+  0%,
+  100% {
+    top: 0%;
+    opacity: 0;
+  }
+
+  10%,
+  90% {
+    opacity: 1;
+  }
+
+  50% {
+    top: 100%;
+  }
 }
 
 /* Custom Premium Scrollbar */

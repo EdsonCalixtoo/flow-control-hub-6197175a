@@ -76,6 +76,14 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
   const [confirmStep, setConfirmStep] = useState(1);
   const itemsPerPage = 50;
 
+  // Estados para edição de lançamentos financeiros (correção de erros)
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  const [editingEntryAmount, setEditingEntryAmount] = useState('');
+  const [editingEntryDescription, setEditingEntryDescription] = useState('');
+  const [showQuickAdjust, setShowQuickAdjust] = useState<'recebido' | 'saldo' | null>(null);
+  const [adjustValue, setAdjustValue] = useState('');
+  const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
+
   // ✅ Filtra APENAS pedidos que foram enviados ao financeiro
   // Rascunhos e orçamentos não enviados NÃO aparecem aqui
   const ordersVisiveisFinanceiro = useMemo(
@@ -351,6 +359,33 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
   const newReceiptsInConsigned = useMemo(() => {
     return consignadosOrders.filter(o => (o.receiptUrls?.length || 0) > (o.comprovantesVistos || 0)).length;
   }, [consignadosOrders]);
+
+  // Agrupar pedidos consignados por cliente para visualização resumida
+  const consignedByClient = useMemo(() => {
+    const groups: { [key: string]: { clientName: string, orders: any[], totalOwed: number, hasNewReceipts: boolean } } = {};
+    
+    consignadosOrders.forEach(order => {
+      const clientName = order.clientName || 'Cliente não identificado';
+      if (!groups[clientName]) {
+        groups[clientName] = {
+          clientName,
+          orders: [],
+          totalOwed: 0,
+          hasNewReceipts: false
+        };
+      }
+      
+      const saldo = getSaldoDevedor(order.id, order.total, order.paymentStatus, order.number);
+      groups[clientName].orders.push(order);
+      groups[clientName].totalOwed += saldo;
+      
+      if ((order.receiptUrls?.length || 0) > (order.comprovantesVistos || 0)) {
+        groups[clientName].hasNewReceipts = true;
+      }
+    });
+    
+    return Object.values(groups).sort((a, b) => b.totalOwed - a.totalOwed);
+  }, [consignadosOrders, financialEntries]);
 
   // --- ⏰ LÓGICA DE NOTIFICAÇÃO DE ATRASO DE PAGAMENTO ---
   const calcularDiasAtraso = (dataCriacao: string) => {
@@ -815,7 +850,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
 
   // ── Pagamentos Parciais (Consignado) ──────────────────────────
   const getPagamentosDosPedido = (orderId: string): FinancialEntry[] =>
-    financialEntries.filter(e => e.orderId === orderId && e.type === 'receita');
+    financialEntries.filter(e => e.orderId === orderId && e.status !== 'cancelado');
 
   const adicionarPagamentoParcial = async (order: Order) => {
     const valor = parseFloat(novoPagValor.replace(',', '.'));
@@ -834,7 +869,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
     }
 
     const pagamentos = getPagamentosDosPedido(order.id);
-    const totalPago = pagamentos.reduce((s, p) => s + p.amount, 0);
+    const totalPago = pagamentos.reduce((s, p) => s + (p.type === 'despesa' ? -p.amount : p.amount), 0);
     if (totalPago + valor > order.total) {
       alert(`Valor excede o saldo devedor de ${formatCurrency(order.total - totalPago)}.`);
       return;
@@ -879,10 +914,105 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
         // ✅ Atualiza status para PARCIAL se ainda não quitou
         await updateOrderStatus(order.id, order.status, { paymentStatus: 'parcial', statusPagamento: 'parcial' }, 'Financeiro', `Pagamento parcial de ${formatCurrency(valor)} recebido`);
       }
+      if (loadFromSupabase) await loadFromSupabase();
+      toast.success('Pagamento registrado!');
     } catch (err: any) {
-      alert('Erro ao registrar pagamento: ' + (err?.message || 'Tente novamente'));
+      toast.error('Erro ao registrar pagamento: ' + (err?.message || 'Tente novamente'));
     } finally {
       setSalvandoPag(false);
+    }
+  };
+
+  const handleSaveEditEntry = async (entryId: string) => {
+    const amount = parseFloat(editingEntryAmount.replace(',', '.'));
+    if (isNaN(amount) || amount <= 0) {
+      toast.error('Informe um valor válido.');
+      return;
+    }
+
+    try {
+      await updateFinancialEntry(entryId, {
+        amount,
+        description: editingEntryDescription
+      });
+      setEditingEntryId(null);
+      if (loadFromSupabase) await loadFromSupabase();
+      toast.success('Lançamento atualizado!');
+    } catch (err) {
+      toast.error('Erro ao atualizar lançamento.');
+    }
+  };
+
+  const handleDeleteEntry = async (entryId: string) => {
+    // Primeira etapa: pede confirmação visual mudando o botão
+    if (deletingEntryId !== entryId) {
+      setDeletingEntryId(entryId);
+      // Reset automático após 3 segundos se não confirmar
+      setTimeout(() => setDeletingEntryId(current => current === entryId ? null : current), 3000);
+      return;
+    }
+
+    try {
+      await updateFinancialEntry(entryId, { status: 'cancelado' });
+      setDeletingEntryId(null);
+      if (loadFromSupabase) await loadFromSupabase();
+      toast.success('Lançamento cancelado!');
+    } catch (err: any) {
+      toast.error('Erro ao excluir lançamento: ' + (err?.message || 'Tente novamente'));
+    }
+  };
+
+  const handleQuickAdjust = async () => {
+    if (!selectedOrder) return;
+    const newValue = parseFloat(adjustValue.replace(',', '.'));
+    if (isNaN(newValue)) { toast.error('Valor inválido'); return; }
+
+    const pagamentos = getPagamentosDosPedido(selectedOrder.id);
+    const totalPagoAtualmente = pagamentos.reduce((s, p) => s + (p.type === 'despesa' ? -p.amount : p.amount), 0);
+    
+    let diff = 0;
+    let description = '';
+
+    if (showQuickAdjust === 'recebido') {
+      diff = newValue - totalPagoAtualmente;
+      description = `Ajuste manual de saldo recebido (Novo total: ${formatCurrency(newValue)})`;
+    } else if (showQuickAdjust === 'saldo') {
+      const currentBalance = selectedOrder.total - totalPagoAtualmente;
+      // Se eu quero que o novo saldo seja X, então eu preciso pagar (CurrentBalance - X)
+      diff = currentBalance - newValue;
+      description = `Ajuste manual de saldo devedor (Novo saldo: ${formatCurrency(newValue)})`;
+    }
+
+    if (diff === 0) { 
+      toast.info('O valor informado é igual ao atual. Nenhuma alteração necessária.');
+      setShowQuickAdjust(null); 
+      return; 
+    }
+
+    try {
+      const entry: FinancialEntry = {
+        id: crypto.randomUUID(),
+        type: diff > 0 ? 'receita' : 'despesa',
+        description,
+        amount: Math.abs(diff),
+        category: 'Ajuste de Saldo',
+        date: new Date().toISOString().split('T')[0],
+        status: 'pago',
+        orderId: selectedOrder.id,
+        orderNumber: selectedOrder.number,
+        clientId: selectedOrder.clientId,
+        clientName: selectedOrder.clientName,
+        createdAt: new Date().toISOString(),
+      };
+      
+      await addFinancialEntry(entry);
+      setShowQuickAdjust(null);
+      setAdjustValue('');
+      if (loadFromSupabase) await loadFromSupabase();
+      toast.success('Valor ajustado com sucesso!');
+    } catch (err: any) {
+      console.error('Erro ao ajustar valor:', err);
+      toast.error('Erro ao ajustar valor: ' + (err?.message || 'Tente novamente'));
     }
   };
 
@@ -890,7 +1020,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
     const isDevedor = getSaldoDevedor(selectedOrder.id, selectedOrder.total) > 0;
     const client = clients.find(c => c.id === selectedOrder.clientId);
     const pagamentos = getPagamentosDosPedido(selectedOrder.id);
-    const totalPago = pagamentos.reduce((s, p) => s + p.amount, 0);
+    const totalPago = pagamentos.reduce((s, p) => s + (p.type === 'despesa' ? -p.amount : p.amount), 0);
     const saldoDevedor = selectedOrder.total - totalPago;
 
     return (
@@ -1367,62 +1497,160 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/20">
+                  <div className="group flex items-center justify-between p-4 rounded-2xl bg-emerald-500/5 border border-emerald-500/20 hover:bg-emerald-500/10 transition-all relative">
                     <div>
                       <p className="text-[10px] font-black text-emerald-500 uppercase">Valor Recebido</p>
                       <p className="text-sm font-black text-emerald-600">{formatCurrency(totalPago)}</p>
                     </div>
-                    <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500">
-                      <CheckCircle className="w-4 h-4" />
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => {
+                          setAdjustValue(totalPago.toString());
+                          setShowQuickAdjust('recebido');
+                        }}
+                        className="h-9 w-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-lg shadow-emerald-500/20 pointer-events-auto relative z-[60]"
+                        title="Alterar valor recebido total"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                        <CheckCircle className="w-4 h-4" />
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 rounded-2xl bg-rose-500/5 border border-rose-500/20">
+                  <div className="group flex items-center justify-between p-4 rounded-2xl bg-rose-500/5 border border-rose-500/20 hover:bg-rose-500/10 transition-all relative">
                     <div>
                       <p className="text-[10px] font-black text-rose-500 uppercase">Saldo Faltante</p>
-                      <p className="text-xl font-black text-rose-600">{formatCurrency(saldoDevedor)}</p>
+                      <p className="text-xl font-black text-rose-600 tabular-nums">{formatCurrency(saldoDevedor)}</p>
                     </div>
-                    <div className="h-8 w-8 rounded-lg bg-rose-500/10 flex items-center justify-center text-rose-500">
-                      <Clock className="w-4 h-4" />
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => {
+                          setAdjustValue(saldoDevedor.toString());
+                          setShowQuickAdjust('saldo');
+                        }}
+                        className="h-9 w-9 rounded-xl bg-rose-500 text-white flex items-center justify-center hover:scale-110 active:scale-95 transition-all shadow-lg shadow-rose-500/20 pointer-events-auto relative z-[60]"
+                        title="Alterar saldo faltante diretamente"
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </button>
+                      <div className="h-8 w-8 rounded-lg bg-rose-500/10 flex items-center justify-center text-rose-500">
+                        <Clock className="w-4 h-4" />
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 {pagamentos.length > 0 && (
-                  <div className="space-y-3">
+                  <div className="space-y-3" id="detalhamento-pagamentos">
                     <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest ml-1">Recebimentos Detalhados</p>
                     {pagamentos.map((pag, idx) => (
-                      <div key={pag.id} className="p-3 rounded-2xl bg-muted/20 border border-border/40 flex items-center justify-between group hover:bg-muted/40 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <div className="h-8 w-8 rounded-lg bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-[10px] font-black">
-                            #{idx + 1}
+                      <div key={pag.id} className="p-4 rounded-2xl bg-muted/20 border border-border/40 flex flex-col gap-3 group hover:bg-muted/30 transition-all relative">
+                        {editingEntryId === pag.id ? (
+                          <div className="space-y-3 p-1 animate-in slide-in-from-top-2 duration-300">
+                             <div className="flex items-center gap-2">
+                               <div className="flex-1">
+                                 <label className="text-[8px] font-black text-primary uppercase ml-1">Valor (R$)</label>
+                                 <input
+                                   type="text"
+                                   value={editingEntryAmount}
+                                   onChange={e => setEditingEntryAmount(e.target.value)}
+                                   className="input-modern bg-white dark:bg-slate-900 border-primary/30 py-1.5 text-xs font-bold w-full"
+                                 />
+                               </div>
+                               <div className="flex-[2]">
+                                 <label className="text-[8px] font-black text-primary uppercase ml-1">Descrição</label>
+                                 <input
+                                   type="text"
+                                   value={editingEntryDescription}
+                                   onChange={e => setEditingEntryDescription(e.target.value)}
+                                   className="input-modern bg-white dark:bg-slate-900 border-primary/30 py-1.5 text-xs font-bold w-full"
+                                 />
+                               </div>
+                             </div>
+                             <div className="flex gap-2">
+                               <button 
+                                 onClick={() => handleSaveEditEntry(pag.id)}
+                                 className="flex-1 py-2 rounded-xl bg-primary text-white text-[10px] font-black uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all"
+                               >
+                                 Salvar
+                               </button>
+                               <button 
+                                 onClick={() => setEditingEntryId(null)}
+                                 className="px-4 py-2 rounded-xl bg-muted text-muted-foreground text-[10px] font-black uppercase tracking-widest hover:bg-muted/80 transition-all"
+                               >
+                                 Sair
+                               </button>
+                             </div>
                           </div>
-                          <div>
-                            <p className="text-xs font-black text-foreground truncate max-w-[120px]">{pag.description || 'Pagamento via ERP'}</p>
-                            <p className="text-[10px] text-muted-foreground">{new Date(pag.date + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
-                            {pag.transactionId && (
-                              <p className="text-[9px] font-black text-primary uppercase mt-0.5">ID: {pag.transactionId}</p>
-                            )}
-                          </div>
-                        </div>
-                        <div className="text-right flex items-center gap-2">
-                          <p className="text-sm font-black text-emerald-500">{formatCurrency(pag.amount)}</p>
-                          {(pag.receiptUrl || (pag.receiptUrls && pag.receiptUrls.length > 0)) && (
-                            <div className="flex gap-1 overflow-x-auto pb-1 max-w-[150px] relative z-40 pointer-events-auto">
-                              {(pag.receiptUrls || (pag.receiptUrl ? [pag.receiptUrl] : [])).map((url, uidx) => (
-                                <button 
-                                  key={uidx}
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); setPreviewUrl(cleanR2Url(url)); }} 
-                                  className="h-8 w-8 rounded-xl bg-primary/10 text-primary hover:bg-primary hover:text-white flex items-center justify-center transition-all shrink-0 cursor-pointer pointer-events-auto relative z-50"
-                                  title={`Ver Arquivo #${uidx + 1}`}
-                                >
-                                  {url.startsWith('data:application/pdf') || url.toLowerCase().includes('.pdf') ? <FileText className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
-                                </button>
-                              ))}
+                        ) : (
+                          <>
+                            <div className="flex items-center justify-between gap-4">
+                              <div className="flex items-center gap-3 min-w-0 flex-1">
+                                <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center text-[10px] font-black shrink-0">
+                                  #{idx + 1}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2">
+                                    <p className="text-xs font-black text-foreground truncate">{pag.description || 'Pagamento via ERP'}</p>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setEditingEntryId(pag.id);
+                                          setEditingEntryAmount(pag.amount.toString());
+                                          setEditingEntryDescription(pag.description || '');
+                                        }}
+                                        className="h-9 px-3 rounded-xl bg-amber-500/10 text-amber-600 hover:bg-amber-500 hover:text-white flex items-center gap-1.5 transition-all border border-amber-500/20 text-[10px] font-black uppercase tracking-tighter pointer-events-auto cursor-pointer relative z-30"
+                                      >
+                                        <Edit3 className="w-3.5 h-3.5 pointer-events-none" /> EDITAR
+                                      </button>
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteEntry(pag.id);
+                                        }}
+                                        className={`h-9 px-3 rounded-xl flex items-center gap-1.5 transition-all border text-[10px] font-black uppercase tracking-tighter pointer-events-auto cursor-pointer relative z-30 ${
+                                          deletingEntryId === pag.id 
+                                          ? 'bg-rose-500 text-white border-rose-600 animate-pulse' 
+                                          : 'bg-rose-500/10 text-rose-500 border-rose-500/20 hover:bg-rose-500 hover:text-white'
+                                        }`}
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5 pointer-events-none" />
+                                        {deletingEntryId === pag.id ? 'TEM CERTEZA?' : 'EXCLUIR'}
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <p className="text-[10px] text-muted-foreground mt-0.5">{new Date(pag.date + 'T12:00:00').toLocaleDateString('pt-BR')}</p>
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <p className="text-sm font-black text-emerald-500 tabular-nums">{formatCurrency(pag.amount)}</p>
+                                {pag.transactionId && (
+                                  <p className="text-[8px] font-black text-primary uppercase tracking-tighter opacity-70">NSU: {pag.transactionId}</p>
+                                )}
+                              </div>
                             </div>
-                          )}
-                        </div>
+                            
+                            {/* Comprovantes associados ao lançamento */}
+                            {(pag.receiptUrl || (pag.receiptUrls && pag.receiptUrls.length > 0)) && (
+                              <div className="flex gap-1 overflow-x-auto pb-1 mt-1 border-t border-border/5 pt-2">
+                                {(pag.receiptUrls || (pag.receiptUrl ? [pag.receiptUrl] : [])).map((url, uidx) => (
+                                  <button 
+                                    key={uidx}
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); setPreviewUrl(cleanR2Url(url)); }} 
+                                    className="h-7 w-7 rounded-lg bg-primary/5 text-primary/60 hover:bg-primary hover:text-white flex items-center justify-center transition-all shrink-0 cursor-pointer pointer-events-auto relative z-50 border border-primary/10"
+                                    title={`Ver Arquivo #${uidx + 1}`}
+                                  >
+                                    {url.startsWith('data:application/pdf') || url.toLowerCase().includes('.pdf') ? <FileText className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1740,6 +1968,58 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
               ) : (
                 <img src={previewUrl} alt="Comprovante" className="max-w-full max-h-[85vh] object-contain rounded-2xl shadow-2xl" />
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Modal: Ajuste Rápido de Saldo/Recebido */}
+        {showQuickAdjust && (
+          <div className="fixed inset-0 z-[500] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-sm animate-in fade-in duration-300 pointer-events-auto">
+            <div className="card-premium w-full max-w-sm p-8 space-y-6 animate-scale-in pointer-events-auto shadow-[0_0_100px_rgba(0,0,0,0.5)]">
+              <div className="text-center space-y-2">
+                <h3 className="text-lg font-black text-foreground uppercase tracking-tight">
+                  Ajustar {showQuickAdjust === 'recebido' ? 'Valor Recebido' : 'Saldo Devedor'}
+                </h3>
+                <p className="text-xs text-muted-foreground font-medium">
+                  {showQuickAdjust === 'recebido' 
+                    ? 'Informe o novo total que foi recebido para este pedido.' 
+                    : 'Informe quanto o cliente ainda deve pagar.'}
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest ml-1">Novo Valor (R$)</label>
+                  <input
+                    type="text"
+                    autoFocus
+                    value={adjustValue}
+                    onChange={e => setAdjustValue(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleQuickAdjust()}
+                    placeholder="0,00"
+                    className="w-full h-14 px-6 rounded-2xl bg-slate-50 dark:bg-slate-900 border-2 border-primary/20 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all text-xl font-black tabular-nums outline-none pointer-events-auto"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleQuickAdjust(); }}
+                    className="flex-1 h-12 rounded-xl bg-primary text-white font-black text-[11px] uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer pointer-events-auto relative z-[600]"
+                  >
+                    Confirmar Ajuste
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowQuickAdjust(null); }}
+                    className="px-6 h-12 rounded-xl bg-muted text-muted-foreground font-black text-[11px] uppercase tracking-widest hover:bg-muted/80 transition-all cursor-pointer pointer-events-auto relative z-[600]"
+                  >
+                    Voltar
+                  </button>
+                </div>
+              </div>
+
+              <p className="text-[9px] text-center text-muted-foreground italic leading-tight">
+                * O sistema gerará um lançamento financeiro automático para igualar os valores informados.
+              </p>
             </div>
           </div>
         )}
@@ -2175,64 +2455,92 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
             </button>
           </div>
 
-          <div className="space-y-3">
-            {consignadosOrders.length === 0 ? (
+          <div className="space-y-6">
+            {consignedByClient.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground text-sm">
                 Nenhum pedido de cliente consignado
               </div>
             ) : (
               <>
-                {consignadosOrders.map(order => {
-                  const saldo = getSaldoDevedor(order.id, order.total, order.paymentStatus, order.number);
-                  return (
-                    <div key={order.id} className="card-section p-4 flex items-center justify-between flex-wrap gap-3 bg-amber-500/5 border border-amber-500/20">
-                      <div className="flex-1 min-w-[200px]">
-                        <div className="flex items-center gap-2">
-                          <p className="font-bold text-foreground text-sm">{order.number}</p>
-                          {order.receiptUrls && order.receiptUrls.length > (order.comprovantesVistos || 0) && (
-                            <span className="px-1.5 py-0.5 rounded-md bg-emerald-500 text-white text-[8px] font-black animate-pulse">💰 NOVO COMPROVANTE</span>
-                          )}
+                {consignedByClient.map(group => (
+                  <div key={group.clientName} className="space-y-3">
+                    {/* Header do Cliente - Suavizado */}
+                    <div className="flex items-center justify-between p-4 rounded-2xl bg-amber-500/[0.03] border border-amber-500/10 shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-500">
+                          <Users2 className="w-5 h-5" />
                         </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {order.clientName} • {new Date(order.createdAt).toLocaleDateString('pt-BR')}
-                        </p>
-                        <p className="text-[10px] text-amber-500 font-bold mt-1 uppercase tracking-wider">
-                          PAGO: {formatCurrency(order.total - saldo)}
-                        </p>
-                        {saldo > 0 && order.paymentStatus !== 'pago' && (
-                          <div className="flex items-center gap-1.5 mt-1">
-                            <Clock className="w-3 h-3 text-destructive" />
-                            <span className="text-[10px] font-bold text-destructive uppercase">
-                              Pendente há {calcularDiasAtraso(order.createdAt)} dias
-                            </span>
-                          </div>
-                        )}
+                        <div>
+                          <h3 className="font-bold text-sm text-foreground uppercase tracking-tight">{group.clientName}</h3>
+                          <p className="text-[10px] font-medium text-muted-foreground">{group.orders.length} pedido(s) ativo(s)</p>
+                        </div>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-foreground text-sm">{formatCurrency(order.total)}</p>
-                        <p className={`text-[10px] font-extrabold mb-1 ${saldo > 0 && order.paymentStatus !== 'pago' ? 'text-amber-500' : 'text-success'}`}>
-                          SALDO: {formatCurrency(order.paymentStatus === 'pago' ? 0 : saldo)}
-                        </p>
-                        <div className="flex items-center justify-end gap-2">
-                          <StatusBadge status={order.status} />
-                          <button
-                            onClick={() => { setSelectedOrderId(order.id); setShowConsignados(false); }}
-                            className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center hover:bg-amber-600 transition-colors"
-                            title="Ver Detalhes / Receber Pagamento"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                        </div>
+                        <p className="text-[9px] font-bold text-amber-600/80 uppercase tracking-widest">Saldo Total</p>
+                        <p className="text-lg font-black text-foreground">{formatCurrency(group.totalOwed)}</p>
                       </div>
                     </div>
-                  );
-                })}
-                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] uppercase font-bold text-amber-500">Total em Aberto</span>
-                    <span className="font-semibold text-foreground">Saldo Consignação:</span>
+
+                    {/* Lista de Pedidos do Cliente */}
+                    <div className="grid grid-cols-1 gap-2 pl-4 border-l-2 border-amber-500/10">
+                      {group.orders.map(order => {
+                        const saldo = getSaldoDevedor(order.id, order.total, order.paymentStatus, order.number);
+                        return (
+                          <div key={order.id} className="card-section p-4 flex items-center justify-between flex-wrap gap-3 bg-amber-500/5 border border-amber-500/20 hover:bg-amber-500/10 transition-all">
+                            <div className="flex-1 min-w-[200px]">
+                              <div className="flex items-center gap-2">
+                                <p className="font-bold text-foreground text-sm">{order.number}</p>
+                                {order.receiptUrls && order.receiptUrls.length > (order.comprovantesVistos || 0) && (
+                                  <span className="px-1.5 py-0.5 rounded-md bg-emerald-500 text-white text-[8px] font-black animate-pulse">💰 NOVO COMPROVANTE</span>
+                                )}
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5">
+                                Criado em: {new Date(order.createdAt).toLocaleDateString('pt-BR')}
+                              </p>
+                              <div className="flex items-center gap-3 mt-1.5">
+                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                                  PAGO: {formatCurrency(order.total - saldo)}
+                                </p>
+                                {saldo > 0 && order.paymentStatus !== 'pago' && (
+                                  <div className="flex items-center gap-1">
+                                    <Clock className="w-3 h-3 text-destructive" />
+                                    <span className="text-[10px] font-bold text-destructive uppercase">
+                                      {calcularDiasAtraso(order.createdAt)}d
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-foreground text-sm">{formatCurrency(order.total)}</p>
+                              <p className={`text-[10px] font-extrabold mb-1 ${saldo > 0 && order.paymentStatus !== 'pago' ? 'text-amber-500' : 'text-success'}`}>
+                                SALDO: {formatCurrency(order.paymentStatus === 'pago' ? 0 : saldo)}
+                              </p>
+                              <div className="flex items-center justify-end gap-2">
+                                <StatusBadge status={order.status} />
+                                <button
+                                  onClick={() => { setSelectedOrderId(order.id); setShowConsignados(false); }}
+                                  className="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center hover:bg-amber-600 transition-colors"
+                                  title="Ver Detalhes / Receber Pagamento"
+                                >
+                                  <Eye className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <span className="text-lg font-extrabold text-amber-500">{formatCurrency(totalConsignadoOwed)}</span>
+                ))}
+                <div className="mt-6 p-6 rounded-[2rem] bg-amber-500/5 border-2 border-dashed border-amber-500/20 flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] uppercase font-black tracking-[0.2em] text-amber-600/60">Total Geral Consignado</span>
+                    <span className="text-xs font-bold text-muted-foreground">Soma de todos os saldos pendentes</span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-2xl font-black text-amber-600 dark:text-amber-500">{formatCurrency(totalConsignadoOwed)}</span>
+                  </div>
                 </div>
               </>
             )}

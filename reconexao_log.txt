@@ -1,3 +1,0 @@
---- LOG DE RECONEXÃO ---
-
-Processando: juninho.caxto@gmail.com -> PERFIL NÃO ENCONTRADO NA TABELA USERS

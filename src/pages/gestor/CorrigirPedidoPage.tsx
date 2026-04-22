@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { Search, Save, Package, Truck, ArrowLeft, Edit3, Filter, History, Clock, Plus, CheckCircle2, Check } from 'lucide-react';
+import { Search, Save, Package, Truck, ArrowLeft, Edit3, Filter, History, Clock, Plus, CheckCircle2, Check, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -166,6 +166,25 @@ const CorrigirPedidoPage: React.FC = () => {
     } catch (err: any) {
       console.error(err);
       toast.error('Erro ao salvar correções.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMoveToProduction = async () => {
+    if (!selectedOrderId) return;
+    if (!window.confirm('Deseja realmente VOLTAR este pedido para a produção? O status será alterado para "Aguardando Produção", permitindo que a fábrica o veja novamente.')) return;
+
+    setLoading(true);
+    try {
+      await updateOrder(selectedOrderId, { 
+        status: 'aguardando_producao'
+      });
+      toast.success('Pedido movido de volta para a produção!');
+      setSelectedOrderId(null);
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao mover pedido de volta para a produção.');
     } finally {
       setLoading(false);
     }
@@ -467,13 +486,31 @@ const CorrigirPedidoPage: React.FC = () => {
                   </div>
                 )}
 
-                <button
-                  onClick={handleSave}
-                  disabled={loading}
-                  className="btn-primary w-full h-14 justify-center font-bold text-base shadow-lg shadow-primary/30 hover:scale-[1.01] active:scale-[0.99] transition-all"
-                >
-                  {loading ? 'Sincronizando...' : 'Confirmar Alterações'}
-                </button>
+                <div className="space-y-4 pt-6 border-t">
+                  <button
+                    onClick={handleSave}
+                    disabled={loading}
+                    className="btn-primary w-full h-14 justify-center font-bold text-base shadow-lg shadow-primary/30 hover:scale-[1.01] active:scale-[0.99] transition-all"
+                  >
+                    {loading ? 'Sincronizando...' : 'Confirmar Alterações'}
+                  </button>
+
+                  <div className="pt-2">
+                    <label className="text-[10px] font-bold text-destructive uppercase flex items-center gap-1 mb-2 ml-1">
+                      <RotateCcw className="w-3 h-3" /> Ações Críticas (Gestor)
+                    </label>
+                    <button
+                      onClick={handleMoveToProduction}
+                      disabled={loading}
+                      className="w-full h-12 rounded-xl bg-destructive/5 text-destructive hover:bg-destructive hover:text-white transition-all font-black text-[10px] uppercase tracking-widest border border-destructive/10 flex items-center justify-center gap-2"
+                    >
+                      <RotateCcw className="w-4 h-4" /> Mover de Volta para Produção
+                    </button>
+                    <p className="text-[9px] text-muted-foreground text-center mt-2 italic px-4">
+                      * Use esta opção para pedidos que precisam ser refeitos ou corrigidos na fábrica, mesmo que já tenham sido retirados.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           ) : (

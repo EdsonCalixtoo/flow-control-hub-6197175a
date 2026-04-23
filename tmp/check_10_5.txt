@@ -1,4 +1,0 @@
-﻿[dotenv@17.3.1] injecting env (7) from .env -- tip: ÔÜÖ´©Å  specify custom .env file path with { path: '/custom/path/.env' }
-[REWARD] ID:61722316-48b2-4c5f-8935-624fb7c5f8c1 TYPE:tier_2 STATUS:pendente COMPLETED:3 CONSUMED:0 REQUIRED:7
-[REWARD] ID:771b401e-87c3-4003-85b1-67301949bf36 TYPE:tier_3 STATUS:pendente COMPLETED:0 CONSUMED:0 REQUIRED:10
-[REWARD] ID:8ee4ac10-ff2a-449c-b077-b0eb5ecbde77 TYPE:tier_1 STATUS:liberado COMPLETED:10 CONSUMED:10 REQUIRED:5

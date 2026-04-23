@@ -1,12 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import { UserRole } from '@/types/erp';
 
 interface User {
   id: string;
   email: string;
   name: string;
-  role: 'vendedor' | 'gestor' | 'financeiro' | 'producao' | 'producao_carenagem' | 'admin' | 'garantia';
-
+  role: UserRole;
 }
 
 interface AuthContextType {

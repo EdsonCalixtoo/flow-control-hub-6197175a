@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/contexts/AuthContext';
 import type { UserRole } from '@/types/erp';
 import { ROLE_LABELS } from '@/types/erp';
@@ -7,345 +8,239 @@ import {
   ArrowRight, ArrowLeft, Eye, EyeOff, Loader2, AlertCircle,
   Trash2, UserPlus, LogIn, CheckCircle2, User, Truck, ShieldCheck
 } from 'lucide-react';
-import { toast } from 'sonner';
 
-const roles: { role: UserRole; icon: React.ElementType; desc: string; gradient: string; iconBg: string }[] = [
-  { role: 'vendedor', icon: ShoppingCart, desc: 'Orçamentos, clientes e vendas', gradient: 'from-vendedor/10 to-vendedor/5', iconBg: 'bg-vendedor' },
-  { role: 'financeiro', icon: DollarSign, desc: 'Pagamentos, aprovações e DRE', gradient: 'from-financeiro/10 to-financeiro/5', iconBg: 'bg-financeiro' },
-  { role: 'gestor', icon: BarChart3, desc: 'Conferência e indicadores', gradient: 'from-gestor/10 to-gestor/5', iconBg: 'bg-gestor' },
-  { role: 'producao', icon: Factory, desc: 'Produção e liberação', gradient: 'from-producao/10 to-producao/5', iconBg: 'bg-producao' },
-  { role: 'producao_carenagem', icon: Truck, desc: 'Pedidos de carenagem e side skirt', gradient: 'from-indigo-600/10 to-indigo-500/5', iconBg: 'bg-indigo-600' },
-  { role: 'admin', icon: ShieldCheck, desc: 'Administração total do sistema', gradient: 'from-slate-900/10 to-slate-800/5', iconBg: 'bg-slate-900' },
+const roles: { role: UserRole; icon: React.ElementType; desc: string; color: string; bg: string; size: 'small' | 'large' }[] = [
+  { role: 'vendedor', icon: ShoppingCart, desc: 'Vendas e Orçamentos', color: 'text-blue-500', bg: 'bg-blue-500/10', size: 'large' },
+  { role: 'financeiro', icon: DollarSign, desc: 'Pagamentos e DRE', color: 'text-emerald-500', bg: 'bg-emerald-500/10', size: 'small' },
+  { role: 'gestor', icon: BarChart3, desc: 'Indicadores', color: 'text-purple-500', bg: 'bg-purple-500/10', size: 'small' },
+  { role: 'producao', icon: Factory, desc: 'Produção Geral', color: 'text-orange-500', bg: 'bg-orange-500/10', size: 'small' },
+  { role: 'producao_carenagem', icon: Truck, desc: 'Carenagem', color: 'text-indigo-500', bg: 'bg-indigo-500/10', size: 'small' },
 ];
-
-type Step = 'select' | 'auth';
-type AuthMode = 'login' | 'register';
 
 const LoginPage: React.FC = () => {
   const { login, register, clearSessionCompletely } = useAuth();
-
-  const [step, setStep] = useState<Step>('select');
-  const [authMode, setAuthMode] = useState<AuthMode>('login');
+  const [step, setStep] = useState<'select' | 'auth'>('select');
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
-
-  // campos compartilhados
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [showPw, setShowPw] = useState(false);
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [showClearSessionOption, setShowClearSessionOption] = useState(false);
 
-  const selectedRoleData = roles.find(r => r.role === selectedRole);
-
-  const resetFields = () => {
-    setName(''); setEmail(''); setPassword('');
-    setError(null); setSuccess(null); setShowPw(false);
-  };
-
   const handleSelectRole = (role: UserRole) => {
-    console.log('[Login] Perfil selecionado:', role);
     setSelectedRole(role);
-    setAuthMode('login');
     setStep('auth');
-    resetFields();
+    setAuthMode('login');
+    setError(null);
   };
 
-  const handleBack = () => {
-    setStep('select');
-    resetFields();
-  };
-
-  const switchMode = (mode: AuthMode) => {
-    setAuthMode(mode);
-    resetFields();
-  };
-
-  // ── LOGIN ──
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedRole) return;
-    setError(null); setSuccess(null); setLoading(true);
-
+    setLoading(true);
+    setError(null);
     try {
-      console.log('[Login] Tentando login para:', email, 'como', selectedRole);
       await login(email, password);
-      console.log('[Login] Login enviado com sucesso');
-      setLoading(false);
     } catch (err: any) {
-      const msg = err?.message || String(err);
-      setError(msg);
-      if (msg.toLowerCase().includes('refresh') || msg.toLowerCase().includes('invalid')) {
-        setShowClearSessionOption(true);
-      }
-      setLoading(false);
-    }
-  };
-
-  // ── CADASTRO (somente vendedor) ──
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) { setError('Informe o nome completo.'); return; }
-    if (password.length < 6) { setError('A senha deve ter no mínimo 6 caracteres.'); return; }
-
-    setError(null); setSuccess(null); setLoading(true);
-
-    try {
-      await register(email, password, name.trim(), 'vendedor');
-      setSuccess(`✅ Conta de "${name.trim()}" criada com sucesso! Fazendo login...`);
-      setTimeout(() => setLoading(false), 4000);
-    } catch (err: any) {
-      const msg: string = err?.message || 'Erro ao criar conta.';
-      if (msg.toLowerCase().includes('already registered') || msg.toLowerCase().includes('already exists')) {
-        setError('Este e-mail já está cadastrado. Faça login.');
-      } else {
-        setError(msg);
-      }
+      setError(err?.message || 'Erro ao entrar');
+      if (err?.message?.includes('expirado')) setShowClearSessionOption(true);
+    } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen relative overflow-hidden flex items-center justify-center p-4">
-      {/* Background */}
-      <div className="absolute inset-0 gradient-bg opacity-90 z-0 pointer-events-none" />
-      <div className="absolute top-20 -left-32 w-96 h-96 bg-primary/20 rounded-full blur-3xl animate-pulse z-0 pointer-events-none" />
-      <div className="absolute bottom-20 -right-32 w-96 h-96 bg-[hsl(var(--gestor))]/20 rounded-full blur-3xl animate-pulse z-0 pointer-events-none" style={{ animationDelay: '2s' }} />
-      <div className="absolute inset-0 opacity-[0.03] z-0 pointer-events-none" style={{ backgroundImage: `linear-gradient(hsl(var(--primary-foreground)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--primary-foreground)) 1px, transparent 1px)`, backgroundSize: '60px 60px' }} />
+    <div className="min-h-screen bg-[#fcfdfe] flex items-center justify-center p-4 relative overflow-hidden font-sans selection:bg-blue-100 selection:text-blue-900">
+      
+      {/* Animated Aura Background */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+        <motion.div 
+          animate={{ scale: [1, 1.2, 1], x: [0, 100, 0], y: [0, 50, 0] }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+          className="absolute -top-[20%] -left-[10%] w-[70%] h-[70%] bg-gradient-to-br from-blue-400/20 to-purple-400/20 rounded-full blur-[120px]" 
+        />
+        <motion.div 
+          animate={{ scale: [1, 1.3, 1], x: [0, -100, 0], y: [0, -50, 0] }}
+          transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+          className="absolute -bottom-[20%] -right-[10%] w-[70%] h-[70%] bg-gradient-to-br from-emerald-400/10 to-blue-400/20 rounded-full blur-[120px]" 
+        />
+      </div>
 
-      <div className="relative z-10 w-full max-w-md animate-scale-in">
-        <div className="bg-card/80 backdrop-blur-2xl rounded-3xl border border-border/20 shadow-2xl shadow-primary/10 p-8">
-
-          {/* Logo */}
-          <div className="text-center mb-7">
-            <img src="/Automatiza-logo-rgb-01.jpg" alt="Automatiza Vans" className="mx-auto max-w-[240px] w-full h-auto object-contain rounded-2xl" />
-          </div>
-
-          {/* Banner: token expirado */}
-          {showClearSessionOption && (
-            <div className="mb-5 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-3">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-                <div className="text-xs text-amber-600 space-y-1">
-                  <p className="font-semibold">Token de sessão expirado</p>
-                  <p>Isso acontece quando você ficou muito tempo sem usar ou mudou de computador. Limpe a sessão e faça login novamente.</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => { if (confirm('Limpar todos os dados de sessão e recarregar a página?')) clearSessionCompletely(); }}
-                className="w-full py-2 px-3 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-600 text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
+      <div className="relative z-10 w-full max-w-5xl">
+        <AnimatePresence mode="wait">
+          {step === 'select' ? (
+            <motion.div 
+              key="select"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="flex flex-col items-center"
+            >
+              {/* Premium Logo */}
+              <motion.div 
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="mb-12 relative group"
               >
-                <Trash2 className="w-3.5 h-3.5" /> Limpar sessão e fazer login novamente
-              </button>
-            </div>
-          )}
+                <img src="/Automatiza-logo-rgb-01.jpg" alt="Logo" className="h-16 w-auto object-contain filter drop-shadow-2xl" />
+                <div className="absolute -inset-x-4 -inset-y-4 bg-blue-500/5 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity rounded-full -z-10" />
+              </motion.div>
 
-          {/* ════════ STEP 1: Seleção de perfil ════════ */}
-          {step === 'select' && (
-            <>
-              <p className="text-center text-sm text-muted-foreground mb-5">Selecione seu perfil para continuar</p>
-              <div className="space-y-3 stagger-children">
-                {roles.map(({ role, icon: Icon, desc, gradient, iconBg }) => (
-                  <button
-                    key={role}
-                    onClick={() => handleSelectRole(role)}
-                    className={`w-full flex items-center gap-4 p-4 rounded-2xl bg-gradient-to-r ${gradient} border border-border/30 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/[0.08] hover:-translate-y-0.5 transition-all duration-300 group text-left`}
+              <div className="text-center mb-12">
+                <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-3">Bem-vindo ao Futuro</h1>
+                <p className="text-slate-500 font-medium">Selecione seu portal de acesso para continuar</p>
+              </div>
+
+              {/* Bento Grid Layout */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-4xl px-4">
+                {roles.map((item, idx) => (
+                  <motion.button
+                    key={item.role}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.05 + 0.3 }}
+                    whileHover={{ scale: 1.02, y: -5 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => handleSelectRole(item.role)}
+                    className={`relative overflow-hidden group p-6 rounded-[32px] bg-white border border-slate-200/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_50px_rgba(59,130,246,0.12)] transition-all flex flex-col justify-between text-left ${
+                      item.size === 'large' ? 'md:col-span-2 aspect-[2/1] md:aspect-auto' : 'aspect-square md:aspect-auto'
+                    }`}
                   >
-                    <div className={`w-12 h-12 rounded-xl ${iconBg} flex items-center justify-center shrink-0 shadow-md transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3`}>
-                      <Icon className="w-5 h-5 text-primary-foreground" />
+                    <div className="absolute inset-0 bg-gradient-to-br from-white via-transparent to-slate-50/30 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    
+                    <div className="flex justify-between items-start relative z-10">
+                      <div className={`p-4 rounded-2xl ${item.bg} border border-white/50 shadow-sm group-hover:scale-110 transition-transform duration-500`}>
+                        <item.icon className={`w-8 h-8 ${item.color}`} />
+                      </div>
+                      <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300">
+                        <ArrowRight className="w-5 h-5 text-slate-400" />
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <p className="font-bold text-foreground text-sm">{ROLE_LABELS[role]}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
+
+                    <div className="relative z-10">
+                      <h3 className="text-xl font-bold text-slate-800 tracking-tight">{ROLE_LABELS[item.role]}</h3>
+                      <p className="text-sm font-medium text-slate-400 mt-1">{item.desc}</p>
                     </div>
-                    <ArrowRight className="w-4 h-4 text-muted-foreground/50 group-hover:text-primary group-hover:translate-x-1 transition-all duration-300" />
-                  </button>
+
+                    {/* Background Detail */}
+                    <div className="absolute -right-4 -bottom-4 opacity-[0.03] group-hover:opacity-[0.07] transition-opacity">
+                      <item.icon className="w-32 h-32 rotate-12" />
+                    </div>
+                  </motion.button>
                 ))}
               </div>
-            </>
-          )}
 
-          {/* ════════ STEP 2: Login / Cadastro ════════ */}
-          {step === 'auth' && selectedRoleData && (
-            <div className="animate-scale-in">
-
-              {/* Header do perfil */}
-              <div className="flex items-center gap-3 mb-5">
-                <button onClick={handleBack} className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors">
-                  <ArrowLeft className="w-4 h-4" />
+              <motion.p 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1 }}
+                className="mt-16 text-[10px] font-black text-slate-300 uppercase tracking-[0.4em]"
+              >
+                Automatiza Vans • High Performance System
+              </motion.p>
+            </motion.div>
+          ) : (
+            <motion.div 
+              key="auth"
+              initial={{ opacity: 0, scale: 1.1, filter: "blur(10px)" }}
+              animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="flex items-center justify-center"
+            >
+              <div className="w-full max-w-md bg-white/80 backdrop-blur-3xl rounded-[48px] border border-white shadow-[0_40px_80px_-20px_rgba(0,0,0,0.15)] p-12 relative">
+                
+                <button 
+                  onClick={() => setStep('select')}
+                  className="absolute top-8 left-8 p-3 rounded-2xl bg-slate-50 text-slate-400 hover:text-blue-600 hover:shadow-lg transition-all active:scale-90"
+                >
+                  <ArrowLeft className="w-5 h-5" />
                 </button>
-                <div className={`w-9 h-9 rounded-xl ${selectedRoleData.iconBg} flex items-center justify-center shadow-md`}>
-                  <selectedRoleData.icon className="w-4 h-4 text-primary-foreground" />
+
+                <div className="text-center mb-10">
+                  <div className={`mx-auto w-20 h-20 rounded-3xl mb-6 flex items-center justify-center ${roles.find(r => r.role === selectedRole)?.bg} border border-white shadow-xl`}>
+                    {selectedRole && React.createElement(roles.find(r => r.role === selectedRole)!.icon, { className: `w-10 h-10 ${roles.find(r => r.role === selectedRole)!.color}` })}
+                  </div>
+                  <h2 className="text-2xl font-black text-slate-900 tracking-tight">{ROLE_LABELS[selectedRole!]}</h2>
+                  <p className="text-sm font-medium text-slate-400 mt-1">Insira suas credenciais corporativas</p>
                 </div>
-                <div>
-                  <p className="text-sm font-bold text-foreground">{ROLE_LABELS[selectedRole!]}</p>
-                  <p className="text-xs text-muted-foreground">{selectedRoleData.desc}</p>
-                </div>
+
+                <form onSubmit={handleLogin} className="space-y-6">
+                  {error && (
+                    <motion.div 
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="p-4 rounded-2xl bg-rose-50 border border-rose-100 flex items-center gap-3"
+                    >
+                      <AlertCircle className="w-5 h-5 text-rose-500" />
+                      <p className="text-rose-700 text-xs font-bold">{error}</p>
+                    </motion.div>
+                  )}
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">E-mail Corporativo</label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 text-sm font-bold text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/40 transition-all placeholder:text-slate-300"
+                      placeholder="usuario@automatiza.com"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Senha de Acesso</label>
+                    <div className="relative group">
+                      <input
+                        type={showPw ? "text" : "password"}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 text-sm font-bold text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/40 transition-all pr-14 placeholder:text-slate-300"
+                        placeholder="••••••••"
+                        required
+                      />
+                      <button 
+                        type="button"
+                        onClick={() => setShowPw(!showPw)}
+                        className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300 hover:text-blue-500 transition-colors"
+                      >
+                        {showPw ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="group w-full h-16 bg-slate-900 hover:bg-blue-600 rounded-[24px] text-white font-black text-sm tracking-widest flex items-center justify-center gap-3 transition-all active:scale-[0.98] disabled:opacity-50 shadow-2xl shadow-slate-900/20 hover:shadow-blue-500/40"
+                  >
+                    {loading ? (
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                    ) : (
+                      <>
+                        <LogIn className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                        ENTRAR NO PORTAL
+                      </>
+                    )}
+                  </button>
+                </form>
+
+                {showClearSessionOption && (
+                  <button
+                    onClick={() => clearSessionCompletely()}
+                    className="w-full mt-6 text-[10px] font-black text-slate-400 hover:text-rose-500 uppercase tracking-widest transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Resetar sessão local
+                  </button>
+                )}
               </div>
-
-              {/* Abas Login / Cadastrar — somente para vendedor */}
-              {selectedRole === 'vendedor' && (
-                <div className="flex rounded-xl overflow-hidden border border-border/30 mb-5">
-                  <button
-                    type="button"
-                    onClick={() => switchMode('login')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold transition-all duration-200 ${authMode === 'login'
-                      ? `${selectedRoleData.iconBg} text-primary-foreground shadow-md`
-                      : 'bg-muted/40 text-muted-foreground hover:text-foreground'
-                      }`}
-                  >
-                    <LogIn className="w-3.5 h-3.5" /> Entrar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => switchMode('register')}
-                    className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold transition-all duration-200 ${authMode === 'register'
-                      ? `${selectedRoleData.iconBg} text-primary-foreground shadow-md`
-                      : 'bg-muted/40 text-muted-foreground hover:text-foreground'
-                      }`}
-                  >
-                    <UserPlus className="w-3.5 h-3.5" /> Cadastrar vendedor
-                  </button>
-                </div>
-              )}
-
-              {/* Mensagem de sucesso */}
-              {success && (
-                <div className="mb-4 p-3 rounded-xl bg-green-500/10 border border-green-500/20 flex items-start gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
-                  <p className="text-green-600 text-xs font-medium">{success}</p>
-                </div>
-              )}
-
-              {/* Mensagem de erro */}
-              {error && (
-                <div className="mb-4 p-3 rounded-xl bg-destructive/10 border border-destructive/20 flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
-                  <p className="text-destructive text-xs font-medium">{error}</p>
-                </div>
-              )}
-
-              {/* ── FORMULÁRIO: LOGIN ── */}
-              {authMode === 'login' && (
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground block mb-1.5">E-mail</label>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                      className="input-modern"
-                      placeholder="seu@email.com"
-                      required
-                      autoFocus
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Senha</label>
-                    <div className="relative">
-                      <input
-                        type={showPw ? 'text' : 'password'}
-                        value={password}
-                        onChange={e => setPassword(e.target.value)}
-                        className="input-modern pr-11"
-                        placeholder="••••••••"
-                        required
-                        minLength={6}
-                      />
-                      <button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
-                        {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className={`w-full btn-modern bg-gradient-to-r justify-center ${selectedRoleData.iconBg} text-primary-foreground disabled:opacity-60 disabled:cursor-not-allowed mt-2`}
-                  >
-                    {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Aguarde...</> : <><ArrowRight className="w-4 h-4" /> Entrar no sistema</>}
-                  </button>
-                </form>
-              )}
-
-              {/* ── FORMULÁRIO: CADASTRO (vendedor) ── */}
-              {authMode === 'register' && selectedRole === 'vendedor' && (
-                <form onSubmit={handleRegister} className="space-y-4">
-                  {/* Nome */}
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Nome completo</label>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={name}
-                        onChange={e => setName(e.target.value)}
-                        className="input-modern pr-11"
-                        placeholder="Ex: João Silva"
-                        required
-                        autoFocus
-                      />
-                      <User className="w-4 h-4 text-muted-foreground absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    </div>
-                  </div>
-
-                  {/* E-mail */}
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground block mb-1.5">E-mail</label>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                      className="input-modern"
-                      placeholder="vendedor@email.com"
-                      required
-                    />
-                  </div>
-
-                  {/* Senha */}
-                  <div>
-                    <label className="text-xs font-semibold text-muted-foreground block mb-1.5">Senha <span className="text-muted-foreground/60 font-normal">(mín. 6 caracteres)</span></label>
-                    <div className="relative">
-                      <input
-                        type={showPw ? 'text' : 'password'}
-                        value={password}
-                        onChange={e => setPassword(e.target.value)}
-                        className="input-modern pr-11"
-                        placeholder="••••••••"
-                        required
-                        minLength={6}
-                      />
-                      <button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
-                        {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className={`w-full btn-modern bg-gradient-to-r justify-center ${selectedRoleData.iconBg} text-primary-foreground disabled:opacity-60 disabled:cursor-not-allowed mt-2`}
-                  >
-                    {loading
-                      ? <><Loader2 className="w-4 h-4 animate-spin" /> Criando conta...</>
-                      : <><UserPlus className="w-4 h-4" /> Criar conta de vendedor</>
-                    }
-                  </button>
-
-                  <p className="text-center text-[10px] text-muted-foreground/50">
-                    Após criar a conta, o login será feito automaticamente.
-                  </p>
-                </form>
-              )}
-
-              <p className="text-center text-[11px] text-muted-foreground/60 mt-5">
-                Grupo Automatiza Vans • Sistema ERP
-              </p>
-            </div>
+            </motion.div>
           )}
-        </div>
+        </AnimatePresence>
       </div>
     </div>
   );

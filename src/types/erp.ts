@@ -1,4 +1,4 @@
-export type UserRole = 'vendedor' | 'financeiro' | 'gestor' | 'producao' | 'producao_carenagem' | 'admin';
+export type UserRole = 'vendedor' | 'financeiro' | 'gestor' | 'producao' | 'producao_carenagem' | 'admin' | 'super_admin' | 'garantia';
 
 export interface User {
   id: string;
@@ -309,6 +309,8 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   producao: 'Produção',
   producao_carenagem: 'Produção Carenagem',
   admin: 'Administrador (TI)',
+  super_admin: 'Super Admin',
+  garantia: 'Garantia',
 };
 
 export const ROLE_COLORS: Record<UserRole, string> = {
@@ -318,6 +320,8 @@ export const ROLE_COLORS: Record<UserRole, string> = {
   producao: 'bg-producao',
   producao_carenagem: 'bg-indigo-600',
   admin: 'bg-slate-900',
+  super_admin: 'bg-amber-600',
+  garantia: 'bg-rose-500',
 };
 
 export const PRODUCTION_STATUS_LABELS: Record<ProductionStatus, string> = {

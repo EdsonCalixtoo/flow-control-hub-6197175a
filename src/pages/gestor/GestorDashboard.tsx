@@ -179,7 +179,7 @@ const GestorDashboard: React.FC = () => {
       !['producao_finalizada', 'produto_liberado', 'rascunho'].includes(o.status)
     ),
     extravios: orders.filter(o => o.status === 'extraviado'),
-    devolvidos: [], // This could be mapped to returns if desired
+    devolvidos: orders.filter(o => o.statusHistory.some(h => h.status === 'rejeitado_gestor' || h.note?.includes('DEVOLUÇÃO'))),
     estoque_baixo: [], 
   };
 
@@ -355,6 +355,20 @@ const GestorDashboard: React.FC = () => {
                             <td>
                               <div className="flex items-center gap-1.5">
                                 <span className="font-extrabold text-foreground select-all cursor-text">#{order.number}</span>
+                                {(() => {
+                                  const childCount = orders.filter(o => o.parentOrderId === order.id).length;
+                                  if (childCount > 0) return (
+                                    <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-primary/10 text-primary text-[9px] font-black" title={`${childCount} pedidos unificados nesta caixa`}>
+                                      <Package className="w-3 h-3" /> +{childCount}
+                                    </span>
+                                  );
+                                  if (order.parentOrderId) return (
+                                    <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 text-[9px] font-black" title={`Unificado no pedido #${order.parentOrderNumber}`}>
+                                      <Share2 className="w-3 h-3" /> {order.parentOrderNumber}
+                                    </span>
+                                  );
+                                  return null;
+                                })()}
                                 {isLateOrder && (
                                   <span className="text-[9px] font-bold text-destructive bg-destructive/10 px-1 py-0.5 rounded">ATRASADO</span>
                                 )}
@@ -752,21 +766,41 @@ const GestorDashboard: React.FC = () => {
                   onClick={async () => {
                     if (!newReturnReason.trim()) return;
                     const relOrder = orders.find(o => o.number === newReturnOrder.toUpperCase());
-                    await addOrderReturn({
-                      orderId: relOrder?.id ?? newReturnOrder,
-                      orderNumber: relOrder?.number ?? newReturnOrder,
-                      clientName: relOrder?.clientName ?? '—',
-                      reason: newReturnReason.trim(),
-                      reportedBy: userName,
-                    });
+                    if (!relOrder) {
+                      toast.error('Pedido não encontrado para devolução.');
+                      return;
+                    }
+
+                    const choice = window.confirm(`Deseja enviar o pedido ${relOrder.number} para a PRODUÇÃO agora?\n\nOK = Enviar para Produção\nCancelar = Apenas registrar devolução`);
+                    
+                    if (choice) {
+                      await updateOrderStatus(
+                        relOrder.id,
+                        'aguardando_producao',
+                        undefined,
+                        userName,
+                        `DEVOLUÇÃO REGISTRADA - ENVIADO PARA PRODUÇÃO: ${newReturnReason.trim()}`
+                      );
+                      toast.success('Pedido enviado para a linha de produção!');
+                    } else {
+                      await addOrderReturn({
+                        orderId: relOrder.id,
+                        orderNumber: relOrder.number,
+                        clientName: relOrder.clientName,
+                        reason: newReturnReason.trim(),
+                        reportedBy: userName,
+                      });
+                      toast.info('Devolução registrada apenas como histórico.');
+                    }
+
                     setNewReturnOrder('');
                     setNewReturnReason('');
                     setAddingReturn(false);
                   }}
-                  disabled={!newReturnReason.trim()}
+                  disabled={!newReturnReason.trim() || !newReturnOrder.trim()}
                   className="btn-primary disabled:opacity-50"
                 >
-                  Registrar
+                  Confirmar Processamento
                 </button>
                 <button onClick={() => setAddingReturn(false)} className="btn-modern bg-muted text-foreground shadow-none">Cancelar</button>
               </div>
@@ -887,58 +921,45 @@ const GestorDashboard: React.FC = () => {
                     />
                   </div>
 
-                  <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex flex-col gap-3">
                     <button
                       onClick={async () => {
                         if (!extravioOrderNum.trim()) return;
                         const order = orders.find(o => o.number === extravioOrderNum.trim());
                         if (!order) {
-                          alert('❌ Pedido não encontrado. Verifique o número.');
+                          toast.error('Pedido não encontrado para extravio.');
                           return;
                         }
-                        if (window.confirm(`Confirmar o registro de EXTRAVIO para o pedido ${order.number}?`)) {
+
+                        const choice = window.confirm(`O pedido ${order.number} foi extraviado. O que deseja fazer?\n\nOK = ENVIAR PARA PRODUÇÃO (Refazer agora)\nCancelar = APENAS REGISTRAR (Sair do fluxo ativo)`);
+                        
+                        if (choice) {
+                          await updateOrderStatus(
+                            order.id,
+                            'aguardando_producao',
+                            undefined,
+                            userName,
+                            `EXTRAVIO REGISTRADO - ENVIADO PARA PRODUÇÃO: ${extravioNote}`
+                          );
+                          toast.success('Pedido enviado para refação na produção!');
+                        } else {
                           await updateOrderStatus(
                             order.id,
                             'extraviado',
                             undefined,
                             userName,
-                            `PEDIDO EXTRAVIADO: ${extravioNote}`
+                            `EXTRAVIO REGISTRADO - APENAS REGISTRO: ${extravioNote}`
                           );
-                          alert(`✅ Pedido ${order.number} marcado como EXTRAVIADO.`);
+                          toast.warning('Pedido marcado como extraviado e movido para o histórico.');
                         }
-                      }}
-                      disabled={!extravioOrderNum.trim()}
-                      className="btn-modern bg-destructive/10 text-destructive border-destructive/20 hover:bg-destructive/20 flex-1 h-12 text-xs font-bold"
-                    >
-                      <AlertTriangle className="w-4 h-4 mr-2" /> Registrar Extravio
-                    </button>
-
-                    <button
-                      onClick={async () => {
-                        const order = orders.find(o => o.number === extravioOrderNum.trim());
-                        if (!order) {
-                          alert('❌ Pedido não encontrado.');
-                          return;
-                        }
-                        if (order.status !== 'extraviado' && !window.confirm('Este pedido ainda não está marcado como extraviado. Deseja enviar para produção mesmo assim?')) {
-                          return;
-                        }
-
-                        await updateOrderStatus(
-                          order.id,
-                          'aguardando_producao',
-                          undefined,
-                          userName,
-                          `REFAÇÃO POR EXTRAVIO: ${extravioNote}`
-                        );
-                        alert(`🚀 Pedido ${order.number} enviado para PRODUÇÃO.`);
+                        
                         setExtravioOrderNum('');
                         setExtravioNote('');
                       }}
                       disabled={!extravioOrderNum.trim()}
-                      className="btn-primary flex-1 h-12 text-xs font-bold"
+                      className="btn-primary w-full h-12 text-xs font-bold shadow-lg shadow-primary/20"
                     >
-                      <Factory className="w-4 h-4 mr-2" /> Enviar para Produção
+                      <Package className="w-4 h-4 mr-2" /> Processar Extravio
                     </button>
                   </div>
                 </div>
@@ -1148,17 +1169,30 @@ const GestorDashboard: React.FC = () => {
                             </button>
                           </>
                         ) : w.status === 'Garantia aprovada' ? (
-                          <button
-                            onClick={async () => {
-                              if (window.confirm('Enviar este pedido de garantia para a produção?')) {
-                                await updateWarrantyStatus(w.id, 'Em produção', undefined, userName, 'Enviado para produção');
-                                alert('Garantia enviada para PRODUÇÃO!');
-                              }
-                            }}
-                            className="btn-primary w-full sm:col-span-2 h-11 text-xs font-black shadow-lg shadow-primary/20"
-                          >
-                            <Factory className="w-4 h-4 mr-2" /> Enviar para Linha de Produção
-                          </button>
+                          <div className="flex flex-col gap-2 w-full sm:col-span-2">
+                            <button
+                              onClick={async () => {
+                                if (window.confirm('Enviar este pedido de garantia para a produção?')) {
+                                  await updateWarrantyStatus(w.id, 'Em produção', undefined, userName, 'Enviado para produção');
+                                  alert('Garantia enviada para PRODUÇÃO!');
+                                }
+                              }}
+                              className="btn-primary w-full h-11 text-xs font-black shadow-lg shadow-primary/20"
+                            >
+                              <Factory className="w-4 h-4 mr-2" /> Enviar para Linha de Produção
+                            </button>
+                            <button
+                              onClick={async () => {
+                                if (window.confirm('Deseja finalizar esta garantia manualmente (Já foi resolvido)?')) {
+                                  await updateWarrantyStatus(w.id, 'Garantia finalizada', 'Resolvido manualmente', userName, 'Finalizado manualmente pelo gestor');
+                                  toast.success('Garantia finalizada com sucesso!');
+                                }
+                              }}
+                              className="text-[10px] font-bold text-muted-foreground hover:text-success transition-colors py-1 flex items-center justify-center gap-1.5"
+                            >
+                              <CheckCircle className="w-3 h-3" /> Já foi resolvido? Finalizar agora
+                            </button>
+                          </div>
                         ) : (
                           <div className="sm:col-span-2 p-3 bg-success/5 border border-success/20 rounded-xl text-center">
                              <p className="text-xs font-bold text-success">Garantia em processamento na produção</p>

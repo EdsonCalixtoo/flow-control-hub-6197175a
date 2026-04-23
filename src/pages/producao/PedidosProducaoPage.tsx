@@ -99,7 +99,7 @@ const PRODUCTION_STATUS_OPTS: { value: ProductionStatus; label: string; cls: str
 ];
 
 const PedidosProducaoPage: React.FC = () => {
-  const { orders, clients, barcodeScans, updateOrderStatus, addBarcodeScan, updateOrder, addDelayReport, loadFromSupabase, loading, warranties, updateWarrantyStatus, loadOrderDetails, loadOrderByNumber } = useERP();
+  const { orders, clients, barcodeScans, updateOrderStatus, addBarcodeScan, updateOrder, editWarranty, addDelayReport, loadFromSupabase, loading, warranties, updateWarrantyStatus, loadOrderDetails, loadOrderByNumber } = useERP();
   const { user } = useAuth();
   const isCarenagem = user?.role === 'producao_carenagem';
   const mainColor = isCarenagem ? 'indigo-600' : 'producao';
@@ -135,6 +135,12 @@ const PedidosProducaoPage: React.FC = () => {
   const [scannedOrderForVolumes, setScannedOrderForVolumes] = useState<any>(null);
   const [scannedOrderForAction, setScannedOrderForAction] = useState<any>(null);
   const [actionType, setActionType] = useState<'iniciar' | 'finalizar' | null>(null);
+  const [showUnifyDialog, setShowUnifyDialog] = useState(false);
+  const [unifyChildren, setUnifyChildren] = useState<string[]>([]);
+  const [childInput, setChildInput] = useState('');
+  const [parentInput, setParentInput] = useState('');
+  const [isUnifying, setIsUnifying] = useState(false);
+  const [lastParentNumber, setLastParentNumber] = useState('');
 
   const revertStatus = async (orderId: string, currentStatus: string) => {
     const order = orders.find(o => o.id === orderId);
@@ -742,6 +748,60 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
     setScanInput('');
   }, [orders, barcodeScans, addBarcodeScan, updateOrderStatus, user, loadFromSupabase, loadOrderByNumber]);
 
+  const handleUnify = async () => {
+    if (unifyChildren.length === 0 || !parentInput.trim()) return;
+    setIsUnifying(true);
+    try {
+      // Busca o pedido "pai"
+      let parentOrder = orders.find(o => o.number.toUpperCase() === parentInput.trim().toUpperCase());
+      if (!parentOrder) {
+        parentOrder = await loadOrderByNumber(parentInput.trim());
+      }
+
+      if (!parentOrder) {
+        toast.error('Pedido de destino (Caixa) não encontrado.');
+        setIsUnifying(false);
+        return;
+      }
+
+      let successCount = 0;
+      for (const childNum of unifyChildren) {
+        const currentOrder = orders.find(o => o.number === childNum) || await loadOrderByNumber(childNum);
+        
+        if (currentOrder && currentOrder.id !== parentOrder.id) {
+          if (currentOrder.isWarranty) {
+            await editWarranty(currentOrder.id, {
+              orderId: parentOrder.id,
+              orderNumber: parentOrder.number
+            });
+            await updateOrder(currentOrder.id, {
+              parentOrderId: parentOrder.id,
+              parentOrderNumber: parentOrder.number
+            }).catch(() => {});
+          } else {
+            await updateOrder(currentOrder.id, {
+              parentOrderId: parentOrder.id,
+              parentOrderNumber: parentOrder.number
+            });
+          }
+          successCount++;
+        }
+      }
+
+      toast.success(`${successCount} pedido(s) unificado(s) com ${parentOrder.number}!`);
+      setLastParentNumber(parentOrder.number);
+      setShowUnifyDialog(false);
+      setUnifyChildren([]);
+      setChildInput('');
+      setParentInput('');
+      setScanResult(null);
+    } catch (err: any) {
+      toast.error('Erro ao unificar: ' + err.message);
+    } finally {
+      setIsUnifying(false);
+    }
+  };
+
   const handleConfirmVolumes = useCallback(async () => {
     if (!scannedOrderForVolumes) return;
 
@@ -1040,6 +1100,28 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
               </h3>
               <p className="text-base font-bold text-foreground mt-2 opacity-80">{scanResult.message}</p>
 
+              {scanResult.success && (
+                <div className="mt-8 pt-6 border-t border-border/20 flex flex-col gap-3">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Ações de Logística</p>
+                  <button 
+                    onClick={() => {
+                      setParentInput(lastParentNumber);
+                      setUnifyChildren([scanResult.orderNumber]);
+                      setShowUnifyDialog(true);
+                    }}
+                    className="w-full py-4 rounded-2xl bg-primary/10 text-primary border border-primary/20 text-xs font-black uppercase tracking-[0.2em] hover:bg-primary hover:text-white transition-all flex items-center justify-center gap-3 shadow-lg group"
+                  >
+                    <Share2 className="w-5 h-5 group-hover:rotate-12 transition-transform" /> Unificar com outro pedido (Mesma Caixa)
+                  </button>
+                  <button 
+                    onClick={() => { setScanResult(null); setScanInput(''); }}
+                    className="w-full py-3 text-[10px] font-black text-muted-foreground uppercase tracking-widest hover:text-foreground transition-colors"
+                  >
+                    Próximo Bipe
+                  </button>
+                </div>
+              )}
+
               {!scanResult.success && (
                 <div className="mt-8 p-6 rounded-2xl bg-destructive/5 text-left border border-destructive/10">
                   <p className="text-xs font-black uppercase tracking-widest text-destructive mb-3 flex items-center gap-2">
@@ -1247,6 +1329,128 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                     Voltar
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de Unificação (SUPER MELHORADO) */}
+        {showUnifyDialog && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-background/60 backdrop-blur-3xl animate-in fade-in duration-500" onClick={() => setShowUnifyDialog(false)} />
+            <div className="glass-card p-8 w-full max-w-xl relative z-10 animate-in zoom-in-95 slide-in-from-bottom-8 duration-500 shadow-2xl border-primary/20 flex flex-col max-h-[90vh]">
+              <div className="flex flex-col items-center text-center space-y-4 mb-6">
+                <div className="w-16 h-16 rounded-[1.5rem] bg-primary/20 flex items-center justify-center text-primary shadow-xl animate-bounce-subtle">
+                   <Share2 className="w-8 h-8" />
+                </div>
+                
+                <div className="space-y-1">
+                   <h3 className="text-2xl font-black text-foreground uppercase tracking-tighter italic">Central de Unificação</h3>
+                   <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest opacity-60">Vincular múltiplos pedidos a uma única caixa</p>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto space-y-6 pr-2 custom-scrollbar">
+                {/* 📦 SEÇÃO PEDIDO PAI (A CAIXA) */}
+                <div className="p-6 rounded-3xl bg-primary/5 border-2 border-primary/20 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Pedido Principal (A Caixa)</label>
+                    <span className="text-[9px] font-bold text-primary/60 italic">Onde tudo será colocado</span>
+                  </div>
+                  <input
+                    type="text"
+                    value={parentInput}
+                    onChange={e => setParentInput(e.target.value)}
+                    placeholder="Número do Pedido Pai..."
+                    className="w-full bg-background border-2 border-primary/30 focus:border-primary px-6 py-4 rounded-2xl text-xl font-black text-foreground outline-none transition-all uppercase placeholder:text-muted-foreground/30"
+                  />
+                </div>
+
+                {/* 📋 LISTA DE FILHOS */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between px-2">
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Pedidos nesta Caixa ({unifyChildren.length})</label>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={childInput}
+                      onChange={e => setChildInput(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && childInput.trim()) {
+                          if (!unifyChildren.includes(childInput.trim().toUpperCase())) {
+                            setUnifyChildren([...unifyChildren, childInput.trim().toUpperCase()]);
+                          }
+                          setChildInput('');
+                        }
+                      }}
+                      placeholder="Bipe ou digite outro pedido..."
+                      className="flex-1 bg-muted/30 border-2 border-border/40 focus:border-primary/50 px-4 py-3 rounded-xl text-sm font-bold outline-none uppercase"
+                    />
+                    <button 
+                      onClick={() => {
+                        if (childInput.trim() && !unifyChildren.includes(childInput.trim().toUpperCase())) {
+                          setUnifyChildren([...unifyChildren, childInput.trim().toUpperCase()]);
+                          setChildInput('');
+                        }
+                      }}
+                      className="px-4 bg-foreground text-background rounded-xl font-black text-xs hover:bg-primary hover:text-white transition-all"
+                    >
+                      ADICIONAR
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    {unifyChildren.map(num => (
+                      <div key={num} className="flex items-center justify-between bg-card border border-border/60 p-3 rounded-xl group animate-in slide-in-from-left-2">
+                        <span className="text-xs font-black text-foreground">{num}</span>
+                        <button 
+                          onClick={() => setUnifyChildren(unifyChildren.filter(n => n !== num))}
+                          className="text-muted-foreground hover:text-destructive transition-colors"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/10 text-[10px] text-amber-600 font-bold leading-relaxed flex items-start gap-3">
+                  <Info className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>Todos os pedidos da lista acima seguirão o status do pedido pai ({parentInput || '...'}) automaticamente.</span>
+                </div>
+              </div>
+
+              <div className="pt-6 border-t border-border/20 space-y-3 mt-6">
+                <button
+                  onClick={handleUnify}
+                  disabled={isUnifying || unifyChildren.length === 0 || !parentInput.trim()}
+                  className="w-full py-5 bg-primary text-white rounded-2xl text-sm font-black uppercase tracking-[0.2em] hover:bg-primary-dark transition-all shadow-xl active:scale-95 disabled:opacity-50 flex items-center justify-center gap-3"
+                >
+                  {isUnifying ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Processando Unificação...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-5 h-5" /> Confirmar Unificação em Lote
+                    </>
+                  )}
+                </button>
+                
+                <button
+                  onClick={() => {
+                    setShowUnifyDialog(false);
+                    setUnifyChildren([]);
+                    setChildInput('');
+                    setParentInput('');
+                  }}
+                  className="w-full py-2 text-[10px] font-black text-muted-foreground uppercase tracking-widest hover:text-foreground transition-colors"
+                >
+                  Cancelar
+                </button>
               </div>
             </div>
           </div>
@@ -1459,6 +1663,48 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
              </button>
           </div>
         </div>
+
+        {/* 📦 SEÇÃO DE UNIFICAÇÃO (FILHOS OU PAI) */}
+        {(() => {
+          const children = orders.filter(o => o.parentOrderId === viewOrder.id);
+          const hasChildren = children.length > 0;
+          const isChild = !!viewOrder.parentOrderId;
+
+          if (!hasChildren && !isChild) return null;
+
+          return (
+            <div className={`p-4 rounded-[1.5rem] border-2 flex flex-col gap-3 animate-in fade-in slide-in-from-right-4 duration-500 ${
+              hasChildren ? 'border-primary/20 bg-primary/[0.02]' : 'border-amber-500/20 bg-amber-500/[0.02]'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${hasChildren ? 'bg-primary/10 text-primary' : 'bg-amber-500/10 text-amber-600'}`}>
+                   <Share2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Logística de Unificação</h4>
+                  <p className="text-sm font-black uppercase tracking-tight">
+                    {hasChildren ? `Esta caixa contém ${children.length} pedido(s) unificado(s)` : `Este pedido está dentro da caixa do ${viewOrder.parentOrderNumber}`}
+                  </p>
+                </div>
+              </div>
+
+              {hasChildren && (
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {children.map(child => (
+                    <button
+                      key={child.id}
+                      onClick={() => setViewOrderId(child.id)}
+                      className="px-3 py-1.5 rounded-xl bg-background border border-border/40 hover:border-primary transition-all flex items-center gap-2 group"
+                    >
+                      <span className="text-[10px] font-black text-foreground">{child.number}</span>
+                      <StatusBadge status={child.status} />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Info Cards Row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1945,6 +2191,20 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                               <div className="flex items-center gap-3 flex-wrap mb-2">
                                 <h3 className="font-black text-foreground text-xl sm:text-2xl tracking-tighter uppercase flex items-center gap-3">
                                   {order.number}
+                                  {(() => {
+                                    const childCount = orders.filter(o => o.parentOrderId === order.id).length;
+                                    if (childCount > 0) return (
+                                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-primary/10 text-primary text-[10px] font-black border border-primary/20" title={`${childCount} pedidos unificados nesta caixa`}>
+                                        <Package className="w-3.5 h-3.5" /> +{childCount}
+                                      </span>
+                                    );
+                                    if (order.parentOrderId) return (
+                                      <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/10 text-amber-600 text-[10px] font-black border border-amber-500/20" title={`Unificado no pedido #${order.parentOrderNumber}`}>
+                                        <Share2 className="w-3.5 h-3.5" /> {order.parentOrderNumber}
+                                      </span>
+                                    );
+                                    return null;
+                                  })()}
                                   <div className="flex items-center gap-1.5">
                                     {order.isSite && (
                                       <span className="px-2.5 py-0.5 rounded-full bg-blue-600 text-white text-[9px] font-black uppercase tracking-wider shadow-lg shadow-blue-500/30 animate-pulse">

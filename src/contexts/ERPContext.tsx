@@ -228,6 +228,28 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       supabase.removeChannel(channel);
     };
   }, [loadFromSupabase, isAuthenticated]);
+  
+  // ── AUTO-CLEANUP: Garantias que já foram entregues ──────────
+  useEffect(() => {
+    if (orders.length > 0 && warranties.length > 0) {
+      const pendingWarranties = warranties.filter(w => w.status !== 'Garantia finalizada');
+      
+      pendingWarranties.forEach(async (w) => {
+        const cleanWNum = w.orderNumber.replace(/^(G-|PED-)/i, '').trim();
+        const linkedOrder = orders.find(o => 
+          o.id === w.orderId || 
+          o.number.replace(/^(G-|PED-)/i, '').trim() === cleanWNum
+        );
+        
+        const STATUS_CONCLUIDOS = ['retirado_entregador', 'produto_liberado', 'producao_finalizada', 'extraviado', 'rejeitado_gestor'];
+        
+        if (linkedOrder && STATUS_CONCLUIDOS.includes(linkedOrder.status)) {
+          console.log(`[ERP] 🤖 Auto-Cleanup: Finalizando garantia ${w.orderNumber} (Pedido concluído/encerrado)`);
+          await updateWarrantyStatus(w.id, 'Garantia finalizada', undefined, 'Sistema', 'Finalizado automaticamente: Pedido já retirado pelo entregador');
+        }
+      });
+    }
+  }, [orders, warranties.length]); // Monitora mudanças nos pedidos ou quantidade de garantias
 
 
   // ── PRODUCTS ─────────────────────────────────────────────────
@@ -388,14 +410,36 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         updateError = err;
         console.warn('[ERP] Falha ao persistir na tabela orders (pode ser RLS ou erro de rede):', err.message);
       }
+      
+      // 3. CASCATA PARA PEDIDOS UNIFICADOS (Busca direta no banco para garantir precisão total)
+      try {
+        const { fetchOrdersByParentId } = await import('@/lib/orderServiceSupabase');
+        const childOrders = await fetchOrdersByParentId(orderId);
+        
+        if (childOrders && childOrders.length > 0) {
+          console.log(`[ERP] 🔗 ${childOrders.length} pedidos unificados detectados. Replicando status...`);
+          for (const child of childOrders) {
+            // Chamada recursiva para os filhos
+            await updateOrderStatus(
+              child.id,
+              status,
+              extra,
+              userName,
+              `BAIXA AUTOMÁTICA (UNIFICADO COM ${currentOrder.number}): ${note || ''}`
+            ).catch(e => console.warn(`[ERP] Falha ao atualizar filho ${child.number}:`, e.message));
+          }
+        }
+      } catch (cascadeErr: any) {
+        console.warn('[ERP] ⚠️ Erro ao processar cascata de unificados:', cascadeErr.message);
+      }
 
-      // 3. SE FOR GARANTIA, ATUALIZA TAMBÉM A TABELA DE GARANTIAS
+      // 4. SE FOR GARANTIA, ATUALIZA TAMBÉM A TABELA DE GARANTIAS
       if (currentOrder.isWarranty) {
         try {
           const { updateWarranty } = await import('@/lib/warrantyServiceSupabase');
           let wStatus: any = currentOrder.status;
           if (status === 'em_producao') wStatus = 'Em produção';
-          else if (status === 'producao_finalizada') wStatus = 'Garantia finalizada';
+          else if (status === 'producao_finalizada' || status === 'produto_liberado' || status === 'retirado_entregador') wStatus = 'Garantia finalizada';
 
           await updateWarranty(orderId, {
             status: wStatus,
@@ -580,10 +624,18 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateOrder = useCallback(async (orderId: string, fields: Partial<Order>) => {
     try {
+      console.log(`[ERP] 📝 Atualizando pedido ${orderId}...`, fields);
       const orderBefore = orders.find(o => o.id === orderId);
+      
+      // 1. ATUALIZAÇÃO OTIMISTA (Instantânea na UI)
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...fields } : o));
+
+      // 2. PERSISTÊNCIA NO BANCO
       const updated = await updateOrderSupabase(orderId, fields);
+      
       if (updated) {
         setOrders(prev => prev.map(o => o.id === orderId ? updated : o));
+        console.log('[ERP] ✅ Pedido persistido com sucesso');
         
         await logAction({
           user_id: user?.id || 'system',
@@ -595,11 +647,16 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           old_data: orderBefore,
           new_data: updated
         });
+      } else {
+        console.warn('[ERP] ⚠️ Supabase não retornou o objeto atualizado em updateOrder.');
       }
     } catch (err: any) {
-      console.error('[ERP] Erro ao atualizar pedido:', err.message);
+      console.error('[ERP] ❌ Erro ao atualizar pedido:', err.message);
+      toast.error('Falha ao salvar alteração no servidor.');
+      // Reverte o otimista em caso de erro crítico (opcional, mas seguro)
+      loadFromSupabase();
     }
-  }, [orders, user]);
+  }, [orders, user, loadFromSupabase]);
 
   const editOrderFull = useCallback(async (order: Order) => {
     try {
@@ -938,7 +995,23 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const editWarranty = useCallback(async (id: string, updates: Partial<Warranty>) => {
     try {
       const updated = await updateWarrantySupabase(id, updates);
-      setWarranties(prev => prev.map(w => w.id === id ? updated : w));
+      if (updated) {
+        setWarranties(prev => (prev || []).map(w => w.id === id ? updated : w));
+        
+        // Sincroniza com a lista de orders (caso seja uma garantia manual/virtual)
+        setOrders(prev => prev.map(o => {
+          if (o.id === id && o.isWarranty) {
+            return { 
+              ...o, 
+              parentOrderId: updated.orderId, 
+              parentOrderNumber: updated.orderNumber,
+              updatedAt: new Date().toISOString() 
+            };
+          }
+          return o;
+        }));
+        console.log('[ERP] ✅ Garantia e Pedido Virtual sincronizados');
+      }
     } catch (error) {
       console.error('[ERP] Erro ao editar garantia:', error);
       throw error;

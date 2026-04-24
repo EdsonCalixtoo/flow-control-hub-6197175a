@@ -1,79 +1,86 @@
 import React from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { formatCurrency, StatusBadge } from '@/components/shared/StatusBadge';
-import { Truck, Package, User, Camera, PenLine, ClipboardList, RefreshCw, Trophy, Loader2, Calendar, Search } from 'lucide-react';
+import { Truck, Package, User, Camera, PenLine, ClipboardList, RefreshCw, Trophy, Loader2, Calendar, Search, Trash2, Edit2, Check, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { updateClientRewardsAuto } from '@/lib/rewardServiceSupabase';
 import { toast } from 'sonner';
 import { uploadToR2 } from '@/lib/storageServiceR2';
+import { useAuth } from '@/contexts/AuthContext';
 import type { Order, DeliveryPickup } from '@/types/erp';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 
 const RelatoriosPage: React.FC = () => {
+  const { user } = useAuth();
   const { financialEntries, orders: contextOrders, deliveryPickups: contextPickups } = useERP();
   const [deepOrders, setDeepOrders] = React.useState<Order[]>([]);
   const [deepPickups, setDeepPickups] = React.useState<DeliveryPickup[]>([]);
   const [loadingDeep, setLoadingDeep] = React.useState(false);
+  
+  const [editingDelivererId, setEditingDelivererId] = React.useState<string | null>(null);
+  const [newDelivererName, setNewDelivererName] = React.useState('');
+  const [updating, setUpdating] = React.useState(false);
+
+  const fetchDeepData = React.useCallback(async () => {
+    setLoadingDeep(true);
+    try {
+      console.log('[Relatorios] 📡 Buscando histórico profundo de logística...');
+      
+      // 1. Busca as retiradas primeiro
+      const { data: pickupsData } = await supabase
+        .from('delivery_pickups')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1000);
+
+      if (pickupsData) {
+        setDeepPickups(pickupsData.map(p => ({
+          ...p,
+          orderId: p.order_id,
+          orderNumber: p.order_number,
+          delivererName: p.deliverer_name,
+          photoUrl: p.photo_url,
+          signatureUrl: p.signature_url,
+          pickedUpAt: p.created_at,
+          batchId: p.batch_id
+        })));
+
+        // 2. Busca específica de todos os pedidos mencionados nessas retiradas (independente do status atual)
+        const orderIds = [...new Set(pickupsData.map(p => p.order_id).filter(Boolean))];
+        if (orderIds.length > 0) {
+          const { data: ordersData } = await supabase
+            .from('orders')
+            .select('*')
+            .in('id', orderIds);
+          
+          if (ordersData) {
+            setDeepOrders(ordersData.map(o => ({ 
+              ...o, 
+              clientName: o.client_name,
+              sellerName: o.seller_name,
+              orderNumber: o.number,
+              statusHistory: o.status_history || [] 
+            } as any)));
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[Relatorios] Erro no Deep Fetch:', err);
+    } finally {
+      setLoadingDeep(false);
+    }
+  }, []);
 
   // 📡 Busca PROFUNDA: Carrega dados históricos além do limite do context (200/100)
   React.useEffect(() => {
-    const fetchDeepData = async () => {
-      setLoadingDeep(true);
-      try {
-        console.log('[Relatorios] 📡 Buscando histórico profundo de logística...');
-        
-        // 1. Busca as retiradas primeiro
-        const { data: pickupsData } = await supabase
-          .from('delivery_pickups')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(1000);
-
-        if (pickupsData) {
-          setDeepPickups(pickupsData.map(p => ({
-            ...p,
-            orderId: p.order_id,
-            orderNumber: p.order_number,
-            delivererName: p.deliverer_name,
-            photoUrl: p.photo_url,
-            signatureUrl: p.signature_url,
-            pickedUpAt: p.created_at,
-            batchId: p.batch_id
-          })));
-
-          // 2. Busca específica de todos os pedidos mencionados nessas retiradas (independente do status atual)
-          const orderIds = [...new Set(pickupsData.map(p => p.order_id).filter(Boolean))];
-          if (orderIds.length > 0) {
-            const { data: ordersData } = await supabase
-              .from('orders')
-              .select('*')
-              .in('id', orderIds);
-            
-            if (ordersData) {
-              setDeepOrders(ordersData.map(o => ({ 
-                ...o, 
-                clientName: o.client_name,
-                sellerName: o.seller_name,
-                orderNumber: o.number,
-                statusHistory: o.status_history || [] 
-              } as any)));
-            }
-          }
-        }
-      } catch (err) {
-        console.error('[Relatorios] Erro no Deep Fetch:', err);
-      } finally {
-        setLoadingDeep(false);
-      }
-    };
-
     fetchDeepData();
-  }, []);
+  }, [fetchDeepData]);
 
   // União dos dados locais + busca profunda
   const allOrders = React.useMemo(() => {
@@ -332,6 +339,82 @@ const RelatoriosPage: React.FC = () => {
       toast.error('Erro ao recalcular premiações: ' + err.message);
     } finally {
       setMigrating(false);
+    }
+  };
+
+  const handleUpdateDeliverer = async (batchId: string) => {
+    if (!newDelivererName.trim()) {
+       toast.error('Nome do entregador não pode ser vazio');
+       return;
+    }
+    setUpdating(true);
+    try {
+      const { error } = await supabase
+        .from('delivery_pickups')
+        .update({ deliverer_name: newDelivererName.trim() })
+        .eq('batch_id', batchId);
+
+      if (error) throw error;
+      toast.success('Entregador atualizado com sucesso!');
+      setEditingDelivererId(null);
+      fetchDeepData();
+    } catch (err: any) {
+      toast.error('Erro ao atualizar entregador: ' + err.message);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleDeletePickup = async (orderId: string, orderNumber: string) => {
+    if (!window.confirm(`Tem certeza que deseja EXCLUIR a retirada do pedido ${orderNumber}? O pedido voltará para o status "Aguardando entregador".`)) return;
+    
+    setUpdating(true);
+    try {
+      // 1. Busca o pedido atual para preservar o histórico
+      const { data: orderData } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('id', orderId)
+        .single();
+
+      if (orderData) {
+        const history = orderData.status_history || [];
+        const newHistory = [
+          ...history,
+          {
+            status: 'produto_liberado',
+            timestamp: new Date().toISOString(),
+            user: user?.name || 'Gestor',
+            note: `Retirada cancelada via Relatório por erro na confirmação. Estorno de logística.`
+          }
+        ];
+
+        // 2. Atualiza o status do pedido
+        const { error: orderError } = await supabase
+          .from('orders')
+          .update({ 
+            status: 'produto_liberado',
+            status_history: newHistory
+          })
+          .eq('id', orderId);
+
+        if (orderError) throw orderError;
+      }
+
+      // 3. Deleta o registro de retirada
+      const { error: pickupError } = await supabase
+        .from('delivery_pickups')
+        .delete()
+        .eq('order_id', orderId);
+
+      if (pickupError) throw pickupError;
+
+      toast.success('Retirada excluída e pedido retornado para expedição!');
+      fetchDeepData();
+    } catch (err: any) {
+      toast.error('Erro ao excluir retirada: ' + err.message);
+    } finally {
+      setUpdating(false);
     }
   };
 
@@ -630,6 +713,10 @@ const RelatoriosPage: React.FC = () => {
       {/* MODAL DE DETALHES DO LOTE */}
       <Dialog open={!!selectedBatchId} onOpenChange={(open) => !open && setSelectedBatchId(null)}>
         <DialogContent className="max-w-3xl rounded-[2.5rem] p-0 overflow-hidden border-none shadow-2xl">
+           <DialogHeader className="sr-only">
+              <DialogTitle>Detalhes da Coleta</DialogTitle>
+              <DialogDescription>Informações detalhadas sobre o lote de retirada logística</DialogDescription>
+           </DialogHeader>
            {selectedBatch && (
              <div className="flex flex-col">
                 <div className="bg-primary p-8 text-white relative">
@@ -647,7 +734,43 @@ const RelatoriosPage: React.FC = () => {
                    <div className="flex flex-wrap gap-6 mt-2">
                       <div className="flex items-center gap-2">
                          <User className="w-4 h-4 opacity-60" />
-                         <span className="text-sm font-black uppercase">{selectedBatch.delivererName}</span>
+                         {editingDelivererId === selectedBatch.id ? (
+                            <div className="flex items-center gap-2">
+                               <input 
+                                  type="text"
+                                  value={newDelivererName}
+                                  onChange={e => setNewDelivererName(e.target.value)}
+                                  className="bg-white/20 border border-white/30 rounded px-2 py-1 text-sm font-black text-white focus:outline-none focus:ring-1 ring-white/50 w-48"
+                                  autoFocus
+                               />
+                               <button 
+                                  onClick={() => handleUpdateDeliverer(selectedBatch.id)}
+                                  disabled={updating}
+                                  className="p-1.5 rounded-lg bg-success/20 hover:bg-success/30 transition-colors"
+                               >
+                                  {updating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                               </button>
+                               <button 
+                                  onClick={() => setEditingDelivererId(null)}
+                                  className="p-1.5 rounded-lg bg-destructive/20 hover:bg-destructive/30 transition-colors"
+                               >
+                                  <X className="w-4 h-4" />
+                               </button>
+                            </div>
+                         ) : (
+                            <div className="flex items-center gap-2 group/edit">
+                               <span className="text-sm font-black uppercase">{selectedBatch.delivererName}</span>
+                               <button 
+                                  onClick={() => {
+                                     setEditingDelivererId(selectedBatch.id);
+                                     setNewDelivererName(selectedBatch.delivererName);
+                                  }}
+                                  className="p-1 opacity-0 group-hover/edit:opacity-100 transition-opacity hover:bg-white/10 rounded"
+                               >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                               </button>
+                            </div>
+                         )}
                       </div>
                       <div className="flex items-center gap-2">
                          <Calendar className="w-4 h-4 opacity-60" />
@@ -670,7 +793,18 @@ const RelatoriosPage: React.FC = () => {
                             {selectedBatch.orders.map(o => {
                                const orderInfo = allOrders.find(ao => ao.id === o.id || ao.number === o.number || (o.number && ao.number === o.number.replace('PED-', '')));
                                return (
-                                  <div key={o.number} className="p-4 rounded-2xl bg-muted/30 border border-border/10 hover:border-primary/30 transition-all group">
+                                  <div key={o.number} className="p-4 rounded-2xl bg-muted/30 border border-border/10 hover:border-primary/30 transition-all group relative">
+                                     <button 
+                                        onClick={(e) => {
+                                           e.stopPropagation();
+                                           handleDeletePickup(o.id, o.number);
+                                        }}
+                                        disabled={updating}
+                                        className="absolute -top-2 -right-2 w-7 h-7 bg-destructive text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg hover:scale-110 active:scale-95 z-10"
+                                        title="Excluir retirada deste pedido"
+                                     >
+                                        {updating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                                     </button>
                                      <div className="flex items-start justify-between mb-2">
                                         <p className="text-sm font-black text-foreground group-hover:text-primary transition-colors">{o.number}</p>
                                         <span className="text-[8px] font-black bg-foreground text-background px-1.5 py-0.5 rounded uppercase">

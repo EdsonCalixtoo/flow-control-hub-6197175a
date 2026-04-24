@@ -472,6 +472,24 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         new_data: { status }
       }).catch(e => console.warn('[ERP] Falha ao registrar log:', e.message));
 
+      // 🧹 GESTÃO DE LOGÍSTICA: Se o pedido está voltando para a produção (Refação/Devolução/Extravio),
+      // precisamos limpar os rastros de saídas anteriores para que o novo ciclo seja "limpo" para os entregadores.
+      if (status === 'aguardando_producao') {
+        try {
+          console.log(`[ERP] 🧹 Limpando histórico de logística do pedido ${currentOrder.number} para novo ciclo de produção.`);
+          
+          // 1. Remove do Supabase
+          await supabase.from('delivery_pickups').delete().eq('order_id', orderId);
+          await supabase.from('barcode_scans').delete().eq('order_id', orderId);
+
+          // 2. Remove do Estado Local (Otimista)
+          setDeliveryPickups(prev => prev.filter(p => p.orderId !== orderId));
+          setBarcodeScans(prev => prev.filter(s => s.orderId !== orderId));
+        } catch (cleanErr: any) {
+          console.warn('[ERP] ⚠️ Falha ao limpar logística (não crítico):', cleanErr.message);
+        }
+      }
+
       // 📦 GESTÃO AUTOMÁTICA DE ESTOQUE
 
       // 1. DEDUÇÃO (RESERVA): Quando o pedido é enviado para o financeiro ou pula para produção

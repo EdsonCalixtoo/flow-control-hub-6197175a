@@ -44,7 +44,7 @@ const CronogramaProducaoPage = lazy(() => import('@/pages/producao/CronogramaPag
 
 const queryClient = new QueryClient();
 
-const ProtectedRoute: React.FC<{ role: string; children: React.ReactNode }> = ({ role, children }) => {
+const ProtectedRoute: React.FC<{ roles?: string[]; role?: string; children: React.ReactNode }> = ({ roles, role, children }) => {
   const { user, isAuthenticated, authLoading } = useAuth();
   if (authLoading) return (
     <div className="min-h-screen flex items-center justify-center gradient-bg">
@@ -56,8 +56,11 @@ const ProtectedRoute: React.FC<{ role: string; children: React.ReactNode }> = ({
   // O admin e super_admin têm acesso a TUDO
   if (user?.role === 'admin' || user?.role === 'super_admin') return <AppLayout>{children}</AppLayout>;
   
-  // Outros perfis são restritos às suas roles
-  if (user?.role !== role) return <Navigate to={`/${user?.role}`} replace />;
+  // Verifica se a role do usuário está permitida
+  const allowedRoles = roles || (role ? [role] : []);
+  if (allowedRoles.length > 0 && !allowedRoles.includes(user?.role || '')) {
+    return <Navigate to={`/${user?.role}`} replace />;
+  }
   
   return <AppLayout>{children}</AppLayout>;
 };
@@ -102,7 +105,8 @@ const App = () => (
                 <Route path="/financeiro/fluxo" element={<ProtectedRoute role="financeiro"><FluxoCaixaPage /></ProtectedRoute>} />
                 <Route path="/financeiro/vendedores" element={<ProtectedRoute role="financeiro"><VendedoresControlPage /></ProtectedRoute>} />
                 <Route path="/financeiro/garantias" element={<ProtectedRoute role="financeiro"><GarantiaFinanceiroPage /></ProtectedRoute>} />
-                <Route path="/financeiro/pedidos" element={<ProtectedRoute role="financeiro"><PedidosFinanceiroPage /></ProtectedRoute>} />
+                <Route path="/pedidos" element={<ProtectedRoute roles={['financeiro', 'gestor', 'vendedor', 'producao', 'producao_carenagem']}><PedidosFinanceiroPage /></ProtectedRoute>} />
+                <Route path="/financeiro/pedidos" element={<Navigate to="/pedidos" replace />} />
                 <Route path="/financeiro/carenagem" element={<ProtectedRoute role="financeiro"><FinanceiroDashboard defaultTab="carenagem" /></ProtectedRoute>} />
 
                 {/* Gestor */}

@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { StatCard, StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
-import { Search, Filter, ChevronDown, Eye, CheckCircle, Send, Package, TrendingUp, DollarSign, Clock, Star, Inbox, ArrowLeft, FileText, Image as ImageIcon, Maximize2, ScanLine } from 'lucide-react';
+import { Search, Filter, ChevronDown, Eye, CheckCircle, Send, Package, TrendingUp, DollarSign, Clock, Star, Inbox, ArrowLeft, FileText, Image as ImageIcon, Maximize2, ScanLine, Activity, Users } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 import { cleanR2Url, uploadToR2, generateR2Path } from '@/lib/storageServiceR2';
 import type { Order, FinancialEntry } from '@/types/erp';
 import { useNavigate } from 'react-router-dom';
@@ -20,11 +21,15 @@ type PeriodFilter = 'hoje' | '7dias' | '30dias' | 'personalizado' | 'todos';
 
 const PedidosFinanceiroPage: React.FC = () => {
     const navigate = useNavigate();
+    const { user } = useAuth();
+    const isFinanceOrAdmin = user?.role === 'financeiro' || user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'gestor';
+    
     const { orders, clients, financialEntries, updateOrderStatus, addFinancialEntry, loadFromSupabase, loadOrderDetails, loadOrderByNumber } = useERP();
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<PaymentFilter>('todos');
     const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('todos');
     const [paymentMethodFilter, setPaymentMethodFilter] = useState('todos');
+    const [sellerFilter, setSellerFilter] = useState('todos');
     const [currentPage, setCurrentPage] = useState(1);
     const [sortBy, setSortBy] = useState<'number' | 'clientName' | 'total' | 'createdAt'>('createdAt');
     const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -174,6 +179,10 @@ const PedidosFinanceiroPage: React.FC = () => {
             result = result.filter(o => o.paymentMethod === paymentMethodFilter);
         }
 
+        if (sellerFilter !== 'todos') {
+            result = result.filter(o => o.sellerName === sellerFilter);
+        }
+
         result.sort((a, b) => {
             const aVal = a[sortBy];
             const bVal = b[sortBy];
@@ -188,6 +197,12 @@ const PedidosFinanceiroPage: React.FC = () => {
 
     const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
     const paginatedOrders = filteredOrders.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+    const sellers = useMemo(() => {
+        const set = new Set<string>();
+        ordersVisiveisFinanceiro.forEach(o => { if (o.sellerName) set.add(o.sellerName); });
+        return Array.from(set).sort();
+    }, [ordersVisiveisFinanceiro]);
 
     const handleSort = (col: typeof sortBy) => {
         if (sortBy === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -489,7 +504,7 @@ const PedidosFinanceiroPage: React.FC = () => {
                         <div className="card-section p-6 space-y-4 shadow-lg border-primary/20 bg-primary/5">
                             <h3 className="font-bold text-primary text-sm uppercase tracking-wider">Ações do Pedido</h3>
                             <div className="space-y-3">
-                                {selectedOrder.status === 'aguardando_financeiro' && (
+                                {isFinanceOrAdmin && selectedOrder.status === 'aguardando_financeiro' && (
                                     <>
                                         {showReject ? (
                                             <div className="space-y-3 animate-fade-in">
@@ -540,7 +555,7 @@ const PedidosFinanceiroPage: React.FC = () => {
                                     </>
                                 )}
 
-                                {(selectedOrder.status === 'aprovado_financeiro' || selectedOrder.status === 'aguardando_producao') && (
+                                {isFinanceOrAdmin && (selectedOrder.status === 'aprovado_financeiro' || selectedOrder.status === 'aguardando_producao') && (
                                     <button
                                         onClick={async () => {
                                             try {
@@ -607,6 +622,10 @@ const PedidosFinanceiroPage: React.FC = () => {
                             <h1 className="text-3xl font-black tracking-tight uppercase">Gestão de Pedidos</h1>
                         </div>
                         <p className="text-slate-400 font-medium max-w-md">Acompanhamento detalhado e controle de status de todos os pedidos ativos.</p>
+                    </div>
+                    <div className="flex items-center gap-2 px-6 py-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                        <Activity className="w-5 h-5 animate-pulse" />
+                        <span className="text-xs font-black uppercase tracking-widest">Monitoramento em Tempo Real</span>
                     </div>
                 </div>
             </div>
@@ -731,12 +750,25 @@ const PedidosFinanceiroPage: React.FC = () => {
                                 <option value="Cartão">Cartão de Crédito</option>
                             </select>
                         </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Filtrar por Vendedor</label>
+                            <select
+                                value={sellerFilter}
+                                onChange={e => { setSellerFilter(e.target.value); setCurrentPage(1); }}
+                                className="input-modern py-2.5 bg-background border-border/40 hover:border-primary/30 focus:border-primary/50 text-xs font-bold"
+                            >
+                                <option value="todos">Todos os Vendedores</option>
+                                {sellers.map(s => (
+                                    <option key={s} value={s}>{s}</option>
+                                ))}
+                            </select>
+                        </div>
                     </div>
                 )}
             </div>
 
             <div className="card-section glass-premium overflow-hidden border-none shadow-xl">
-                <div className="overflow-x-auto">
+                <div className="responsive-table-container">
                     <table className="modern-table">
                         <thead>
                             <tr className="bg-slate-50 dark:bg-slate-900/50">
@@ -746,12 +778,12 @@ const PedidosFinanceiroPage: React.FC = () => {
                                 <th className="cursor-pointer select-none text-left py-5" onClick={() => handleSort('clientName')}>
                                     <div className="flex items-center gap-1">Cliente {sortBy === 'clientName' && (sortDir === 'asc' ? '↑' : '↓')}</div>
                                 </th>
-                                <th className="hidden md:table-cell text-left py-5">Vendedor Responsável</th>
+                                <th className="hidden lg:table-cell text-left py-5">Vendedor Responsável</th>
                                 <th className="cursor-pointer select-none text-right py-5" onClick={() => handleSort('total')}>
                                     <div className="flex items-center justify-end gap-1">Valor Total {sortBy === 'total' && (sortDir === 'asc' ? '↑' : '↓')}</div>
                                 </th>
-                                <th className="py-5">Status Pedido</th>
-                                <th className="py-5">Fluxo Financeiro</th>
+                                <th className="hidden sm:table-cell py-5">Estágio</th>
+                                <th className="hidden md:table-cell py-5 text-center">Pagamento</th>
                                 <th className="text-right py-5 pr-8">Ações</th>
                             </tr>
                         </thead>
@@ -792,22 +824,24 @@ const PedidosFinanceiroPage: React.FC = () => {
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="hidden md:table-cell py-5">
+                                    <td className="hidden lg:table-cell py-5">
                                         <div className="flex items-center gap-2">
                                             <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold text-muted-foreground uppercase">
                                                 {order.sellerName.split(' ').map(n => n[0]).join('').slice(0, 2)}
                                             </div>
-                                            <span className="text-xs font-medium text-foreground/70">{order.sellerName}</span>
+                                            <span className="text-xs font-medium text-foreground/70 truncate max-w-[100px]">{order.sellerName}</span>
                                         </div>
                                     </td>
                                     <td className="text-right font-black text-foreground py-5 tabular-nums tracking-tighter">{formatCurrency(order.total)}</td>
-                                    <td className="py-5"><StatusBadge status={order.status} /></td>
-                                    <td className="py-5">
-                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black border tracking-wider ${order.paymentStatus === 'pago' 
-                                            ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' 
-                                            : 'bg-amber-500/10 text-amber-600 border-amber-500/30'}`}>
-                                            <div className={`h-1.5 w-1.5 rounded-full ${order.paymentStatus === 'pago' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
-                                            {order.paymentStatus === 'pago' ? 'PAGO' : 'AGUARDANDO'}
+                                    <td className="hidden sm:table-cell py-5"><StatusBadge status={order.status} /></td>
+                                    <td className="hidden md:table-cell py-5">
+                                        <div className="flex items-center justify-center">
+                                            <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black border tracking-wider ${order.paymentStatus === 'pago' 
+                                                ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' 
+                                                : 'bg-amber-500/10 text-amber-600 border-amber-500/30'}`}>
+                                                <div className={`h-1.5 w-1.5 rounded-full ${order.paymentStatus === 'pago' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+                                                {order.paymentStatus === 'pago' ? 'PAGO' : 'AGUARDANDO'}
+                                            </div>
                                         </div>
                                     </td>
                                     <td className="text-right py-5 pr-8 last:rounded-r-2xl">
@@ -819,7 +853,7 @@ const PedidosFinanceiroPage: React.FC = () => {
                                             >
                                                 <Eye className="w-4 h-4" />
                                             </button>
-                                            {order.status === 'aguardando_financeiro' && (
+                                            {isFinanceOrAdmin && order.status === 'aguardando_financeiro' && (
                                                 <button
                                                     onClick={() => aprovarEEnviarProducao(order.id)}
                                                     className="w-10 h-10 rounded-xl bg-emerald-500/5 text-emerald-600 hover:bg-emerald-500 hover:text-white flex items-center justify-center transition-all shadow-sm"

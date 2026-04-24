@@ -42,9 +42,9 @@ const ProducaoDashboard: React.FC = () => {
 
   const scannedOrderIds = useMemo(() => new Set(barcodeScans.filter(s => s.success).map(s => s.orderId)), [barcodeScans]);
 
+  // Lista de pedidos para exibição nas tabelas/filtros (ainda não finalizados totalmente)
   const prodOrders = useMemo(() => orders.filter(o => {
-    const baseStatus = ['aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado', 'retirado_entregador'].includes(o.status) &&
-      !scannedOrderIds.has(o.id);
+    const baseStatus = ['aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado', 'retirado_entregador'].includes(o.status);
     
     if (!baseStatus) return false;
 
@@ -56,14 +56,19 @@ const ProducaoDashboard: React.FC = () => {
     if (user?.role === 'producao_carenagem') return hasCarenagem;
     if (user?.role === 'producao') return !hasCarenagem;
     return true;
-  }), [orders, scannedOrderIds, user?.role]);
+  }), [orders, user?.role]);
 
   const todayStr = new Date().toISOString().split('T')[0];
   
-  // Stats
+  // Stats Reais (Independente de scan para os cards de status)
   const aguardando = prodOrders.filter(o => o.status === 'aguardando_producao').length;
   const emProducao = prodOrders.filter(o => o.status === 'em_producao').length;
-  const finalizados = prodOrders.filter(o => o.status === 'producao_finalizada').length;
+  
+  // Finalizados hoje (baseado em scans de sucesso hoje)
+  const finalizadosHoje = useMemo(() => {
+    return barcodeScans.filter(s => s.scannedAt && s.scannedAt.startsWith(todayStr) && s.success).length;
+  }, [barcodeScans, todayStr]);
+
   const atrasadosCount = prodOrders.filter(o => {
     const dStr = o.deliveryDate || '';
     const iStr = o.installationDate || '';
@@ -92,10 +97,10 @@ const ProducaoDashboard: React.FC = () => {
     });
   }, [barcodeScans]);
 
-  // Top Products in Production
+  // Top Products in Production (Considera todos os pedidos que entraram em produção)
   const topProducts = useMemo(() => {
     const counts: Record<string, number> = {};
-    prodOrders.forEach(o => {
+    orders.filter(o => ['aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado', 'retirado_entregador'].includes(o.status)).forEach(o => {
       if (!o.items) return;
       o.items.forEach(item => {
         counts[item.product] = (counts[item.product] || 0) + item.quantity;
@@ -104,7 +109,7 @@ const ProducaoDashboard: React.FC = () => {
     return Object.entries(counts)
       .sort((a, b) => b[1] - (a[1] as number))
       .slice(0, 5);
-  }, [prodOrders]);
+  }, [orders]);
 
   // Scans recentes
   const recentScans = useMemo(() => {
@@ -180,7 +185,7 @@ const ProducaoDashboard: React.FC = () => {
             </div>
             <div className="relative z-10">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-1">Finalizados</p>
-              <h3 className="text-3xl font-black text-foreground">{finalizados}</h3>
+              <h3 className="text-3xl font-black text-foreground">{finalizadosHoje}</h3>
               <div className="flex items-center gap-1.5 mt-2 text-[10px] font-bold text-success/80">
                 <ArrowUpRight className="w-3.5 h-3.5" /> HOJE
               </div>

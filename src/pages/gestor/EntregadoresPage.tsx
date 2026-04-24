@@ -613,6 +613,14 @@ const EntregadoresPage: React.FC = () => {
     const pendingCount = React.useMemo(() => groups.filter(g => !g.alreadyPickedUp).length, [groups]);
     const doneCount = React.useMemo(() => groups.filter(g => g.alreadyPickedUp).length, [groups]);
 
+    const filteredPendingCount = React.useMemo(() => filtered.filter(g => !g.alreadyPickedUp).length, [filtered]);
+    
+    // Contagem de volumes selecionados no lote (respeitando o filtro atual se desejado, 
+    // mas aqui vamos mostrar o total selecionado no mapa para transparência)
+    const selectedVolumesCount = React.useMemo(() => {
+        return groups.filter(g => !g.alreadyPickedUp && selectedGroupIds.get(g.orderId)).length;
+    }, [groups, selectedGroupIds]);
+
     const canConfirm = delivererName.trim().length > 1 && !!photo && !!signature;
 
     const handleConfirm = async (group: OrderGroup) => {
@@ -934,14 +942,17 @@ const EntregadoresPage: React.FC = () => {
                 </div>
 
                 {/* Batch mode activation */}
-                {pendingCount > 0 && (
+                {filteredPendingCount > 0 && (
                     <button
                         onClick={() => {
                             const newMode = !confirmingBatchMode;
                             setConfirmingBatchMode(newMode);
                             if (newMode) {
                                 const newMap = new Map();
-                                filtered.forEach(g => { if (!g.alreadyPickedUp) newMap.set(g.orderId, true); });
+                                // IMPORTANTE: Seleciona apenas os itens que estão VISÍVEIS no filtro atual
+                                filtered.forEach(g => { 
+                                    if (!g.alreadyPickedUp) newMap.set(g.orderId, true); 
+                                });
                                 setSelectedGroupIds(newMap);
                             } else {
                                 setSelectedGroupIds(new Map());
@@ -956,7 +967,7 @@ const EntregadoresPage: React.FC = () => {
                         <div className="flex items-center gap-3">
                             <ClipboardList className="w-5 h-5" />
                             <span className="text-sm font-black uppercase tracking-[0.2em]">
-                                {confirmingBatchMode ? `Modo Lote Ativo (${pendingCount})` : 'Ativar Confirmação em Lote'}
+                                {confirmingBatchMode ? `Modo Lote Ativo (${selectedVolumesCount} Caixas)` : 'Ativar Confirmação em Lote'}
                             </span>
                         </div>
                         <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${confirmingBatchMode ? 'bg-warning/20' : 'bg-white/20'}`}>
@@ -992,7 +1003,7 @@ const EntregadoresPage: React.FC = () => {
                         <div className="flex items-center gap-6 mt-8">
                             <div className="flex items-center gap-2">
                                 <span className="w-2 h-2 rounded-full bg-success shadow-[0_0_10px_rgba(34,197,94,0.8)]" />
-                                <span className="text-xs font-black uppercase tracking-widest">{Array.from(selectedGroupIds.values()).filter(v => v).length} Pedidos Selecionados</span>
+                                <span className="text-xs font-black uppercase tracking-widest">{selectedVolumesCount} Caixas Selecionadas</span>
                             </div>
                             <div className="h-1 w-24 bg-white/20 rounded-full" />
                         </div>
@@ -1065,7 +1076,7 @@ const EntregadoresPage: React.FC = () => {
                                     className="flex-1 md:flex-none h-14 px-12 rounded-2xl bg-success text-white font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-success/20 hover:scale-105 active:scale-95 transition-all disabled:opacity-40 flex items-center justify-center gap-3"
                                 >
                                     {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle className="w-5 h-5" />}
-                                    {submitting ? 'PROCESSANDO...' : `CONFIRMAR ${Array.from(selectedGroupIds.values()).filter(v => v).length} PEDIDOS`}
+                                    {submitting ? 'PROCESSANDO...' : `CONFIRMAR ${selectedVolumesCount} CAIXAS`}
                                 </button>
                             </div>
                         </div>
@@ -1166,10 +1177,22 @@ const EntregadoresPage: React.FC = () => {
                                             )}
 
                                             {!group.alreadyPickedUp && confirmingBatchMode && (
-                                                <div className="h-11 px-5 rounded-xl bg-success/10 border-2 border-success/30 flex items-center gap-2">
-                                                    <CheckCircle className="w-4 h-4 text-success" />
-                                                    <span className="text-[10px] font-black text-success uppercase tracking-wider">NO LOTE</span>
-                                                </div>
+                                                <button
+                                                    onClick={() => {
+                                                        const newMap = new Map(selectedGroupIds);
+                                                        const current = newMap.get(group.orderId);
+                                                        newMap.set(group.orderId, !current);
+                                                        setSelectedGroupIds(newMap);
+                                                    }}
+                                                    className={`h-11 px-5 rounded-xl border-2 transition-all flex items-center gap-2 ${selectedGroupIds.get(group.orderId) 
+                                                        ? 'bg-success/10 border-success/30 text-success' 
+                                                        : 'bg-muted/30 border-transparent text-muted-foreground hover:border-muted'}`}
+                                                >
+                                                    <CheckCircle className={`w-4 h-4 ${selectedGroupIds.get(group.orderId) ? 'text-success' : 'text-muted-foreground/40'}`} />
+                                                    <span className="text-[10px] font-black uppercase tracking-wider">
+                                                        {selectedGroupIds.get(group.orderId) ? 'NO LOTE' : 'REMOVIDO'}
+                                                    </span>
+                                                </button>
                                             )}
                                         </div>
                                     </div>

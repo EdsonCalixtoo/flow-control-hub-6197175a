@@ -10,6 +10,8 @@ import {
 import { Link } from 'react-router-dom';
 import { useMemo } from 'react';
 
+import { uploadToR2, generateR2Path } from '@/lib/storageServiceR2';
+
 const VendedorDashboard: React.FC = () => {
   const { orders, monthlyClosings, clients, financialEntries, updateOrderStatus } = useERP();
   const { user } = useAuth();
@@ -42,18 +44,14 @@ const VendedorDashboard: React.FC = () => {
   const handleFileUpload = async (orderId: string, file: File) => {
     setUploadingOrderId(orderId);
     try {
-      const reader = new FileReader();
-      const base64Promise = new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-
-      const base64 = await base64Promise;
       const order = orders.find(o => o.id === orderId);
       if (!order) return;
 
-      const updatedReceipts = [...(order.receiptUrls || []), base64];
+      // ☁️ Upload real para o R2 em vez de Base64 no banco de dados
+      const path = generateR2Path(file, orderId);
+      const publicUrl = await uploadToR2(file, path);
+
+      const updatedReceipts = [...(order.receiptUrls || []), publicUrl];
 
       await updateOrderStatus(
         orderId,

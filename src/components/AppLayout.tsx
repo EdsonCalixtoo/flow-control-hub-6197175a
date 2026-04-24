@@ -40,7 +40,6 @@ import { NotificationDropdown } from './shared/NotificationDropdown';
 const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: string }[]> = {
   vendedor: [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/vendedor' },
-    { label: 'Pedidos', icon: Package, path: '/pedidos' },
     { label: 'Clientes', icon: Users, path: '/vendedor/clientes' },
     { label: 'Orçamentos', icon: FileText, path: '/vendedor/orcamentos' },
     { label: 'Calendário', icon: Calendar, path: '/vendedor/calendario' },
@@ -55,7 +54,6 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: 
   ],
   gestor: [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/gestor' },
-    { label: 'Pedidos', icon: Package, path: '/pedidos' },
     { label: 'Entregadores', icon: Truck, path: '/gestor/entregadores' },
     { label: 'Problemas na Produção', icon: AlertTriangle, path: '/gestor?tab=problemas' },
     { label: 'Pedidos Devolvidos', icon: BarChart3, path: '/gestor?tab=devolvidos' },
@@ -67,7 +65,6 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: 
   ],
   producao: [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/producao' },
-    { label: 'Pedidos', icon: Package, path: '/pedidos' },
     { label: 'Painel de Produção', icon: Factory, path: '/producao/pedidos' },
     { label: 'Instalação', icon: Wrench, path: '/producao/pedidos?tipo=instalacao' },
     { label: 'Retirada', icon: Package, path: '/producao/pedidos?tipo=retirada' },
@@ -77,7 +74,6 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: 
   ],
   producao_carenagem: [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/producao_carenagem' },
-    { label: 'Pedidos', icon: Package, path: '/pedidos' },
     { label: 'Painel Carenagem', icon: Truck, path: '/producao_carenagem/pedidos' },
     { label: 'Instalação', icon: Wrench, path: '/producao_carenagem/pedidos?tipo=instalacao' },
     { label: 'Retirada', icon: Truck, path: '/producao_carenagem/pedidos?tipo=retirada' },

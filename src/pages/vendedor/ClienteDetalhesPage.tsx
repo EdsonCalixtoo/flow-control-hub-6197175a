@@ -12,6 +12,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import ClientRewardTab from '@/components/Client/ClientRewardTab';
 import { calculateClientRanking } from '@/lib/rewardServiceSupabase';
 import type { ClientRanking } from '@/types/erp';
+import { uploadToR2, generateR2Path } from '@/lib/storageServiceR2';
 
 const ClienteDetalhesPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -52,18 +53,14 @@ const ClienteDetalhesPage: React.FC = () => {
     const handleFileUpload = async (orderId: string, file: File) => {
         setUploadingOrderId(orderId);
         try {
-            const reader = new FileReader();
-            const base64Promise = new Promise<string>((resolve, reject) => {
-                reader.onload = () => resolve(reader.result as string);
-                reader.onerror = reject;
-                reader.readAsDataURL(file);
-            });
-
-            const base64 = await base64Promise;
             const order = orders.find(o => o.id === orderId);
             if (!order) return;
 
-            const updatedReceipts = [...(order.receiptUrls || []), base64];
+            // ☁️ Upload para o R2 em vez de Base64 no banco de dados
+            const path = generateR2Path(file, orderId);
+            const publicUrl = await uploadToR2(file, path);
+
+            const updatedReceipts = [...(order.receiptUrls || []), publicUrl];
 
             await updateOrderStatus(
                 orderId,

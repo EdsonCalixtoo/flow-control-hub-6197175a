@@ -97,7 +97,8 @@ export const orderToSupabase = (order: Partial<Order>) => {
     return data;
 };
 
-const BASIC_ORDER_COLUMNS = 'id, number, client_id, client_name, seller_id, seller_name, subtotal, taxes, total, status, notes, observation, order_type, is_cronograma, financeiro_aprovado, is_warranty, status_pagamento, status_producao, created_at, updated_at, requires_invoice, requires_shipping_note, delivery_date, installation_date, scheduled_date, installation_time, carrier, volumes, payment_method, comprovantes_vistos, items, receipt_urls, receipt_url, parent_order_id, parent_order_number, is_site, attachment_url, attachment_name';
+// ⚡ OTIMIZAÇÃO DE EGRESS: Colunas mínimas para listagem (sem histórico pesado)
+const LIST_ORDER_COLUMNS = 'id, number, client_id, client_name, seller_id, seller_name, total, status, order_type, is_cronograma, financeiro_aprovado, is_warranty, status_pagamento, status_producao, created_at, updated_at, delivery_date, installation_date, scheduled_date, carrier, parent_order_number, is_site, attachment_url, items';
 
 export const fetchOrders = async (role?: string, userId?: string): Promise<Order[]> => {
     try {
@@ -111,7 +112,19 @@ export const fetchOrders = async (role?: string, userId?: string): Promise<Order
                 currentRole = profile?.role || session.user.user_metadata?.role || 'vendedor';
             }
         }
-        let query = supabase.from('orders').select(BASIC_ORDER_COLUMNS).order('created_at', { ascending: false }).limit(5000);
+
+        // 📅 Filtro de data (120 dias) para economizar egress massivo
+        const fourMonthsAgo = new Date();
+        fourMonthsAgo.setDate(fourMonthsAgo.getDate() - 120);
+        const minDate = fourMonthsAgo.toISOString();
+
+        // 🔥 OTIMIZAÇÃO: Limitamos a 1000 e usamos colunas de lista
+        let query = supabase.from('orders')
+            .select(LIST_ORDER_COLUMNS)
+            .gte('created_at', minDate)
+            .order('created_at', { ascending: false })
+            .limit(1000);
+
         const isErica = session?.user?.email === 'ericasousa@gmail.com';
         if (currentRole === 'vendedor' && currentUserId && !isErica) {
             query = query.eq('seller_id', currentUserId);
@@ -128,11 +141,11 @@ export const fetchOrders = async (role?: string, userId?: string): Promise<Order
 export const fetchOrderByNumberSupabase = async (orderNumber: string): Promise<Order | null> => {
     try {
         const cleanNumber = orderNumber.toUpperCase();
-        const { data: exact } = await supabase.from('orders').select(BASIC_ORDER_COLUMNS).ilike('number', cleanNumber).maybeSingle();
+        const { data: exact } = await supabase.from('orders').select(LIST_ORDER_COLUMNS).ilike('number', cleanNumber).maybeSingle();
         if (exact) return supabaseToOrder(exact);
         const digitPart = cleanNumber.replace(/\D/g, '');
         if (digitPart && digitPart.length >= 3) {
-            const { data: fuzzy } = await supabase.from('orders').select(BASIC_ORDER_COLUMNS).ilike('number', `%${digitPart}%`);
+            const { data: fuzzy } = await supabase.from('orders').select(LIST_ORDER_COLUMNS).ilike('number', `%${digitPart}%`);
             if (fuzzy && fuzzy.length > 0) {
                 const bestMatch = fuzzy.find(o => o.number.replace(/\D/g, '') === digitPart);
                 return supabaseToOrder(bestMatch || fuzzy[0]);
@@ -213,7 +226,7 @@ export const fetchMaxOrderNumberGlobal = async (): Promise<number> => {
 
 export const fetchOrdersByParentId = async (parentId: string): Promise<Order[]> => {
     try {
-        const { data, error } = await supabase.from('orders').select(BASIC_ORDER_COLUMNS).eq('parent_order_id', parentId);
+        const { data, error } = await supabase.from('orders').select(LIST_ORDER_COLUMNS).eq('parent_order_id', parentId);
         if (error) throw error;
         return (data || []).map(supabaseToOrder);
     } catch (err: any) {

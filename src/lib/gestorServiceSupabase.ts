@@ -27,12 +27,13 @@ const supabaseToFinancial = (data: any): FinancialEntry => ({
 export const fetchFinancialEntries = async (): Promise<FinancialEntry[]> => {
     try {
         // 🚨 EMERGÊNCIA: Removemos colunas pesadas (receipts) do fetch de listagem do financeiro
-        const BASIC_FINANCIAL_COLUMNS = 'id, order_id, order_number, client_id, client_name, amount, type, category, description, status, payment_method, due_date, paid_at, transaction_id, card_last_digits, created_at, receipt_urls';
+        // Os comprovantes devem ser carregados individualmente quando necessário para economizar egress.
+        const BASIC_FINANCIAL_COLUMNS = 'id, order_id, order_number, client_id, client_name, amount, type, category, description, status, payment_method, due_date, paid_at, transaction_id, card_last_digits, created_at';
 
         const { data, error } = await supabase.from('financial_entries')
             .select(BASIC_FINANCIAL_COLUMNS)
             .order('created_at', { ascending: false })
-            .limit(5000);
+            .limit(2000); // Reduzido de 5000 para 2000
         if (error) throw error;
         return (data || []).map(supabaseToFinancial);
     } catch (err: any) {

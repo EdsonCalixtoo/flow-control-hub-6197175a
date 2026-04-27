@@ -5,7 +5,7 @@ import { StatCard, formatCurrency } from '@/components/shared/StatusBadge';
 import { OrderPipeline } from '@/components/shared/OrderTimeline';
 import {
   ShoppingCart, FileText, Clock, Eye, Package, CheckCircle, Star,
-  FileUp, Loader2, XCircle, ArrowLeft
+  FileUp, Loader2, XCircle, ArrowLeft, ShieldAlert
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useMemo } from 'react';
@@ -217,7 +217,7 @@ const VendedorDashboard: React.FC = () => {
           </div>
 
           {/* Atalhos rápidos */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Link to="/vendedor/orcamentos" className="card-section p-5 hover:shadow-lg hover:shadow-primary/[0.06] hover:-translate-y-0.5 transition-all duration-300 group cursor-pointer">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-vendedor/20 to-vendedor/5 flex items-center justify-center text-vendedor group-hover:scale-110 transition-transform">
@@ -237,6 +237,17 @@ const VendedorDashboard: React.FC = () => {
                 <div>
                   <p className="text-sm font-bold text-foreground">Gestão de Clientes</p>
                   <p className="text-xs text-muted-foreground">CRM completo</p>
+                </div>
+              </div>
+            </Link>
+            <Link to="/vendedor/garantias" className="card-section p-5 hover:shadow-lg hover:shadow-primary/[0.06] hover:-translate-y-0.5 transition-all duration-300 group cursor-pointer">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-rose-500/20 to-rose-500/5 flex items-center justify-center text-rose-500 group-hover:scale-110 transition-transform">
+                  <ShieldAlert className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-foreground">Garantias</p>
+                  <p className="text-xs text-muted-foreground">Central de Assistência</p>
                 </div>
               </div>
             </Link>

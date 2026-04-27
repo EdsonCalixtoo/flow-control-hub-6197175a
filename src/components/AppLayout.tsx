@@ -42,6 +42,7 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: 
     { label: 'Dashboard', icon: LayoutDashboard, path: '/vendedor' },
     { label: 'Clientes', icon: Users, path: '/vendedor/clientes' },
     { label: 'Orçamentos', icon: FileText, path: '/vendedor/orcamentos' },
+    { label: 'Garantias', icon: ShieldAlert, path: '/vendedor/garantias' },
     { label: 'Calendário', icon: Calendar, path: '/vendedor/calendario' },
   ],
   financeiro: [
@@ -49,6 +50,7 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: 
     { label: 'Controle por Vendedor', icon: Users2, path: '/financeiro/vendedores' },
     { label: 'Pedidos', icon: Package, path: '/pedidos' },
     { label: 'Pagamentos', icon: DollarSign, path: '/financeiro/pagamentos' },
+    { label: 'Garantias', icon: ShieldAlert, path: '/financeiro/garantias' },
     { label: 'Fluxo de Caixa', icon: TrendingUp, path: '/financeiro/fluxo' },
     { label: 'Carenagem', icon: Package, path: '/financeiro/carenagem' },
   ],
@@ -85,6 +87,7 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: 
     { label: 'Gestão Vendas', icon: LayoutDashboard, path: '/gestor' },
     { label: 'Clientes', icon: Users, path: '/vendedor/clientes' },
     { label: 'Orçamentos', icon: FileText, path: '/vendedor/orcamentos' },
+    { label: 'Garantias', icon: ShieldAlert, path: '/vendedor/garantias' },
     { label: 'Financeiro', icon: DollarSign, path: '/financeiro' },
     { label: 'Fluxo Caixa', icon: TrendingUp, path: '/financeiro/fluxo' },
     { label: 'Produção', icon: Factory, path: '/producao/pedidos' },

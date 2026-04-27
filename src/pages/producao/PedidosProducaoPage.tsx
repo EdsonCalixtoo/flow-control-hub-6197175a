@@ -495,6 +495,14 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
   const finalizarProducao = (orderId: string) => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
+
+    // 🔥 NOVO: Verificar se todos os itens foram finalizados individualmente antes de fechar o pedido
+    const allFinished = order.items.every(it => it.status === 'finalizado');
+    if (!allFinished) {
+      const confirmMsg = "⚠️ ATENÇÃO: Existem itens neste pedido que não foram marcados como finalizados individualmente.\n\nDeseja finalizar a produção do pedido completo mesmo assim?";
+      if (!window.confirm(confirmMsg)) return;
+    }
+
     const qrCode = `${window.location.origin}/qr/${orderId}`;
     const finishedBy = user?.name || 'Equipe Producao';
     const now = new Date().toISOString();
@@ -1741,23 +1749,32 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                    <Clock className="w-5 h-5 text-amber-500" />
                  </div>
               </div>
-              <div>
-                 <p className="text-xl font-black text-foreground uppercase leading-none tracking-tighter">
-                   {(viewOrder.orderType === 'instalacao' || viewOrder.orderType === 'manutencao' || viewOrder.orderType === 'retirada')
-                     ? (viewOrder.installationDate 
-                          ? fmtDate(viewOrder.installationDate)
-                         : 'DIRETO'
-                       )
-                     : 'PROD. PADRÃO'
-                    }
-                  </p>
-                  {(viewOrder.orderType === 'instalacao' || viewOrder.orderType === 'manutencao' || viewOrder.orderType === 'retirada') && viewOrder.installationDate && viewOrder.installationTime && (
-                     <div className='flex items-center gap-1.5 px-2 py-1 rounded-xl bg-primary/10 text-primary w-fit border border-primary/20 mt-1.5 animate-in fade-in zoom-in-95 duration-500'>
-                        <Clock className='w-3 h-3 shrink-0' />
-                        <span className='text-[10px] font-black uppercase tracking-widest whitespace-nowrap'>Agendado: {viewOrder.installationTime}</span>
+              <div className="space-y-2">
+                 {(() => {
+                   const pendingItems = viewOrder.items.filter(item => item.status !== 'finalizado' && item.installationDate);
+                   const uniqueDates = Array.from(new Set(pendingItems.map(item => item.installationDate!))).sort();
+                   
+                   if (uniqueDates.length === 0) {
+                     const allFinished = viewOrder.items.every(item => item.status === 'finalizado');
+                     return (
+                       <p className={`text-xl font-black uppercase leading-none tracking-tighter ${allFinished ? 'text-success' : 'text-foreground'}`}>
+                         {allFinished ? 'TUDO CONCLUÍDO' : 'DIRETO'}
+                       </p>
+                     );
+                   }
+
+                   return (
+                     <div className="flex flex-wrap gap-2">
+                        {uniqueDates.map(date => (
+                          <div key={date} className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-primary/10 text-primary border border-primary/20 animate-in fade-in zoom-in-95 duration-500">
+                             <Calendar className="w-3 h-3 shrink-0" />
+                             <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">{fmtDate(date)}</span>
+                          </div>
+                        ))}
                      </div>
-                  )}
-                 <p className="text-[10px] font-bold text-muted-foreground mt-0.5">Tipo de Produção</p>
+                   );
+                 })()}
+                 <p className="text-[10px] font-bold text-muted-foreground mt-0.5">Cronograma de Instalação</p>
               </div>
            </div>
         </div>
@@ -1842,57 +1859,91 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
            </div>
            <div className="p-2 space-y-1">
               {viewOrder.items.map((item, itemIdx) => (
-                <div key={item.id} className={`p-4 rounded-2xl flex flex-col sm:flex-row items-center gap-6 transition-all border-b border-border/10 last:border-none ${item.status === 'finalizado' ? 'bg-emerald-500/[0.05]' : item.sensorType === 'com_sensor' ? 'bg-emerald-500/[0.03]' : ''}`}>
-                   <div className="flex items-center gap-6 flex-1 w-full">
-                     <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-xl font-black text-primary shrink-0 border border-border/10">
+                <div key={item.id || itemIdx} className={`p-4 sm:p-6 rounded-2xl flex flex-col lg:flex-row items-start lg:items-center gap-4 transition-all border-b border-border/10 last:border-none ${item.status === 'finalizado' ? 'bg-emerald-500/[0.05]' : item.status === 'em_producao' ? 'bg-primary/[0.03]' : ''}`}>
+                   <div className="flex items-center gap-4 flex-1 min-w-0 w-full">
+                     <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-xl font-black text-primary shrink-0 border border-border/10 shadow-sm">
                         {item.quantity}<span className="text-[9px] ml-0.5 mt-2 opacity-50">x</span>
                      </div>
                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-0.5 flex-wrap">
+                        <div className="flex items-center gap-3 mb-1 flex-wrap">
                            <h5 className="text-lg font-black text-foreground tracking-tight uppercase truncate">{item.product}</h5>
                            {item.product.toUpperCase().includes('KIT') && (
-                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase flex items-center gap-1.5 ${(!item.sensorType || item.sensorType === 'com_sensor') ? 'bg-emerald-500 text-white animate-pulse' : 'bg-muted text-muted-foreground'}`}>
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase flex items-center gap-1.5 ${(!item.sensorType || item.sensorType === 'com_sensor') ? 'bg-emerald-500 text-white shadow-sm' : 'bg-muted text-muted-foreground'}`}>
                                  {(!item.sensorType || item.sensorType === 'com_sensor') ? <><Zap className="w-3 h-3 fill-current" /> COM SENSOR</> : '⚪ SEM SENSOR'}
                               </span>
                            )}
-                           {item.status === 'finalizado' && (
-                             <span className="px-2 py-0.5 rounded-full bg-success/10 text-success text-[9px] font-black uppercase flex items-center gap-1">
-                               <CheckCircle className="w-3 h-3" /> CONCLUÍDO
+                           {item.installationDate && (
+                             <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[9px] font-black uppercase flex items-center gap-1.5 border border-primary/20 shadow-sm">
+                               <Calendar className="w-3 h-3" /> {fmtDate(item.installationDate)} às {item.installationTime}
                              </span>
                            )}
                         </div>
-                        <p className="text-sm font-bold text-muted-foreground italic leading-tight truncate">{item.description || 'Nenhuma instrução adicional.'}</p>
+                        <p className="text-sm font-bold text-muted-foreground italic leading-tight line-clamp-2">{item.description || 'Nenhuma instrução adicional.'}</p>
                      </div>
                    </div>
 
-                   <button
-                     onClick={async () => {
-                       const newItems = [...viewOrder.items];
-                       const currentStatus = newItems[itemIdx].status;
-                       newItems[itemIdx] = { 
-                         ...newItems[itemIdx], 
-                         status: currentStatus === 'finalizado' ? 'pendente' : 'finalizado' 
-                       };
-                       
-                       try {
-                         await updateOrder(viewOrder.id, { items: newItems });
-                         toast.success(`Item "${item.product}" marcado como ${currentStatus === 'finalizado' ? 'pendente' : 'concluído'}!`);
-                       } catch (err) {
-                         toast.error("Erro ao atualizar status do item.");
-                       }
-                     }}
-                     className={`w-full sm:w-auto px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 border shadow-sm ${
-                       item.status === 'finalizado'
-                       ? 'bg-success text-white border-success hover:bg-success/90'
-                       : 'bg-white text-muted-foreground border-border/40 hover:border-success/40 hover:text-success'
-                     }`}
-                   >
-                     {item.status === 'finalizado' ? (
-                       <><CheckCircle className="w-4 h-4" /> Finalizado</>
-                     ) : (
-                       <><Clock className="w-4 h-4" /> Marcar como Finalizado</>
+                   {((viewOrder.orderType === 'instalacao' || viewOrder.orderType === 'manutencao') && viewOrder.items.length > 1) && (
+                     <div className="flex flex-wrap gap-2 w-full lg:w-auto shrink-0 mt-2 lg:mt-0">
+                     {(!item.status || item.status === 'pendente') && (
+                       <button
+                         onClick={async () => {
+                           const newItems = [...viewOrder.items];
+                           newItems[itemIdx] = { ...newItems[itemIdx], status: 'em_producao' };
+                           try {
+                             await updateOrder(viewOrder.id, { items: newItems });
+                             toast.success(`Item "${item.product}" iniciado!`);
+                           } catch (err) {
+                             toast.error("Erro ao iniciar item.");
+                           }
+                         }}
+                         className="flex-1 lg:flex-none px-6 py-3 rounded-xl bg-producao text-white text-[11px] font-black uppercase tracking-widest hover:bg-producao/90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-producao/20 active:scale-95"
+                       >
+                         <Play className="w-4 h-4" /> Iniciar Produção
+                       </button>
                      )}
-                   </button>
+
+                     {item.status === 'em_producao' && (
+                       <button
+                         onClick={async () => {
+                           const newItems = [...viewOrder.items];
+                           newItems[itemIdx] = { ...newItems[itemIdx], status: 'finalizado' };
+                           try {
+                             await updateOrder(viewOrder.id, { items: newItems });
+                             toast.success(`Item "${item.product}" finalizado!`);
+                           } catch (err) {
+                             toast.error("Erro ao finalizar item.");
+                           }
+                         }}
+                         className="flex-1 lg:flex-none px-6 py-3 rounded-xl bg-emerald-500 text-white text-[11px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95"
+                       >
+                         <CheckCircle className="w-4 h-4" /> Finalizar Item
+                       </button>
+                     )}
+                     
+                     {item.status === 'finalizado' && (
+                       <div className="flex items-center gap-2 bg-success/10 text-success px-4 py-3 rounded-xl border border-success/20">
+                          <CheckCircle className="w-4 h-4" />
+                          <span className="text-[11px] font-black uppercase tracking-widest">Concluído</span>
+                          <button
+                            onClick={async () => {
+                              const newItems = [...viewOrder.items];
+                              newItems[itemIdx] = { ...newItems[itemIdx], status: 'em_producao' };
+                              try {
+                                await updateOrder(viewOrder.id, { items: newItems });
+                                toast.success(`Item "${item.product}" reaberto!`);
+                              } catch (err) {
+                                toast.error("Erro ao reabrir item.");
+                              }
+                            }}
+                            className="ml-2 p-1 hover:bg-success/20 rounded-md transition-colors"
+                            title="Refazer Item"
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                          </button>
+                       </div>
+                     )}
+                   </div>
+                 )}
                 </div>
               ))}
            </div>
@@ -2323,6 +2374,24 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                                       </div>
                                       <span className="font-bold text-[10px] sm:text-[11px] uppercase tracking-tight truncate max-w-[150px]">{i.product}</span>
                                       
+                                      {i.installationDate && (
+                                        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-primary/10 text-primary border border-primary/20 text-[8px] font-black">
+                                          <Calendar className="w-2.5 h-2.5" /> {fmtDate(i.installationDate)}
+                                        </div>
+                                      )}
+
+                                      {i.status === 'finalizado' && (
+                                         <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-success/10 text-success border border-success/20 text-[8px] font-black animate-in fade-in zoom-in-95">
+                                           <CheckCircle className="w-2.5 h-2.5" /> OK
+                                         </div>
+                                      )}
+                                      
+                                      {i.status === 'em_producao' && (
+                                         <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-producao/10 text-producao border border-producao/20 text-[8px] font-black animate-pulse">
+                                           <Play className="w-2.5 h-2.5" /> INICIADO
+                                         </div>
+                                      )}
+
                                       {i.sensorType === 'com_sensor' && (
                                         <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 group-hover/item:animate-pulse">
                                           <Zap className="w-2.5 h-2.5 fill-current" />

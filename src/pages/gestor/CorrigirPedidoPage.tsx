@@ -92,10 +92,8 @@ const CorrigirPedidoPage: React.FC = () => {
     
     setLoading(true);
     try {
-      // Recalcular totais se houver mudança nos itens
-      const calculatedSubtotal = items.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
+      // Os totais já estão calculados via useMemo
       const originalTaxes = selectedOrder?.taxes || 0;
-      const calculatedTotal = calculatedSubtotal + originalTaxes;
 
       // Se mudar para instalação/manutenção e não tiver data, avisa
       if ((orderType === 'instalacao' || orderType === 'manutencao') && (!installationDate || !installationTime)) {
@@ -195,6 +193,28 @@ const CorrigirPedidoPage: React.FC = () => {
     newItems[index] = { ...newItems[index], [field]: value };
     setItems(newItems);
   };
+
+  const addItem = () => {
+    setItems(prev => [...prev, { product: '', quantity: 1, unitPrice: 0 }]);
+  };
+
+  const removeItem = (index: number) => {
+    if (items.length <= 1) {
+      toast.error('O pedido deve ter pelo menos um item.');
+      return;
+    }
+    setItems(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const calculatedSubtotal = useMemo(() => 
+    items.reduce((sum, item) => sum + (Number(item.unitPrice || 0) * Number(item.quantity || 0)), 0),
+    [items]
+  );
+  
+  const calculatedTotal = useMemo(() => 
+    calculatedSubtotal + (selectedOrder?.taxes || 0),
+    [calculatedSubtotal, selectedOrder]
+  );
 
   const CARRIERS = ['JADLOG', 'MOTOBOY', 'KLEYTON', 'LALAMOVE', 'RETIRADA NA LOJA'];
 
@@ -421,7 +441,15 @@ const CorrigirPedidoPage: React.FC = () => {
                   </label>
                   <div className="space-y-4">
                     {items.map((item, idx) => (
-                      <div key={idx} className="p-4 rounded-xl bg-muted/30 border border-border/40 space-y-3">
+                      <div key={idx} className="p-4 rounded-xl bg-muted/30 border border-border/40 space-y-3 relative group/item">
+                        <button 
+                          onClick={() => removeItem(idx)}
+                          className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-destructive text-white flex items-center justify-center shadow-lg opacity-0 group-hover/item:opacity-100 transition-all hover:scale-110 active:scale-95 z-10"
+                          title="Remover Item"
+                        >
+                          <Plus className="w-4 h-4 rotate-45" />
+                        </button>
+                        
                         <div className="flex flex-col gap-1">
                           <label className="text-[9px] font-black uppercase text-muted-foreground">Produto</label>
                           <select
@@ -451,7 +479,7 @@ const CorrigirPedidoPage: React.FC = () => {
                               type="number"
                               className="input-modern h-10 bg-white border-2 text-sm font-black"
                               value={item.quantity}
-                              onChange={(e) => handleItemChange(idx, 'quantity', parseInt(e.target.value))}
+                              onChange={(e) => handleItemChange(idx, 'quantity', parseInt(e.target.value) || 0)}
                             />
                           </div>
                           <div className="flex flex-col gap-1">
@@ -460,12 +488,26 @@ const CorrigirPedidoPage: React.FC = () => {
                               type="number"
                               className="input-modern h-10 bg-white border-2 text-sm font-bold"
                               value={item.unitPrice}
-                              onChange={(e) => handleItemChange(idx, 'unitPrice', parseFloat(e.target.value))}
+                              onChange={(e) => handleItemChange(idx, 'unitPrice', parseFloat(e.target.value) || 0)}
                             />
                           </div>
                         </div>
                       </div>
                     ))}
+                    
+                    <button 
+                      onClick={addItem}
+                      className="w-full py-3 rounded-xl border-2 border-dashed border-primary/30 text-primary flex items-center justify-center gap-2 hover:bg-primary/5 transition-all text-[10px] font-black uppercase"
+                    >
+                      <Plus className="w-4 h-4" /> Adicionar Produto
+                    </button>
+
+                    <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase text-primary">Novo Total do Pedido:</span>
+                      <span className="text-xl font-black text-primary">
+                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(calculatedTotal)}
+                      </span>
+                    </div>
                   </div>
                 </div>
 

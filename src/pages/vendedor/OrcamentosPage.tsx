@@ -329,8 +329,8 @@ const OrcamentosPage: React.FC = () => {
 
   // Form state for new/edit order
   const [newClientId, setNewClientId] = useState(preSelectedClientId);
-  const [newItems, setNewItems] = useState<{ product: string; description: string; quantity: number; unitPrice: string | number; sensorType?: 'com_sensor' | 'sem_sensor'; isReward?: boolean; rewardId?: string }[]>(
-    [{ product: '', description: '', quantity: 1, unitPrice: '' }]
+  const [newItems, setNewItems] = useState<{ product: string; description: string; quantity: number; unitPrice: string | number; sensorType?: 'com_sensor' | 'sem_sensor'; isReward?: boolean; rewardId?: string; installationDate?: string; installationTime?: string; showCalendar?: boolean }[]>(
+    [{ product: '', description: '', quantity: 1, unitPrice: '', installationDate: '', installationTime: '', showCalendar: false }]
   );
   const [newNotes, setNewNotes] = useState('');
   const [newObservation, setNewObservation] = useState('');
@@ -496,9 +496,9 @@ const OrcamentosPage: React.FC = () => {
     }
   };
 
-  const addItem = () => setNewItems(prev => [...prev, { product: '', description: '', quantity: 1, unitPrice: '' }]);
+  const addItem = () => setNewItems(prev => [...prev, { product: '', description: '', quantity: 1, unitPrice: '', installationDate: '', installationTime: '', showCalendar: false }]);
   const removeItem = (i: number) => setNewItems(prev => prev.filter((_, idx) => idx !== i));
-  const updateItem = (i: number, field: string, value: string | number) => {
+  const updateItem = (i: number, field: string, value: any) => {
     setNewItems(prev => prev.map((item, idx) => idx === i ? { ...item, [field]: value } : item));
   };
 
@@ -517,6 +517,9 @@ const OrcamentosPage: React.FC = () => {
       quantity: i.quantity,
       unitPrice: formatMoeda(String((i.unitPrice || 0) * 100)),
       sensorType: i.sensorType,
+      installationDate: i.installationDate || '',
+      installationTime: i.installationTime || '',
+      showCalendar: false,
     })));
     setNewNotes(order.notes || '');
     setNewObservation(order.observation || '');
@@ -534,7 +537,7 @@ const OrcamentosPage: React.FC = () => {
     setEditingOrder(null);
     setShowCreate(false);
     setNewClientId('');
-    setNewItems([{ product: '', description: '', quantity: 1, unitPrice: '' }]);
+    setNewItems([{ product: '', description: '', quantity: 1, unitPrice: '', installationDate: '', installationTime: '', showCalendar: false }]);
     setNewNotes('');
     setNewObservation('');
     setNewDeliveryDate('');
@@ -609,16 +612,30 @@ const OrcamentosPage: React.FC = () => {
 
     // Validação extra para instalação/manutenção
     if (newOrderType === 'instalacao' || newOrderType === 'manutencao') {
-      if (!newDeliveryDate || !newInstallationTime) {
-        setFormError(`⚠️ Informe a data e o horário da ${newOrderType === 'instalacao' ? 'instalação' : 'manutenção'}.`);
+      // Se houver agendamento por item, validamos os itens
+      const itemsWithSchedule = newItems.filter(i => i.installationDate && i.installationTime);
+      
+      if (itemsWithSchedule.length === 0 && (!newDeliveryDate || !newInstallationTime)) {
+        setFormError(`⚠️ Informe a data e o horário da ${newOrderType === 'instalacao' ? 'instalação' : 'manutenção'}. Você pode agendar cada item individualmente.`);
         return;
       }
 
-      // Verifica conflito de horário
-      const hasConflict = await checkInstallationConflict(newDeliveryDate, newInstallationTime);
-      if (hasConflict && !editingOrder) {
-        setFormError('⚠️ Este horário já está ocupado. Escolha outro.');
-        return;
+      // Verifica conflitos para o agendamento global (se houver)
+      if (newDeliveryDate && newInstallationTime) {
+        const hasConflict = await checkInstallationConflict(newDeliveryDate, newInstallationTime);
+        if (hasConflict && !editingOrder) {
+          setFormError('⚠️ O horário global escolhido já está ocupado. Escolha outro.');
+          return;
+        }
+      }
+
+      // Verifica conflitos para cada item agendado
+      for (const item of itemsWithSchedule) {
+        const hasConflict = await checkInstallationConflict(item.installationDate!, item.installationTime!);
+        if (hasConflict && !editingOrder) {
+          setFormError(`⚠️ O horário para o item "${item.product}" (${item.installationTime}) já está ocupado.`);
+          return;
+        }
       }
     }
 
@@ -647,6 +664,8 @@ const OrcamentosPage: React.FC = () => {
               sensorType: item.sensorType,
               isReward: (item as any).isReward,
               rewardId: (item as any).rewardId,
+              installationDate: item.installationDate,
+              installationTime: item.installationTime,
             };
           }),
           subtotal,
@@ -671,15 +690,35 @@ const OrcamentosPage: React.FC = () => {
         // Se mudou para instalação/manutenção ou alterou dados, atualiza agenda
         if (newOrderType === 'instalacao' || newOrderType === 'manutencao') {
           await deleteInstallationByOrder(updatedOrder.id);
-          await saveInstallation({
-            order_id: updatedOrder.id,
-            seller_id: user?.id || '1',
-            client_name: client.name,
-            date: newDeliveryDate,
-            time: newInstallationTime,
-            payment_type: newInstallationPaymentType,
-            type: newOrderType
-          });
+          
+          // Se houver agendamento global, salva ele
+          if (newDeliveryDate && newInstallationTime) {
+            await saveInstallation({
+              order_id: updatedOrder.id,
+              seller_id: user?.id || '1',
+              client_name: client.name,
+              date: newDeliveryDate,
+              time: newInstallationTime,
+              payment_type: newInstallationPaymentType,
+              type: newOrderType
+            });
+          }
+
+          // Salva agendamentos individuais por item
+          for (const item of newItems) {
+            if (item.installationDate && item.installationTime) {
+              await saveInstallation({
+                order_id: updatedOrder.id,
+                seller_id: user?.id || '1',
+                client_name: client.name,
+                product_name: item.product,
+                date: item.installationDate,
+                time: item.installationTime,
+                payment_type: newInstallationPaymentType,
+                type: newOrderType
+              });
+            }
+          }
         } else if ((editingOrder.orderType === 'instalacao' || editingOrder.orderType === 'manutencao') && newOrderType === 'entrega') {
           await deleteInstallationByOrder(updatedOrder.id);
         }
@@ -738,6 +777,8 @@ const OrcamentosPage: React.FC = () => {
                 sensorType: item.sensorType || (item.product.toUpperCase().includes('KIT') ? 'com_sensor' : undefined),
                 isReward: (item as any).isReward,
                 rewardId: (item as any).rewardId,
+                installationDate: item.installationDate,
+                installationTime: item.installationTime,
               };
             }),
             subtotal,
@@ -775,15 +816,34 @@ const OrcamentosPage: React.FC = () => {
           await addOrder(order);
 
           if (newOrderType === 'instalacao' || newOrderType === 'manutencao') {
-            await saveInstallation({
-              order_id: order.id,
-              seller_id: user?.id || '1',
-              client_name: client.name,
-              date: newDeliveryDate,
-              time: newInstallationTime,
-              payment_type: newInstallationPaymentType,
-              type: newOrderType
-            });
+            // Salva agendamento global se houver
+            if (newDeliveryDate && newInstallationTime) {
+              await saveInstallation({
+                order_id: order.id,
+                seller_id: user?.id || '1',
+                client_name: client.name,
+                date: newDeliveryDate,
+                time: newInstallationTime,
+                payment_type: newInstallationPaymentType,
+                type: newOrderType
+              });
+            }
+
+            // Salva agendamentos individuais por item
+            for (const item of newItems) {
+              if (item.installationDate && item.installationTime) {
+                await saveInstallation({
+                  order_id: order.id,
+                  seller_id: user?.id || '1',
+                  client_name: client.name,
+                  product_name: item.product,
+                  date: item.installationDate,
+                  time: item.installationTime,
+                  payment_type: newInstallationPaymentType,
+                  type: newOrderType
+                });
+              }
+            }
           }
 
           setFormError('');
@@ -1251,55 +1311,112 @@ const OrcamentosPage: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="mt-8 pt-8 border-t border-border/10 flex flex-col md:flex-row gap-8 items-end">
-                      <div className="flex-1 space-y-2 w-full">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1 italic opacity-60">Especificações Técnicas / Observações do Item</label>
-                        <input
-                          placeholder="Ex: Cor personalizada, voltagem especial, detalhes de montagem..."
-                          value={item.description}
-                          onChange={e => updateItem(i, 'description', e.target.value)}
-                          className="input-modern py-3 text-xs h-12 bg-white/70 border-white/60 shadow-sm"
-                        />
-                      </div>
+                    <div className="mt-8 pt-8 border-t border-border/10">
+                      <div className="flex flex-col md:flex-row gap-8 items-start">
+                        <div className="flex-1 space-y-2 w-full">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1 italic opacity-60">Especificações Técnicas / Observações do Item</label>
+                          <input
+                            placeholder="Ex: Cor personalizada, voltagem especial, detalhes de montagem..."
+                            value={item.description}
+                            onChange={e => updateItem(i, 'description', e.target.value)}
+                            className="input-modern py-3 text-xs h-12 bg-white/70 border-white/60 shadow-sm"
+                          />
+                        </div>
 
-                      <div className="flex items-center gap-4 self-stretch md:self-end">
-                        {item.product.toUpperCase().includes('KIT') ? (
-                          <div className="flex flex-col gap-2">
-                            <label className="text-[9px] font-black uppercase tracking-widest text-primary ml-1">Kit Sensor</label>
-                            <div className="flex gap-2 p-1.5 bg-black/5 rounded-2xl border border-black/5">
-                              <button
-                                type="button"
-                                onClick={() => updateItem(i, 'sensorType', 'com_sensor')}
-                                className={`px-5 py-3 rounded-xl text-[9px] font-black uppercase transition-all flex items-center justify-center gap-2 ${item.sensorType === 'com_sensor'
-                                  ? 'bg-primary text-white shadow-lg'
-                                  : 'bg-white/40 text-muted-foreground hover:bg-white'
-                                  }`}
-                              >
-                                {item.sensorType === 'com_sensor' && <CheckCircle2 className="w-3 h-3 animate-scale-in" />} COM SENSOR
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => updateItem(i, 'sensorType', 'sem_sensor')}
-                                className={`px-5 py-3 rounded-xl text-[9px] font-black uppercase transition-all flex items-center justify-center gap-2 ${item.sensorType === 'sem_sensor'
-                                  ? 'bg-slate-500 text-white shadow-lg'
-                                  : 'bg-white/40 text-muted-foreground hover:bg-white'
-                                  }`}
-                              >
-                                {item.sensorType === 'sem_sensor' && <CheckCircle2 className="w-3 h-3 animate-scale-in" />} SEM SENSOR
-                              </button>
+                        <div className="flex items-center gap-4 self-stretch md:self-end">
+                          {item.product.toUpperCase().includes('KIT') ? (
+                            <div className="flex flex-col gap-2">
+                              <label className="text-[9px] font-black uppercase tracking-widest text-primary ml-1">Kit Sensor</label>
+                              <div className="flex gap-2 p-1.5 bg-black/5 rounded-2xl border border-black/5">
+                                <button
+                                  type="button"
+                                  onClick={() => updateItem(i, 'sensorType', 'com_sensor')}
+                                  className={`px-5 py-3 rounded-xl text-[9px] font-black uppercase transition-all flex items-center justify-center gap-2 ${item.sensorType === 'com_sensor'
+                                    ? 'bg-primary text-white shadow-lg'
+                                    : 'bg-white/40 text-muted-foreground hover:bg-white'
+                                    }`}
+                                >
+                                  {item.sensorType === 'com_sensor' && <CheckCircle2 className="w-3 h-3 animate-scale-in" />} COM SENSOR
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => updateItem(i, 'sensorType', 'sem_sensor')}
+                                  className={`px-5 py-3 rounded-xl text-[9px] font-black uppercase transition-all flex items-center justify-center gap-2 ${item.sensorType === 'sem_sensor'
+                                    ? 'bg-slate-500 text-white shadow-lg'
+                                    : 'bg-white/40 text-muted-foreground hover:bg-white'
+                                    }`}
+                                >
+                                  {item.sensorType === 'sem_sensor' && <CheckCircle2 className="w-3 h-3 animate-scale-in" />} SEM SENSOR
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        ) : null}
+                          ) : null}
 
-                        {newItems.length > 1 && (
-                          <button
-                            onClick={() => removeItem(i)}
-                            className="w-12 h-12 rounded-2xl bg-destructive/10 text-destructive hover:bg-destructive hover:text-white transition-all flex items-center justify-center border border-destructive/10 shadow-lg shadow-destructive/5 self-end mb-1"
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </button>
-                        )}
+                          {newItems.length > 1 && (
+                            <button
+                              onClick={() => removeItem(i)}
+                              className="w-12 h-12 rounded-2xl bg-destructive/10 text-destructive hover:bg-destructive hover:text-white transition-all flex items-center justify-center border border-destructive/10 shadow-lg shadow-destructive/5 self-end mb-1"
+                            >
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
+
+                      {/* Agendamento Individual de Item - COMPACTO E RETRÁTIL */}
+                      {(newOrderType === 'instalacao' || newOrderType === 'manutencao') && item.product && (
+                        <div className="mt-6 p-4 rounded-[2rem] bg-slate-50 border border-border/40 space-y-4 animate-in fade-in slide-in-from-top-2">
+                          <div className="flex items-center justify-between px-2">
+                             <div className="flex items-center gap-3">
+                               <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${item.installationDate ? 'bg-success text-white shadow-lg shadow-success/20' : 'bg-primary/10 text-primary'}`}>
+                                 <CalendarIcon className="w-5 h-5" />
+                               </div>
+                               <div>
+                                 <p className="text-[10px] font-black uppercase tracking-widest text-foreground">
+                                   Agendamento do Item
+                                 </p>
+                                 <p className="text-[11px] font-bold text-muted-foreground">
+                                   {item.installationDate 
+                                     ? `${formatDate(item.installationDate)} às ${item.installationTime}`
+                                     : 'Não agendado'}
+                                 </p>
+                               </div>
+                             </div>
+                             
+                             <div className="flex items-center gap-2">
+                               {item.installationDate && (
+                                 <button 
+                                   onClick={() => { updateItem(i, 'installationDate', ''); updateItem(i, 'installationTime', ''); }}
+                                   className="h-9 px-4 rounded-xl text-[9px] font-black uppercase text-rose-500 hover:bg-rose-500/10 transition-all border border-rose-500/20"
+                                 >
+                                   Limpar
+                                 </button>
+                               )}
+                               <button 
+                                 onClick={() => updateItem(i, 'showCalendar', !item.showCalendar)}
+                                 className={`h-9 px-4 rounded-xl text-[9px] font-black uppercase transition-all border ${item.showCalendar ? 'bg-primary text-white shadow-lg' : 'bg-white text-primary border-primary/20 hover:bg-primary/5'}`}
+                               >
+                                 {item.showCalendar ? 'Fechar Agenda' : item.installationDate ? 'Alterar Horário' : 'Selecionar Horário'}
+                               </button>
+                             </div>
+                          </div>
+
+                          {item.showCalendar && (
+                            <div className="pt-2 animate-in slide-in-from-top-4 duration-300">
+                              <InstallationCalendar
+                                compact
+                                selectedDate={item.installationDate}
+                                selectedTime={item.installationTime}
+                                onSelect={(date, time) => {
+                                  updateItem(i, 'installationDate', date);
+                                  updateItem(i, 'installationTime', time);
+                                  updateItem(i, 'showCalendar', false); // Fecha após selecionar
+                                }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1406,7 +1523,7 @@ const OrcamentosPage: React.FC = () => {
                               : 'bg-white/60 border-white/80 text-muted-foreground'
                               }`}
                           >
-                            {p === 'pago' ? '💳 Já Pago' : '🤝 Na Hora'}
+                            {p === 'pago' ? '💳 Já Pago' : '🤝 Pagar na Retirada'}
                           </button>
                         ))}
                       </div>
@@ -1435,7 +1552,7 @@ const OrcamentosPage: React.FC = () => {
                             : 'bg-white/60 border-white/80 text-muted-foreground'
                             }`}
                         >
-                          {p === 'pago' ? '💳 Já Pago' : '🤝 Na Hora'}
+                          {p === 'pago' ? '💳 Já Pago' : '🤝 Pagar na Hora'}
                         </button>
                       ))}
                     </div>
@@ -1615,7 +1732,7 @@ const OrcamentosPage: React.FC = () => {
                     ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30'
                     : 'bg-amber-500/20 text-amber-700 border-amber-500/40'
                   }`}>
-                  {selectedOrder.installationPaymentType === 'pago' ? '✅ Já pago' : '⚠️ Pagar na hora'}
+                  {selectedOrder.installationPaymentType === 'pago' ? '✅ Já pago' : `⚠️ Pagar na ${selectedOrder.orderType === 'retirada' ? 'Retirada' : 'Instalação'}`}
                 </span>
               )}
             </div>
@@ -1656,12 +1773,21 @@ const OrcamentosPage: React.FC = () => {
                 {selectedOrder.items.map(item => (
                   <tr key={item.id}>
                     <td className="text-foreground font-medium">
-                      {item.product}
-                      {item.product.toUpperCase().includes('KIT') && (
-                        <span className={`ml-2 text-xs font-semibold px-2 py-1 rounded-full ${(!item.sensorType || item.sensorType === 'com_sensor') ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'} border border-primary/30`}>
-                          {(!item.sensorType || item.sensorType === 'com_sensor') ? '✅ COM SENSOR' : '⚪ SEM SENSOR'}
+                      <div className="flex flex-col">
+                        <span className="flex items-center gap-2">
+                          {item.product}
+                          {item.product.toUpperCase().includes('KIT') && (
+                            <span className={`text-xs font-semibold px-2 py-1 rounded-full ${(!item.sensorType || item.sensorType === 'com_sensor') ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'} border border-primary/30`}>
+                              {(!item.sensorType || item.sensorType === 'com_sensor') ? '✅ COM SENSOR' : '⚪ SEM SENSOR'}
+                            </span>
+                          )}
                         </span>
-                      )}
+                        {(item.installationDate || item.installationTime) && (
+                          <span className="text-[10px] font-black text-primary mt-1 flex items-center gap-1">
+                            📅 Agendado para: {formatDate(item.installationDate)} {item.installationTime ? `às ${item.installationTime}` : ''}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="text-muted-foreground text-xs">{item.description || '—'}</td>
                     <td className="text-right text-foreground">{item.quantity}</td>

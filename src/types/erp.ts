@@ -39,6 +39,8 @@ export interface QuoteItem {
   sensorType?: 'com_sensor' | 'sem_sensor';  // para produtos KIT
   isReward?: boolean;
   rewardId?: string;
+  installationDate?: string; // Data individual para este item
+  installationTime?: string; // Horário individual para este item
 }
 
 export type OrderStatus =
@@ -277,8 +279,8 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
   aguardando_producao: 'Aguardando Produção',
   em_producao: 'Em Produção',
   producao_finalizada: 'Produção Finalizada',
-  produto_liberado: 'Aguardando entregador',
-  retirado_entregador: 'Retirado pelo entregador',
+  produto_liberado: 'Liberado / Aguardando',
+  retirado_entregador: 'Retirado / Finalizado',
   extraviado: 'Extraviado',
   planejamento: 'Previsão de Produção',
 };

@@ -8,13 +8,14 @@ interface InstallationCalendarProps {
     onSelect: (date: string, time: string) => void;
     selectedDate?: string;
     selectedTime?: string;
+    compact?: boolean;
 }
 
 const TIMES = [
     '08:00', '09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00', '17:00'
 ];
 
-export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSelect, selectedDate, selectedTime }) => {
+export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSelect, selectedDate, selectedTime, compact }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [appointments, setAppointments] = useState<InstallationAppointment[]>([]);
     const [loading, setLoading] = useState(false);
@@ -54,23 +55,23 @@ export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSe
     };
 
     return (
-        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="flex items-center justify-between p-3 bg-muted/30 rounded-2xl border border-border/40">
-                <button onClick={() => setCurrentDate(prev => addDays(prev, -1))} className="p-2 hover:bg-background rounded-xl transition-colors">
-                    <ChevronLeft className="w-5 h-5" />
+        <div className={`${compact ? 'space-y-2' : 'space-y-4'} animate-in fade-in slide-in-from-bottom-4 duration-500`}>
+            <div className={`flex items-center justify-between ${compact ? 'p-2' : 'p-3'} bg-muted/30 rounded-2xl border border-border/40`}>
+                <button onClick={() => setCurrentDate(prev => addDays(prev, -1))} className={`${compact ? 'p-1' : 'p-2'} hover:bg-background rounded-xl transition-colors`}>
+                    <ChevronLeft className={compact ? 'w-4 h-4' : 'w-5 h-5'} />
                 </button>
                 <div className="text-center">
-                    <p className="text-[10px] font-bold text-primary uppercase tracking-widest mb-0.5">Dia Selecionado</p>
-                    <p className="text-sm font-black text-foreground capitalize">
-                        {format(currentDate, "EEEE, dd 'de' MMMM", { locale: ptBR })}
+                    {!compact && <p className="text-[10px] font-bold text-primary uppercase tracking-widest mb-0.5">Dia Selecionado</p>}
+                    <p className={`${compact ? 'text-xs' : 'text-sm'} font-black text-foreground capitalize`}>
+                        {format(currentDate, compact ? "EEEE, dd/MM" : "EEEE, dd 'de' MMMM", { locale: ptBR })}
                     </p>
                 </div>
-                <button onClick={() => setCurrentDate(prev => addDays(prev, 1))} className="p-2 hover:bg-background rounded-xl transition-colors">
-                    <ChevronRight className="w-5 h-5" />
+                <button onClick={() => setCurrentDate(prev => addDays(prev, 1))} className={`${compact ? 'p-1' : 'p-2'} hover:bg-background rounded-xl transition-colors`}>
+                    <ChevronRight className={compact ? 'w-4 h-4' : 'w-5 h-5'} />
                 </button>
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className={`grid ${compact ? 'grid-cols-5' : 'grid-cols-3'} gap-2`}>
                 {TIMES.map(time => {
                     const occupied = isTimeOccupied(time);
                     const isSelected = selectedDate === format(currentDate, 'yyyy-MM-dd') && selectedTime === time;
@@ -83,7 +84,7 @@ export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSe
                             disabled={occupied && !isSelected}
                             onClick={() => onSelect(format(currentDate, 'yyyy-MM-dd'), time)}
                             className={`
-                p-4 rounded-2xl border-2 flex flex-col items-center justify-center gap-1 transition-all
+                ${compact ? 'p-2' : 'p-4'} rounded-xl border-2 flex flex-col items-center justify-center gap-0.5 transition-all
                 ${occupied
                                     ? 'bg-destructive/5 border-destructive/20 text-destructive/60 cursor-not-allowed'
                                     : isSelected
@@ -92,9 +93,8 @@ export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSe
                                 }
                `}
                         >
-                            <Clock className={`w-4 h-4 ${isSelected ? 'animate-pulse' : ''}`} />
-                            <span className="text-sm font-black tracking-tight">{time}</span>
-                            {occupied && (
+                            <span className={`${compact ? 'text-[10px]' : 'text-sm'} font-black tracking-tight`}>{time}</span>
+                            {occupied && !compact && (
                                 <div className="flex flex-col items-center gap-0.5">
                                     <span className="text-[9px] font-bold uppercase truncate max-w-[80px] italic">
                                         {info?.name || 'Indisponível'}
@@ -104,28 +104,31 @@ export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSe
                                     </span>
                                 </div>
                             )}
+                            {occupied && compact && <div className="w-1 h-1 rounded-full bg-destructive/40" />}
                         </button>
                     );
                 })}
             </div>
 
             {loading && (
-                <div className="flex items-center justify-center gap-2 py-4 text-muted-foreground animate-pulse">
-                    <div className="w-4 h-4 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
-                    <span className="text-xs font-bold uppercase tracking-widest">Sincronizando agenda...</span>
+                <div className="flex items-center justify-center gap-2 py-2 text-muted-foreground animate-pulse">
+                    <div className="w-3 h-3 border-2 border-primary/20 border-t-primary rounded-full animate-spin" />
+                    <span className="text-[9px] font-bold uppercase tracking-widest">Sincronizando...</span>
                 </div>
             )}
 
-            <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/20 flex gap-3">
-                <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                    <p className="text-xs font-bold text-amber-600">Agenda Compartilhada</p>
-                    <p className="text-[11px] text-amber-600/80 leading-relaxed font-medium">
-                        Horários marcados em vermelho já estão ocupados por outros vendedores.
-                        Escolha um horário vago para evitar conflitos de instalação.
-                    </p>
+            {!compact && (
+                <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/20 flex gap-3">
+                    <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                        <p className="text-xs font-bold text-amber-600">Agenda Compartilhada</p>
+                        <p className="text-[11px] text-amber-600/80 leading-relaxed font-medium">
+                            Horários marcados em vermelho já estão ocupados por outros vendedores.
+                            Escolha um horário vago para evitar conflitos de instalação.
+                        </p>
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 };

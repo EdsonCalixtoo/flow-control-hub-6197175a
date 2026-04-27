@@ -1253,7 +1253,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                             ? 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30'
                             : 'bg-amber-500/20 text-amber-700 border-amber-500/40 shadow-sm shadow-amber-500/10'
                         }`}>
-                          {selectedOrder.installationPaymentType === 'pago' ? '✅ Já pago' : '⚠️ Pagar na hora da retirada'}
+                          {selectedOrder.installationPaymentType === 'pago' ? '✅ Já pago' : `⚠️ Pagar na ${selectedOrder.orderType === 'retirada' ? 'Retirada' : 'Instalação'}`}
                         </span>
                       )}
                       {(selectedOrder.orderType === 'instalacao' || selectedOrder.orderType === 'manutencao') && selectedOrder.installationDate && (

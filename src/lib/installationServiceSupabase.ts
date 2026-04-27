@@ -5,6 +5,7 @@ export interface InstallationAppointment {
     order_id: string;
     seller_id: string;
     client_name: string;
+    product_name?: string; // Produto específico agendado
     date: string;
     time: string;
     payment_type: 'pago' | 'pagar_na_hora';

@@ -6,7 +6,7 @@ import { cleanR2Url } from '@/lib/storageServiceR2';
 import { StatusBadge, formatCurrency, formatDate } from '@/components/shared/StatusBadge';
 import { OrderPipeline, OrderHistory } from '@/components/shared/OrderTimeline';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
-import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check, Download, Link2, DollarSign, CheckCircle, Users, Package, Truck, CheckCircle2, XCircle, ChevronDown, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Zap } from 'lucide-react';
+import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check, Download, Link2, DollarSign, CheckCircle, Users, Package, Truck, CheckCircle2, XCircle, ChevronDown, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Zap, Info } from 'lucide-react';
 import type { Order, QuoteItem } from '@/types/erp';
 import { useLocation, useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
@@ -1373,12 +1373,12 @@ const OrcamentosPage: React.FC = () => {
                                </div>
                                <div>
                                  <p className="text-[10px] font-black uppercase tracking-widest text-foreground">
-                                   Agendamento do Item
+                                   Agendamento - Produto {i + 1}
                                  </p>
                                  <p className="text-[11px] font-bold text-muted-foreground">
                                    {item.installationDate 
                                      ? `${formatDate(item.installationDate)} às ${item.installationTime}`
-                                     : 'Não agendado'}
+                                     : 'Horário não definido'}
                                  </p>
                                </div>
                              </div>
@@ -1407,6 +1407,14 @@ const OrcamentosPage: React.FC = () => {
                                 compact
                                 selectedDate={item.installationDate}
                                 selectedTime={item.installationTime}
+                                excludeAppointments={newItems
+                                  .filter((_, idx) => idx !== i)
+                                  .map(it => ({ 
+                                    date: it.installationDate || '', 
+                                    time: it.installationTime || '' 
+                                  }))
+                                  .filter(it => it.date && it.time)
+                                }
                                 onSelect={(date, time) => {
                                   updateItem(i, 'installationDate', date);
                                   updateItem(i, 'installationTime', time);
@@ -1533,14 +1541,36 @@ const OrcamentosPage: React.FC = () => {
 
                 {(newOrderType === 'instalacao' || newOrderType === 'manutencao') && (
                   <div className="space-y-8 animate-in fade-in slide-in-from-right-10 duration-700">
-                    <InstallationCalendar
-                      selectedDate={newDeliveryDate}
-                      selectedTime={newInstallationTime}
-                      onSelect={(date, time) => {
-                        setNewDeliveryDate(date);
-                        setNewInstallationTime(time);
-                      }}
-                    />
+                    <div className="p-6 rounded-[2.5rem] bg-primary/5 border border-primary/20 space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                          <Info className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-primary">Agendamento Multi-Item</p>
+                          <p className="text-[11px] font-bold text-muted-foreground leading-tight">Defina os horários individualmente em cada item do carrinho acima.</p>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        {newItems.map((item, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-white/50 border border-white/60">
+                            <span className="text-[10px] font-black text-foreground uppercase truncate max-w-[120px]">
+                              {idx + 1}. {item.product || 'Produto não selecionado'}
+                            </span>
+                            {item.installationDate ? (
+                              <span className="px-2 py-1 rounded-lg bg-success/10 text-success text-[9px] font-black">
+                                {formatDate(item.installationDate)}
+                              </span>
+                            ) : (
+                              <span className="px-2 py-1 rounded-lg bg-muted text-muted-foreground text-[9px] font-black italic">
+                                PENDENTE
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                     <div className="grid grid-cols-2 gap-3">
                       {(['pago', 'pagar_na_hora'] as const).map(p => (
                         <button

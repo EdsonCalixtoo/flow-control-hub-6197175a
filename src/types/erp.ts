@@ -41,6 +41,7 @@ export interface QuoteItem {
   rewardId?: string;
   installationDate?: string; // Data individual para este item
   installationTime?: string; // Horário individual para este item
+  status?: 'pendente' | 'finalizado'; // Status de produção do item individual
 }
 
 export type OrderStatus =

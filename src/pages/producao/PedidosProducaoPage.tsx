@@ -1841,22 +1841,58 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
               <div className="px-2 py-0.5 rounded-full bg-background/10 text-background text-[9px] font-black">{viewOrder.items.length} ITENS</div>
            </div>
            <div className="p-2 space-y-1">
-              {viewOrder.items.map((item) => (
-                <div key={item.id} className={`p-4 rounded-2xl flex items-center gap-6 transition-all border-b border-border/10 last:border-none ${item.sensorType === 'com_sensor' ? 'bg-emerald-500/[0.03]' : ''}`}>
-                   <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-xl font-black text-primary shrink-0 border border-border/10">
-                      {item.quantity}<span className="text-[9px] ml-0.5 mt-2 opacity-50">x</span>
+              {viewOrder.items.map((item, itemIdx) => (
+                <div key={item.id} className={`p-4 rounded-2xl flex flex-col sm:flex-row items-center gap-6 transition-all border-b border-border/10 last:border-none ${item.status === 'finalizado' ? 'bg-emerald-500/[0.05]' : item.sensorType === 'com_sensor' ? 'bg-emerald-500/[0.03]' : ''}`}>
+                   <div className="flex items-center gap-6 flex-1 w-full">
+                     <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-xl font-black text-primary shrink-0 border border-border/10">
+                        {item.quantity}<span className="text-[9px] ml-0.5 mt-2 opacity-50">x</span>
+                     </div>
+                     <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 mb-0.5 flex-wrap">
+                           <h5 className="text-lg font-black text-foreground tracking-tight uppercase truncate">{item.product}</h5>
+                           {item.product.toUpperCase().includes('KIT') && (
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase flex items-center gap-1.5 ${(!item.sensorType || item.sensorType === 'com_sensor') ? 'bg-emerald-500 text-white animate-pulse' : 'bg-muted text-muted-foreground'}`}>
+                                 {(!item.sensorType || item.sensorType === 'com_sensor') ? <><Zap className="w-3 h-3 fill-current" /> COM SENSOR</> : '⚪ SEM SENSOR'}
+                              </span>
+                           )}
+                           {item.status === 'finalizado' && (
+                             <span className="px-2 py-0.5 rounded-full bg-success/10 text-success text-[9px] font-black uppercase flex items-center gap-1">
+                               <CheckCircle className="w-3 h-3" /> CONCLUÍDO
+                             </span>
+                           )}
+                        </div>
+                        <p className="text-sm font-bold text-muted-foreground italic leading-tight truncate">{item.description || 'Nenhuma instrução adicional.'}</p>
+                     </div>
                    </div>
-                   <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-0.5">
-                         <h5 className="text-lg font-black text-foreground tracking-tight uppercase">{item.product}</h5>
-                         {item.product.toUpperCase().includes('KIT') && (
-                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase flex items-center gap-1.5 ${(!item.sensorType || item.sensorType === 'com_sensor') ? 'bg-emerald-500 text-white animate-pulse' : 'bg-muted text-muted-foreground'}`}>
-                               {(!item.sensorType || item.sensorType === 'com_sensor') ? <><Zap className="w-3 h-3 fill-current" /> COM SENSOR</> : '⚪ SEM SENSOR'}
-                            </span>
-                         )}
-                      </div>
-                      <p className="text-sm font-bold text-muted-foreground italic leading-tight">{item.description || 'Nenhuma instrução adicional.'}</p>
-                   </div>
+
+                   <button
+                     onClick={async () => {
+                       const newItems = [...viewOrder.items];
+                       const currentStatus = newItems[itemIdx].status;
+                       newItems[itemIdx] = { 
+                         ...newItems[itemIdx], 
+                         status: currentStatus === 'finalizado' ? 'pendente' : 'finalizado' 
+                       };
+                       
+                       try {
+                         await updateOrder(viewOrder.id, { items: newItems });
+                         toast.success(`Item "${item.product}" marcado como ${currentStatus === 'finalizado' ? 'pendente' : 'concluído'}!`);
+                       } catch (err) {
+                         toast.error("Erro ao atualizar status do item.");
+                       }
+                     }}
+                     className={`w-full sm:w-auto px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 border shadow-sm ${
+                       item.status === 'finalizado'
+                       ? 'bg-success text-white border-success hover:bg-success/90'
+                       : 'bg-white text-muted-foreground border-border/40 hover:border-success/40 hover:text-success'
+                     }`}
+                   >
+                     {item.status === 'finalizado' ? (
+                       <><CheckCircle className="w-4 h-4" /> Finalizado</>
+                     ) : (
+                       <><Clock className="w-4 h-4" /> Marcar como Finalizado</>
+                     )}
+                   </button>
                 </div>
               ))}
            </div>

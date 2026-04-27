@@ -9,13 +9,14 @@ interface InstallationCalendarProps {
     selectedDate?: string;
     selectedTime?: string;
     compact?: boolean;
+    excludeAppointments?: { date: string; time: string }[];
 }
 
 const TIMES = [
     '08:00', '09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00', '17:00'
 ];
 
-export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSelect, selectedDate, selectedTime, compact }) => {
+export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSelect, selectedDate, selectedTime, compact, excludeAppointments }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [appointments, setAppointments] = useState<InstallationAppointment[]>([]);
     const [loading, setLoading] = useState(false);
@@ -41,17 +42,44 @@ export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSe
     };
 
     const isTimeOccupied = (time: string) => {
-        // Normalizar formato do tempo do banco (pode vir HH:mm:ss)
-        return appointments.some(app => app.time.substring(0, 5) === time);
+        const dateStr = format(currentDate, 'yyyy-MM-dd');
+        
+        // 1. Verificar agendamentos salvos no banco
+        const dbOccupied = appointments.some(app => app.time.substring(0, 5) === time);
+        if (dbOccupied) return true;
+
+        // 2. Verificar agendamentos locais (do mesmo pedido que ainda não foram salvos)
+        if (excludeAppointments) {
+            return excludeAppointments.some(app => app.date === dateStr && app.time.substring(0, 5) === time);
+        }
+
+        return false;
     };
 
     const getOccupantInfo = (time: string) => {
+        const dateStr = format(currentDate, 'yyyy-MM-dd');
+        
+        // Primeiro checa agendamentos do banco
         const app = appointments.find(app => app.time.substring(0, 5) === time);
-        if (!app) return null;
-        return {
-            name: app.client_name,
-            type: app.type || 'instalacao'
-        };
+        if (app) {
+            return {
+                name: app.client_name,
+                type: app.type || 'instalacao'
+            };
+        }
+
+        // Se não for do banco, checa se é uma exclusão local (deste mesmo formulário)
+        if (excludeAppointments) {
+            const isLocal = excludeAppointments.some(app => app.date === dateStr && app.time.substring(0, 5) === time);
+            if (isLocal) {
+                return {
+                    name: 'Item deste Pedido',
+                    type: 'instalacao'
+                };
+            }
+        }
+
+        return null;
     };
 
     return (

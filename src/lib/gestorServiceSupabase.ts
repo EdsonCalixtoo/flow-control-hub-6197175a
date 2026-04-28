@@ -28,7 +28,7 @@ export const fetchFinancialEntries = async (): Promise<FinancialEntry[]> => {
     try {
         // 🚨 EMERGÊNCIA: Removemos colunas pesadas (receipts) do fetch de listagem do financeiro
         // Os comprovantes devem ser carregados individualmente quando necessário para economizar egress.
-        const BASIC_FINANCIAL_COLUMNS = 'id, order_id, order_number, client_id, client_name, amount, type, category, description, status, payment_method, due_date, paid_at, transaction_id, card_last_digits, created_at';
+        const BASIC_FINANCIAL_COLUMNS = 'id, order_id, order_number, client_id, client_name, amount, type, category, description, status, payment_method, due_date, paid_at, transaction_id, card_last_digits, created_at, receipt_url, receipt_urls';
 
         const { data, error } = await supabase.from('financial_entries')
             .select(BASIC_FINANCIAL_COLUMNS)

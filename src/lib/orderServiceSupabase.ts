@@ -98,7 +98,7 @@ export const orderToSupabase = (order: Partial<Order>) => {
 };
 
 // ⚡ OTIMIZAÇÃO DE EGRESS: Colunas mínimas para listagem (sem histórico pesado)
-const LIST_ORDER_COLUMNS = 'id, number, client_id, client_name, seller_id, seller_name, total, status, order_type, is_cronograma, financeiro_aprovado, is_warranty, status_pagamento, status_producao, created_at, updated_at, delivery_date, installation_date, scheduled_date, carrier, parent_order_id, parent_order_number, is_site, attachment_url, items, volumes, requires_invoice, requires_shipping_note';
+const LIST_ORDER_COLUMNS = 'id, number, client_id, client_name, seller_id, seller_name, subtotal, taxes, total, status, notes, observation, order_type, is_cronograma, financeiro_aprovado, is_warranty, status_pagamento, status_producao, created_at, updated_at, delivery_date, installation_date, installation_time, installation_payment_type, scheduled_date, carrier, parent_order_id, parent_order_number, is_site, attachment_url, attachment_name, items, volumes, requires_invoice, requires_shipping_note, receipt_url, receipt_urls, comprovantes_vistos';
 
 export const fetchOrders = async (role?: string, userId?: string): Promise<Order[]> => {
     try {

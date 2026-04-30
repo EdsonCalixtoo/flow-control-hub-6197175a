@@ -115,7 +115,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(true);
+  const isCollapsed = false; // Menu agora é estático e sempre expandido
   const { theme, toggleTheme } = useThemeContext();
   const { unreadDelayReports, overduePaymentsCount } = useERP();
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -148,13 +148,11 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
       {/* Sidebar - Hover to Expand Design */}
       <aside 
-        onMouseEnter={() => setIsCollapsed(false)}
-        onMouseLeave={() => setIsCollapsed(true)}
         className={`
-          fixed inset-y-0 left-0 z-[70] flex flex-col transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]
+          fixed inset-y-0 left-0 z-[70] flex flex-col
           lg:relative lg:translate-x-0 
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-          ${isCollapsed ? 'w-[100px]' : 'w-[290px]'}
+          w-[280px]
         `}
       >
         <div className="flex flex-col h-full bg-[#0f172a] dark:bg-[#0f172a]/90 text-white shadow-[20px_0_60px_rgba(0,0,0,0.1)] lg:border-r border-white/5 relative overflow-hidden">
@@ -162,42 +160,35 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           {/* Logo Section */}
           <div className={`px-7 pt-10 pb-8 transition-all duration-500 ${isCollapsed ? 'px-5' : 'px-7'}`}>
             <div className="flex flex-col gap-1 cursor-pointer group" onClick={() => navigate(`/${user.role}`)}>
-              <div className={`
-                bg-white rounded-2xl p-3 shadow-lg shadow-black/20 group-hover:scale-105 transition-all duration-500 overflow-hidden flex items-center justify-center
-                ${isCollapsed ? 'w-14 h-14' : 'w-full'}
-              `}>
+              <div className="bg-white rounded-2xl p-3 shadow-lg shadow-black/20 group-hover:scale-105 transition-all duration-500 overflow-hidden flex items-center justify-center w-full">
                 <img 
                   src="/Automatiza-logo-rgb-01.jpg" 
                   alt="Automatiza VANS" 
-                  className={`h-10 w-auto object-contain transition-all duration-500 ${isCollapsed ? 'scale-[2.5] translate-x-2' : ''}`}
+                  className="h-10 w-auto object-contain"
                 />
               </div>
-              {!isCollapsed && (
-                <div className="mt-4 px-1 animate-fade-in whitespace-nowrap">
+                <div className="mt-4 px-1 whitespace-nowrap">
                   <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">Painel de Controle</p>
                   <p className="text-sm font-bold text-slate-200 mt-1">{ROLE_LABELS[user.role]}</p>
                 </div>
-              )}
             </div>
           </div>
 
           {/* Search Bar */}
-          <div className={`px-6 mb-8 transition-all duration-500 ${isCollapsed ? 'px-4 flex justify-center' : 'px-6'}`}>
+          <div className="px-6 mb-8">
             <div className={`
               flex items-center gap-3 rounded-2xl transition-all duration-300
-              ${isCollapsed ? 'w-12 h-12 justify-center bg-white/5 hover:bg-white/10' : 'px-4 py-3 bg-white/5 hover:bg-white/10'}
-              ${searchFocused && !isCollapsed ? 'bg-white/10 ring-1 ring-white/20' : ''}
+              px-4 py-3 bg-white/5 hover:bg-white/10
+              ${searchFocused ? 'bg-white/10 ring-1 ring-white/20' : ''}
             `}>
               <Search className={`w-4 h-4 transition-colors ${searchFocused ? 'text-white' : 'text-slate-500'}`} />
-              {!isCollapsed && (
-                <input 
-                  type="text" 
-                  placeholder="Buscar..." 
-                  onFocus={() => setSearchFocused(true)}
-                  onBlur={() => setSearchFocused(false)}
-                  className="bg-transparent border-none text-[13px] font-medium placeholder:text-slate-500 focus:outline-none w-full animate-fade-in"
-                />
-              )}
+              <input 
+                type="text" 
+                placeholder="Buscar..." 
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setSearchFocused(false)}
+                className="bg-transparent border-none text-[13px] font-medium placeholder:text-slate-500 focus:outline-none w-full"
+              />
             </div>
           </div>
 
@@ -216,12 +207,10 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                   to={item.path}
                   onClick={() => {
                     setSidebarOpen(false);
-                    setIsCollapsed(true);
                   }}
-                  title={isCollapsed ? item.label : ''}
                   className={`
                     group flex items-center rounded-2xl transition-all duration-300 relative
-                    ${isCollapsed ? 'justify-center p-0 h-[60px] w-full mb-1' : 'gap-4 px-4 py-3'}
+                    gap-4 px-4 py-3
                     ${active 
                       ? 'bg-white/10 text-white shadow-sm shadow-black/10' 
                       : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}
@@ -229,23 +218,18 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
                 >
                   <div className={`
                     rounded-xl flex items-center justify-center transition-all duration-300 shrink-0
-                    ${isCollapsed ? 'w-12 h-12' : 'w-9 h-9'}
+                    w-9 h-9
                     ${active ? `bg-white text-slate-900 shadow-xl shadow-white/10` : 'bg-slate-800/40 group-hover:bg-slate-800'}
                   `}>
-                    <item.icon className={isCollapsed ? 'w-5 h-5' : 'w-[18px] h-[18px]'} />
+                    <item.icon className="w-[18px] h-[18px]" />
                   </div>
                   
-                  {!isCollapsed && (
-                    <span className={`flex-1 font-bold tracking-tight text-[13px] ${active ? 'translate-x-0.5' : ''} transition-transform duration-300 animate-fade-in whitespace-nowrap`}>
-                      {item.label}
-                    </span>
-                  )}
+                  <span className={`flex-1 font-bold tracking-tight text-[13px] ${active ? 'translate-x-0.5' : ''} transition-transform duration-300 whitespace-nowrap`}>
+                    {item.label}
+                  </span>
                   
                   {active && (
-                    <div className={`
-                      rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]
-                      ${isCollapsed ? 'absolute -right-1 w-1 h-8 rounded-r-none' : 'w-1.5 h-1.5'}
-                    `} />
+                    <div className="w-1.5 h-1.5 rounded-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
                   )}
                 </Link>
               );
@@ -253,42 +237,25 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           </nav>
 
           {/* User Section */}
-          <div className={`p-6 transition-all duration-500 ${isCollapsed ? 'p-2 flex justify-center' : 'p-6'}`}>
-            <div className={`
-              bg-white/5 rounded-3xl border border-white/5 flex items-center transition-all duration-500
-              ${isCollapsed ? 'w-14 h-14 justify-center border-none' : 'p-4 gap-4 w-full'}
-            `}>
+          <div className="p-6">
+            <div className="bg-white/5 rounded-3xl border border-white/5 flex items-center p-4 gap-4 w-full">
               <div className={`
-                rounded-2xl bg-gradient-to-br ${roleGradient} flex items-center justify-center text-sm font-black text-white shadow-lg shrink-0
-                ${isCollapsed ? 'w-12 h-12' : 'w-11 h-11'}
+                w-11 h-11 rounded-2xl bg-gradient-to-br ${roleGradient} flex items-center justify-center text-sm font-black text-white shadow-lg shrink-0
               `}>
                 {user.name.split(' ').map(n => n[0]).join('')}
               </div>
-              {!isCollapsed && (
-                <div className="flex-1 min-w-0 animate-fade-in">
-                  <p className="text-[13px] font-bold text-white truncate leading-tight">{user.name}</p>
-                  <p className="text-[10px] font-medium text-slate-500 truncate mt-0.5">{user.email}</p>
-                </div>
-              )}
-              {!isCollapsed && (
-                <button 
-                  onClick={logout} 
-                  className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/10 transition-all duration-300" 
-                  title="Sair"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-            {isCollapsed && (
+              <div className="flex-1 min-w-0">
+                <p className="text-[13px] font-bold text-white truncate leading-tight">{user.name}</p>
+                <p className="text-[10px] font-medium text-slate-500 truncate mt-0.5">{user.email}</p>
+              </div>
               <button 
                 onClick={logout} 
-                className="mt-4 w-12 h-12 rounded-xl flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/10 transition-all duration-300" 
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/10 transition-all duration-300" 
                 title="Sair"
               >
-                <LogOut className="w-5 h-5" />
+                <LogOut className="w-4 h-4" />
               </button>
-            )}
+            </div>
           </div>
         </div>
       </aside>

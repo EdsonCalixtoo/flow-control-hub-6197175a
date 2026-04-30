@@ -277,7 +277,7 @@ const PedidosProducaoPage: React.FC = () => {
 
   const formatDate = (d?: string) => fmtDate(d);
 
-  const printEtiqueta = (order: typeof orders[0]) => {
+  const printEtiqueta = async (order: typeof orders[0]) => {
     console.log('[Etiqueta] 🏷️ Preparando impressão para pedido:', order.number);
     console.log('[Etiqueta] 🆔 Tentando encontrar cliente ID:', order.clientId);
 
@@ -285,14 +285,52 @@ const PedidosProducaoPage: React.FC = () => {
     const normalize = (s: string) => s.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
 
     let client = clients.find(c => c.id === order.clientId);
+    
+    // Se não encontrou no estado local (limitado a 500), tenta buscar no banco pelo ID
+    if (!client && order.clientId) {
+      console.log('[Etiqueta] 🔍 Cliente não está no estado local. Buscando no banco...');
+      try {
+        const { getClientById } = await import('@/lib/clientServiceSupabase');
+        client = await getClientById(order.clientId);
+      } catch (e) {
+        console.warn('[Etiqueta] ⚠️ Erro ao buscar cliente no banco:', e);
+      }
+    }
+
     if (!client) {
       console.warn('[Etiqueta] ⚠️ Cliente não encontrado por ID. Tentando busca robusta por nome:', order.clientName);
       const nameRef = normalize(order.clientName || "");
       client = clients.find(c => normalize(c.name) === nameRef);
     }
 
+    // 💡 ESTRATÉGIA DE RECUPERAÇÃO DE ENDEREÇO (Para pedidos tipo 10219)
+    let finalAddress = client?.address || '';
+    let finalBairro = client?.bairro || '';
+    let finalCity = client?.city || '';
+    let finalState = client?.state || '';
+    let finalCep = client?.cep || '';
+
+    // Se o endereço está vazio, tenta extrair da observação ou notas do pedido
+    if (!finalAddress) {
+      console.log('[Etiqueta] 🕵️ Endereço vazio. Tentando extrair da observação do pedido...');
+      const source = (order.observation || '') + ' ' + (order.notes || '');
+      
+      // Busca CEP (00000-000 ou 00000000)
+      const cepMatch = source.match(/\d{5}-?\d{3}/);
+      if (cepMatch) finalCep = cepMatch[0];
+
+      // Se houver texto na observação, usamos como endereço de fallback
+      if (order.observation && order.observation.length > 10) {
+        finalAddress = order.observation;
+        console.log('[Etiqueta] ✅ Usando observação como endereço de fallback');
+      } else if (order.notes && order.notes.length > 10) {
+        finalAddress = order.notes;
+        console.log('[Etiqueta] ✅ Usando notas como endereço de fallback');
+      }
+    }
+
     if (client) {
-      console.log('[Etiqueta] ✅ Cliente encontrado:', client.name, 'Endereço:', client.address);
+      console.log('[Etiqueta] ✅ Cliente encontrado:', client.name, 'Endereço:', finalAddress);
     } else {
       console.error('[Etiqueta] ❌ Cliente não localizado (Total na base:', clients.length, ')');
     }
@@ -304,25 +342,25 @@ const PedidosProducaoPage: React.FC = () => {
 
     const barcodeCanvas = document.createElement('canvas');
     // @ts-ignore
-    import('jsbarcode').then(async (mod) => {
-      const JsBarcode = (mod as any).default || mod;
-      JsBarcode(barcodeCanvas, order.number, {
-        format: 'CODE128', width: 2, height: 60, displayValue: true,
-        fontSize: 16, margin: 4, font: 'Arial',
-      });
-      const barcodeDataUrl = barcodeCanvas.toDataURL('image/png');
-      document.body.removeChild(tempDiv);
+    const jsBarcodeMod = await import('jsbarcode');
+    const JsBarcode = (jsBarcodeMod as any).default || jsBarcodeMod;
+    JsBarcode(barcodeCanvas, order.number, {
+      format: 'CODE128', width: 2, height: 60, displayValue: true,
+      fontSize: 16, margin: 4, font: 'Arial',
+    });
+    const barcodeDataUrl = barcodeCanvas.toDataURL('image/png');
+    document.body.removeChild(tempDiv);
 
-      let logoDataUrl = '';
-      try {
-        const response = await fetch('/Automatiza-logo-rgb-01.jpg');
-        const blob = await response.blob();
-        logoDataUrl = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.readAsDataURL(blob);
-        });
-      } catch (e) { console.warn('Logo não encontrado.'); }
+    let logoDataUrl = '';
+    try {
+      const response = await fetch('/Automatiza-logo-rgb-01.jpg');
+      const blob = await response.blob();
+      logoDataUrl = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      });
+    } catch (e) { console.warn('Logo não encontrado.'); }
 
       const printWindow = window.open('', '_blank', 'width=420,height=600');
       if (!printWindow) { alert('Permita pop-ups para imprimir a etiqueta.'); return; }
@@ -378,9 +416,9 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
     <div class="destinatario">
       <div class="name">${order.clientName}</div>
       <div class="address">
-        ${client?.address || '<span style="color:red">ENDEREÇO NÃO LOCALIZADO</span>'}
-        ${client?.bairro ? `<br>Bairro: ${client.bairro}` : ''}
-        ${client ? `<br>${client.city} - ${client.state} CEP: ${client.cep}` : ''}
+        ${finalAddress || '<span style="color:red">ENDEREÇO NÃO LOCALIZADO</span>'}
+        ${finalBairro ? `<br>Bairro: ${finalBairro}` : ''}
+        ${(finalCity || finalState) ? `<br>${finalCity} - ${finalState} CEP: ${finalCep}` : (finalCep ? `<br>CEP: ${finalCep}` : '')}
       </div>
       ${client?.cpfCnpj ? `<div class="cpf">CPF/CNPJ: ${client.cpfCnpj}</div>` : ''}
       ${client?.phone ? `<div class="phone">Telefone: ${client.phone}</div>` : ''}
@@ -396,8 +434,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 </body></html>`;
       printWindow.document.write(html);
       printWindow.document.close();
-    });
-  };
+    };
 
   const allOrders = orders.filter(o => {
     const isPlanning = o.status === 'planejamento';

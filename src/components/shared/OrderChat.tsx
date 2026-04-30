@@ -17,6 +17,10 @@ const ROLE_COLORS: Record<UserRole, string> = {
     financeiro: 'bg-financeiro/20 text-financeiro border-financeiro/30',
     gestor: 'bg-gestor/20 text-gestor border-gestor/30',
     producao: 'bg-producao/20 text-producao border-producao/30',
+    producao_carenagem: 'bg-indigo-500/20 text-indigo-500 border-indigo-500/30',
+    admin: 'bg-slate-500/20 text-slate-500 border-slate-500/30',
+    super_admin: 'bg-slate-900/20 text-slate-900 border-slate-900/30',
+    garantia: 'bg-orange-500/20 text-orange-500 border-orange-500/30',
 };
 
 const ROLE_LABELS: Record<UserRole, string> = {
@@ -24,6 +28,10 @@ const ROLE_LABELS: Record<UserRole, string> = {
     financeiro: 'Financeiro',
     gestor: 'Gestor',
     producao: 'Produção',
+    producao_carenagem: 'Carenagem',
+    admin: 'Admin',
+    super_admin: 'Super Admin',
+    garantia: 'Garantia',
 };
 
 const OrderChat: React.FC<OrderChatProps> = ({
@@ -183,6 +191,10 @@ const ROLE_COLORS_LOCAL: Record<string, string> = {
     financeiro: 'from-financeiro/20 border-financeiro/30',
     gestor: 'from-gestor/20 border-gestor/30',
     producao: 'from-producao/20 border-producao/30',
+    producao_carenagem: 'from-indigo-500/20 border-indigo-500/30',
+    admin: 'from-slate-500/20 border-slate-500/30',
+    super_admin: 'from-slate-900/20 border-slate-900/30',
+    garantia: 'from-orange-500/20 border-orange-500/30',
 };
 
 const ROLE_LABEL: Record<string, string> = {
@@ -190,6 +202,10 @@ const ROLE_LABEL: Record<string, string> = {
     financeiro: 'Financeiro',
     gestor: 'Gestor',
     producao: 'Produção',
+    producao_carenagem: 'Carenagem',
+    admin: 'Admin',
+    super_admin: 'Super Admin',
+    garantia: 'Garantia',
 };
 
 const ROLE_TEXT: Record<string, string> = {
@@ -197,6 +213,10 @@ const ROLE_TEXT: Record<string, string> = {
     financeiro: 'text-financeiro',
     gestor: 'text-gestor',
     producao: 'text-producao',
+    producao_carenagem: 'text-indigo-500',
+    admin: 'text-slate-500',
+    super_admin: 'text-slate-900',
+    garantia: 'text-orange-500',
 };
 
 const ChatBody: React.FC<{

@@ -4,7 +4,6 @@ import { toast } from 'sonner';
 import type { Order } from '@/types/erp';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabaseToOrder } from '@/lib/orderServiceSupabase';
-import { toast } from 'sonner';
 import { playNotificationSound } from '@/lib/audioUtils';
 
 function playNotification() {

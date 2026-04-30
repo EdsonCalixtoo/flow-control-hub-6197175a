@@ -111,7 +111,7 @@ export const fetchClients = async (): Promise<Client[]> => {
 
     const { data, error } = await query
       .order('created_at', { ascending: false })
-      .limit(500);
+      .limit(5000);
 
     if (error) {
       console.error('[Clients] ❌ Erro ao buscar clientes no Supabase:', error.message);

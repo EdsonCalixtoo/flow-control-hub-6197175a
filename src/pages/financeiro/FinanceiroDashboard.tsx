@@ -1219,6 +1219,11 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                       <span className="text-[10px] uppercase font-black text-muted-foreground/60 block tracking-widest">Cliente Final</span>
                       <span className="text-sm font-black text-foreground block select-all cursor-text pointer-events-auto">{selectedOrder.clientName}</span>
                       <span className="text-[10px] text-muted-foreground block mt-0.5 select-all cursor-text pointer-events-auto">{client?.cpfCnpj ? `CPF/CNPJ: ${client.cpfCnpj}` : 'Sem documento'}</span>
+                      {client?.address && (
+                        <span className="text-[10px] text-muted-foreground block mt-0.5 select-all cursor-text pointer-events-auto">
+                          {client.address}{client.city ? ` - ${client.city}` : ''}{client.state ? `/${client.state}` : ''}
+                        </span>
+                      )}
                     </div>
                   </div>
 

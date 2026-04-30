@@ -235,7 +235,7 @@ export interface FinancialEntry {
   amount: number;
   category: string;
   date: string;
-  status: 'pago' | 'pendente';
+  status: 'pago' | 'pendente' | 'cancelado';
   orderId?: string;      // pedido vinculado
   orderNumber?: string;
   clientId?: string;

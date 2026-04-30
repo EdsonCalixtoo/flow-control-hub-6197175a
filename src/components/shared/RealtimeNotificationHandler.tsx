@@ -1,22 +1,28 @@
 import { useCallback, useMemo } from 'react';
 import { useRealtimeOrders } from '@/hooks/useRealtimeOrders';
-
-const NOTIFICATION_SOUND_URL = 'https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3';
+import { playNotificationSound } from '@/lib/audioUtils';
 
 export function RealtimeNotificationHandler() {
 
   const handleOrderChange = useCallback((event: any) => {
     // Notifica quando um pedido chega para aprovação financeira OU para produção
-    if (event.type === 'UPDATE' && event.order.status === 'aguardando_financeiro' && event.previousStatus !== 'aguardando_financeiro') {
-      playNotification();
+    // Funciona tanto para novos pedidos (INSERT) quanto para mudanças de status (UPDATE)
+    const isAguardandoFinanceiro = event.order.status === 'aguardando_financeiro';
+    const wasNotAguardandoFinanceiro = event.previousStatus !== 'aguardando_financeiro';
+    
+    if ((event.type === 'INSERT' || event.type === 'UPDATE') && isAguardandoFinanceiro && wasNotAguardandoFinanceiro) {
+      playNotificationSound();
       sendSystemNotification(
         `🔔 Novo Pedido para Aprovação Financeira`,
         `Pedido ${event.order.number} - Cliente: ${event.order.clientName}\nValor: R$ ${event.order.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
       );
     }
 
-    if (event.type === 'UPDATE' && event.order.status === 'aguardando_producao' && event.previousStatus !== 'aguardando_producao') {
-      playNotification();
+    const isAguardandoProducao = event.order.status === 'aguardando_producao';
+    const wasNotAguardandoProducao = event.previousStatus !== 'aguardando_producao';
+
+    if ((event.type === 'INSERT' || event.type === 'UPDATE') && isAguardandoProducao && wasNotAguardandoProducao) {
+      playNotificationSound();
       sendSystemNotification(
         `🚀 Novo Pedido Aprovado para Produção`,
         `Pedido ${event.order.number} - Cliente: ${event.order.clientName}\nTipo: ${event.order.orderType === 'instalacao' ? 'Instalação' : event.order.orderType === 'retirada' ? 'Retirada' : 'Entrega'}`
@@ -31,15 +37,6 @@ export function RealtimeNotificationHandler() {
   return null;
 }
 
-function playNotification() {
-  try {
-    const audio = new Audio(NOTIFICATION_SOUND_URL);
-    audio.volume = 0.7;
-    audio.play().catch(err => console.log('Áudio bloqueado:', err));
-  } catch (err) {
-    console.error('Erro ao tocar som:', err);
-  }
-}
 
 function sendSystemNotification(title: string, body: string) {
   if ('Notification' in window && Notification.permission === 'granted') {

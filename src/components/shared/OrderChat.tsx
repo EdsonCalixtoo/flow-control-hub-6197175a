@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Send, MessageCircle, X, Bell } from 'lucide-react';
+import { playNotificationSound } from '@/lib/audioUtils';
 import type { UserRole } from '@/types/erp';
 
 interface OrderChatProps {
@@ -57,7 +58,20 @@ const OrderChat: React.FC<OrderChatProps> = ({
         if (open) {
             messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         }
-    }, [msgs, open]);
+    }, [msgs.length, open]);
+
+    // Notificação sonora para novas mensagens
+    const prevMsgsCount = useRef(msgs.length);
+    useEffect(() => {
+        if (msgs.length > prevMsgsCount.current) {
+            const lastMsg = msgs[msgs.length - 1];
+            // Só toca se a mensagem for de outra pessoa
+            if (lastMsg && lastMsg.senderId !== user?.id) {
+                playNotificationSound(0.4);
+            }
+        }
+        prevMsgsCount.current = msgs.length;
+    }, [msgs.length, user?.id]);
 
     const handleSend = async () => {
         if (!message.trim() || !user || sending) return;

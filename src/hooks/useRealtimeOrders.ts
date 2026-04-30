@@ -4,6 +4,12 @@ import { toast } from 'sonner';
 import type { Order } from '@/types/erp';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabaseToOrder } from '@/lib/orderServiceSupabase';
+import { toast } from 'sonner';
+import { playNotificationSound } from '@/lib/audioUtils';
+
+function playNotification() {
+  playNotificationSound(0.6);
+}
 
 interface RealtimeOrderEvent {
   type: 'INSERT' | 'UPDATE' | 'DELETE';
@@ -59,6 +65,7 @@ function setupChannel(userId: string, userRole: string, userName: string) {
 
           // Notificação sonora para FINANCEIRO
           if (role === 'financeiro' && order.status === 'aguardando_financeiro') {
+            playNotification();
             toast.info(`🆕 Novo Pedido #${order.number}`, {
               description: `Cliente: ${order.clientName} | Aguardando validação financeira.`,
               duration: 6000
@@ -79,8 +86,10 @@ function setupChannel(userId: string, userRole: string, userName: string) {
             // Notificações para VENDEDOR
             if (role === 'vendedor' && order.sellerId === userId) {
               if (order.status === 'aprovado_financeiro') {
+                playNotification();
                 toast.success(`✅ Pedido #${order.number} APROVADO!`, { description: 'O financeiro liberou este pedido.' });
               } else if (order.status === 'rejeitado_financeiro') {
+                playNotification();
                 toast.error(`❌ Pedido #${order.number} REJEITADO`, {
                   description: order.rejectionReason || 'Verifique o motivo nos detalhes.',
                   duration: 8000
@@ -95,11 +104,13 @@ function setupChannel(userId: string, userRole: string, userName: string) {
             );
 
             if (role === 'producao_carenagem' && order.status === 'aprovado_financeiro' && isCarenagem) {
+              playNotification();
               toast.info(`🏭 Novo Pedido de Carenagem: #${order.number}`, {
                 description: `Cliente: ${order.clientName}`,
                 duration: 6000
               });
             } else if (role === 'producao' && order.status === 'aprovado_financeiro' && !isCarenagem) {
+              playNotification();
               toast.info(`🏭 Novo Pedido para Produção: #${order.number}`, {
                 description: `Cliente: ${order.clientName}`,
                 duration: 6000
@@ -108,6 +119,7 @@ function setupChannel(userId: string, userRole: string, userName: string) {
 
             // Notificações para FINANCEIRO (re-envio)
             if (role === 'financeiro' && order.status === 'aguardando_financeiro' && prevStatus !== 'aguardando_financeiro') {
+              playNotification();
               toast.warning(`🔄 Pedido #${order.number} Re-enviado`, { description: 'Necessita nova análise financeira.' });
             }
           }

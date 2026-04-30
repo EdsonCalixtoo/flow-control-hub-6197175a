@@ -237,23 +237,30 @@ export const deleteClient = async (clientId: string): Promise<boolean> => {
  */
 export const getClientById = async (clientId: string): Promise<Client | null> => {
   try {
-    const userId = await getCurrentUserId();
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+    const userRole = session?.user?.user_metadata?.role;
+    const userEmail = session?.user?.email;
+
+    if (!userId) return null;
 
     console.log('[Clients] 🔍 Buscando cliente:', clientId);
 
-    const { data, error } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('id', clientId)
-      .eq('user_id', userId)
-      .single();
+    let query = supabase.from('clients').select('*').eq('id', clientId);
+
+    // ✅ Aplicar a mesma lógica de visibilidade do fetchClients
+    if (userRole === 'vendedor' && userEmail !== 'ericasousa@gmail.com') {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data, error } = await query.maybeSingle();
 
     if (error) {
-      console.error('[Clients] ❌ Cliente não encontrado:', error.message);
+      console.error('[Clients] ❌ Erro ao buscar cliente:', error.message);
       return null;
     }
 
-    return supabaseToClient(data);
+    return data ? supabaseToClient(data) : null;
   } catch (err: any) {
     console.error('[Clients] ❌ Erro ao buscar cliente:', err.message);
     return null;
@@ -265,15 +272,22 @@ export const getClientById = async (clientId: string): Promise<Client | null> =>
  */
 export const searchClientsByEmail = async (email: string): Promise<Client[]> => {
   try {
-    const userId = await getCurrentUserId();
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+    const userRole = session?.user?.user_metadata?.role;
+    const userEmail = session?.user?.email;
+
+    if (!userId) return [];
 
     console.log('[Clients] 🔍 Buscando clientes por email:', email);
 
-    const { data, error } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('user_id', userId)
-      .ilike('email', `%${email}%`);
+    let query = supabase.from('clients').select('*').ilike('email', `%${email}%`);
+
+    if (userRole === 'vendedor' && userEmail !== 'ericasousa@gmail.com') {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('[Clients] ❌ Erro ao buscar por email:', error.message);
@@ -292,16 +306,23 @@ export const searchClientsByEmail = async (email: string): Promise<Client[]> => 
  */
 export const searchClientsByName = async (name: string): Promise<Client[]> => {
   try {
-    const userId = await getCurrentUserId();
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+    const userRole = session?.user?.user_metadata?.role;
+    const userEmail = session?.user?.email;
+
+    if (!userId) return [];
 
     console.log('[Clients] 🔍 Buscando clientes por nome:', name);
 
-    const { data, error } = await supabase
-      .from('clients')
-      .select('*')
-      .eq('user_id', userId)
-      .ilike('name', `%${name}%`)
-      .limit(10);
+    let query = supabase.from('clients').select('*').ilike('name', `%${name}%`);
+
+    // ✅ Aplicar visibilidade total para cargos permitidos
+    if (userRole === 'vendedor' && userEmail !== 'ericasousa@gmail.com') {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data, error } = await query.limit(20);
 
     if (error) {
       console.error('[Clients] ❌ Erro ao buscar por nome:', error.message);

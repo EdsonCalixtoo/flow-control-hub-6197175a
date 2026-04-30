@@ -300,7 +300,29 @@ const PedidosProducaoPage: React.FC = () => {
     if (!client) {
       console.warn('[Etiqueta] ⚠️ Cliente não encontrado por ID. Tentando busca robusta por nome:', order.clientName);
       const nameRef = normalize(order.clientName || "");
+      // Busca por nome exato
       client = clients.find(c => normalize(c.name) === nameRef);
+      
+      // Se não encontrou exato, tenta busca parcial (Fuzzy) no estado local
+      if (!client) {
+        client = clients.find(c => normalize(c.name).includes(nameRef) || nameRef.includes(normalize(c.name)));
+        if (client) console.log('[Etiqueta] 🔍 Cliente localizado via busca parcial local:', client.name);
+      }
+
+      // Se ainda não encontrou, tenta busca remota por nome
+      if (!client) {
+        console.log('[Etiqueta] 🌐 Tentando busca remota por nome:', order.clientName);
+        try {
+          const { searchClientsByName } = await import('@/lib/clientServiceSupabase');
+          const results = await searchClientsByName(order.clientName);
+          if (results.length > 0) {
+            client = results[0];
+            console.log('[Etiqueta] ✅ Cliente localizado via busca remota por nome:', client.name);
+          }
+        } catch (e) {
+          console.warn('[Etiqueta] ⚠️ Erro na busca remota por nome:', e);
+        }
+      }
     }
 
     // 💡 ESTRATÉGIA DE RECUPERAÇÃO DE ENDEREÇO (Para pedidos tipo 10219)
@@ -310,22 +332,30 @@ const PedidosProducaoPage: React.FC = () => {
     let finalState = client?.state || '';
     let finalCep = client?.cep || '';
 
-    // Se o endereço está vazio, tenta extrair da observação ou notas do pedido
-    if (!finalAddress) {
-      console.log('[Etiqueta] 🕵️ Endereço vazio. Tentando extrair da observação do pedido...');
+    // Se o endereço está vazio ou parece inválido, tenta extrair da observação ou notas do pedido
+    // Evitamos usar a observação se ela parecer apenas uma lista de itens (contendo ',' e sem palavras de endereço)
+    if (!finalAddress || finalAddress.length < 5) {
+      console.log('[Etiqueta] 🕵️ Endereço vazio ou curto. Tentando extrair da observação do pedido...');
       const source = (order.observation || '') + ' ' + (order.notes || '');
+      
+      const hasAddressKeywords = /rua|av|avenida|travessa|alameda|praça|estrada|rodovia|nº|num|numero/i.test(source);
+      const hasItemKeywords = /cracha|camiseta|banner|kit|unid|un\.|qtd/i.test(source);
       
       // Busca CEP (00000-000 ou 00000000)
       const cepMatch = source.match(/\d{5}-?\d{3}/);
       if (cepMatch) finalCep = cepMatch[0];
 
-      // Se houver texto na observação, usamos como endereço de fallback
-      if (order.observation && order.observation.length > 10) {
-        finalAddress = order.observation;
-        console.log('[Etiqueta] ✅ Usando observação como endereço de fallback');
-      } else if (order.notes && order.notes.length > 10) {
-        finalAddress = order.notes;
-        console.log('[Etiqueta] ✅ Usando notas como endereço de fallback');
+      // Só usamos a observação como endereço se ela parecer ter um endereço E não for apenas uma lista de produtos
+      if (source.length > 15 && (hasAddressKeywords || !hasItemKeywords)) {
+        if (order.observation && order.observation.length > 10) {
+          finalAddress = order.observation;
+          console.log('[Etiqueta] ✅ Usando observação como endereço de fallback');
+        } else if (order.notes && order.notes.length > 10) {
+          finalAddress = order.notes;
+          console.log('[Etiqueta] ✅ Usando notas como endereço de fallback');
+        }
+      } else {
+        console.warn('[Etiqueta] ⚠️ Observação ignorada por parecer lista de itens ou insuficiente.');
       }
     }
 
@@ -365,6 +395,8 @@ const PedidosProducaoPage: React.FC = () => {
       const printWindow = window.open('', '_blank', 'width=420,height=600');
       if (!printWindow) { alert('Permita pop-ups para imprimir a etiqueta.'); return; }
 
+const addrFontSize = finalAddress.length > 120 ? '7.5pt' : (finalAddress.length > 80 ? '8.5pt' : '10pt');
+
       const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Etiqueta - ${order.number}</title>
 <style>
@@ -386,9 +418,9 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 .remetente { padding: 2mm 2.5mm; border: 0.8mm solid #000; border-radius: 0.5mm; background: #fff; }
 .remetente .name { font-size: 9pt; font-weight: 900; color: #000; margin-bottom: 0.3mm; letter-spacing: 0.3px; }
 .remetente .address { font-size: 7.5pt; color: #000; line-height: 1.3; font-weight: 700; }
-.destinatario { flex: 1; padding: 4mm; border: 1.5mm solid #000; border-radius: 1mm; background: #fff; display: flex; flex-direction: column; justify-content: center; }
+.destinatario { flex: 1; padding: 4mm; border: 1.5mm solid #000; border-radius: 1mm; background: #fff; display: flex; flex-direction: column; justify-content: center; min-height: 40mm; }
 .destinatario .name { font-size: 15pt; font-weight: 900; color: #000; margin-bottom: 2mm; letter-spacing: 0.5px; text-transform: uppercase; line-height: 1.1; }
-.destinatario .address { font-size: 10pt; color: #000; line-height: 1.4; font-weight: 800; }
+.destinatario .address { font-size: ${addrFontSize}; color: #000; line-height: 1.3; font-weight: 800; word-break: break-word; }
 .destinatario .cpf { font-size: 9pt; color: #000; margin-top: 2mm; font-weight: 800; font-family: 'Courier New', monospace; }
 .destinatario .phone { font-size: 9pt; color: #000; margin-top: 1mm; font-weight: 800; }
 .barcode-section { text-align: center; padding-top: 2mm; border-top: 1mm dashed #000; margin-top: 1mm; }

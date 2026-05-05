@@ -1,6 +1,6 @@
 # SCRIPT DE MIGRAÇÃO PROFISSIONAL SUPABASE (PowerShell) - VERSÃO LIMPA
 $SOURCE_URL = "postgresql://postgres:lICANTROPOS1324%40@db.wezxkgeaaddmpmijudjt.supabase.co:5432/postgres"
-$TARGET_URL = "postgresql://postgres:lICANTROPOS1324%40@db.iqveweyjeviikjbgjyjt.supabase.co:5432/postgres"
+$TARGET_URL = "postgresql://postgres:lICANTROPOS1324%40@db.iyjvaizmeimwxatdhnne.supabase.co:5432/postgres"
 $DUMP_FILE = "supabase_dump.sql"
 
 Write-Host "--- Iniciando Migracao Supabase ---" -ForegroundColor Cyan
@@ -22,9 +22,9 @@ if (!(Get-Command pg_dump -ErrorAction SilentlyContinue)) {
     }
 }
 
-# 1. Gerar Dump
-Write-Host "[1/3] Gerando dump do banco de origem..." -ForegroundColor Yellow
-& $pgDumpPath --dbname=$SOURCE_URL --format=p --clean --if-exists --no-owner --no-privileges --quote-all-identifiers --schema=public --file=$DUMP_FILE
+# 1. Gerar Dump (Public e Auth)
+Write-Host "[1/3] Gerando dump dos schemas public e auth..." -ForegroundColor Yellow
+& $pgDumpPath --dbname=$SOURCE_URL --format=p --clean --if-exists --no-owner --no-privileges --quote-all-identifiers --schema=public --schema=auth --file=$DUMP_FILE
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERRO: Falha ao gerar dump. Verifique se o pg_dump esta instalado." -ForegroundColor Red

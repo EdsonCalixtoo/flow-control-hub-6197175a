@@ -10,7 +10,7 @@
 
 # CONFIGURAÇÕES (Substitua pelas suas URLs de conexão direta)
 SOURCE_DB_URL="postgresql://postgres:lICANTROPOS1324%40@db.wezxkgeaaddmpmijudjt.supabase.co:5432/postgres"
-TARGET_DB_URL="postgresql://postgres:lICANTROPOS1324%40@db.iqveweyjeviikjbgjyjt.supabase.co:5432/postgres"
+TARGET_DB_URL="postgresql://postgres:lICANTROPOS1324%40@db.iyjvaizmeimwxatdhnne.supabase.co:5432/postgres"
 
 # ARQUIVO DE DUMP
 DUMP_FILE="supabase_migration_$(date +%Y%m%d_%H%M%S).sql"

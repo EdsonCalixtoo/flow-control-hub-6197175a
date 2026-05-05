@@ -8,7 +8,9 @@ import {
   FileUp, Loader2, XCircle, ArrowLeft, ShieldAlert
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { createClient } from '@/lib/clientServiceSupabase';
+import lostClientsData from '@/data/lost_clients.json';
 
 import { uploadToR2, generateR2Path } from '@/lib/storageServiceR2';
 
@@ -20,6 +22,8 @@ const VendedorDashboard: React.FC = () => {
   const [selectedClientOrders, setSelectedClientOrders] = React.useState<{clientId: string, name: string} | null>(null);
   const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
   const [fileInputKey, setFileInputKey] = React.useState(0);
+  const [isLostClientsModalOpen, setIsLostClientsModalOpen] = useState(false);
+  const [registeringCpf, setRegisteringCpf] = useState<string | null>(null);
 
   // ✅ Lógica de Saldo Devedor Blindada (Fuzzy Match)
   const getSaldoDevedor = (orderId: string, orderTotal: number, paymentStatus?: string, orderNumber?: string) => {
@@ -69,6 +73,39 @@ const VendedorDashboard: React.FC = () => {
       setUploadingOrderId(null);
     }
   };
+
+  const handleRegisterLostClient = async (lostClient: typeof lostClientsData[0]) => {
+    setRegisteringCpf(lostClient.cpfCnpj);
+    try {
+      await createClient({
+        name: lostClient.name,
+        cpfCnpj: lostClient.cpfCnpj,
+        address: lostClient.address,
+        city: lostClient.city,
+        state: lostClient.state,
+        phone: '',
+        email: '',
+        bairro: '',
+        cep: '',
+        notes: 'Cadastrado via Clientes Perdidos (Jadlog)',
+        consignado: false,
+        isSite: false
+      });
+      
+      import('sonner').then(({ toast }) => toast.success(`${lostClient.name} cadastrado com sucesso!`));
+      // O ERPContext deve atualizar automaticamente via Realtime ou reload
+    } catch (err: any) {
+      import('sonner').then(({ toast }) => toast.error('Erro ao cadastrar: ' + (err.message || 'Tente novamente.')));
+    } finally {
+      setRegisteringCpf(null);
+    }
+  };
+
+  // ✅ Filtra os clientes perdidos que ainda NÃO estão no banco
+  const filteredLostClients = useMemo(() => {
+    const dbCpfs = new Set(clients.map(c => c.cpfCnpj?.replace(/\D/g, '')));
+    return lostClientsData.filter(lc => !dbCpfs.has(lc.cpfCnpj.replace(/\D/g, '')));
+  }, [clients]);
 
   // ✅ Filtra SOMENTE os pedidos do vendedor logado
   const myOrders = useMemo(() => orders.filter(o => o.sellerId === user?.id), [orders, user?.id]);
@@ -262,6 +299,26 @@ const VendedorDashboard: React.FC = () => {
                 </div>
               </div>
             </Link>
+            
+            <div 
+              onClick={() => setIsLostClientsModalOpen(true)}
+              className="card-section p-5 hover:shadow-lg hover:shadow-rose-500/[0.06] hover:-translate-y-0.5 transition-all duration-300 group cursor-pointer border-dashed border-rose-500/30"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-rose-500/20 to-rose-500/5 flex items-center justify-center text-rose-500 group-hover:scale-110 transition-transform relative">
+                  <Package className="w-5 h-5" />
+                  {filteredLostClients.length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-rose-500 text-white text-[10px] font-black flex items-center justify-center animate-pulse">
+                      {filteredLostClients.length}
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-foreground">Clientes Perdidos</p>
+                  <p className="text-xs text-muted-foreground">Planilha Jadlog pendente</p>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -595,6 +652,88 @@ const VendedorDashboard: React.FC = () => {
             ) : (
               <img src={previewUrl} alt="Comprovante" className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" />
             )}
+          </div>
+        </div>
+      )}
+      {/* Modal de Clientes Perdidos (Jadlog) */}
+      {isLostClientsModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-card w-full max-w-4xl rounded-[2rem] border border-border shadow-2xl overflow-hidden animate-scale-in flex flex-col max-h-[85vh]">
+            <div className="p-6 bg-rose-500 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center">
+                  <Package className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black uppercase tracking-tight">Clientes Perdidos (Jadlog)</h3>
+                  <p className="text-xs opacity-80">{filteredLostClients.length} clientes pendentes de cadastro</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsLostClientsModalOpen(false)}
+                className="p-2 hover:bg-white/10 rounded-full transition-colors"
+              >
+                <XCircle className="w-8 h-8" />
+              </button>
+            </div>
+            
+            <div className="overflow-y-auto custom-scrollbar p-0">
+              <table className="w-full text-left border-collapse">
+                <thead className="sticky top-0 z-10 bg-card border-b border-border shadow-sm">
+                  <tr className="bg-muted/30">
+                    <th className="px-6 py-4 text-[10px] font-black text-muted-foreground uppercase tracking-widest">Nome do Cliente</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-muted-foreground uppercase tracking-widest">CPF / CNPJ</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-muted-foreground uppercase tracking-widest">Localização</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-muted-foreground uppercase tracking-widest text-right">Ação</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/40">
+                  {filteredLostClients.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-20 text-center text-muted-foreground">
+                        <CheckCircle className="w-12 h-12 text-success/20 mx-auto mb-4" />
+                        <p className="font-bold text-foreground text-lg">Parabéns!</p>
+                        <p className="text-sm">Todos os clientes da lista Jadlog já estão cadastrados.</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredLostClients.map((client, idx) => (
+                      <tr key={idx} className="hover:bg-muted/20 transition-colors group">
+                        <td className="px-6 py-4">
+                          <p className="text-sm font-black text-foreground uppercase truncate max-w-[250px]">{client.name}</p>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="text-xs font-mono font-bold text-muted-foreground">{client.cpfCnpj}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase">{client.city} / {client.state}</p>
+                          <p className="text-[9px] text-muted-foreground/60 truncate max-w-[200px]">{client.address}</p>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <button
+                            onClick={() => handleRegisterLostClient(client)}
+                            disabled={registeringCpf === client.cpfCnpj}
+                            className={`h-9 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                              registeringCpf === client.cpfCnpj
+                                ? 'bg-muted text-muted-foreground animate-pulse cursor-not-allowed'
+                                : 'bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20 hover:scale-105 active:scale-95'
+                            }`}
+                          >
+                            {registeringCpf === client.cpfCnpj ? 'CADASTRANDO...' : 'CADASTRAR'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            
+            <div className="p-6 bg-muted/30 border-t border-border shrink-0">
+              <p className="text-[10px] text-muted-foreground font-medium italic">
+                * Os clientes serão cadastrados vinculados a você automaticamente. Endereços e CPFs são extraídos da planilha oficial Jadlog.
+              </p>
+            </div>
           </div>
         </div>
       )}

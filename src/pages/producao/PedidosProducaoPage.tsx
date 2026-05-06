@@ -552,6 +552,30 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
     return groups;
   }, [filteredOrders]);
 
+  const kitSummary = useMemo(() => {
+    let totalKits = 0;
+    let kitsWithSensor = 0;
+    let kitsWithoutSensor = 0;
+
+    filteredOrders.forEach(order => {
+      order.items.forEach(item => {
+        const prodName = item.product.toUpperCase();
+        // Identifica kits (ex: KIT 5m, KIT 10m, etc)
+        if (prodName.includes('KIT')) {
+          totalKits += item.quantity;
+          if (item.sensorType === 'com_sensor') {
+            kitsWithSensor += item.quantity;
+          } else {
+            // Padrão ou 'sem_sensor'
+            kitsWithoutSensor += item.quantity;
+          }
+        }
+      });
+    });
+
+    return { totalKits, kitsWithSensor, kitsWithoutSensor };
+  }, [filteredOrders]);
+
   const iniciarProducao = (orderId: string) => {
     const startedBy = user?.name || 'Equipe Producao';
     updateOrderStatus(orderId, 'em_producao', {
@@ -2226,6 +2250,48 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
           />
         </div>
       </div>
+
+      {/* Resumo de Kits Filtrados */}
+      {(kitSummary.totalKits > 0) && (
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-1000">
+           <div className="glass-card p-6 border-primary/20 bg-primary/[0.02] flex flex-wrap items-center justify-between gap-6">
+              <div className="flex items-center gap-5">
+                 <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center text-white shadow-xl shadow-primary/30">
+                    <Zap className="w-7 h-7 fill-current" />
+                 </div>
+                 <div>
+                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-1">Resumo de Kits na Fila</h3>
+                    <div className="flex items-baseline gap-2">
+                       <span className="text-3xl font-black text-foreground">{kitSummary.totalKits}</span>
+                       <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Kits Totais</span>
+                    </div>
+                 </div>
+              </div>
+
+              <div className="flex items-center gap-8 pr-4">
+                 <div className="text-right">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600 mb-1 flex items-center justify-end gap-1.5">
+                       <CheckCircle className="w-3 h-3" /> COM SENSOR
+                    </p>
+                    <p className="text-xl font-black text-foreground">{kitSummary.kitsWithSensor}</p>
+                 </div>
+                 <div className="w-px h-10 bg-border/40" />
+                 <div className="text-right">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1 flex items-center justify-end gap-1.5">
+                       <div className="w-2 h-2 rounded-full bg-muted-foreground/30" /> SEM SENSOR
+                    </p>
+                    <p className="text-xl font-black text-foreground">{kitSummary.kitsWithoutSensor}</p>
+                 </div>
+              </div>
+
+              <div className="hidden xl:block max-w-[200px]">
+                 <p className="text-[9px] font-bold text-muted-foreground leading-tight italic">
+                    * Os valores acima atualizam automaticamente conforme você aplica filtros de transportadora ou busca.
+                 </p>
+              </div>
+           </div>
+        </div>
+      )}
       
       {
         statusFilter === 'garantias' ? (

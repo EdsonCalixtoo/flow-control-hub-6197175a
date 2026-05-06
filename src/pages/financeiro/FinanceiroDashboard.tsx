@@ -88,8 +88,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
   // Rascunhos e orçamentos não enviados NÃO aparecem aqui
   const ordersVisiveisFinanceiro = useMemo(
     () => orders.filter(o => 
-      STATUS_VISIVEL_FINANCEIRO.includes(o.status) && 
-      (!o.isWarranty ? (o.total > 0 || o.items.some(item => item.isReward)) : true)
+      STATUS_VISIVEL_FINANCEIRO.includes(o.status)
     ),
     [orders, STATUS_VISIVEL_FINANCEIRO]
   );

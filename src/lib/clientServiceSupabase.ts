@@ -187,13 +187,17 @@ export const updateClient = async (client: Client): Promise<Client | null> => {
 
     const clientData = clientToSupabase(client, userId);
 
-    const { data, error } = await supabase
-      .from('clients')
-      .update(clientData)
-      .eq('id', client.id)
-      .eq('user_id', userId)
-      .select()
-      .single();
+    const { data: { session } } = await supabase.auth.getSession();
+    const userEmail = session?.user?.email;
+    const isExempt = userEmail === 'ericasousa@gmail.com' || userEmail === 'juninho.caxto@gmail.com';
+
+    let query = supabase.from('clients').update(clientData).eq('id', client.id);
+
+    if (!isExempt) {
+      query = query.eq('user_id', userId);
+    }
+
+    const { data, error } = await query.select().single();
 
     if (error) {
       throw new Error(error.message);
@@ -216,11 +220,17 @@ export const deleteClient = async (clientId: string): Promise<boolean> => {
     const userId = await getCurrentUserId();
     console.log('[Clients] 🗑️ Deletando cliente:', clientId);
 
-    const { error } = await supabase
-      .from('clients')
-      .delete()
-      .eq('id', clientId)
-      .eq('user_id', userId);
+    const { data: { session } } = await supabase.auth.getSession();
+    const userEmail = session?.user?.email;
+    const isExempt = userEmail === 'ericasousa@gmail.com' || userEmail === 'juninho.caxto@gmail.com';
+
+    let query = supabase.from('clients').delete().eq('id', clientId);
+
+    if (!isExempt) {
+      query = query.eq('user_id', userId);
+    }
+
+    const { error } = await query;
 
     if (error) {
       throw new Error(error.message);

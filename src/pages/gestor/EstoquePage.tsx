@@ -185,10 +185,47 @@ const EstoquePage: React.FC = () => {
                     <p className="text-slate-400 text-lg font-medium">Gestão inteligente e ajuste ultra-rápido de produtos.</p>
                 </div>
                 
-                <button onClick={() => showForm ? setShowForm(false) : openCreate()} className="relative z-10 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-xl shadow-blue-900/40 px-8 py-4 rounded-2xl font-black uppercase tracking-wider flex items-center gap-3 transition-all hover:scale-105 active:scale-95">
-                    {showForm ? <RotateCcw className="w-5 h-5" /> : <PlusCircle className="w-5 h-5" />}
-                    {showForm ? 'Voltar ao Estoque' : 'Adicionar Item'}
-                </button>
+                <div className="relative z-10 flex flex-wrap gap-4">
+                    <button 
+                        onClick={async () => {
+                            const productsToAdd = [
+                                { name: 'CAMISETA P', sku: 'CAM-P', category: 'Outros', unit: 'un', unitPrice: 0, costPrice: 0, stockQuantity: 0, minStock: 5, supplier: 'SISTEMA', status: 'ativo' as const },
+                                { name: 'CAMISETA M', sku: 'CAM-M', category: 'Outros', unit: 'un', unitPrice: 0, costPrice: 0, stockQuantity: 0, minStock: 5, supplier: 'SISTEMA', status: 'ativo' as const },
+                                { name: 'CAMISETA G', sku: 'CAM-G', category: 'Outros', unit: 'un', unitPrice: 0, costPrice: 0, stockQuantity: 0, minStock: 5, supplier: 'SISTEMA', status: 'ativo' as const },
+                                { name: 'CAMISETA GG', sku: 'CAM-GG', category: 'Outros', unit: 'un', unitPrice: 0, costPrice: 0, stockQuantity: 0, minStock: 5, supplier: 'SISTEMA', status: 'ativo' as const },
+                                { name: 'BANNER', sku: 'BAN-01', category: 'Outros', unit: 'un', unitPrice: 0, costPrice: 0, stockQuantity: 0, minStock: 2, supplier: 'SISTEMA', status: 'ativo' as const },
+                                { name: 'PLACA APLICATIVO', sku: 'PLA-APP', category: 'Outros', unit: 'un', unitPrice: 0, costPrice: 0, stockQuantity: 0, minStock: 5, supplier: 'SISTEMA', status: 'ativo' as const },
+                            ];
+                            
+                            let addedCount = 0;
+                            for (const p of productsToAdd) {
+                                if (!products.some(existing => existing.name === p.name || existing.sku === p.sku)) {
+                                    try {
+                                        await addProduct({
+                                            id: crypto.randomUUID(),
+                                            ...p,
+                                            description: p.name,
+                                            createdAt: new Date().toISOString().slice(0, 10),
+                                            updatedAt: new Date().toISOString().slice(0, 10),
+                                        });
+                                        addedCount++;
+                                    } catch (e) {
+                                        console.error(`Erro ao adicionar ${p.name}:`, e);
+                                    }
+                                }
+                            }
+                            if (addedCount > 0) toast.success(`${addedCount} novos produtos adicionados ao estoque!`);
+                            else toast.info('Todos os produtos já existem no estoque.');
+                        }}
+                        className="bg-white/10 hover:bg-white/20 text-white border border-white/20 px-6 py-4 rounded-2xl font-bold uppercase tracking-wider flex items-center gap-2 transition-all"
+                    >
+                        <Archive className="w-5 h-5" /> Sincronizar Novos Itens
+                    </button>
+                    <button onClick={() => showForm ? setShowForm(false) : openCreate()} className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-xl shadow-blue-900/40 px-8 py-4 rounded-2xl font-black uppercase tracking-wider flex items-center gap-3 transition-all hover:scale-105 active:scale-95">
+                        {showForm ? <RotateCcw className="w-5 h-5" /> : <PlusCircle className="w-5 h-5" />}
+                        {showForm ? 'Voltar ao Estoque' : 'Adicionar Item'}
+                    </button>
+                </div>
             </div>
 
             {/* Quick Stats Grid */}

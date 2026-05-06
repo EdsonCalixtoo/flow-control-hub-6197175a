@@ -472,6 +472,38 @@ const CorrigirPedidoPage: React.FC = () => {
                             ))}
                           </select>
                         </div>
+                        
+                        {/* ⚡ OPÇÃO DE SENSOR (Para KITS) */}
+                        {item.product.toUpperCase().includes('KIT') && (
+                          <div className="flex flex-col gap-2 pt-1">
+                            <label className="text-[9px] font-black uppercase text-muted-foreground ml-1">Configuração de Sensor</label>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleItemChange(idx, 'sensorType', 'com_sensor')}
+                                className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase transition-all flex items-center justify-center gap-1.5 ${
+                                  item.sensorType === 'com_sensor'
+                                    ? 'bg-primary text-white shadow-md'
+                                    : 'bg-white border-2 border-slate-100 text-muted-foreground hover:bg-slate-50'
+                                }`}
+                              >
+                                {item.sensorType === 'com_sensor' && <CheckCircle2 className="w-3 h-3" />} COM SENSOR
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleItemChange(idx, 'sensorType', 'sem_sensor')}
+                                className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase transition-all flex items-center justify-center gap-1.5 ${
+                                  item.sensorType === 'sem_sensor'
+                                    ? 'bg-slate-600 text-white shadow-md'
+                                    : 'bg-white border-2 border-slate-100 text-muted-foreground hover:bg-slate-50'
+                                }`}
+                              >
+                                {item.sensorType === 'sem_sensor' && <CheckCircle2 className="w-3 h-3" />} SEM SENSOR
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
                         <div className="grid grid-cols-2 gap-3">
                           <div className="flex flex-col gap-1">
                             <label className="text-[9px] font-black uppercase text-muted-foreground">Qtd</label>

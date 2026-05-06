@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Wrench, Database, Users, ShieldAlert, RefreshCcw, 
   Trash2, Terminal, Activity, Server, Search, CheckCircle2,
-  AlertCircle, ShieldCheck, ArrowRight, UserPlus
+  AlertCircle, ShieldCheck, ArrowRight, UserPlus, Download
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
@@ -18,6 +18,8 @@ const TIPage: React.FC = () => {
     lastSync: new Date().toLocaleTimeString('pt-BR')
   });
   const [loading, setLoading] = useState(false);
+  const [promoteEmail, setPromoteEmail] = useState('');
+  const [isPromoting, setIsPromoting] = useState(false);
   const [maintenanceMode, setMaintenanceMode] = useState(false);
 
   useEffect(() => {
@@ -57,6 +59,79 @@ const TIPage: React.FC = () => {
       }
       loadStats();
     }, 1500);
+  };
+
+  const handlePromoteUser = async () => {
+    if (!promoteEmail) return;
+    setIsPromoting(true);
+    try {
+      const { error } = await supabase
+        .from('users')
+        .upsert({ 
+          email: promoteEmail, 
+          role: 'admin',
+          name: promoteEmail.split('@')[0]
+        }, { onConflict: 'email' });
+
+      if (error) throw error;
+      toast.success('Usuário promovido com sucesso! Peça para ele relogar.');
+      setPromoteEmail('');
+    } catch (err: any) {
+      toast.error('Erro ao promover: ' + err.message);
+    } finally {
+      setIsPromoting(false);
+    }
+  };
+
+  const handleFullBackup = async () => {
+    setLoading(true);
+    const toastId = toast.loading('Iniciando backup completo da base de dados...');
+    
+    try {
+      const tables = [
+        'users', 'orders', 'clients', 'products', 'financial_entries', 
+        'delay_reports', 'order_returns', 'production_errors', 'barcode_scans', 
+        'delivery_pickups', 'installations', 'warranties', 'audit_logs', 'monthly_closings'
+      ];
+
+      const backupData: any = {
+        version: '1.0.0',
+        timestamp: new Date().toISOString(),
+        system: 'Flow Control Hub ERP',
+        exportedBy: 'Admin TI',
+        tables: {}
+      };
+
+      for (const table of tables) {
+        toast.loading(`Exportando tabela: ${table.toUpperCase()}...`, { id: toastId });
+        const { data, error } = await supabase.from(table).select('*');
+        if (error) {
+          console.error(`[Backup] Erro na tabela ${table}:`, error);
+          backupData.tables[table] = { error: error.message, status: 'failed' };
+        } else {
+          backupData.tables[table] = { data: data || [], count: data?.length || 0, status: 'success' };
+        }
+      }
+
+      const jsonString = JSON.stringify(backupData, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const fileName = `BACKUP_GERAL_FLOW_${new Date().toISOString().split('T')[0]}_${new Date().getHours()}h.json`;
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success(`Backup concluído! Arquivo: ${fileName}`, { id: toastId });
+    } catch (err: any) {
+      console.error('[Backup] Erro crítico:', err);
+      toast.error('Erro crítico ao gerar backup: ' + err.message, { id: toastId });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -159,6 +234,55 @@ const TIPage: React.FC = () => {
                 loading={loading}
                 active={maintenanceMode}
               />
+              <MaintenanceButton 
+                title="Backup Geral (1-Click)"
+                desc="Gera um arquivo JSON com todas as tabelas do sistema"
+                icon={<Download className="w-5 h-5 text-indigo-600" />}
+                onClick={handleFullBackup}
+                loading={loading}
+              />
+              <MaintenanceButton 
+                title="Recuperação de Dados"
+                desc="Cruzar Mercado Pago vs Jadlog (Recuperar dados perdidos)"
+                icon={<ShieldAlert className="w-5 h-5 text-rose-500" />}
+                onClick={() => navigate('/admin/recovery')}
+                loading={loading}
+              />
+            </div>
+          </div>
+
+          <div className="card-section p-6 space-y-6">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-indigo-500/10 text-indigo-500">
+                <UserPlus className="w-6 h-6" />
+              </div>
+              <div>
+                <h2 className="text-xl font-black text-foreground uppercase tracking-tight">Gestão de Cargos</h2>
+                <p className="text-sm text-muted-foreground font-medium">Promova usuários para o nível de Administrador via e-mail.</p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-4">
+              <input 
+                type="email"
+                placeholder="E-mail do usuário (ex: juninho.caxto@gmail.com)"
+                value={promoteEmail}
+                onChange={(e) => setPromoteEmail(e.target.value)}
+                className="flex-1 px-5 py-4 rounded-2xl bg-muted/50 border border-border/50 focus:ring-2 focus:ring-indigo-500 outline-none font-bold text-sm"
+              />
+              <button 
+                onClick={handlePromoteUser}
+                disabled={isPromoting || !promoteEmail}
+                className="px-8 py-4 rounded-2xl bg-indigo-600 text-white font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all disabled:opacity-50 shadow-lg shadow-indigo-600/20"
+              >
+                {isPromoting ? 'PROCESSANDO...' : 'PROMOVER A ADMIN'}
+              </button>
+            </div>
+            
+            <div className="p-4 rounded-2xl bg-amber-500/5 border border-amber-500/20">
+               <p className="text-[10px] font-bold text-amber-700 uppercase leading-relaxed">
+                 Nota: A promoção cria um registro na tabela "public.users" que tem prioridade sobre as configurações iniciais do usuário. O usuário deve fazer logout e login novamente para as alterações surtirem efeito.
+               </p>
             </div>
           </div>
 

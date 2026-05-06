@@ -15,6 +15,7 @@ const roles: { role: UserRole; icon: React.ElementType; desc: string; color: str
   { role: 'gestor', icon: BarChart3, desc: 'Indicadores', color: 'text-purple-500', bg: 'bg-purple-500/10', size: 'small' },
   { role: 'producao', icon: Factory, desc: 'Produção Geral', color: 'text-orange-500', bg: 'bg-orange-500/10', size: 'small' },
   { role: 'producao_carenagem', icon: Truck, desc: 'Carenagem', color: 'text-indigo-500', bg: 'bg-indigo-500/10', size: 'small' },
+  { role: 'admin', icon: ShieldCheck, desc: 'Painel T.I e Auditoria', color: 'text-slate-900', bg: 'bg-slate-900/10', size: 'small' },
 ];
 
 const LoginPage: React.FC = () => {

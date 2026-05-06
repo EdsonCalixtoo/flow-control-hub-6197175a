@@ -5,7 +5,7 @@ import { StatusBadge } from '@/components/shared/StatusBadge';
 import {
     Truck, Package, CheckCircle, X, Camera, PenLine, RefreshCw,
     ClipboardList, ChevronDown, ChevronUp, User, Calendar, Hash,
-    Search
+    Search, Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -621,7 +621,7 @@ const EntregadoresPage: React.FC = () => {
         return groups.filter(g => !g.alreadyPickedUp && selectedGroupIds.get(g.orderId)).length;
     }, [groups, selectedGroupIds]);
 
-    const canConfirm = delivererName.trim().length > 1 && !!photo && !!signature;
+    const canConfirm = delivererName.trim().length > 1 && !!signature;
 
     const handleConfirm = async (group: OrderGroup) => {
         if (!canConfirm || submitting) return;
@@ -645,16 +645,14 @@ const EntregadoresPage: React.FC = () => {
 
             // 1. Upload das fotos para o R2 (com nomes únicos)
             const { uploadToR2 } = await import('@/lib/storageServiceR2');
-            
-            const photoBlob = b64ToBlob(photo!);
             const sigBlob = b64ToBlob(signature!);
 
-            console.log('   📸 Subindo foto e assinatura para R2...');
-            const photoPath = `entregas/${group.orderNumber}-face-${Date.now()}.jpg`;
+            console.log('   📸 Subindo mídias para R2...');
+            const photoPath = photo ? `entregas/${group.orderNumber}-face-${Date.now()}.jpg` : null;
             const sigPath = `entregas/${group.orderNumber}-sig-${Date.now()}.png`;
 
             const [r2PhotoUrl, r2SigUrl] = await Promise.all([
-                uploadToR2(photoBlob, photoPath),
+                photo ? uploadToR2(b64ToBlob(photo), photoPath!) : Promise.resolve(''),
                 uploadToR2(sigBlob, sigPath)
             ]);
 
@@ -740,15 +738,14 @@ const EntregadoresPage: React.FC = () => {
             console.log(`[EntregadoresPage] 🔄 Confirmando lote ${batchId} com R2...`);
 
             // 1. Upload único da foto/assinatura do entregador para o R2 (reutilizamos para o lote)
-            const photoBlob = b64ToBlob(photo!);
             const sigBlob = b64ToBlob(signature!);
             
-            const commonPhotoPath = `entregas/lote-${batchId}-face.jpg`;
+            const commonPhotoPath = photo ? `entregas/lote-${batchId}-face.jpg` : null;
             const commonSigPath = `entregas/lote-${batchId}-sig.png`;
 
             console.log('   📸 Subindo mídias do lote para R2...');
             const [r2PhotoUrl, r2SigUrl] = await Promise.all([
-                uploadToR2(photoBlob, commonPhotoPath),
+                photo ? uploadToR2(b64ToBlob(photo), commonPhotoPath!) : Promise.resolve(''),
                 uploadToR2(sigBlob, commonSigPath)
             ]);
 
@@ -1029,7 +1026,7 @@ const EntregadoresPage: React.FC = () => {
 
                                 <div className="space-y-3">
                                     <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
-                                        <Camera className="w-4 h-4 text-primary" /> Reconhecimento Facial *
+                                        <Camera className="w-4 h-4 text-primary" /> Reconhecimento Facial (Opcional)
                                     </label>
                                     <CameraCapture
                                         onCapture={setPhoto}
@@ -1058,7 +1055,7 @@ const EntregadoresPage: React.FC = () => {
                                 <div className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600">
                                     <ClipboardList className="w-5 h-5 opacity-60" />
                                     <p className="text-[10px] font-black uppercase tracking-widest leading-tight">
-                                        Aguardando: {!delivererName.trim() ? 'Nome' : !photo ? 'Foto' : 'Assinatura'}
+                                        Aguardando: {!delivererName.trim() ? 'Nome' : 'Assinatura'}
                                     </p>
                                 </div>
                             ) : <div />}
@@ -1201,8 +1198,12 @@ const EntregadoresPage: React.FC = () => {
                                     {group.alreadyPickedUp && group.pickupInfo && !isExpanded && (
                                         <div className="mt-6 flex items-center gap-4 p-4 rounded-2xl bg-muted/20 border border-border/10">
                                             <div className="flex -space-x-3">
-                                                <div className="w-10 h-10 rounded-full border-2 border-white overflow-hidden bg-muted shadow-sm">
-                                                    <img src={group.pickupInfo.photoUrl} alt="Foto" className="w-full h-full object-cover" />
+                                                <div className="w-10 h-10 rounded-full border-2 border-white overflow-hidden bg-muted shadow-sm flex items-center justify-center">
+                                                    {group.pickupInfo.photoUrl ? (
+                                                        <img src={group.pickupInfo.photoUrl} alt="Foto" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <User className="w-4 h-4 text-muted-foreground/40" />
+                                                    )}
                                                 </div>
                                                 <div className="w-10 h-10 rounded-full border-2 border-white overflow-hidden bg-white shadow-sm flex items-center justify-center p-1">
                                                     <img src={group.pickupInfo.signatureUrl} alt="Assinatura" className="w-full h-full object-contain" />
@@ -1294,8 +1295,12 @@ const EntregadoresPage: React.FC = () => {
                                                     <div className="grid grid-cols-2 gap-4">
                                                         <div className="space-y-1.5">
                                                             <p className="text-[9px] font-black text-muted-foreground uppercase opacity-60">Foto Coletada</p>
-                                                            <div className="aspect-[4/3] rounded-3xl border border-border/20 overflow-hidden bg-muted/10">
-                                                                <img src={group.pickupInfo.photoUrl} alt="Face" className="w-full h-full object-cover" />
+                                                            <div className="aspect-[4/3] rounded-3xl border border-border/20 overflow-hidden bg-muted/10 flex items-center justify-center">
+                                                                {group.pickupInfo.photoUrl ? (
+                                                                    <img src={group.pickupInfo.photoUrl} alt="Face" className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    <User className="w-8 h-8 text-muted-foreground/20" />
+                                                                )}
                                                             </div>
                                                         </div>
                                                         <div className="space-y-1.5">
@@ -1348,7 +1353,7 @@ const EntregadoresPage: React.FC = () => {
                                                 </div>
                                                 <div className="space-y-2">
                                                     <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 flex items-center gap-2">
-                                                        <Camera className="w-4 h-4" /> Foto de Confirmação *
+                                                        <Camera className="w-4 h-4" /> Foto de Confirmação (Opcional)
                                                     </label>
                                                     <CameraCapture
                                                         onCapture={setPhoto}

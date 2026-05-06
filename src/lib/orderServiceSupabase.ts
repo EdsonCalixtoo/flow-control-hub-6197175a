@@ -125,8 +125,8 @@ export const fetchOrders = async (role?: string, userId?: string): Promise<Order
             .order('created_at', { ascending: false })
             .limit(1000);
 
-        const isErica = session?.user?.email === 'ericasousa@gmail.com';
-        if (currentRole === 'vendedor' && currentUserId && !isErica) {
+        const isExempt = session?.user?.email === 'ericasousa@gmail.com' || session?.user?.email === 'juninho.caxto@gmail.com';
+        if (currentRole === 'vendedor' && currentUserId && !isExempt) {
             query = query.eq('seller_id', currentUserId);
         }
         const { data, error } = await query;

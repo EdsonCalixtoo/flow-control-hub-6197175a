@@ -101,8 +101,10 @@ export const fetchClients = async (): Promise<Client[]> => {
     let query = supabase.from('clients').select(CLIENT_LIST_COLUMNS);
 
     // ✅ Filtro de segurança: Se for vendedor, isola apenas os clientes dele
-    // Exceção especial para a Erica que tem visibilidade total
-    if (userRole === 'vendedor' && userEmail !== 'ericasousa@gmail.com') {
+    // Exceção especial para Erica e Juninho que têm visibilidade total
+    const isExempt = userEmail === 'ericasousa@gmail.com' || userEmail === 'juninho.caxto@gmail.com';
+    
+    if (userRole === 'vendedor' && !isExempt) {
       console.log('[Clients] 🔒 Aplicando isolamento de vendedor');
       query = query.eq('user_id', userId);
     } else {
@@ -249,7 +251,8 @@ export const getClientById = async (clientId: string): Promise<Client | null> =>
     let query = supabase.from('clients').select('*').eq('id', clientId);
 
     // ✅ Aplicar a mesma lógica de visibilidade do fetchClients
-    if (userRole === 'vendedor' && userEmail !== 'ericasousa@gmail.com') {
+    const isExempt = userEmail === 'ericasousa@gmail.com' || userEmail === 'juninho.caxto@gmail.com';
+    if (userRole === 'vendedor' && !isExempt) {
       query = query.eq('user_id', userId);
     }
 
@@ -283,7 +286,8 @@ export const searchClientsByEmail = async (email: string): Promise<Client[]> => 
 
     let query = supabase.from('clients').select('*').ilike('email', `%${email}%`);
 
-    if (userRole === 'vendedor' && userEmail !== 'ericasousa@gmail.com') {
+    const isExempt = userEmail === 'ericasousa@gmail.com' || userEmail === 'juninho.caxto@gmail.com';
+    if (userRole === 'vendedor' && !isExempt) {
       query = query.eq('user_id', userId);
     }
 
@@ -318,7 +322,8 @@ export const searchClientsByName = async (name: string): Promise<Client[]> => {
     let query = supabase.from('clients').select('*').ilike('name', `%${name}%`);
 
     // ✅ Aplicar visibilidade total para cargos permitidos
-    if (userRole === 'vendedor' && userEmail !== 'ericasousa@gmail.com') {
+    const isExempt = userEmail === 'ericasousa@gmail.com' || userEmail === 'juninho.caxto@gmail.com';
+    if (userRole === 'vendedor' && !isExempt) {
       query = query.eq('user_id', userId);
     }
 

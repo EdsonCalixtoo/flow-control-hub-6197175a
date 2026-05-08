@@ -234,3 +234,34 @@ export const fetchOrdersByParentId = async (parentId: string): Promise<Order[]> 
         return [];
     }
 };
+
+/**
+ * Busca histórico COMPLETO de um cliente por ID, Nome ou CPF/CNPJ
+ * Ignora filtros de vendedor para garantir que o histórico da empresa seja visível
+ */
+export const fetchOrdersByClientInfo = async (clientId: string, clientName: string, cpfCnpj?: string): Promise<Order[]> => {
+    try {
+        let query = supabase.from('orders').select(LIST_ORDER_COLUMNS);
+        
+        const cleanCpf = cpfCnpj ? cpfCnpj.replace(/\D/g, '') : '';
+        const conditions = [`client_id.eq.${clientId}`];
+        
+        if (clientName && clientName.trim()) {
+            conditions.push(`client_name.ilike.%${clientName.trim()}%`);
+        }
+        
+        if (cleanCpf && cleanCpf.length > 5) {
+            conditions.push(`notes.ilike.%${cleanCpf}%`);
+            conditions.push(`observation.ilike.%${cleanCpf}%`);
+        }
+
+        query = query.or(conditions.join(','));
+        const { data, error } = await query.order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        return (data || []).map(supabaseToOrder);
+    } catch (err: any) {
+        console.error('[Orders] Erro ao buscar histórico por info do cliente:', err.message);
+        return [];
+    }
+};

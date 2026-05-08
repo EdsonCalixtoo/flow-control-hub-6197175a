@@ -13,6 +13,8 @@ import ClientRewardTab from '@/components/Client/ClientRewardTab';
 import { calculateClientRanking } from '@/lib/rewardServiceSupabase';
 import type { ClientRanking } from '@/types/erp';
 import { uploadToR2, generateR2Path } from '@/lib/storageServiceR2';
+import { fetchOrdersByClientInfo } from '@/lib/orderServiceSupabase';
+import type { Order } from '@/types/erp';
 
 const ClienteDetalhesPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -27,12 +29,23 @@ const ClienteDetalhesPage: React.FC = () => {
     const [ranking, setRanking] = React.useState<ClientRanking | null>(null);
     const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
     const [fileInputKey, setFileInputKey] = React.useState(0);
+    const [clientOrders, setClientOrders] = React.useState<Order[]>([]);
+    const [loadingHistory, setLoadingHistory] = React.useState(false);
 
     React.useEffect(() => {
         if (id) {
             calculateClientRanking(id).then(setRanking);
+            
+            // Busca o histórico completo inteligente
+            const currentClient = clients.find(c => c.id === id);
+            if (currentClient) {
+                setLoadingHistory(true);
+                fetchOrdersByClientInfo(currentClient.id, currentClient.name, currentClient.cpfCnpj)
+                    .then(setClientOrders)
+                    .finally(() => setLoadingHistory(false));
+            }
         }
-    }, [id]);
+    }, [id, clients]);
 
     const client = clients.find(c => c.id === id);
 
@@ -79,9 +92,10 @@ const ClienteDetalhesPage: React.FC = () => {
         }
     };
 
-    const clientOrders = orders
-        .filter(o => o.clientId === client.id)
-        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    // A lista de pedidos agora vem do estado local alimentado pelo fetch direto do banco
+    // const clientOrders = orders
+    //     .filter(o => o.clientId === client.id)
+    //     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     return (
         <>
@@ -201,7 +215,9 @@ const ClienteDetalhesPage: React.FC = () => {
                                 <h3 className="text-base font-bold text-foreground flex items-center gap-2">
                                     <ShoppingCart className="w-5 h-5 text-vendedor" /> Pedidos realizados
                                 </h3>
-                                <span className="text-xs text-muted-foreground font-medium">{clientOrders.length} pedido(s)</span>
+                                <span className="text-xs text-muted-foreground font-medium">
+                                    {loadingHistory ? 'Carregando histórico...' : `${clientOrders.length} pedido(s)`}
+                                </span>
                             </div>
 
                             {clientOrders.length === 0 ? (

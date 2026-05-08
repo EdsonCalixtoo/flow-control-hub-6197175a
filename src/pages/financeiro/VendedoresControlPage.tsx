@@ -19,8 +19,11 @@ const VendedoresControlPage: React.FC = () => {
   const [isFixing, setIsFixing] = useState(false);
 
   // Helper para buscar último fechamento de um vendedor
-  const getLastClosingDate = (sellerId: string) => {
-    const closings = monthlyClosings.filter(c => c.sellerId === sellerId);
+  const getLastClosingDate = (sellerId?: string, sellerName?: string) => {
+    const closings = monthlyClosings.filter(c => 
+      (sellerId && c.sellerId === sellerId) || 
+      (sellerName && c.sellerName === sellerName)
+    );
     if (closings.length === 0) return null;
     return new Date(closings.sort((a, b) => new Date(b.closingDate).getTime() - new Date(a.closingDate).getTime())[0].closingDate);
   };
@@ -56,15 +59,23 @@ const VendedoresControlPage: React.FC = () => {
       orders: Order[];
     }> = {};
 
+    // Mapeia nomes para IDs conhecidos para agrupar ordens sem ID
+    const nameToIdMap = new Map<string, string>();
+    orders.forEach(o => {
+      if (o.sellerId && o.sellerName) nameToIdMap.set(o.sellerName, o.sellerId);
+    });
+
     orders.forEach(order => {
       // ✅ Apenas conta vendas que foram enviadas (ignora rascunhos e orçamentos)
-      if (['rascunho', 'orcamento'].includes(order.status)) return;
+      if (['rascunho', 'orcamento', 'rejeitado_financeiro'].includes(order.status)) return;
 
-      const key = order.sellerId || order.sellerName;
+      const sellerId = order.sellerId || (order.sellerName ? nameToIdMap.get(order.sellerName) : undefined);
+      const key = sellerId || order.sellerName || 'Desconhecido';
+      
       if (!stats[key]) {
         stats[key] = {
-          name: order.sellerName,
-          sellerId: order.sellerId,
+          name: order.sellerName || 'Vendedor Desconhecido',
+          sellerId: sellerId as string,
           totalVendas: 0,
           qtdPedidos: 0,
           pedidosAguardandoFinanceiro: 0,
@@ -79,7 +90,7 @@ const VendedoresControlPage: React.FC = () => {
           totalProdutos: 0,
           premios: 0,
           others: 0,
-          lastClosingDate: getLastClosingDate(order.sellerId),
+          lastClosingDate: getLastClosingDate(sellerId as string, order.sellerName),
           orders: [],
         };
       }
@@ -411,6 +422,39 @@ const VendedoresControlPage: React.FC = () => {
   };
 
   // Detalhes de um vendedor
+  // Função para fechamento retroativo (ajuste manual de ciclo)
+  const handleRetroactiveClosing = async (seller: any) => {
+    const targetDate = "2026-05-03T23:59:59Z";
+    if (!confirm(`Deseja forçar o encerramento do ciclo da ${seller.name} até o dia 03/05/2026?\n\nIsso fará com que apenas pedidos de 04/05 em diante apareçam no ciclo atual.`)) return;
+
+    try {
+      setIsFixing(true);
+      await closeMonth({
+        sellerId: seller.sellerId,
+        sellerName: seller.name,
+        referenceMonth: "04/2026 (Ajuste)",
+        closingDate: targetDate,
+        totalSold: seller.totalVendas,
+        orderCount: seller.qtdPedidos,
+        outstandingValue: seller.valoresEmAberto,
+        details: {
+          note: "Fechamento retroativo solicitado para ajuste de ciclo",
+          items: seller.orders.filter((o: any) => new Date(o.createdAt) <= new Date(targetDate)).map((o: any) => ({
+            id: o.id,
+            number: o.number,
+            total: o.total
+          }))
+        }
+      });
+      toast.success(`Ciclo de ${seller.name} ajustado com sucesso!`);
+      setSelectedSeller(null);
+    } catch (err: any) {
+      toast.error("Erro ao ajustar ciclo: " + err.message);
+    } finally {
+      setIsFixing(false);
+    }
+  };
+
   if (selectedSeller) {
     const seller = sellerStats.find(s => s.sellerId === selectedSeller);
     if (!seller) return null;
@@ -439,6 +483,12 @@ const VendedoresControlPage: React.FC = () => {
               className="btn-modern bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 text-xs font-bold"
             >
               <FileText className="w-3.5 h-3.5 mr-2" /> Imprimir Itens
+            </button>
+            <button 
+              onClick={() => handleRetroactiveClosing(seller)}
+              className="btn-modern bg-amber-500 text-white shadow-lg shadow-amber-500/20 text-xs font-bold"
+            >
+              <History className="w-3.5 h-3.5 mr-2" /> Ajuste 03/05
             </button>
             <button 
               onClick={() => handleCloseMonth(seller)}

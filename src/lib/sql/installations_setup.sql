@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS public.installations (
     order_id UUID REFERENCES public.orders(id) ON DELETE CASCADE,
     seller_id UUID,
     client_name TEXT,
+    product_name TEXT, -- Adicionado para suportar agendamento por item
+    type TEXT,         -- Adicionado para diferenciar instalacao/manutencao
     date DATE NOT NULL,
     time TIME NOT NULL,
     payment_type TEXT CHECK (payment_type IN ('pago', 'pagar_na_hora')),

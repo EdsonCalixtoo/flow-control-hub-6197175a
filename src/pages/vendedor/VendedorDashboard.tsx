@@ -108,14 +108,22 @@ const VendedorDashboard: React.FC = () => {
   }, [clients]);
 
   // ✅ Filtra SOMENTE os pedidos do vendedor logado
-  const myOrders = useMemo(() => orders.filter(o => o.sellerId === user?.id), [orders, user?.id]);
+  const myOrders = useMemo(() => orders.filter(o => 
+    o.sellerId === user?.id || (o.sellerName === user?.name && !o.sellerId)
+  ), [orders, user?.id, user?.name]);
   
   const lastClosing = useMemo(() => {
     if (!user?.id) return null;
-    const closings = (monthlyClosings || []).filter(c => c.sellerId === user.id);
+    const closings = (monthlyClosings || []).filter(c => {
+      const isSameId = c.sellerId === user.id;
+      const isSameName = c.sellerName?.toLowerCase().trim() === user.name?.toLowerCase().trim();
+      // Regra especial para Erica devido ao e-mail conhecido
+      const isErica = user.email === 'ericasousa@gmail.com' && c.sellerName?.toLowerCase().includes('erica');
+      return isSameId || isSameName || isErica;
+    });
     if (closings.length === 0) return null;
     return new Date(closings.sort((a, b) => new Date(b.closingDate).getTime() - new Date(a.closingDate).getTime())[0].closingDate);
-  }, [monthlyClosings, user?.id]);
+  }, [monthlyClosings, user?.id, user?.name]);
   
   const STATUS_VISIVEL_FINANCEIRO = [
     'aguardando_financeiro', 'aprovado_financeiro', 'rejeitado_financeiro',

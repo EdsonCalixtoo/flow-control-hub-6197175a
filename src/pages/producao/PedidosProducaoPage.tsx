@@ -82,6 +82,40 @@ const ModernSelect: React.FC<{
   );
 };
 
+const ModernDateFilter: React.FC<{
+  value: string;
+  onChange: (val: string) => void;
+  title: string;
+}> = ({ value, onChange, title }) => {
+  return (
+    <div className="flex-1 min-w-[180px] flex items-center gap-3 bg-card/60 backdrop-blur-md p-2 rounded-[1.5rem] border border-border/60 shadow-sm transition-all hover:shadow-md group relative z-20">
+      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0 transition-transform group-hover:scale-110">
+        <Calendar className="w-4 h-4" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[8px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-0.5">{title}</p>
+        <div className="flex items-center justify-between gap-2">
+          <input 
+            type="date"
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            className="bg-transparent border-none text-[10px] font-black text-foreground uppercase tracking-widest outline-none w-full [color-scheme:light] dark:[color-scheme:dark]"
+          />
+          {value && (
+            <button 
+              onClick={() => onChange('')}
+              className="p-1 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-lg transition-colors shrink-0"
+              title="Limpar Data"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const REMETENTE = {
   name: 'Grupo Automozia',
   address: 'R. Dr. Élton César, 910',
@@ -383,7 +417,7 @@ const PedidosProducaoPage: React.FC = () => {
 
     let logoDataUrl = '';
     try {
-      const response = await fetch('/Automatiza-logo-rgb-01.jpg');
+      const response = await fetch('/logonovo.jpeg');
       const blob = await response.blob();
       logoDataUrl = await new Promise<string>((resolve) => {
         const reader = new FileReader();
@@ -492,9 +526,23 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
     const isActuallyScanned = scannedOrderIds.has(o.id);
     const filterToUse = tipoFiltro === 'historico' ? 'historico' : statusFilter;
 
+    // 🔥 OTIMIZAÇÃO PARA GARANTIAS E EXTRAVIOS:
+    // Pedidos de garantia ou extravio devem permanecer no painel de produção até serem de fato retirados.
+    const isSpecialOrder = o.isWarranty || (o.notes && /GARANTIA|EXTRAVIO|RETORNO/i.test(o.notes));
+    
     // Pedido é considerado "Concluído" para a produção se já foi Finalizado, Liberado para entrega ou Retirado
-    // 'producao_finalizada' agora é considerado concluído para desaparecer da lista de trabalho da fábrica
-    const isCompleted = ['producao_finalizada', 'produto_liberado', 'retirado_entregador'].includes(o.status) || isActuallyScanned;
+    // Para pedidos especiais, só sai do painel quando for retirado pelo entregador
+    // IMPORTANTE: Pedidos em status de produção ativa NUNCA devem ser considerados concluídos, 
+    // mesmo que possuam um registro de escaneamento antigo (caso de pedidos refeitos/garantias).
+    const isInActiveFlux = ['aguardando_producao', 'em_producao', 'aprovado_financeiro', 'aprovado_gestor'].includes(o.status);
+    
+    // Um pedido é considerado concluído se:
+    // 1. Estiver em um status finalizado (Finalizado, Liberado ou Retirado)
+    // 2. OU tiver sido escaneado (para pedidos normais)
+    // DESDE QUE não esteja em um fluxo ativo de produção novamente.
+    const isCompleted = !isInActiveFlux && (
+      ['producao_finalizada', 'produto_liberado', 'retirado_entregador'].includes(o.status) || isActuallyScanned
+    );
 
     // No histórico, mostramos tudo que está concluído
     if (filterToUse === 'historico') return isCompleted;
@@ -528,18 +576,20 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
     // Filtro de Tipo de Pedido (específico para história/todos)
     const matchTypeFilter = orderTypeFilter === 'todos' || o.orderType === orderTypeFilter;
 
-    if (statusFilter === 'atrasado') return matchSearch && isLate(o) && matchCarrier && matchTypeFilter;
-    if (statusFilter === 'historico') return matchSearch && matchCarrier && matchTypeFilter;
-    if (statusFilter === 'garantias') return matchSearch && matchCarrier;
+    // Filtro de Data Universal
+    const matchDate = !selectedDate || 
+      (o.scheduledDate === selectedDate || 
+       o.deliveryDate === selectedDate || 
+       o.installationDate === selectedDate ||
+       o.items.some(item => item.installationDate === selectedDate));
+
+    if (statusFilter === 'atrasado') return matchSearch && isLate(o) && matchCarrier && matchTypeFilter && matchDate;
+    if (statusFilter === 'historico') return matchSearch && matchCarrier && matchTypeFilter && matchDate;
+    if (statusFilter === 'garantias') return matchSearch && matchCarrier && matchDate;
     
     const matchStatus = statusFilter === 'todos' || o.status === statusFilter;
     
-    // Se estivermos na aba de Previsão/Planejamento e houver uma data selecionada no calendário
-    const matchDateForPlanning = (statusFilter === 'planejamento' && selectedDate) 
-      ? (o.scheduledDate === selectedDate || o.deliveryDate === selectedDate || o.installationDate === selectedDate)
-      : true;
-
-    return matchSearch && matchStatus && matchCarrier && matchDateForPlanning && matchTypeFilter;
+    return matchSearch && matchStatus && matchCarrier && matchDate && matchTypeFilter;
   });
 
   const groupedOrders = useMemo(() => {
@@ -2081,12 +2131,12 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 
               <div className="flex items-center gap-2">
                  {['aguardando_producao', 'aprovado_financeiro', 'aprovado_gestor'].includes(viewOrder.status) && (
-                    <button onClick={() => { iniciarProducao(viewOrder.id); setViewOrderId(null); }} className="btn-primary from-producao to-producao/80 px-6 py-3 text-xs font-black uppercase rounded-xl transition-all text-white">
+                    <button onClick={() => { iniciarProducao(viewOrder.id); }} className="btn-primary from-producao to-producao/80 px-6 py-3 text-xs font-black uppercase rounded-xl transition-all text-white">
                        <Play className="w-4 h-4 mr-2" /> Iniciar
                     </button>
                  )}
                  {viewOrder.status === 'em_producao' && (
-                    <button onClick={() => { finalizarProducao(viewOrder.id); setViewOrderId(null); }} className="btn-primary bg-gradient-to-br from-emerald-500 to-emerald-600 px-6 py-3 text-xs font-black uppercase rounded-xl transition-all text-white">
+                    <button onClick={() => { finalizarProducao(viewOrder.id); }} className="btn-primary bg-gradient-to-br from-emerald-500 to-emerald-600 px-6 py-3 text-xs font-black uppercase rounded-xl transition-all text-white">
                        <CheckCircle className="w-4 h-4 mr-2" /> Finalizar
                     </button>
                  )}
@@ -2152,17 +2202,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {tipoFiltro === 'instalacao' && (
-              <div className="flex items-center gap-2 bg-muted/40 p-2 rounded-2xl border border-border/20 backdrop-blur-md">
-                <Calendar className="w-4 h-4 text-primary ml-1" />
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={e => setSelectedDate(e.target.value)}
-                  className="bg-transparent border-none text-xs font-black focus:outline-none uppercase"
-                />
-              </div>
-            )}
+
             <button
               onClick={() => setShowCalendar(!showCalendar)}
               className={`btn-modern gap-3 px-6 py-3.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all duration-500 ${showCalendar ? 'bg-primary text-primary-foreground shadow-xl shadow-primary/20 scale-105' : 'bg-card border border-border/40 hover:border-primary/40 text-foreground shadow-lg'}`}
@@ -2207,7 +2247,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 
       {/* Modern Toolbar Area */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center animate-in fade-in slide-in-from-bottom-4 duration-700">
-        <div className="lg:col-span-6 relative group">
+        <div className="lg:col-span-4 relative group">
           <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
           <input 
             type="text" 
@@ -2218,7 +2258,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
           />
         </div>
         
-        <div className="lg:col-span-6 flex items-center gap-4">
+        <div className="lg:col-span-8 flex flex-wrap items-center gap-4">
           <ModernSelect 
             title="Tipo de Pedido"
             icon={Filter}
@@ -2247,6 +2287,12 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
               { value: 'retirada', label: 'RETIRADA LOCAL', icon: '🏢' },
               { value: 'sem_definir', label: 'SEM DEFINIR', icon: '❓' },
             ]}
+          />
+
+          <ModernDateFilter 
+            title="Filtrar por Data"
+            value={selectedDate}
+            onChange={setSelectedDate}
           />
         </div>
       </div>

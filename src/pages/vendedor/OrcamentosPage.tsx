@@ -297,13 +297,21 @@ const OrcamentosPage: React.FC = () => {
   // ✅ Isolamento e Fechamento Mensal
   const myOrders = useMemo(() => {
     const unfilteredList = (orders || []).filter(o =>
-      user?.role !== 'vendedor' || o.sellerId === user?.id
+      user?.role !== 'vendedor' || 
+      o.sellerId === user?.id || 
+      (o.sellerName === user?.name && !o.sellerId)
     );
 
     if (user?.role !== 'vendedor') return unfilteredList;
 
-    // Pega o último fechamento deste vendedor para definir o ciclo
-    const closings = (monthlyClosings || []).filter(c => c.sellerId === user?.id);
+    // Pega o último fechamento deste vendedor para definir o ciclo (ID ou Nome com fallback flexível)
+    const closings = (monthlyClosings || []).filter(c => {
+      const isSameId = c.sellerId === user?.id;
+      const isSameName = c.sellerName?.toLowerCase().trim() === user?.name?.toLowerCase().trim();
+      // Regra especial para Erica devido ao e-mail conhecido
+      const isErica = user?.email === 'ericasousa@gmail.com' && c.sellerName?.toLowerCase().includes('erica');
+      return isSameId || isSameName || isErica;
+    });
     const lastClosingDate = closings.length > 0 
       ? new Date(closings.sort((a, b) => new Date(b.closingDate).getTime() - new Date(a.closingDate).getTime())[0].closingDate)
       : null;

@@ -162,7 +162,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <div className="flex flex-col gap-1 cursor-pointer group" onClick={() => navigate(`/${user.role}`)}>
               <div className="bg-white rounded-2xl p-3 shadow-lg shadow-black/20 group-hover:scale-105 transition-all duration-500 overflow-hidden flex items-center justify-center w-full">
                 <img 
-                  src="/Automatiza-logo-rgb-01.jpg" 
+                  src="/logonovo.jpeg" 
                   alt="Automatiza VANS" 
                   className="h-10 w-auto object-contain"
                 />

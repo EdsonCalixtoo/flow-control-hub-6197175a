@@ -255,14 +255,17 @@ const PedidosProducaoPage: React.FC = () => {
 
   // Monitora em tempo real qualquer mudança nos pedidos de produção
   useRealtimeOrders((event) => {
+    // Alerta de novo pedido entrando na fila
     if (event.type === 'UPDATE' && event.previousStatus !== 'aguardando_producao' && event.order.status === 'aguardando_producao') {
       setNotificationCount(prev => prev + 1);
       console.log('[PedidosProducaoPage] 🔔 NOVO PEDIDO PARA PRODUÇÃO - Tempo Real');
     }
-    // Sempre recarrega a lista quando qualquer pedido muda
-    if (event.type === 'INSERT' || event.type === 'UPDATE') {
-      setTimeout(() => loadFromSupabase(), 100);
-    }
+    
+    // ✅ RECARGA BLINDADA: Recarrega a lista em QUALQUER mudança (inclusive se o pedido sair da produção)
+    console.log(`[PedidosProducaoPage] 🔄 Atualização detectada (${event.type}) - Recarregando lista...`);
+    setTimeout(() => {
+      loadFromSupabase?.();
+    }, 200);
   });
 
   // Camera scanner state
@@ -504,10 +507,32 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 
   const allOrders = orders.filter(o => {
     const isPlanning = o.status === 'planejamento';
-    const baseStatus = ['aprovado_financeiro', 'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado', 'retirado_entregador'].includes(o.status);
     
+    // Lista de status que PODEM aparecer na produção
+    const validProductionStatuses = [
+      'aguardando_producao', 
+      'em_producao', 
+      'producao_finalizada', 
+      'produto_liberado', 
+      'retirado_entregador'
+    ];
+
+    // Status que BLOQUEIAM a visualização na produção (mesmo que estivessem aprovados antes)
+    const isRejectedOrBackToFinance = [
+      'rejeitado_financeiro', 
+      'rejeitado_gestor', 
+      'aguardando_financeiro',
+      'rascunho',
+      'orcamento'
+    ].includes(o.status);
+
     if (statusFilter === 'planejamento') return isPlanning;
-    if (!baseStatus) return false;
+    
+    // Se estiver rejeitado ou voltou pro financeiro, NUNCA mostra na produção
+    if (isRejectedOrBackToFinance) return false;
+    
+    // Se não for um status válido de produção, não mostra
+    if (!validProductionStatuses.includes(o.status)) return false;
 
     // Filtro por Cargo (Produção vs Produção Carenagem)
     const hasCarenagem = o.items.some(item => 

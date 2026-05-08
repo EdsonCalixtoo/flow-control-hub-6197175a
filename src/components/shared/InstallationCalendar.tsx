@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Calendar as CalendarIcon, Clock, AlertCircle, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Calendar as CalendarIcon, Clock, AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, User } from 'lucide-react';
 import { format, addDays, startOfDay, isSameDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { fetchInstallations, InstallationAppointment } from '@/lib/installationServiceSupabase';
+import { useERP } from '@/contexts/ERPContext';
 
 interface InstallationCalendarProps {
     onSelect: (date: string, time: string) => void;
@@ -18,6 +19,7 @@ const TIMES = [
 ];
 
 export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSelect, selectedDate, selectedTime, compact, excludeAppointments, currentOrderId }) => {
+    const { orders } = useERP();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [appointments, setAppointments] = useState<InstallationAppointment[]>([]);
     const [loading, setLoading] = useState(false);
@@ -28,7 +30,7 @@ export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSe
             const dateToLoad = new Date(selectedDate.includes('T') ? selectedDate : selectedDate + 'T12:00:00');
             setCurrentDate(dateToLoad);
         }
-    }, []); // Executa apenas no mount para evitar loops se selecionado mudar externamente
+    }, []); 
 
     useEffect(() => {
         loadAppointments();
@@ -42,18 +44,38 @@ export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSe
         setLoading(false);
     };
 
+    // ✅ Fonte da verdade: Verifica tanto a tabela de instalações quanto os pedidos reais
     const isTimeOccupied = (time: string) => {
         const dateStr = format(currentDate, 'yyyy-MM-dd');
         
-        // 1. Verificar agendamentos salvos no banco
-        // 🔥 Ignoramos se o agendamento pertencer ao próprio pedido sendo editado
+        // 1. Verificar agendamentos salvos na tabela de instalações
         const dbOccupied = appointments.some(app => 
             app.time.substring(0, 5) === time && 
             (!currentOrderId || app.order_id !== currentOrderId)
         );
         if (dbOccupied) return true;
 
-        // 2. Verificar agendamentos locais (do mesmo pedido que ainda não foram salvos)
+        // 2. Verificar diretamente nos pedidos (Garante que nada escape)
+        const orderOccupied = orders.some(o => 
+            (o.installationDate === dateStr || o.deliveryDate === dateStr) && 
+            o.installationTime?.substring(0, 5) === time &&
+            o.id !== currentOrderId &&
+            o.status !== 'rejeitado_financeiro' &&
+            o.status !== 'rejeitado_gestor'
+        );
+        if (orderOccupied) return true;
+
+        // 3. Verificar se algum item individual do pedido está agendado
+        const itemOccupied = orders.some(o => 
+            o.id !== currentOrderId &&
+            o.items?.some(item => 
+                item.installationDate === dateStr && 
+                item.installationTime?.substring(0, 5) === time
+            )
+        );
+        if (itemOccupied) return true;
+
+        // 4. Verificar agendamentos locais (do mesmo pedido que ainda não foram salvos)
         if (excludeAppointments) {
             return excludeAppointments.some(app => app.date === dateStr && app.time.substring(0, 5) === time);
         }
@@ -64,19 +86,48 @@ export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSe
     const getOccupantInfo = (time: string) => {
         const dateStr = format(currentDate, 'yyyy-MM-dd');
         
-        // Primeiro checa agendamentos do banco
+        // 1. Tentar agendamento da tabela de instalações
         const app = appointments.find(app => 
             app.time.substring(0, 5) === time && 
             (!currentOrderId || app.order_id !== currentOrderId)
         );
-        if (app) {
+        if (app && app.client_name) {
             return {
                 name: app.client_name,
                 type: app.type || 'instalacao'
             };
         }
 
-        // Se não for do banco, checa se é uma exclusão local (deste mesmo formulário)
+        // 2. Tentar diretamente nos pedidos
+        const order = orders.find(o => 
+            (o.installationDate === dateStr || o.deliveryDate === dateStr) && 
+            o.installationTime?.substring(0, 5) === time &&
+            o.id !== currentOrderId &&
+            o.status !== 'rejeitado_financeiro'
+        );
+        if (order) {
+            return {
+                name: order.clientName,
+                type: order.orderType || 'instalacao'
+            };
+        }
+
+        // 3. Tentar nos itens individuais
+        const orderWithItem = orders.find(o => 
+            o.id !== currentOrderId &&
+            o.items?.some(item => 
+                item.installationDate === dateStr && 
+                item.installationTime?.substring(0, 5) === time
+            )
+        );
+        if (orderWithItem) {
+            return {
+                name: orderWithItem.clientName,
+                type: orderWithItem.orderType || 'instalacao'
+            };
+        }
+
+        // 4. Agendamento local
         if (excludeAppointments) {
             const isLocal = excludeAppointments.some(app => app.date === dateStr && app.time.substring(0, 5) === time);
             if (isLocal) {
@@ -107,7 +158,7 @@ export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSe
                 </button>
             </div>
 
-            <div className={`grid ${compact ? 'grid-cols-5' : 'grid-cols-3'} gap-2`}>
+            <div className={`grid ${compact ? 'grid-cols-3' : 'grid-cols-3'} gap-2`}>
                 {TIMES.map(time => {
                     const occupied = isTimeOccupied(time);
                     const isSelected = selectedDate === format(currentDate, 'yyyy-MM-dd') && selectedTime === time;
@@ -120,7 +171,7 @@ export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSe
                             disabled={occupied && !isSelected}
                             onClick={() => onSelect(format(currentDate, 'yyyy-MM-dd'), time)}
                             className={`
-                ${compact ? 'p-2' : 'p-4'} rounded-xl border-2 flex flex-col items-center justify-center gap-0.5 transition-all
+                ${compact ? 'p-3' : 'p-4'} rounded-xl border-2 flex flex-col items-center justify-center gap-0.5 transition-all
                 ${isSelected
                                     ? 'bg-success/10 border-success text-success scale-105 shadow-lg shadow-success/10 z-10'
                                     : occupied
@@ -129,18 +180,19 @@ export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSe
                                 }
                `}
                         >
-                            <span className={`${compact ? 'text-[10px]' : 'text-sm'} font-black tracking-tight`}>{time}</span>
-                            {occupied && !compact && (
-                                <div className="flex flex-col items-center gap-0.5">
-                                    <span className="text-[9px] font-bold uppercase truncate max-w-[80px] italic">
-                                        {info?.name || 'Indisponível'}
+                            <span className={`${compact ? 'text-[11px]' : 'text-sm'} font-black tracking-tight`}>{time}</span>
+                            {occupied && (
+                                <div className="flex flex-col items-center gap-0.5 w-full overflow-hidden">
+                                    <span className={`${compact ? 'text-[7px]' : 'text-[9px]'} font-bold uppercase truncate w-full text-center italic`}>
+                                        {info?.name || 'Ocupado'}
                                     </span>
-                                    <span className={`text-[7px] font-black uppercase px-1 rounded-sm ${info?.type === 'manutencao' ? 'bg-indigo-500 text-white' : 'bg-producao text-white'}`}>
-                                        {info?.type === 'manutencao' ? 'Manutenção' : 'Instalação'}
-                                    </span>
+                                    {!compact && (
+                                        <span className={`text-[7px] font-black uppercase px-1 rounded-sm ${info?.type === 'manutencao' ? 'bg-indigo-500 text-white' : 'bg-producao text-white'}`}>
+                                            {info?.type === 'manutencao' ? 'Manutenção' : 'Instalação'}
+                                        </span>
+                                    )}
                                 </div>
                             )}
-                            {occupied && compact && <div className="w-1 h-1 rounded-full bg-destructive/40" />}
                         </button>
                     );
                 })}

@@ -63,8 +63,8 @@ export const calculateClientRanking = async (clientId: string): Promise<ClientRa
                     tier2Count += qty;
                 }
 
-                // Tier 3: 10 kits (Preço entre 1100 e 1400)
-                if (price >= 1100 && price <= 1400) {
+                // Tier 3: 10 kits (Preço entre 1100 e 1449)
+                if (price >= 1100 && price < 1450) {
                     tier3Count += qty;
                 }
 

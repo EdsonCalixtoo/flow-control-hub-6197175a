@@ -113,19 +113,19 @@ const CorrigirPedidoPage: React.FC = () => {
           }
       }
 
-       await updateOrder(selectedOrderId, {
-         volumes: Number(volumes),
-         carrier: carrier.toUpperCase(),
-         items,
-         subtotal: calculatedSubtotal,
-         total: calculatedTotal,
-         installationDate,
-         installationTime,
-         scheduledDate: installationDate, // Sincroniza para aparecer no calendário de produção
-         orderType,
-         parentOrderId: parentOrderId,
-         parentOrderNumber: orders.find(o => o.id === parentOrderId)?.number
-       });
+        await updateOrder(selectedOrderId, {
+          volumes: Number(volumes),
+          carrier: carrier.toUpperCase(),
+          items,
+          subtotal: calculatedSubtotal,
+          total: calculatedTotal,
+          installationDate: (orderType === 'entrega' || orderType === 'retirada') ? '' : installationDate,
+          installationTime: (orderType === 'entrega' || orderType === 'retirada') ? '' : installationTime,
+          scheduledDate: (orderType === 'entrega' || orderType === 'retirada') ? '' : installationDate,
+          orderType,
+          parentOrderId: parentOrderId,
+          parentOrderNumber: orders.find(o => o.id === parentOrderId)?.number
+        });
 
        // Salva a unificação dos pedidos FILHOS
        // 1. Limpa filhos antigos que foram desmarcados
@@ -261,7 +261,7 @@ const CorrigirPedidoPage: React.FC = () => {
                   <Package className="w-3 h-3" /> Tipo de Pedido
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {[
+                    {[
                     { id: 'entrega', label: 'Entrega' },
                     { id: 'instalacao', label: 'Instalação' },
                     { id: 'manutencao', label: 'Manutenção' },
@@ -269,7 +269,13 @@ const CorrigirPedidoPage: React.FC = () => {
                   ].map(type => (
                     <button
                       key={type.id}
-                      onClick={() => setOrderType(type.id)}
+                      onClick={() => {
+                        setOrderType(type.id);
+                        if (type.id === 'entrega' || type.id === 'retirada') {
+                          setInstallationDate('');
+                          setInstallationTime('');
+                        }
+                      }}
                       className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${
                         orderType === type.id 
                           ? 'bg-primary text-white shadow-md' 

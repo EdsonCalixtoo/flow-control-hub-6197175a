@@ -672,7 +672,10 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
     if (!rejectReason.trim()) return;
     try {
       // ✅ Passa o status e o motivo no metadata (extra) para persistência e exibição correta
-      await updateOrderStatus(orderId, 'rejeitado_financeiro', { rejectionReason: rejectReason }, 'Financeiro', `Rejeitado: ${rejectReason}`);
+      await updateOrderStatus(orderId, 'rejeitado_financeiro', { 
+        rejectionReason: rejectReason,
+        productionStatus: undefined // Limpa o status de produção para sair da fila da fábrica
+      }, 'Financeiro', `Rejeitado: ${rejectReason}`);
       toast.success('Pedido rejeitado com sucesso');
       setSelectedOrderId(null); // Retorna para a lista após rejeitar
       setShowReject(false);
@@ -744,7 +747,8 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
     try {
       await updateOrderStatus(orderId, 'aguardando_financeiro', { 
         financeiroAprovado: false,
-        paymentStatus: 'pendente' 
+        paymentStatus: 'pendente',
+        productionStatus: undefined // Limpa para sair da produção imediatamente
       }, 'Financeiro', 'Envio cancelado. O pedido retornou para análise financeira.');
       
       toast.success('Envio cancelado com sucesso.');
@@ -1842,74 +1846,74 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
 
             {/* Ações de Aprovação / Reprovação / Edição */}
             <div className="space-y-4">
-              {selectedOrder.status === 'aguardando_financeiro' && (
-                <div className="space-y-4">
-                  {!showReject ? (
-                    <div className="grid grid-cols-4 gap-3">
-                      <button
-                        onClick={() => aprovarEEnviarProducao(selectedOrder.id)}
-                        className="col-span-3 py-4 rounded-2xl bg-foreground text-background font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:scale-[1.03] transition-all flex items-center justify-center gap-2"
-                      >
-                        Aprovar para Produção
-                      </button>
-                      <button
-                        onClick={() => setShowReject(true)}
-                        className="py-4 rounded-2xl bg-rose-500/10 text-rose-500 border border-rose-500/20 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center"
-                      >
-                        <XCircle className="w-5 h-5" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="card-premium p-6 bg-rose-500/5 border-rose-500/20 space-y-4 animate-scale-in relative z-[50]">
-                      <div className="flex items-center gap-2 text-rose-500">
-                        <AlertTriangle className="w-5 h-5" />
-                        <h4 className="text-[10px] font-black uppercase tracking-widest">Rejeitar Pedido</h4>
-                      </div>
-                      <textarea
-                        value={rejectReason}
-                        onChange={e => setRejectReason(e.target.value)}
-                        placeholder="Descreva o motivo do indeferimento financeiro..."
-                        rows={4}
-                        className="w-full rounded-2xl bg-white dark:bg-slate-900 border border-rose-500/30 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 outline-none p-4 text-xs font-semibold resize-none transition-all placeholder:text-muted-foreground/60 relative z-[60] pointer-events-auto"
-                      />
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => rejeitarPedido(selectedOrder.id)}
-                          disabled={!rejectReason.trim()}
-                          className="flex-1 py-3 rounded-xl bg-rose-500 text-white font-black text-[10px] uppercase tracking-widest disabled:opacity-50 hover:bg-rose-600 transition-all active:scale-95 relative z-[70] pointer-events-auto"
-                        >
-                          Confirmar Rejeição
-                        </button>
-                        <button
-                          onClick={() => { setShowReject(false); setRejectReason(''); }}
-                          className="px-4 py-3 rounded-xl bg-muted text-muted-foreground font-black text-[10px] uppercase tracking-widest hover:bg-muted/80 transition-all active:scale-95 relative z-[70] pointer-events-auto"
-                        >
-                          Voltar
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Botões de Edição e Cancelamento de Envio */}
+              {/* Botões de Edição, Cancelamento e REJEIÇÃO */}
               <div className="grid grid-cols-1 gap-3">
-                {['aguardando_financeiro', 'rejeitado_financeiro'].includes(selectedOrder.status) && (
-                  <button
-                    onClick={handleOpenEdit}
-                    className="w-full py-4 rounded-2xl bg-primary/10 text-primary border border-primary/20 font-black text-xs uppercase tracking-[0.2em] hover:bg-primary/20 transition-all flex items-center justify-center gap-2"
-                  >
-                    <Edit3 className="w-4 h-4" /> Editar Valores do Pedido
-                  </button>
-                )}
+                {['aguardando_financeiro', 'rejeitado_financeiro', 'aguardando_producao', 'em_producao', 'aprovado_financeiro'].includes(selectedOrder.status) && (
+                  <>
+                    {!showReject ? (
+                      <div className="grid grid-cols-4 gap-3">
+                        {selectedOrder.status === 'aguardando_financeiro' && (
+                          <button
+                            onClick={() => aprovarEEnviarProducao(selectedOrder.id)}
+                            className="col-span-3 py-4 rounded-2xl bg-foreground text-background font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:scale-[1.03] transition-all flex items-center justify-center gap-2"
+                          >
+                            Aprovar para Produção
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setShowReject(true)}
+                          className={`${selectedOrder.status === 'aguardando_financeiro' ? 'col-span-1' : 'col-span-4'} py-4 rounded-2xl bg-rose-500/10 text-rose-500 border border-rose-500/20 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-2 font-black text-xs uppercase tracking-widest`}
+                        >
+                          <XCircle className="w-5 h-5" /> Rejeitar Pedido
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="card-premium p-6 bg-rose-500/5 border-rose-500/20 space-y-4 animate-scale-in relative z-[50]">
+                        <div className="flex items-center gap-2 text-rose-500">
+                          <AlertTriangle className="w-5 h-5" />
+                          <h4 className="text-[10px] font-black uppercase tracking-widest">Rejeitar Pedido</h4>
+                        </div>
+                        <textarea
+                          value={rejectReason}
+                          onChange={e => setRejectReason(e.target.value)}
+                          placeholder="Descreva o motivo do indeferimento financeiro..."
+                          rows={4}
+                          className="w-full rounded-2xl bg-white dark:bg-slate-900 border border-rose-500/30 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 outline-none p-4 text-xs font-semibold resize-none transition-all placeholder:text-muted-foreground/60 relative z-[60] pointer-events-auto"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => rejeitarPedido(selectedOrder.id)}
+                            disabled={!rejectReason.trim()}
+                            className="flex-1 py-3 rounded-xl bg-rose-500 text-white font-black text-[10px] uppercase tracking-widest disabled:opacity-50 hover:bg-rose-600 transition-all active:scale-95 relative z-[70] pointer-events-auto"
+                          >
+                            Confirmar Rejeição
+                          </button>
+                          <button
+                            onClick={() => { setShowReject(false); setRejectReason(''); }}
+                            className="px-4 py-3 rounded-xl bg-muted text-muted-foreground font-black text-[10px] uppercase tracking-widest hover:bg-muted/80 transition-all active:scale-95 relative z-[70] pointer-events-auto"
+                          >
+                            Voltar
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
-                {['aguardando_producao', 'em_producao', 'aprovado_financeiro'].includes(selectedOrder.status) && (
-                  <button
-                    onClick={() => cancelarEnvioProducao(selectedOrder.id)}
-                    className="w-full py-4 rounded-2xl bg-amber-500/10 text-amber-500 border border-amber-500/20 font-black text-xs uppercase tracking-[0.2em] hover:bg-amber-500/20 transition-all flex items-center justify-center gap-2"
-                  >
-                    <RotateCcw className="w-4 h-4" /> Cancelar Envio (Voltar p/ Aprovação)
-                  </button>
+                    <button
+                      onClick={handleOpenEdit}
+                      className="w-full py-4 rounded-2xl bg-primary/10 text-primary border border-primary/20 font-black text-xs uppercase tracking-[0.2em] hover:bg-primary/20 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Edit3 className="w-4 h-4" /> Editar Valores do Pedido
+                    </button>
+
+                    {['aguardando_producao', 'em_producao', 'aprovado_financeiro'].includes(selectedOrder.status) && (
+                      <button
+                        onClick={() => cancelarEnvioProducao(selectedOrder.id)}
+                        className="w-full py-4 rounded-2xl bg-amber-500/10 text-amber-500 border border-amber-500/20 font-black text-xs uppercase tracking-[0.2em] hover:bg-amber-500/20 transition-all flex items-center justify-center gap-2"
+                      >
+                        <RotateCcw className="w-4 h-4" /> Voltar p/ Aprovação (Sem Rejeitar)
+                      </button>
+                    )}
+                  </>
                 )}
               </div>
             </div>

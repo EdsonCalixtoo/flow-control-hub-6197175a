@@ -344,11 +344,7 @@ export default function ClientesPageNew() {
     } finally { setDeleting(null); }
   };
 
-  const isErica = user?.email === 'ericasousa@gmail.com';
-  
-  const myClients = isErica 
-    ? clients.filter(c => c.createdBy === user?.id)
-    : clients;
+  const myClients = clients;
 
   const filtered = myClients.filter(c =>
     c.name?.toLowerCase().includes(search.toLowerCase()) ||

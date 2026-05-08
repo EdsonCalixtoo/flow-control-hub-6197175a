@@ -10,13 +10,14 @@ interface InstallationCalendarProps {
     selectedTime?: string;
     compact?: boolean;
     excludeAppointments?: { date: string; time: string }[];
+    currentOrderId?: string;
 }
 
 const TIMES = [
     '08:00', '09:00', '10:00', '11:00', '13:00', '14:00', '15:00', '16:00', '17:00'
 ];
 
-export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSelect, selectedDate, selectedTime, compact, excludeAppointments }) => {
+export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSelect, selectedDate, selectedTime, compact, excludeAppointments, currentOrderId }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [appointments, setAppointments] = useState<InstallationAppointment[]>([]);
     const [loading, setLoading] = useState(false);
@@ -45,7 +46,11 @@ export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSe
         const dateStr = format(currentDate, 'yyyy-MM-dd');
         
         // 1. Verificar agendamentos salvos no banco
-        const dbOccupied = appointments.some(app => app.time.substring(0, 5) === time);
+        // 🔥 Ignoramos se o agendamento pertencer ao próprio pedido sendo editado
+        const dbOccupied = appointments.some(app => 
+            app.time.substring(0, 5) === time && 
+            (!currentOrderId || app.order_id !== currentOrderId)
+        );
         if (dbOccupied) return true;
 
         // 2. Verificar agendamentos locais (do mesmo pedido que ainda não foram salvos)
@@ -60,7 +65,10 @@ export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSe
         const dateStr = format(currentDate, 'yyyy-MM-dd');
         
         // Primeiro checa agendamentos do banco
-        const app = appointments.find(app => app.time.substring(0, 5) === time);
+        const app = appointments.find(app => 
+            app.time.substring(0, 5) === time && 
+            (!currentOrderId || app.order_id !== currentOrderId)
+        );
         if (app) {
             return {
                 name: app.client_name,
@@ -113,10 +121,10 @@ export const InstallationCalendar: React.FC<InstallationCalendarProps> = ({ onSe
                             onClick={() => onSelect(format(currentDate, 'yyyy-MM-dd'), time)}
                             className={`
                 ${compact ? 'p-2' : 'p-4'} rounded-xl border-2 flex flex-col items-center justify-center gap-0.5 transition-all
-                ${occupied
-                                    ? 'bg-destructive/5 border-destructive/20 text-destructive/60 cursor-not-allowed'
-                                    : isSelected
-                                        ? 'bg-success/10 border-success text-success scale-105 shadow-lg shadow-success/10'
+                ${isSelected
+                                    ? 'bg-success/10 border-success text-success scale-105 shadow-lg shadow-success/10 z-10'
+                                    : occupied
+                                        ? 'bg-destructive/5 border-destructive/20 text-destructive/60 cursor-not-allowed'
                                         : 'bg-card border-border/40 hover:border-primary/50 text-foreground'
                                 }
                `}

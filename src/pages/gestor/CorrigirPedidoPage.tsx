@@ -105,7 +105,7 @@ const CorrigirPedidoPage: React.FC = () => {
       // Verifica conflito se mudou horário ou data
       if ((orderType === 'instalacao' || orderType === 'manutencao') && 
           (installationDate !== selectedOrder?.installationDate || installationTime !== selectedOrder?.installationTime)) {
-          const hasConflict = await checkInstallationConflict(installationDate, installationTime);
+          const hasConflict = await checkInstallationConflict(installationDate, installationTime, selectedOrderId);
           if (hasConflict) {
               toast.error('❌ Este horário já está ocupado na agenda.');
               setLoading(false);
@@ -552,6 +552,7 @@ const CorrigirPedidoPage: React.FC = () => {
                     <InstallationCalendar 
                         selectedDate={installationDate}
                         selectedTime={installationTime}
+                        currentOrderId={selectedOrderId || undefined}
                         onSelect={(date, time) => {
                             setInstallationDate(date);
                             setInstallationTime(time);

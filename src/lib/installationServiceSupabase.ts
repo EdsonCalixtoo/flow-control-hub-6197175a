@@ -28,14 +28,19 @@ export const fetchInstallations = async (date?: string): Promise<InstallationApp
     }
 };
 
-export const checkInstallationConflict = async (date: string, time: string): Promise<boolean> => {
+export const checkInstallationConflict = async (date: string, time: string, excludeOrderId?: string): Promise<boolean> => {
     try {
-        const { data, error } = await supabase
+        let query = supabase
             .from('installations')
             .select('id')
             .eq('date', date)
-            .eq('time', time)
-            .maybeSingle();
+            .eq('time', time);
+            
+        if (excludeOrderId) {
+            query = query.neq('order_id', excludeOrderId);
+        }
+
+        const { data, error } = await query.maybeSingle();
 
         if (error) throw error;
         return !!data;

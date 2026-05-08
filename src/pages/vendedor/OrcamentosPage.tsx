@@ -630,8 +630,8 @@ const OrcamentosPage: React.FC = () => {
 
       // Verifica conflitos para o agendamento global (se houver)
       if (newDeliveryDate && newInstallationTime) {
-        const hasConflict = await checkInstallationConflict(newDeliveryDate, newInstallationTime);
-        if (hasConflict && !editingOrder) {
+        const hasConflict = await checkInstallationConflict(newDeliveryDate, newInstallationTime, editingOrder?.id);
+        if (hasConflict) {
           setFormError('⚠️ O horário global escolhido já está ocupado. Escolha outro.');
           return;
         }
@@ -639,8 +639,8 @@ const OrcamentosPage: React.FC = () => {
 
       // Verifica conflitos para cada item agendado
       for (const item of itemsWithSchedule) {
-        const hasConflict = await checkInstallationConflict(item.installationDate!, item.installationTime!);
-        if (hasConflict && !editingOrder) {
+        const hasConflict = await checkInstallationConflict(item.installationDate!, item.installationTime!, editingOrder?.id);
+        if (hasConflict) {
           setFormError(`⚠️ O horário para o item "${item.product}" (${item.installationTime}) já está ocupado.`);
           return;
         }
@@ -1411,24 +1411,25 @@ const OrcamentosPage: React.FC = () => {
 
                           {item.showCalendar && (
                             <div className="pt-2 animate-in slide-in-from-top-4 duration-300">
-                              <InstallationCalendar
-                                compact
-                                selectedDate={item.installationDate}
-                                selectedTime={item.installationTime}
-                                excludeAppointments={newItems
-                                  .filter((_, idx) => idx !== i)
-                                  .map(it => ({ 
-                                    date: it.installationDate || '', 
-                                    time: it.installationTime || '' 
-                                  }))
-                                  .filter(it => it.date && it.time)
-                                }
-                                onSelect={(date, time) => {
-                                  updateItem(i, 'installationDate', date);
-                                  updateItem(i, 'installationTime', time);
-                                  updateItem(i, 'showCalendar', false); // Fecha após selecionar
-                                }}
-                              />
+                                <InstallationCalendar
+                                  compact
+                                  selectedDate={item.installationDate}
+                                  selectedTime={item.installationTime}
+                                  currentOrderId={editingOrder?.id}
+                                  excludeAppointments={newItems
+                                    .filter((_, idx) => idx !== i)
+                                    .map(it => ({ 
+                                      date: it.installationDate || '', 
+                                      time: it.installationTime || '' 
+                                    }))
+                                    .filter(it => it.date && it.time)
+                                  }
+                                  onSelect={(date, time) => {
+                                    updateItem(i, 'installationDate', date);
+                                    updateItem(i, 'installationTime', time);
+                                    updateItem(i, 'showCalendar', false); // Fecha após selecionar
+                                  }}
+                                />
                             </div>
                           )}
                         </div>

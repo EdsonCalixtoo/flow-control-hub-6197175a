@@ -119,7 +119,7 @@ const GarantiasPage: React.FC = () => {
                     return;
                 }
 
-                const hasConflict = await checkInstallationConflict(installationDate, installationTime);
+                const hasConflict = await checkInstallationConflict(installationDate, installationTime, editingWarranty?.orderId);
                 if (hasConflict) {
                     toast.error('❌ Este horário já está ocupado na agenda.');
                     setLoading(false);
@@ -653,6 +653,7 @@ const GarantiasPage: React.FC = () => {
                                 <InstallationCalendar
                                     selectedDate={installationDate}
                                     selectedTime={installationTime}
+                                    currentOrderId={editingWarranty?.orderId}
                                     onSelect={(date, time) => {
                                         setInstallationDate(date);
                                         setInstallationTime(time);

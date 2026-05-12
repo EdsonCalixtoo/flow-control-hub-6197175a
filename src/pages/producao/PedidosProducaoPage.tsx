@@ -1920,10 +1920,28 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
               <div className="space-y-2">
                  {(() => {
                    const pendingItems = viewOrder.items.filter(item => item.status !== 'finalizado' && item.installationDate);
-                   const uniqueDates = Array.from(new Set(pendingItems.map(item => item.installationDate!))).sort();
                    
-                   if (uniqueDates.length === 0) {
-                     const allFinished = viewOrder.items.every(item => item.status === 'finalizado');
+                   // Obtém os agendamentos dos itens, com fallback para o agendamento do pedido se aplicável
+                   let schedules = pendingItems.map(item => ({
+                     date: item.installationDate!,
+                     time: item.installationTime || ''
+                   }));
+
+                   if (schedules.length === 0 && viewOrder.installationDate) {
+                     schedules = [{
+                       date: viewOrder.installationDate,
+                       time: viewOrder.installationTime || ''
+                     }];
+                   }
+
+                   const uniqueSchedules = Array.from(
+                     new Map(
+                       schedules.map(s => [`${s.date}-${s.time}`, s])
+                     ).values()
+                   ).sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+                   
+                   if (uniqueSchedules.length === 0) {
+                     const allFinished = viewOrder.items.length > 0 && viewOrder.items.every(item => item.status === 'finalizado');
                      return (
                        <p className={`text-xl font-black uppercase leading-none tracking-tighter ${allFinished ? 'text-success' : 'text-foreground'}`}>
                          {allFinished ? 'TUDO CONCLUÍDO' : 'DIRETO'}
@@ -1933,10 +1951,13 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 
                    return (
                      <div className="flex flex-wrap gap-2">
-                        {uniqueDates.map(date => (
-                          <div key={date} className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-primary/10 text-primary border border-primary/20 animate-in fade-in zoom-in-95 duration-500">
+                        {uniqueSchedules.map((schedule, idx) => (
+                          <div key={idx} className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-primary/10 text-primary border border-primary/20 animate-in fade-in zoom-in-95 duration-500">
                              <Calendar className="w-3 h-3 shrink-0" />
-                             <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">{fmtDate(date)}</span>
+                             <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">
+                               {fmtDate(schedule.date)}
+                               {schedule.time && ` ÀS ${schedule.time}`}
+                             </span>
                           </div>
                         ))}
                      </div>

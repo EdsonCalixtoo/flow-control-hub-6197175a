@@ -10,19 +10,19 @@ ON public.clients
 FOR SELECT
 TO authenticated
 USING (
-  user_id = auth.uid() -- Sou o dono
+  user_id = auth.uid()::text -- Sou o dono
   OR 
   EXISTS ( -- Ou tenho um pedido com este cliente
     SELECT 1 FROM public.orders
     WHERE orders.client_id = clients.id
-    AND orders.seller_id = auth.uid()
+    AND orders.seller_id = auth.uid()::text
   )
   OR
   (auth.jwt() ->> 'email') IN ('ericasousa@gmail.com', 'juninho.caxto@gmail.com', 'edsoncalixto@gmail.com') -- Ou sou admin por email
   OR
   EXISTS ( -- Ou tenho role administrativa
     SELECT 1 FROM public.users
-    WHERE users.id = auth.uid()
+    WHERE users.id = auth.uid()::text
     AND users.role IN ('admin', 'gestor', 'super_admin')
   )
 );
@@ -35,12 +35,12 @@ ON public.clients
 FOR UPDATE
 TO authenticated
 USING (
-  user_id = auth.uid() 
+  user_id = auth.uid()::text 
   OR 
   EXISTS (
     SELECT 1 FROM public.orders
     WHERE orders.client_id = clients.id
-    AND orders.seller_id = auth.uid()
+    AND orders.seller_id = auth.uid()::text
   )
 );
 

@@ -344,7 +344,13 @@ export default function ClientesPageNew() {
     } finally { setDeleting(null); }
   };
 
-  const myClients = clients;
+  const isErica = user?.email === 'ericasousa@gmail.com';
+  const isVendedor = user?.role === 'vendedor';
+
+  // Visibilidade estrita: Vendedores e Erica (em modo orçamento) veem apenas o que cadastraram
+  const myClients = (isErica || isVendedor)
+    ? clients.filter(c => c.createdBy === user?.id)
+    : clients;
 
   const filtered = myClients.filter(c =>
     c.name?.toLowerCase().includes(search.toLowerCase()) ||

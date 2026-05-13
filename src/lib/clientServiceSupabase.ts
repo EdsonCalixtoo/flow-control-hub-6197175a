@@ -101,36 +101,23 @@ export const fetchClients = async (): Promise<Client[]> => {
     let query = supabase.from('clients').select(CLIENT_LIST_COLUMNS);
 
     // ✅ Visibilidade de Clientes:
-    // 1. Vendedores veem SEUS próprios clientes + QUALQUER cliente que tenha pedido com eles.
-    // 2. Cargos administrativos veem tudo.
+    // 1. Administradores, Gestores, Financeiro e Produção veem tudo.
+    // 2. Vendedores veem SEUS próprios clientes + QUALQUER cliente que tenha pedido com eles.
+    // 3. Qualquer outro usuário não isento é restrito por segurança.
     const isExempt = 
       userEmail === 'ericasousa@gmail.com' || 
       userEmail === 'juninho.caxto@gmail.com' || 
       userEmail === 'edsoncalixto@gmail.com' ||
       userRole === 'admin' || 
       userRole === 'gestor' || 
-      userRole === 'super_admin';
+      userRole === 'super_admin' ||
+      userRole === 'financeiro' ||
+      userRole === 'producao' ||
+      userRole === 'garantia';
     
-    if (userRole === 'vendedor' && !isExempt) {
-      console.log('[Clients] 🔒 Aplicando isolamento com exceção de pedidos');
-      
-      // Busca IDs de clientes que possuem pedidos com este vendedor
-      const { data: orderClients } = await supabase
-        .from('orders')
-        .select('client_id')
-        .eq('seller_id', userId);
-      
-      const clientIdsFromOrders = Array.from(new Set(orderClients?.map(o => o.client_id) || []));
-
-      if (clientIdsFromOrders.length > 0) {
-        const safeIds = clientIdsFromOrders.slice(0, 500);
-        const orFilter = `user_id.eq.${userId},id.in.(${safeIds.map(id => `"${id}"`).join(',')})`;
-        console.log('[Clients] 🛠️ Aplicando filtro OR complexo (owner + orders)');
-        query = query.or(orFilter);
-      } else {
-        console.log('[Clients] 🛠️ Aplicando filtro simples por user_id');
-        query = query.eq('user_id', userId);
-      }
+    if (!isExempt) {
+      console.log('[Clients] 🔒 Aplicando isolamento rigoroso por proprietário');
+      query = query.eq('user_id', userId);
     } else {
       console.log('[Clients] 🔓 Visibilidade total habilitada para:', userEmail || userRole);
     }
@@ -211,13 +198,22 @@ export const updateClient = async (client: Client): Promise<Client | null> => {
     console.log('[Clients] 📝 Atualizando cliente:', client.id);
 
     const clientData = clientToSupabase(client, userId);
+    
+    // ✅ SEGURANÇA: Não permitimos que o user_id (dono) seja alterado no update.
+    // Isso garante que se Gustavo cadastrou, ele continue sendo o dono mesmo que Maria edite o telefone.
+    delete clientData.user_id;
 
     const { data: { session } } = await supabase.auth.getSession();
     const userEmail = session?.user?.email;
-    const isExempt = userEmail === 'ericasousa@gmail.com' || userEmail === 'juninho.caxto@gmail.com';
+    const userRole = session?.user?.user_metadata?.role;
+    const isExempt = 
+      userEmail === 'ericasousa@gmail.com' || 
+      userEmail === 'juninho.caxto@gmail.com' || 
+      userEmail === 'edsoncalixto@gmail.com' ||
+      userRole === 'admin' || 
+      userRole === 'gestor' || 
+      userRole === 'super_admin';
 
-    // Removemos a restrição de user_id no update para permitir que vendedores 
-    // atualizem dados de clientes que eles possuem pedidos, mesmo que criados por outros.
     const { data, error } = await supabase.from('clients').update(clientData).eq('id', client.id).select().single();
 
     if (error) {
@@ -243,7 +239,14 @@ export const deleteClient = async (clientId: string): Promise<boolean> => {
 
     const { data: { session } } = await supabase.auth.getSession();
     const userEmail = session?.user?.email;
-    const isExempt = userEmail === 'ericasousa@gmail.com' || userEmail === 'juninho.caxto@gmail.com';
+    const userRole = session?.user?.user_metadata?.role;
+    const isExempt = 
+      userEmail === 'ericasousa@gmail.com' || 
+      userEmail === 'juninho.caxto@gmail.com' || 
+      userEmail === 'edsoncalixto@gmail.com' ||
+      userRole === 'admin' || 
+      userRole === 'gestor' || 
+      userRole === 'super_admin';
 
     let query = supabase.from('clients').delete().eq('id', clientId);
 
@@ -281,23 +284,18 @@ export const getClientById = async (clientId: string): Promise<Client | null> =>
 
     let query = supabase.from('clients').select('*').eq('id', clientId);
 
-    // ✅ Visibilidade: (Sou o dono) OU (Tenho pedido com este cliente)
-    const isExempt = userEmail === 'ericasousa@gmail.com' || userEmail === 'juninho.caxto@gmail.com';
-    if (userRole === 'vendedor' && !isExempt) {
-      // Verifica se existe pedido deste vendedor para este cliente específico
-      const { data: hasOrder } = await supabase
-        .from('orders')
-        .select('id')
-        .eq('client_id', clientId)
-        .eq('seller_id', userId)
-        .limit(1)
-        .maybeSingle();
+    // ✅ Visibilidade: Apenas o dono ou Administradores
+    const isExempt = 
+      userEmail === 'juninho.caxto@gmail.com' || 
+      userEmail === 'edsoncalixto@gmail.com' ||
+      userRole === 'admin' || 
+      userRole === 'gestor' || 
+      userRole === 'super_admin' ||
+      userRole === 'financeiro' ||
+      userRole === 'producao';
 
-      if (!hasOrder) {
-        query = query.eq('user_id', userId);
-      } else {
-        console.log('[Clients] 🔓 Acesso concedido por vínculo de pedido');
-      }
+    if (!isExempt) {
+      query = query.eq('user_id', userId);
     }
 
     const { data, error } = await query.maybeSingle();
@@ -328,8 +326,6 @@ export const searchClientsByEmail = async (email: string): Promise<Client[]> => 
 
     // Busca IDs de clientes que possuem pedidos com este vendedor para garantir visibilidade
     const { data: orderClients } = await supabase.from('orders').select('client_id').eq('seller_id', userId);
-    const clientIdsFromOrders = Array.from(new Set(orderClients?.map(o => o.client_id) || []));
-
     let query = supabase.from('clients').select('*').ilike('email', `%${email}%`);
 
     const isExempt = 
@@ -338,16 +334,12 @@ export const searchClientsByEmail = async (email: string): Promise<Client[]> => 
       userEmail === 'edsoncalixto@gmail.com' ||
       userRole === 'admin' || 
       userRole === 'gestor' || 
-      userRole === 'super_admin';
+      userRole === 'super_admin' ||
+      userRole === 'financeiro' ||
+      userRole === 'producao';
 
-    if (userRole === 'vendedor' && !isExempt) {
-      if (clientIdsFromOrders.length > 0) {
-        const safeIds = clientIdsFromOrders.slice(0, 500);
-        const orFilter = `user_id.eq.${userId},id.in.(${safeIds.map(id => `"${id}"`).join(',')})`;
-        query = query.or(orFilter);
-      } else {
-        query = query.eq('user_id', userId);
-      }
+    if (!isExempt) {
+      query = query.eq('user_id', userId);
     }
 
     const { data, error } = await query;
@@ -382,23 +374,19 @@ export const searchClientsByName = async (name: string): Promise<Client[]> => {
 
     let query = supabase.from('clients').select('*').ilike('name', `%${name}%`);
 
-    // ✅ Aplicar visibilidade restrita a donos + vinculados por pedido
+    // ✅ Aplicar visibilidade restrita a donos
     const isExempt = 
       userEmail === 'ericasousa@gmail.com' || 
       userEmail === 'juninho.caxto@gmail.com' || 
       userEmail === 'edsoncalixto@gmail.com' ||
       userRole === 'admin' || 
       userRole === 'gestor' || 
-      userRole === 'super_admin';
+      userRole === 'super_admin' ||
+      userRole === 'financeiro' ||
+      userRole === 'producao';
 
-    if (userRole === 'vendedor' && !isExempt) {
-      if (clientIdsFromOrders.length > 0) {
-        const safeIds = clientIdsFromOrders.slice(0, 500);
-        const orFilter = `user_id.eq.${userId},id.in.(${safeIds.map(id => `"${id}"`).join(',')})`;
-        query = query.or(orFilter);
-      } else {
-        query = query.eq('user_id', userId);
-      }
+    if (!isExempt) {
+      query = query.eq('user_id', userId);
     }
 
     const { data, error } = await query.limit(20);

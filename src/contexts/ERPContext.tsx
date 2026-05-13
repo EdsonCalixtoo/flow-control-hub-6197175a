@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useAuth } from '@/contexts/AuthContext';
-import { fetchClients, createClient as createClientSupabase, updateClient as updateClientSupabase, deleteClient as deleteClientSupabase } from '@/lib/clientServiceSupabase';
+import { fetchClients, createClient as createClientSupabase, updateClient as updateClientSupabase, deleteClient as deleteClientSupabase, supabaseToClient as supabaseToClientClient } from '@/lib/clientServiceSupabase';
 import { fetchProducts, createProduct as createProductSupabase, updateProductSupabase, deleteProductSupabase } from '@/lib/productServiceSupabase';
 import { fetchOrders, fetchOrderById, createOrderSupabase, updateOrderSupabase, deleteOrderSupabase, supabaseToOrder } from '@/lib/orderServiceSupabase';
 import {
@@ -212,7 +212,34 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       )
       .subscribe((status) => {
-        console.log('[ERP] 📡 Status do canal Realtime:', status);
+        console.log('[ERP] 📡 Status do canal Realtime (Orders):', status);
+      });
+
+    // ── CONFIGURAÇÃO REALTIME (CLIENTS) ──────────────────
+    const clientChannel = supabase
+      .channel('erp_clients_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', table: 'clients', schema: 'public' },
+        (payload) => {
+          console.log('[ERP] 🔔 Mudança detectada em Clientes (Realtime):', payload.eventType);
+          
+          if (payload.eventType === 'INSERT') {
+            const newClient = supabaseToClientClient(payload.new);
+            setClients(prev => {
+              if (prev.find(c => c.id === newClient.id)) return prev;
+              return [newClient, ...prev];
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedClient = supabaseToClientClient(payload.new);
+            setClients(prev => prev.map(c => c.id === updatedClient.id ? updatedClient : c));
+          } else if (payload.eventType === 'DELETE') {
+            setClients(prev => prev.filter(c => c.id !== payload.old.id));
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('[ERP] 📡 Status do canal Realtime (Clients):', status);
       });
 
     const interval = setInterval(() => {
@@ -226,6 +253,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => {
       clearInterval(interval);
       supabase.removeChannel(channel);
+      supabase.removeChannel(clientChannel);
     };
   }, [loadFromSupabase, isAuthenticated]);
   

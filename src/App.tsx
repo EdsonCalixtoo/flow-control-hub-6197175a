@@ -38,6 +38,7 @@ import QRCodePage from "@/pages/QRCodePage";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import TIPage from "@/pages/admin/TIPage";
 import DataRecoveryPage from "@/pages/admin/DataRecoveryPage";
+import TrackingManagerPage from "@/pages/admin/TrackingManagerPage";
 import NotFound from "./pages/NotFound";
 import { lazy, Suspense } from "react";
 
@@ -140,6 +141,7 @@ const App = () => (
                 <Route path="/super_admin" element={<ProtectedRoute role="super_admin"><AdminDashboard /></ProtectedRoute>} />
                 <Route path="/admin/ti" element={<ProtectedRoute role="admin"><TIPage /></ProtectedRoute>} />
                 <Route path="/admin/recovery" element={<ProtectedRoute roles={['admin', 'super_admin']}><DataRecoveryPage /></ProtectedRoute>} />
+                <Route path="/admin/rastreio" element={<ProtectedRoute roles={['admin', 'super_admin']}><TrackingManagerPage /></ProtectedRoute>} />
 
                 <Route path="/qr/:orderId" element={<QRCodePage />} />
                 <Route path="/rastreio/:orderId" element={<TrackingPage />} />

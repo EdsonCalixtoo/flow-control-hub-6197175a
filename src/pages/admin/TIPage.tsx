@@ -350,6 +350,12 @@ const TIPage: React.FC = () => {
                  onClick={() => navigate('/admin/logs')} 
                  color="bg-orange-600"
                />
+               <SidebarLink 
+                 icon={<Truck className="w-4 h-4" />} 
+                 label="Gerenciar Rastreios" 
+                 onClick={() => navigate('/admin/rastreio')} 
+                 color="bg-emerald-600"
+               />
             </div>
           </div>
 

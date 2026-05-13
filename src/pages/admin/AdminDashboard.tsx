@@ -50,6 +50,7 @@ const AdminDashboard: React.FC = () => {
     { label: 'Gestão de Pedidos', icon: ShoppingCart, path: '/gestor/corrigir-pedido', color: 'bg-vendedor', desc: 'Corrigir e unificar pedidos' },
     { label: 'Financeiro Total', icon: DollarSign, path: '/financeiro', color: 'bg-financeiro', desc: 'Controle de caixa e pagamentos' },
     { label: 'Logística', icon: Truck, path: '/gestor/entregadores', color: 'bg-indigo-600', desc: 'Entregas e transportadoras' },
+    { label: 'Gestão de Rastreio', icon: Package, path: '/admin/rastreio', color: 'bg-emerald-600', desc: 'Alterar status para o cliente' },
     { label: 'Produção', icon: Factory, path: '/producao', color: 'bg-producao', desc: 'Status e cronograma de fábrica' },
     { label: 'Clientes', icon: Users, path: '/vendedor/clientes', color: 'bg-gestor', desc: 'Base completa de clientes' },
     { label: 'Relatórios/Dashboard', icon: BarChart3, path: '/gestor/relatorios', color: 'bg-primary', desc: 'Indicadores e performance' },

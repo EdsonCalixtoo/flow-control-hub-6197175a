@@ -32,7 +32,7 @@ const clientToSupabase = (client: Client, userId: string) => {
 /**
  * Converter da estrutura do Supabase para TypeScript
  */
-const supabaseToClient = (data: any): Client => ({
+export const supabaseToClient = (data: any): Client => ({
   id: data.id,
   name: data.name,
   cpfCnpj: data.cpf_cnpj,
@@ -102,8 +102,14 @@ export const fetchClients = async (): Promise<Client[]> => {
 
     // ✅ Visibilidade de Clientes:
     // 1. Vendedores veem SEUS próprios clientes + QUALQUER cliente que tenha pedido com eles.
-    // 2. Cargos administrativos (Erica/Juninho) veem tudo.
-    const isExempt = userEmail === 'ericasousa@gmail.com' || userEmail === 'juninho.caxto@gmail.com';
+    // 2. Cargos administrativos veem tudo.
+    const isExempt = 
+      userEmail === 'ericasousa@gmail.com' || 
+      userEmail === 'juninho.caxto@gmail.com' || 
+      userEmail === 'edsoncalixto@gmail.com' ||
+      userRole === 'admin' || 
+      userRole === 'gestor' || 
+      userRole === 'super_admin';
     
     if (userRole === 'vendedor' && !isExempt) {
       console.log('[Clients] 🔒 Aplicando isolamento com exceção de pedidos');
@@ -116,15 +122,15 @@ export const fetchClients = async (): Promise<Client[]> => {
       
       const clientIdsFromOrders = Array.from(new Set(orderClients?.map(o => o.client_id) || []));
 
-      // Filtro: (user_id == meu_id) OU (id em lista_de_ids_dos_meus_pedidos)
-      let orFilter = `user_id.eq.${userId}`;
       if (clientIdsFromOrders.length > 0) {
-        // Divide em chunks se a lista for muito grande, mas para orçamentos recentes 
-        // o in.() costuma suportar bem centenas de IDs.
-        orFilter += `,id.in.(${clientIdsFromOrders.join(',')})`;
+        const safeIds = clientIdsFromOrders.slice(0, 500);
+        const orFilter = `user_id.eq.${userId},id.in.(${safeIds.map(id => `"${id}"`).join(',')})`;
+        console.log('[Clients] 🛠️ Aplicando filtro OR complexo (owner + orders)');
+        query = query.or(orFilter);
+      } else {
+        console.log('[Clients] 🛠️ Aplicando filtro simples por user_id');
+        query = query.eq('user_id', userId);
       }
-      
-      query = query.or(orFilter);
     } else {
       console.log('[Clients] 🔓 Visibilidade total habilitada para:', userEmail || userRole);
     }
@@ -134,12 +140,13 @@ export const fetchClients = async (): Promise<Client[]> => {
       .limit(5000);
 
     if (error) {
-      console.error('[Clients] ❌ Erro ao buscar clientes no Supabase:', error.message);
+      console.error('[Clients] ❌ Erro ao buscar clientes:', error.message);
+      console.log('[Clients] 🔍 Query que falhou - userId:', userId, 'Role:', userRole);
       return [];
     }
 
     const clients = (data || []).map(supabaseToClient);
-    console.log('[Clients] ✅ Clientes carregados:', clients.length);
+    console.log(`[Clients] ✅ Clientes carregados para ${userEmail}:`, clients.length);
     return clients;
   } catch (err: any) {
     console.error('[Clients] ❌ Erro inesperado ao buscar clientes:', err.message);
@@ -325,13 +332,22 @@ export const searchClientsByEmail = async (email: string): Promise<Client[]> => 
 
     let query = supabase.from('clients').select('*').ilike('email', `%${email}%`);
 
-    const isExempt = userEmail === 'ericasousa@gmail.com' || userEmail === 'juninho.caxto@gmail.com';
+    const isExempt = 
+      userEmail === 'ericasousa@gmail.com' || 
+      userEmail === 'juninho.caxto@gmail.com' || 
+      userEmail === 'edsoncalixto@gmail.com' ||
+      userRole === 'admin' || 
+      userRole === 'gestor' || 
+      userRole === 'super_admin';
+
     if (userRole === 'vendedor' && !isExempt) {
-      let orFilter = `user_id.eq.${userId}`;
       if (clientIdsFromOrders.length > 0) {
-        orFilter += `,id.in.(${clientIdsFromOrders.join(',')})`;
+        const safeIds = clientIdsFromOrders.slice(0, 500);
+        const orFilter = `user_id.eq.${userId},id.in.(${safeIds.map(id => `"${id}"`).join(',')})`;
+        query = query.or(orFilter);
+      } else {
+        query = query.eq('user_id', userId);
       }
-      query = query.or(orFilter);
     }
 
     const { data, error } = await query;
@@ -367,13 +383,22 @@ export const searchClientsByName = async (name: string): Promise<Client[]> => {
     let query = supabase.from('clients').select('*').ilike('name', `%${name}%`);
 
     // ✅ Aplicar visibilidade restrita a donos + vinculados por pedido
-    const isExempt = userEmail === 'ericasousa@gmail.com' || userEmail === 'juninho.caxto@gmail.com';
+    const isExempt = 
+      userEmail === 'ericasousa@gmail.com' || 
+      userEmail === 'juninho.caxto@gmail.com' || 
+      userEmail === 'edsoncalixto@gmail.com' ||
+      userRole === 'admin' || 
+      userRole === 'gestor' || 
+      userRole === 'super_admin';
+
     if (userRole === 'vendedor' && !isExempt) {
-      let orFilter = `user_id.eq.${userId}`;
       if (clientIdsFromOrders.length > 0) {
-        orFilter += `,id.in.(${clientIdsFromOrders.join(',')})`;
+        const safeIds = clientIdsFromOrders.slice(0, 500);
+        const orFilter = `user_id.eq.${userId},id.in.(${safeIds.map(id => `"${id}"`).join(',')})`;
+        query = query.or(orFilter);
+      } else {
+        query = query.eq('user_id', userId);
       }
-      query = query.or(orFilter);
     }
 
     const { data, error } = await query.limit(20);

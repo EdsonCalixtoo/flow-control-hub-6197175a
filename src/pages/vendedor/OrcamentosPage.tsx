@@ -1943,13 +1943,15 @@ const OrcamentosPage: React.FC = () => {
             const isWaiting = selectedOrder.status === 'aguardando_financeiro';
             const isAdvanced = ['aprovado_financeiro', 'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado', 'retirado_entregador'].includes(selectedOrder.status);
             const temComprovante = (comprovantesAttached.length > 0) || (selectedOrder.receiptUrls && selectedOrder.receiptUrls.length > 0);
+            const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
             // Regras: 
             // 1. Consignado pode enviar sem (vendedor anexa depois)
             // 2. Serviços (Instalação/Manutenção/Retirada) podem enviar sem
             // 3. SE FOR APENAS PRÊMIO, pode enviar sem.
-            // 4. Caso tenha produto normal + prêmio, precisa de comprovante (exceto se for consignado).
-            const podeEnviar = (clienteConsignado || isInstalacao || isManutencao || isRetirada || isOnlyReward) ? true : temComprovante;
+            // 4. Admin pode enviar sem comprovante liberado.
+            // 5. Caso tenha produto normal + prêmio, precisa de comprovante (exceto se for consignado ou admin).
+            const podeEnviar = (clienteConsignado || isInstalacao || isManutencao || isRetirada || isOnlyReward || isAdmin) ? true : temComprovante;
 
             return (
               <>
@@ -1957,13 +1959,18 @@ const OrcamentosPage: React.FC = () => {
                   <ComprovanteUpload
                     values={comprovantesAttached.length > 0 ? comprovantesAttached : (selectedOrder.receiptUrls || [])}
                     onChange={setComprovantesAttached}
-                    label={(clienteConsignado || isOnlyReward)
-                      ? `Comprovantes de Pagamento (opcional para ${isOnlyReward ? 'resgate de prêmio' : 'clientes consignados'})`
+                    label={(clienteConsignado || isOnlyReward || isAdmin)
+                      ? `Comprovantes de Pagamento (opcional para ${isAdmin ? 'Administradores' : isOnlyReward ? 'resgate de prêmio' : 'clientes consignados'})`
                       : "Comprovantes de Pagamento (obrigatório para enviar ao Financeiro)"}
                   />
                   {isOnlyReward && !temComprovante && (
                     <p className="text-[10px] text-success mt-2 flex items-center gap-1">
                       🎁 Pedido exclusivo de Premiação — envio sem comprovante liberado.
+                    </p>
+                  )}
+                  {isAdmin && !temComprovante && (
+                    <p className="text-[10px] text-primary mt-2 flex items-center gap-1 font-black">
+                      🛡️ Administrador — envio sem comprovante liberado.
                     </p>
                   )}
                   {clienteConsignado && !isOnlyReward && !temComprovante && (
@@ -2005,7 +2012,7 @@ const OrcamentosPage: React.FC = () => {
                     <Send className="w-4 h-4" /> {sendingToFinance ? '⏳ Enviando...' : isWaiting || isAdvanced ? '🔄 Atualizar Comprovantes' : '🟢 Enviar para Financeiro'}
                   </button>
                 </div>
-                {!clienteConsignado && !isInstalacao && !isManutencao && !isRetirada && !isOnlyReward && !temComprovante && (
+                {!clienteConsignado && !isInstalacao && !isManutencao && !isRetirada && !isOnlyReward && !isAdmin && !temComprovante && (
                   <p className="text-[10px] text-muted-foreground text-center">
                     ⚠️ Anexe o comprovante de pagamento para habilitar o envio ao financeiro
                   </p>

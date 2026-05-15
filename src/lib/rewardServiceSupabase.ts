@@ -276,35 +276,15 @@ export const updateClientRewardsAuto = async (clientId: string): Promise<void> =
             const newStatus = currentEffectiveKits >= tier.required ? 'liberado' : 'pendente';
 
             if (existing) {
-                // Atualiza o registro existente com o novo total efetivo
-                if (existing.rewardStatus === 'resgatado' && currentEffectiveKits >= tier.required) {
-                    await supabase
-                        .from('client_rewards')
-                        .update({
-                            kits_completed: currentEffectiveKits,
-                            reward_status: 'liberado',
-                            updated_at: new Date().toISOString()
-                        })
-                        .eq('id', existing.id);
-                } else if (existing.rewardStatus !== 'resgatado') {
-                    await supabase
-                        .from('client_rewards')
-                        .update({
-                            kits_completed: currentEffectiveKits,
-                            reward_status: newStatus,
-                            updated_at: new Date().toISOString()
-                        })
-                        .eq('id', existing.id);
-                } else {
-                    // Se for resgatado e não tem kits suficientes para novo resgate, só atualiza o saldo
-                    await supabase
-                        .from('client_rewards')
-                        .update({
-                            kits_completed: currentEffectiveKits,
-                            updated_at: new Date().toISOString()
-                        })
-                        .eq('id', existing.id);
-                }
+                // Atualiza o registro existente com o novo total efetivo e novo status
+                await supabase
+                    .from('client_rewards')
+                    .update({
+                        kits_completed: currentEffectiveKits,
+                        reward_status: newStatus,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', existing.id);
             } else {
                 // Criar nova premiação
                 await supabase

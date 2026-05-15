@@ -242,46 +242,44 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
                                     <p className="text-xs text-muted-foreground font-medium italic">{getRewardDescription(reward.rewardType)}</p>
 
                                     {/* Progress Bar */}
-                                    {!isResgatado && (
-                                        <div className="mt-3 w-full md:w-64">
-                                            <div className="flex items-center justify-between text-[10px] font-bold uppercase mb-1">
-                                                <span>Progresso</span>
-                                                <div className="flex items-center gap-1.5">
-                                                    {isDeveloperOrGestor && (
-                                                        <button 
-                                                          onClick={() => handleAdjust(reward, -1)}
-                                                          disabled={adjustingId !== null}
-                                                          className="w-4 h-4 rounded bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors active:scale-90"
-                                                          title="Remover 1 Kit"
-                                                        >
-                                                            -
-                                                        </button>
-                                                    )}
-                                                    <span className="text-foreground">{reward.kitsCompleted} / {reward.kitsRequired} Kits</span>
-                                                    {isDeveloperOrGestor && (
-                                                        <button 
-                                                          onClick={() => handleAdjust(reward, 1)}
-                                                          disabled={adjustingId !== null}
-                                                          className="w-4 h-4 rounded bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors active:scale-90"
-                                                          title="Adicionar 1 Kit"
-                                                        >
-                                                            +
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                                                <div
-                                                    className={`h-full transition-all duration-1000 ${isLiberado ? 'bg-success' : 'bg-vendedor'}`}
-                                                    style={{ width: `${progress}%` }}
-                                                />
+                                    <div className="mt-3 w-full md:w-64">
+                                        <div className="flex items-center justify-between text-[10px] font-bold uppercase mb-1">
+                                            <span>Progresso</span>
+                                            <div className="flex items-center gap-1.5">
+                                                {isDeveloperOrGestor && (
+                                                    <button 
+                                                        onClick={() => handleAdjust(reward, -1)}
+                                                        disabled={adjustingId !== null}
+                                                        className="w-4 h-4 rounded bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors active:scale-90"
+                                                        title="Remover 1 Kit"
+                                                    >
+                                                        -
+                                                    </button>
+                                                )}
+                                                <span className="text-foreground">{reward.kitsCompleted} / {reward.kitsRequired} Kits</span>
+                                                {isDeveloperOrGestor && (
+                                                    <button 
+                                                        onClick={() => handleAdjust(reward, 1)}
+                                                        disabled={adjustingId !== null}
+                                                        className="w-4 h-4 rounded bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors active:scale-90"
+                                                        title="Adicionar 1 Kit"
+                                                    >
+                                                        +
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
-                                    )}
+                                        <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full transition-all duration-1000 ${isLiberado ? 'bg-success' : 'bg-vendedor'}`}
+                                                style={{ width: `${progress}%` }}
+                                            />
+                                        </div>
+                                    </div>
 
-                                    {isResgatado && (
+                                    {reward.rewardRedeemedAt && (
                                         <p className="text-[10px] text-muted-foreground mt-2 flex items-center gap-1">
-                                            <Clock className="w-3 h-3" /> Resgatado em {new Date(reward.rewardRedeemedAt!).toLocaleDateString('pt-BR')}
+                                            <Clock className="w-3 h-3" /> {isResgatado ? 'Resgatado em' : 'Último resgate em'} {new Date(reward.rewardRedeemedAt!).toLocaleDateString('pt-BR')}
                                         </p>
                                     )}
                                 </div>

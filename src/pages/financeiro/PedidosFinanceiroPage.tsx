@@ -109,6 +109,20 @@ const PedidosFinanceiroPage: React.FC = () => {
             return;
         }
 
+        if (order.isInternational) {
+            await updateOrderStatus(
+                orderId,
+                'aguardando_producao',
+                { paymentStatus: 'pago', statusPagamento: 'pago', financeiroAprovado: true },
+                'Financeiro',
+                'Venda Internacional: Aprovado para produção sem obrigatoriedade de CPF/CNPJ ou comprovantes convencionais.'
+            );
+            setSelectedOrderId(null);
+            setShowReject(false);
+            setRejectReason('');
+            return;
+        }
+
         if (isConsignado) {
             await updateOrderStatus(
                 orderId,
@@ -351,12 +365,17 @@ const PedidosFinanceiroPage: React.FC = () => {
                                             </p>
                                             <p className="text-xs text-muted-foreground mt-0.5">CEP: {client.cep}</p>
                                         </div>
-                                        {client.cpfCnpj && (
+                                        {client.cpfCnpj ? (
                                             <div className="p-3 rounded-xl bg-success/5 border border-success/20">
                                                 <span className="text-[10px] text-success uppercase tracking-wider font-bold block mb-1">🪪 CPF / CNPJ</span>
                                                 <p className="text-sm font-semibold font-mono text-foreground">{client.cpfCnpj}</p>
                                             </div>
-                                        )}
+                                        ) : (client.isInternational || selectedOrder.isInternational) ? (
+                                            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                                                <span className="text-[10px] text-emerald-600 uppercase tracking-wider font-bold block mb-1">🌍 Venda Internacional</span>
+                                                <p className="text-xs font-semibold text-emerald-600">Cliente internacional cadastrado sem necessidade de CPF/CNPJ.</p>
+                                            </div>
+                                        ) : null}
                                     </div>
                                 );
                             })()}
@@ -820,6 +839,9 @@ const PedidosFinanceiroPage: React.FC = () => {
                                                 )}
                                                 {order.isWarranty && (
                                                     <span className="px-1.5 py-0.5 rounded-md bg-rose-500 text-white text-[8px] font-black shadow-lg shadow-rose-500/20 animate-pulse">🛡️ GARANTIA</span>
+                                                )}
+                                                {order.isInternational && (
+                                                    <span className="px-1.5 py-0.5 rounded-md bg-emerald-600 text-white text-[8px] font-black shadow-lg shadow-emerald-500/20 animate-pulse">🌍 INTERNACIONAL</span>
                                                 )}
                                             </div>
                                         </div>

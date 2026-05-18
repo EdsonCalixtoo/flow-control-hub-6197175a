@@ -687,6 +687,7 @@ const OrcamentosPage: React.FC = () => {
           carrier: newOrderType === 'entrega' ? newCarrier : undefined,
           isConsigned: client.consignado,
           isSite: client.isSite || false,
+          isInternational: client.isInternational || false,
           requiresInvoice: newRequiresInvoice,
           requiresShippingNote: newRequiresShippingNote,
           updatedAt: now,
@@ -800,6 +801,7 @@ const OrcamentosPage: React.FC = () => {
             orderType: newOrderType,
             isConsigned: client.consignado,
             isSite: client.isSite || false,
+            isInternational: client.isInternational || false,
             requiresInvoice: newRequiresInvoice,
             requiresShippingNote: newRequiresShippingNote,
             createdAt: now,
@@ -1737,6 +1739,13 @@ const OrcamentosPage: React.FC = () => {
             <div className="p-3 rounded-xl bg-muted/30"><span className="text-xs text-muted-foreground block mb-1">Data</span><span className="text-foreground font-medium">{formatDate(selectedOrder.createdAt)}</span></div>
             <div className="p-3 rounded-xl bg-muted/30"><span className="text-xs text-muted-foreground block mb-1">Total</span><span className="font-extrabold text-foreground text-lg">{formatCurrency(selectedOrder.total)}</span></div>
             
+            {selectedOrder.isInternational && (
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 col-span-2 animate-in fade-in slide-in-from-top-1">
+                <span className="text-xs text-emerald-600 font-bold block mb-1 uppercase tracking-tight">🌍 Venda Internacional</span>
+                <span className="font-extrabold text-emerald-600 text-xs">Este pedido é uma venda internacional e está isento de CPF/CNPJ.</span>
+              </div>
+            )}
+            
             {/* Exibe Data de Entrega ou Agendamento se houver */}
             {(selectedOrder.deliveryDate || selectedOrder.installationDate) && (
               <div className="p-3 rounded-xl bg-primary/10 border border-primary/20 col-span-2 md:col-span-1 animate-in fade-in slide-in-from-top-1">
@@ -2204,6 +2213,11 @@ const OrcamentosPage: React.FC = () => {
                         {order.isSite && (
                           <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-600 text-white text-[8px] font-black uppercase tracking-wider shadow-md shadow-blue-500/20 animate-pulse w-fit mt-1">
                             🌐 VENDA DO SITE
+                          </div>
+                        )}
+                        {order.isInternational && (
+                          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-600 text-white text-[8px] font-black uppercase tracking-wider shadow-md shadow-emerald-500/20 animate-pulse w-fit mt-1">
+                            🌍 VENDA INTERNACIONAL
                           </div>
                         )}
                         {order.isConsigned && (

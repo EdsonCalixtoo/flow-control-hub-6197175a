@@ -19,6 +19,7 @@ const clientToSupabase = (client: Client, userId: string) => {
     notes: client.notes || null,
     consignado: client.consignado || false,
     is_site: client.isSite || false,
+    is_international: client.isInternational || false,
   };
 
   // Só inclui ID em updates (nunca em inserts)
@@ -46,6 +47,7 @@ export const supabaseToClient = (data: any): Client => ({
   notes: data.notes,
   consignado: data.consignado,
   isSite: data.is_site,
+  isInternational: data.is_international || false,
   createdBy: data.user_id,
   createdAt: data.created_at,
 });
@@ -96,7 +98,7 @@ export const fetchClients = async (): Promise<Client[]> => {
     console.log('[Clients] 📝 Buscando clientes. User:', userId, 'Role:', userRole, 'Email:', userEmail);
 
     // ⚡ OTIMIZAÇÃO: Selecionamos apenas as colunas necessárias para as listagens
-    const CLIENT_LIST_COLUMNS = 'id, name, cpf_cnpj, phone, email, address, bairro, city, state, cep, notes, consignado, is_site, user_id, created_at';
+    const CLIENT_LIST_COLUMNS = 'id, name, cpf_cnpj, phone, email, address, bairro, city, state, cep, notes, consignado, is_site, is_international, user_id, created_at';
 
     let query = supabase.from('clients').select(CLIENT_LIST_COLUMNS);
 
@@ -164,6 +166,7 @@ export const createClient = async (client: Omit<Client, 'id' | 'createdAt' | 'cr
       notes: client.notes || null,
       consignado: client.consignado || false,
       is_site: client.isSite || false,
+      is_international: client.isInternational || false,
     };
 
     const { data, error } = await Promise.race([

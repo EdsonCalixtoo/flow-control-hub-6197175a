@@ -149,7 +149,7 @@ const emptyForm = {
   name: '', cpfCnpj: '', email: '', phone: '',
   address: '', numero: '', complemento: '',
   bairro: '', city: '', state: 'SP', cep: '',
-  notes: '', consignado: false, isSite: false,
+  notes: '', consignado: false, isSite: false, isInternational: false,
 };
 
 // ── Componente principal ─────────────────────────────────
@@ -210,6 +210,7 @@ export default function ClientesPageNew() {
       notes: client.notes || '',
       consignado: client.consignado || false,
       isSite: client.isSite || false,
+      isInternational: client.isInternational || false,
     });
     setError('');
     setFormMode(client.id);
@@ -247,12 +248,17 @@ export default function ClientesPageNew() {
     e.preventDefault();
     setError('');
     if (!form.name.trim()) { setError('⚠️ O nome do cliente é obrigatório.'); return; }
-    if (!form.cpfCnpj || form.cpfCnpj.replace(/\D/g, '').length < 11) { setError('⚠️ CPF/CNPJ inválido (mínimo 11 dígitos).'); return; }
-    if (!isValidCpfCnpj(form.cpfCnpj)) {
-      const digits = form.cpfCnpj.replace(/\D/g, '');
-      setError(`⚠️ ${digits.length <= 11 ? 'CPF' : 'CNPJ'} inválido! Verifique os dígitos e tente novamente.`);
-      return;
+    
+    // Bypassa validação de CPF/CNPJ se for Venda Internacional
+    if (!form.isInternational) {
+      if (!form.cpfCnpj || form.cpfCnpj.replace(/\D/g, '').length < 11) { setError('⚠️ CPF/CNPJ inválido (mínimo 11 dígitos).'); return; }
+      if (!isValidCpfCnpj(form.cpfCnpj)) {
+        const digits = form.cpfCnpj.replace(/\D/g, '');
+        setError(`⚠️ ${digits.length <= 11 ? 'CPF' : 'CNPJ'} inválido! Verifique os dígitos e tente novamente.`);
+        return;
+      }
     }
+    
     if (!form.phone.trim()) { setError('⚠️ O telefone é obrigatório para contato.'); return; }
     if (!form.address.trim()) { setError('⚠️ O endereço (logradouro) é obrigatório para entregas.'); return; }
     if (!form.city.trim()) { setError('⚠️ A cidade é obrigatória.'); return; }
@@ -275,7 +281,7 @@ export default function ClientesPageNew() {
         clientToSave = {
           id: formMode as string,
           name: form.name.trim(),
-          cpfCnpj: form.cpfCnpj,
+          cpfCnpj: form.isInternational ? 'INTERNACIONAL' : form.cpfCnpj,
           email: form.email.trim(),
           phone: form.phone,
           address: fullAddress,
@@ -286,6 +292,7 @@ export default function ClientesPageNew() {
           notes: form.notes,
           consignado: form.consignado,
           isSite: form.isSite,
+          isInternational: form.isInternational,
           createdBy: '',
           createdAt: now,
         };
@@ -293,7 +300,7 @@ export default function ClientesPageNew() {
         clientToSave = {
           id: '',
           name: form.name.trim(),
-          cpfCnpj: form.cpfCnpj,
+          cpfCnpj: form.isInternational ? 'INTERNACIONAL' : form.cpfCnpj,
           email: form.email.trim(),
           phone: form.phone,
           address: fullAddress,
@@ -304,6 +311,7 @@ export default function ClientesPageNew() {
           notes: form.notes,
           consignado: form.consignado,
           isSite: form.isSite,
+          isInternational: form.isInternational,
           createdBy: '',
           createdAt: now,
         };
@@ -588,6 +596,13 @@ export default function ClientesPageNew() {
                     <span style={{ color: '#3b82f6', marginRight: '4px' }}>🌐</span> Cliente do Site
                   </label>
                 </div>
+                <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <input type="checkbox" id="isInternational" name="isInternational" checked={form.isInternational} onChange={handleChange}
+                    style={{ width: '18px', height: '18px', accentColor: '#10b981', cursor: 'pointer' }} />
+                  <label htmlFor="isInternational" className="cl-text-subtitle" style={{ fontSize: '14px', cursor: 'pointer', userSelect: 'none' }}>
+                    <span style={{ color: '#10b981', marginRight: '4px' }}>🌍</span> Venda Internacional (Sem CPF/CNPJ)
+                  </label>
+                </div>
               </div>
 
               {/* Botões */}
@@ -651,6 +666,11 @@ export default function ClientesPageNew() {
                           {client.isSite && (
                             <span className="cl-badge" style={{ background: 'rgba(59,130,246,0.15)', color: '#3b82f6', border: '1px solid rgba(59,130,246,0.3)' }}>
                               🌐 Site
+                            </span>
+                          )}
+                          {client.isInternational && (
+                            <span className="cl-badge" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}>
+                              🌍 Internacional
                             </span>
                           )}
                         </div>

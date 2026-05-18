@@ -22,6 +22,7 @@ export interface Client {
   notes: string;
   consignado?: boolean;
   isSite?: boolean;     // Campo de identificação de cliente de Site
+  isInternational?: boolean; // Campo de identificação de cliente internacional (sem CPF/CNPJ)
   createdBy?: string;       // ID do vendedor que cadastrou o cliente
   createdAt: string;
 }
@@ -106,6 +107,7 @@ export interface Order {
   installationPaymentType?: 'pago' | 'pagar_na_hora';
   isConsigned?: boolean;
   isSite?: boolean;      // Campo de identificação de pedido de Site
+  isInternational?: boolean; // Campo de identificação de pedido internacional (sem CPF/CNPJ)
   productionStatus?: ProductionStatus;  // status detalhado de produção
   volumes?: number;  // quantidade de caixas/volumes para entrega (default 1)
   attachmentUrl?: string;       // PDF técnico do financeiro para produção

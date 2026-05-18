@@ -489,7 +489,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
         ${finalBairro ? `<br>Bairro: ${finalBairro}` : ''}
         ${(finalCity || finalState) ? `<br>${finalCity} - ${finalState} CEP: ${finalCep}` : (finalCep ? `<br>CEP: ${finalCep}` : '')}
       </div>
-      ${client?.cpfCnpj ? `<div class="cpf">CPF/CNPJ: ${client.cpfCnpj}</div>` : ''}
+      ${(client?.isInternational || order.isInternational) ? `<div class="cpf" style="color:#059669; font-weight:900; font-size:10pt;">🌍 VENDA INTERNACIONAL</div>` : client?.cpfCnpj ? `<div class="cpf">CPF/CNPJ: ${client.cpfCnpj}</div>` : ''}
       ${client?.phone ? `<div class="phone">Telefone: ${client.phone}</div>` : ''}
     </div>
   </div>
@@ -1816,6 +1816,11 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                      🌐 VENDA DO SITE
                    </span>
                 )}
+                {viewOrder.isInternational && (
+                   <span className="px-3 py-1.5 rounded-full bg-emerald-600 text-white text-[11px] font-black uppercase tracking-widest shadow-xl shadow-emerald-500/20 animate-pulse flex items-center gap-2">
+                     🌍 INTERNACIONAL
+                   </span>
+                )}
                 {isOrderWarranty && (
                    <span className="px-3 py-1 rounded-full bg-destructive text-white text-[11px] font-black uppercase tracking-widest shadow-xl shadow-destructive/20 animate-pulse">
                      🔥 GARANTIA CRÍTICA
@@ -1983,7 +1988,13 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
               </div>
               <div className="space-y-1">
                  <span className="text-[9px] font-black uppercase text-muted-foreground/70 tracking-widest block">CNPJ / CPF</span>
-                 <p className="text-sm font-bold text-foreground font-mono">{viewClientData?.cpfCnpj || '---'}</p>
+                 <p className="text-sm font-bold text-foreground font-mono">
+                    {viewClientData?.isInternational || viewOrder.isInternational ? (
+                      <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 text-[10px] font-black border border-emerald-500/20">🌍 INTERNACIONAL</span>
+                    ) : (
+                      viewClientData?.cpfCnpj || '---'
+                    )}
+                 </p>
               </div>
               <div className="space-y-1">
                  <span className="text-[9px] font-black uppercase text-muted-foreground/70 tracking-widest block">Telefone</span>
@@ -2523,6 +2534,11 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                                     {order.isSite && (
                                       <span className="px-2.5 py-0.5 rounded-full bg-blue-600 text-white text-[9px] font-black uppercase tracking-wider shadow-lg shadow-blue-500/30 animate-pulse">
                                         LOJA ONLINE
+                                      </span>
+                                    )}
+                                    {order.isInternational && (
+                                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider shadow-lg shadow-emerald-500/30 animate-pulse">
+                                        🌍 INTERNACIONAL
                                       </span>
                                     )}
                                     {(order.isWarranty || order.notes?.toLowerCase().includes('garantia')) && (

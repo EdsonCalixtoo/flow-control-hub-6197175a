@@ -115,15 +115,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     init();
 
-    // Escuta mudanças futuras APENAS para SIGNED_IN e SIGNED_OUT
+    // Escuta mudanças futuras de autenticação com segurança reforçada contra loops
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       console.log('[Auth] Evento:', event);
-      if (event === 'SIGNED_IN' && session?.user) {
-        loadUserProfile(session.user);
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        currentUserIdRef.current = null;
-      }
+      
+      const handleEvent = async () => {
+        if (event === 'SIGNED_IN' && session?.user) {
+          setAuthLoading(true);
+          try {
+            await loadUserProfile(session.user);
+          } finally {
+            setAuthLoading(false);
+          }
+        } else if (event === 'SIGNED_OUT') {
+          try {
+            // Evita logout por eventos fantasmas/transientes de refresh de token.
+            // Só limpa o estado se de fato não houver sessão ativa recuperada.
+            const { data: { session: activeSession } } = await supabase.auth.getSession();
+            if (!activeSession) {
+              console.log('[Auth] 🚪 Logout confirmado por ausência de sessão ativa');
+              setUser(null);
+              currentUserIdRef.current = null;
+            } else {
+              console.log('[Auth] ℹ️ Evento SIGNED_OUT ignorado: sessão ativa ainda existe no cliente');
+            }
+          } catch (err) {
+            setUser(null);
+            currentUserIdRef.current = null;
+          }
+        }
+      };
+
+      handleEvent();
     });
 
     return () => {

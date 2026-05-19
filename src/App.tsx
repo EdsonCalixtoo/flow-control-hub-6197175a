@@ -61,7 +61,8 @@ const ProtectedRoute: React.FC<{ roles?: string[]; role?: string; children: Reac
   // Verifica se a role do usuário está permitida
   const allowedRoles = roles || (role ? [role] : []);
   if (allowedRoles.length > 0 && !allowedRoles.includes(user?.role || '')) {
-    return <Navigate to={`/${user?.role}`} replace />;
+    const fallbackPath = user?.role ? `/${user.role}` : '/';
+    return <Navigate to={fallbackPath} replace />;
   }
   
   return <AppLayout>{children}</AppLayout>;
@@ -74,7 +75,7 @@ const AuthGate: React.FC = () => {
       <div className="w-10 h-10 rounded-full border-4 border-primary border-t-transparent animate-spin" />
     </div>
   );
-  if (isAuthenticated && user) return <Navigate to={`/${user.role}`} replace />;
+  if (isAuthenticated && user && user.role) return <Navigate to={`/${user.role}`} replace />;
   return <LoginPage />;
 };
 

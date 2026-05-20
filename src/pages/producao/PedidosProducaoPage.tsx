@@ -117,7 +117,7 @@ const ModernDateFilter: React.FC<{
 };
 
 const REMETENTE = {
-  name: 'Grupo Automozia',
+  name: 'Grupo Automatiza',
   address: 'R. Dr. Élton César, 910',
   neighborhood: 'Chácaras Campos dos Amarais',
   city: 'Campinas',

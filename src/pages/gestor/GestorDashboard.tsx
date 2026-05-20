@@ -3,7 +3,7 @@ import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatCard, StatusBadge, formatCurrency, formatDate } from '@/components/shared/StatusBadge';
 import { LayoutDashboard, FileText, ShoppingCart, Factory, CheckCircle, AlertTriangle, Package, Send, Truck, Wrench, Calendar, Bell, X, ExternalLink, RotateCcw, Bug, ClipboardList, Plus, ShieldCheck, XCircle, History as HistoryIcon, Share2, Download } from 'lucide-react';
-import { apiFetch } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import type { Order, OrderStatus, ProductionError } from '@/types/erp';
 import { STATUS_LABELS } from '@/types/erp';
@@ -131,33 +131,43 @@ const GestorDashboard: React.FC = () => {
   };
 
   const handleFullBackup = async () => {
-    const toastId = toast.loading('Iniciando backup completo da base de dados local...');
+    const toastId = toast.loading('Iniciando backup completo da base de dados...');
     
     try {
-      toast.loading(`Gerando backup unificado...`, { id: toastId });
-      const rawBackup = await apiFetch('/gestor/backup');
+      const tables = [
+        'users', 'orders', 'clients', 'products', 
+        'financial_entries', 'delay_reports', 'order_returns', 
+        'production_errors', 'barcode_scans', 'delivery_pickups', 
+        'installations', 'warranties', 'audit_logs'
+      ];
 
       const backupData: any = {
         version: '1.0.0',
         timestamp: new Date().toISOString(),
-        system: 'Flow Control Hub ERP (Local)',
+        system: 'Flow Control Hub ERP',
         exportedBy: userName,
         tables: {}
       };
 
-      for (const [table, data] of Object.entries(rawBackup || {})) {
-        backupData.tables[table] = {
-          data: data || [],
-          count: (data as any)?.length || 0,
-          status: 'success'
-        };
+      for (const table of tables) {
+        toast.loading(`Exportando tabela: ${table.toUpperCase()}...`, { id: toastId });
+        const { data, error } = await supabase.from(table).select('*');
+        if (error) {
+          backupData.tables[table] = { error: error.message, status: 'failed' };
+        } else {
+          backupData.tables[table] = { 
+            data: data || [], 
+            count: data?.length || 0,
+            status: 'success' 
+          };
+        }
       }
 
       const jsonString = JSON.stringify(backupData, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       
-      const fileName = `BACKUP_GERAL_FLOW_LOCAL_${new Date().toISOString().split('T')[0]}.json`;
+      const fileName = `BACKUP_GERAL_FLOW_${new Date().toISOString().split('T')[0]}.json`;
       const link = document.createElement('a');
       link.href = url;
       link.download = fileName;
@@ -166,7 +176,7 @@ const GestorDashboard: React.FC = () => {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      toast.success(`Backup completo gerado com sucesso!`, { id: toastId });
+      toast.success(`Backup concluído com sucesso!`, { id: toastId });
     } catch (err: any) {
       console.error(err);
       toast.error('Erro ao gerar backup: ' + err.message, { id: toastId });

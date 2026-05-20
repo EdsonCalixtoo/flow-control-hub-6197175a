@@ -1,17 +1,17 @@
-import { apiFetch } from './api';
+import { supabase } from './supabase';
 import type { Product } from '@/types/erp';
 
-// ── Converter DB → TypeScript ─────────────────────────────────────────
+// ── Converter Supabase → TypeScript ─────────────────────────────────────────
 const supabaseToProduct = (data: any): Product => ({
     id: data.id,
     sku: data.sku,
     name: data.name,
     description: data.description || '',
     category: data.category || 'Geral',
-    unitPrice: data.unit_price ? Number(data.unit_price) : 0,
-    costPrice: data.cost_price ? Number(data.cost_price) : 0,
-    stockQuantity: data.stock_quantity ? Number(data.stock_quantity) : 0,
-    minStock: data.min_stock ? Number(data.min_stock) : 0,
+    unitPrice: data.unit_price ?? 0,
+    costPrice: data.cost_price ?? 0,
+    stockQuantity: data.stock_quantity ?? 0,
+    minStock: data.min_stock ?? 0,
     unit: data.unit || 'un',
     supplier: data.supplier || '',
     status: data.status || 'ativo',
@@ -19,7 +19,7 @@ const supabaseToProduct = (data: any): Product => ({
     updatedAt: data.updated_at,
 });
 
-// ── Converter TypeScript → DB ─────────────────────────────────────────
+// ── Converter TypeScript → Supabase ─────────────────────────────────────────
 const productToSupabase = (product: Partial<Product>) => ({
     sku: product.sku,
     name: product.name,
@@ -34,11 +34,20 @@ const productToSupabase = (product: Partial<Product>) => ({
     status: product.status || 'ativo',
 });
 
-// ── Buscar todos os produtos ──────
+// ── Buscar todos os produtos (todos os usuários veem todos os produtos) ──────
 export const fetchProducts = async (): Promise<Product[]> => {
     try {
-        console.log('[Products] 📝 Buscando produtos via API local...');
-        const data = await apiFetch('/products');
+        const { data, error } = await supabase
+            .from('products')
+            .select('*')
+            .order('name', { ascending: true })
+            .limit(1000); // ⚡ OTIMIZAÇÃO: Evita carregar milhares de produtos de uma vez
+
+        if (error) {
+            console.error('[Products] ❌ Erro ao buscar produtos:', error.message);
+            return [];
+        }
+
         const products = (data || []).map(supabaseToProduct);
         console.log('[Products] ✅ Produtos carregados:', products.length);
         return products;
@@ -51,15 +60,17 @@ export const fetchProducts = async (): Promise<Product[]> => {
 // ── Criar produto (apenas gestor) ────────────────────────────────────────────
 export const createProduct = async (product: Omit<Product, 'id' | 'createdAt' | 'updatedAt'>): Promise<Product | null> => {
     try {
-        console.log('[Products] 📝 Criando novo produto local:', product.name);
         const payload = productToSupabase(product);
-        const data = await apiFetch('/products', {
-            method: 'POST',
-            body: payload,
-        });
 
-        if (!data) {
-            throw new Error('A API não retornou o produto criado.');
+        const { data, error } = await supabase
+            .from('products')
+            .insert([payload])
+            .select()
+            .single();
+
+        if (error) {
+            console.error('[Products] ❌ Erro ao criar produto:', error);
+            throw new Error(error.message);
         }
 
         const newProduct = supabaseToProduct(data);
@@ -74,15 +85,18 @@ export const createProduct = async (product: Omit<Product, 'id' | 'createdAt' | 
 // ── Atualizar produto ────────────────────────────────────────────────────────
 export const updateProductSupabase = async (product: Product): Promise<Product | null> => {
     try {
-        console.log('[Products] 📝 Atualizando produto local:', product.id);
         const payload = productToSupabase(product);
-        const data = await apiFetch(`/products/${product.id}`, {
-            method: 'PUT',
-            body: payload,
-        });
 
-        if (!data) {
-            throw new Error('A API não retornou o produto atualizado.');
+        const { data, error } = await supabase
+            .from('products')
+            .update(payload)
+            .eq('id', product.id)
+            .select()
+            .single();
+
+        if (error) {
+            console.error('[Products] ❌ Erro ao atualizar produto:', error.message);
+            throw new Error(error.message);
         }
 
         const updated = supabaseToProduct(data);
@@ -97,10 +111,16 @@ export const updateProductSupabase = async (product: Product): Promise<Product |
 // ── Deletar produto ──────────────────────────────────────────────────────────
 export const deleteProductSupabase = async (productId: string): Promise<boolean> => {
     try {
-        console.log('[Products] 🗑️ Deletando produto local:', productId);
-        await apiFetch(`/products/${productId}`, {
-            method: 'DELETE',
-        });
+        const { error } = await supabase
+            .from('products')
+            .delete()
+            .eq('id', productId);
+
+        if (error) {
+            console.error('[Products] ❌ Erro ao deletar produto:', error.message);
+            throw new Error(error.message);
+        }
+
         console.log('[Products] ✅ Produto deletado:', productId);
         return true;
     } catch (err: any) {

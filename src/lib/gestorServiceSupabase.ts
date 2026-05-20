@@ -1,4 +1,4 @@
-import { apiFetch } from './api';
+import { supabase } from './supabase';
 import type { FinancialEntry, DelayReport, OrderReturn, ProductionError, BarcodeScan, DeliveryPickup } from '@/types/erp';
 
 // ── Financial Entries ────────────────────────────────────────────────────────
@@ -8,7 +8,7 @@ const supabaseToFinancial = (data: any): FinancialEntry => ({
     orderNumber: data.order_number,
     clientId: data.client_id,
     clientName: data.client_name,
-    amount: Number(data.amount || 0),
+    amount: Number(data.amount),
     type: data.type,
     category: data.category,
     description: data.description || '',
@@ -26,8 +26,15 @@ const supabaseToFinancial = (data: any): FinancialEntry => ({
 
 export const fetchFinancialEntries = async (): Promise<FinancialEntry[]> => {
     try {
-        console.log('[Gestor] 📝 Buscando lançamentos financeiros locais...');
-        const data = await apiFetch('/gestor/financial');
+        // 🚨 EMERGÊNCIA: Removemos colunas pesadas (receipts) do fetch de listagem do financeiro
+        // Os comprovantes devem ser carregados individualmente quando necessário para economizar egress.
+        const BASIC_FINANCIAL_COLUMNS = 'id, order_id, order_number, client_id, client_name, amount, type, category, description, status, payment_method, due_date, paid_at, transaction_id, card_last_digits, created_at, receipt_url, receipt_urls';
+
+        const { data, error } = await supabase.from('financial_entries')
+            .select(BASIC_FINANCIAL_COLUMNS)
+            .order('created_at', { ascending: false })
+            .limit(2000); // Reduzido de 5000 para 2000
+        if (error) throw error;
         return (data || []).map(supabaseToFinancial);
     } catch (err: any) {
         console.error('[Financial] Erro ao buscar lançamentos:', err.message);
@@ -37,8 +44,11 @@ export const fetchFinancialEntries = async (): Promise<FinancialEntry[]> => {
 
 export const fetchFinancialEntriesByOrderId = async (orderId: string): Promise<FinancialEntry[]> => {
     try {
-        console.log('[Gestor] 📝 Buscando lançamentos por Pedido local:', orderId);
-        const data = await apiFetch(`/gestor/financial/order/${orderId}`);
+        const { data, error } = await supabase.from('financial_entries')
+            .select('*')
+            .eq('order_id', orderId)
+            .order('created_at', { ascending: false });
+        if (error) throw error;
         return (data || []).map(supabaseToFinancial);
     } catch (err: any) {
         console.error('[Financial] Erro ao buscar lançamentos por Pedido:', err.message);
@@ -48,7 +58,6 @@ export const fetchFinancialEntriesByOrderId = async (orderId: string): Promise<F
 
 export const createFinancialEntrySupabase = async (entry: FinancialEntry): Promise<FinancialEntry | null> => {
     try {
-        console.log('[Gestor] 📝 Criando lançamento financeiro local...');
         const payload = {
             order_id: entry.orderId,
             order_number: entry.orderNumber,
@@ -67,11 +76,9 @@ export const createFinancialEntrySupabase = async (entry: FinancialEntry): Promi
             transaction_id: entry.transactionId || null,
             card_last_digits: entry.cardLastDigits || null,
         };
-        const data = await apiFetch('/gestor/financial', {
-            method: 'POST',
-            body: payload,
-        });
-        return data ? supabaseToFinancial(data) : null;
+        const { data, error } = await supabase.from('financial_entries').insert([payload]).select().single();
+        if (error) throw error;
+        return supabaseToFinancial(data);
     } catch (err: any) {
         console.error('[Financial] Erro ao criar lançamento:', err.message);
         throw err;
@@ -80,7 +87,6 @@ export const createFinancialEntrySupabase = async (entry: FinancialEntry): Promi
 
 export const updateFinancialEntrySupabase = async (id: string, updates: Partial<FinancialEntry>): Promise<FinancialEntry | null> => {
     try {
-        console.log('[Gestor] 📝 Atualizando lançamento financeiro local:', id);
         const payload: any = {};
         if (updates.status) payload.status = updates.status;
         if (updates.description) payload.description = updates.description;
@@ -90,11 +96,13 @@ export const updateFinancialEntrySupabase = async (id: string, updates: Partial<
         if (updates.transactionId) payload.transaction_id = updates.transactionId;
         if (updates.cardLastDigits) payload.card_last_digits = updates.cardLastDigits;
 
-        const data = await apiFetch(`/gestor/financial/${id}`, {
-            method: 'PUT',
-            body: payload,
-        });
-        return data ? supabaseToFinancial(data) : null;
+        const { data, error } = await supabase.from('financial_entries')
+            .update(payload)
+            .eq('id', id)
+            .select()
+            .single();
+        if (error) throw error;
+        return supabaseToFinancial(data);
     } catch (err: any) {
         console.error('[Financial] Erro ao atualizar lançamento:', err.message);
         throw err;
@@ -118,8 +126,12 @@ const supabaseToDelay = (data: any): DelayReport => ({
 
 export const fetchDelayReports = async (): Promise<DelayReport[]> => {
     try {
-        console.log('[Gestor] 📝 Buscando relatórios de atraso locais...');
-        const data = await apiFetch('/gestor/delay-reports');
+        // ⚡ OTIMIZAÇÃO
+        const { data, error } = await supabase.from('delay_reports')
+            .select('*')
+            .order('sent_at', { ascending: false })
+            .limit(1000);
+        if (error) throw error;
         return (data || []).map(supabaseToDelay);
     } catch (err: any) {
         console.error('[DelayReports] Erro ao buscar alertas de atraso:', err.message);
@@ -129,7 +141,6 @@ export const fetchDelayReports = async (): Promise<DelayReport[]> => {
 
 export const createDelayReportSupabase = async (report: Omit<DelayReport, 'id' | 'sentAt' | 'readAt'>): Promise<DelayReport | null> => {
     try {
-        console.log('[Gestor] 📝 Criando relatório de atraso local...');
         const payload = {
             order_id: report.orderId,
             order_number: report.orderNumber,
@@ -140,11 +151,9 @@ export const createDelayReportSupabase = async (report: Omit<DelayReport, 'id' |
             order_type: report.orderType,
             delivery_date: report.deliveryDate || null,
         };
-        const data = await apiFetch('/gestor/delay-reports', {
-            method: 'POST',
-            body: payload,
-        });
-        return data ? supabaseToDelay(data) : null;
+        const { data, error } = await supabase.from('delay_reports').insert([payload]).select().single();
+        if (error) throw error;
+        return supabaseToDelay(data);
     } catch (err: any) {
         console.error('[DelayReports] Erro ao criar alerta:', err.message);
         throw err;
@@ -153,11 +162,9 @@ export const createDelayReportSupabase = async (report: Omit<DelayReport, 'id' |
 
 export const markDelayReportReadSupabase = async (reportId: string): Promise<DelayReport | null> => {
     try {
-        console.log('[Gestor] 📝 Marcando relatório de atraso como lido local:', reportId);
-        const data = await apiFetch(`/gestor/delay-reports/${reportId}/read`, {
-            method: 'PUT',
-        });
-        return data ? supabaseToDelay(data) : null;
+        const { data, error } = await supabase.from('delay_reports').update({ read_at: new Date().toISOString() }).eq('id', reportId).select().single();
+        if (error) throw error;
+        return supabaseToDelay(data);
     } catch (err: any) {
         console.error('[DelayReports] Erro ao marcar como lido:', err.message);
         throw err;
@@ -179,8 +186,12 @@ const supabaseToReturn = (data: any): OrderReturn => ({
 
 export const fetchOrderReturns = async (): Promise<OrderReturn[]> => {
     try {
-        console.log('[Gestor] 📝 Buscando devoluções locais...');
-        const data = await apiFetch('/gestor/order-returns');
+        // ⚡ OTIMIZAÇÃO
+        const { data, error } = await supabase.from('order_returns')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(1000);
+        if (error) throw error;
         return (data || []).map(supabaseToReturn);
     } catch (err: any) {
         console.error('[Returns] Erro ao buscar devoluções:', err.message);
@@ -190,7 +201,6 @@ export const fetchOrderReturns = async (): Promise<OrderReturn[]> => {
 
 export const createOrderReturnSupabase = async (ret: Omit<OrderReturn, 'id' | 'createdAt' | 'resolvedAt'>): Promise<OrderReturn | null> => {
     try {
-        console.log('[Gestor] 📝 Criando devolução local...');
         const payload = {
             order_id: ret.orderId,
             order_number: ret.orderNumber,
@@ -199,11 +209,9 @@ export const createOrderReturnSupabase = async (ret: Omit<OrderReturn, 'id' | 'c
             reported_by: ret.reportedBy,
             resolved: ret.resolved || false,
         };
-        const data = await apiFetch('/gestor/order-returns', {
-            method: 'POST',
-            body: payload,
-        });
-        return data ? supabaseToReturn(data) : null;
+        const { data, error } = await supabase.from('order_returns').insert([payload]).select().single();
+        if (error) throw error;
+        return supabaseToReturn(data);
     } catch (err: any) {
         console.error('[Returns] Erro ao criar devolução:', err.message);
         throw err;
@@ -212,11 +220,13 @@ export const createOrderReturnSupabase = async (ret: Omit<OrderReturn, 'id' | 'c
 
 export const resolveOrderReturnSupabase = async (returnId: string): Promise<OrderReturn | null> => {
     try {
-        console.log('[Gestor] 📝 Resolvendo devolução local:', returnId);
-        const data = await apiFetch(`/gestor/order-returns/${returnId}/resolve`, {
-            method: 'PUT',
-        });
-        return data ? supabaseToReturn(data) : null;
+        const { data, error } = await supabase.from('order_returns')
+            .update({ resolved: true, resolved_at: new Date().toISOString() })
+            .eq('id', returnId)
+            .select()
+            .single();
+        if (error) throw error;
+        return supabaseToReturn(data);
     } catch (err: any) {
         console.error('[Returns] Erro ao resolver devolução:', err.message);
         throw err;
@@ -239,8 +249,12 @@ const supabaseToProdError = (data: any): ProductionError => ({
 
 export const fetchProductionErrors = async (): Promise<ProductionError[]> => {
     try {
-        console.log('[Gestor] 📝 Buscando erros de produção locais...');
-        const data = await apiFetch('/gestor/production-errors');
+        // ⚡ OTIMIZAÇÃO
+        const { data, error } = await supabase.from('production_errors')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(1000);
+        if (error) throw error;
         return (data || []).map(supabaseToProdError);
     } catch (err: any) {
         console.error('[ProdErrors] Erro ao buscar erros de produção:', err.message);
@@ -250,7 +264,6 @@ export const fetchProductionErrors = async (): Promise<ProductionError[]> => {
 
 export const createProductionErrorSupabase = async (err: Omit<ProductionError, 'id' | 'createdAt' | 'resolvedAt'>): Promise<ProductionError | null> => {
     try {
-        console.log('[Gestor] 📝 Criando erro de produção local...');
         const payload = {
             order_id: err.orderId || null,
             order_number: err.orderNumber || null,
@@ -260,11 +273,9 @@ export const createProductionErrorSupabase = async (err: Omit<ProductionError, '
             severity: err.severity,
             resolved: err.resolved,
         };
-        const data = await apiFetch('/gestor/production-errors', {
-            method: 'POST',
-            body: payload,
-        });
-        return data ? supabaseToProdError(data) : null;
+        const { data, error } = await supabase.from('production_errors').insert([payload]).select().single();
+        if (error) throw error;
+        return supabaseToProdError(data);
     } catch (err: any) {
         console.error('[ProdErrors] Erro ao criar erro de produção:', err.message);
         throw err;
@@ -273,11 +284,9 @@ export const createProductionErrorSupabase = async (err: Omit<ProductionError, '
 
 export const resolveProductionErrorSupabase = async (errorId: string): Promise<ProductionError | null> => {
     try {
-        console.log('[Gestor] 📝 Resolvendo erro de produção local:', errorId);
-        const data = await apiFetch(`/gestor/production-errors/${errorId}/resolve`, {
-            method: 'PUT',
-        });
-        return data ? supabaseToProdError(data) : null;
+        const { data, error } = await supabase.from('production_errors').update({ resolved: true, resolved_at: new Date().toISOString() }).eq('id', errorId).select().single();
+        if (error) throw error;
+        return supabaseToProdError(data);
     } catch (err: any) {
         console.error('[ProdErrors] Erro ao resolver erro de produção:', err.message);
         throw err;
@@ -297,8 +306,12 @@ const supabaseToBarcodeScan = (data: any): BarcodeScan => ({
 
 export const fetchBarcodeScans = async (): Promise<BarcodeScan[]> => {
     try {
-        console.log('[Gestor] 📝 Buscando leituras de código de barras locais...');
-        const data = await apiFetch('/gestor/barcode-scans');
+        // ⚡ OTIMIZAÇÃO
+        const { data, error } = await supabase.from('barcode_scans')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(1000);
+        if (error) throw error;
         return (data || []).map(supabaseToBarcodeScan);
     } catch (err: any) {
         console.error('[BarcodeScans] Erro ao buscar leituras:', err.message);
@@ -308,19 +321,17 @@ export const fetchBarcodeScans = async (): Promise<BarcodeScan[]> => {
 
 export const createBarcodeScanSupabase = async (scan: Omit<BarcodeScan, 'id' | 'scannedAt'>): Promise<BarcodeScan | null> => {
     try {
-        console.log('[Gestor] 📝 Criando leitura de código de barras local...');
         const payload = {
+            id: crypto.randomUUID(),
             order_id: scan.orderId,
             order_number: scan.orderNumber,
             scanned_by: scan.scannedBy,
             success: scan.success,
             note: scan.note,
         };
-        const data = await apiFetch('/gestor/barcode-scans', {
-            method: 'POST',
-            body: payload,
-        });
-        return data ? supabaseToBarcodeScan(data) : null;
+        const { data, error } = await supabase.from('barcode_scans').insert([payload]).select().single();
+        if (error) throw error;
+        return supabaseToBarcodeScan(data);
     } catch (err: any) {
         console.error('[BarcodeScans] Erro ao criar leitura:', err.message);
         throw err;
@@ -342,8 +353,14 @@ const supabaseToDeliveryPickup = (data: any): DeliveryPickup => ({
 
 export const fetchDeliveryPickups = async (): Promise<DeliveryPickup[]> => {
     try {
-        console.log('[Gestor] 📝 Buscando retiradas de entrega locais...');
-        const data = await apiFetch('/gestor/delivery-pickups');
+        // 🚨 EMERGÊNCIA: Adicionamos colunas de fotos/assinaturas para o relatório de logística funcionar corretamente
+        const BASIC_PICKUP_COLUMNS = 'id, order_id, order_number, deliverer_name, created_at, batch_id, note, photo_url, signature_url';
+
+        const { data, error } = await supabase.from('delivery_pickups')
+            .select(BASIC_PICKUP_COLUMNS)
+            .order('created_at', { ascending: false })
+            .limit(1000);
+        if (error) throw error;
         return (data || []).map(supabaseToDeliveryPickup);
     } catch (err: any) {
         console.error('[DeliveryPickups] Erro ao buscar retiradas:', err.message);
@@ -353,8 +370,8 @@ export const fetchDeliveryPickups = async (): Promise<DeliveryPickup[]> => {
 
 export const createDeliveryPickupSupabase = async (pickup: Omit<DeliveryPickup, 'id' | 'pickedUpAt'>): Promise<DeliveryPickup | null> => {
     try {
-        console.log('[Gestor] 📝 Criando retirada de entrega local...');
         const payload = {
+            id: crypto.randomUUID(),
             order_id: pickup.orderId,
             order_number: pickup.orderNumber,
             deliverer_name: pickup.delivererName,
@@ -363,37 +380,11 @@ export const createDeliveryPickupSupabase = async (pickup: Omit<DeliveryPickup, 
             batch_id: pickup.batchId,
             note: pickup.note,
         };
-        const data = await apiFetch('/gestor/delivery-pickups', {
-            method: 'POST',
-            body: payload,
-        });
-        return data ? supabaseToDeliveryPickup(data) : null;
+        const { data, error } = await supabase.from('delivery_pickups').insert([payload]).select().single();
+        if (error) throw error;
+        return supabaseToDeliveryPickup(data);
     } catch (err: any) {
         console.error('[DeliveryPickups] Erro ao criar retirada:', err.message);
-        throw err;
-    }
-};
-
-export const deleteDeliveryPickupsByOrderIdSupabase = async (orderId: string): Promise<void> => {
-    try {
-        console.log('[Gestor] 📝 Excluindo retiradas de entrega locais para pedido:', orderId);
-        await apiFetch(`/gestor/delivery-pickups/order/${orderId}`, {
-            method: 'DELETE',
-        });
-    } catch (err: any) {
-        console.error('[DeliveryPickups] Erro ao excluir retiradas:', err.message);
-        throw err;
-    }
-};
-
-export const deleteBarcodeScansByOrderIdSupabase = async (orderId: string): Promise<void> => {
-    try {
-        console.log('[Gestor] 📝 Excluindo leituras de código de barras locais para pedido:', orderId);
-        await apiFetch(`/gestor/barcode-scans/order/${orderId}`, {
-            method: 'DELETE',
-        });
-    } catch (err: any) {
-        console.error('[BarcodeScans] Erro ao excluir leituras:', err.message);
         throw err;
     }
 };

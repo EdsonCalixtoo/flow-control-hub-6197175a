@@ -1,4 +1,4 @@
-import { apiFetch } from './api';
+import { supabase } from './supabase';
 import type { ClientReward, ClientRanking, Order, QuoteItem } from '@/types/erp';
 import { supabaseToOrder } from './orderServiceSupabase';
 
@@ -27,10 +27,16 @@ export const calculateClientRanking = async (clientId: string): Promise<ClientRa
             'retirado_entregador'
         ];
 
-        // Buscar pedidos aprovados via API local
-        console.log('[Rewards] 📝 Buscando ranking de cliente local:', clientId);
-        const data = await apiFetch(`/orders?client_id=${clientId}`);
-        const orders = (data || []).map(supabaseToOrder).filter((o: Order) => confirmedStatuses.includes(o.status));
+        // Buscar pedidos aprovados
+        const { data, error } = await supabase
+            .from('orders')
+            .select('*')
+            .eq('client_id', clientId)
+            .in('status', confirmedStatuses);
+
+        if (error) throw error;
+
+        const orders = (data || []).map(supabaseToOrder);
 
         let totalKits = 0;
         let tier1Count = 0;
@@ -86,17 +92,22 @@ export const calculateClientRanking = async (clientId: string): Promise<ClientRa
 
 export const fetchClientRewards = async (clientId: string): Promise<ClientReward[]> => {
     try {
-        console.log('[Rewards] 📝 Buscando premiações do cliente local:', clientId);
-        const data = await apiFetch(`/gestor/rewards/client/${clientId}`);
+        const { data, error } = await supabase
+            .from('client_rewards')
+            .select('*')
+            .eq('client_id', clientId)
+            .order('created_at', { ascending: true });
 
-        return (data || []).map((r: any) => ({
+        if (error) throw error;
+
+        return (data || []).map(r => ({
             id: r.id,
             clientId: r.client_id,
             rewardType: r.reward_type,
-            kitsRequired: Number(r.kits_required || 0),
-            kitsCompleted: Number(r.kits_completed || 0),
-            kitsConsumed: Number(r.kits_consumed || 0),
-            kitsAdjustment: Number(r.kits_adjustment || 0),
+            kitsRequired: r.kits_required,
+            kitsCompleted: r.kits_completed,
+            kitsConsumed: r.kits_consumed || 0,
+            kitsAdjustment: r.kits_adjustment || 0,
             rewardStatus: r.reward_status,
             rewardRedeemedAt: r.reward_redeemed_at,
             createdAt: r.created_at,
@@ -110,26 +121,27 @@ export const fetchClientRewards = async (clientId: string): Promise<ClientReward
 
 export const redeemReward = async (rewardId: string, quantity: number = 1): Promise<boolean> => {
     try {
-        console.log('[Rewards] 📝 Resgatando prêmio local:', rewardId);
         // Buscar dados atuais para saber quantos kits consumir
-        const rewardData = await apiFetch(`/gestor/rewards/${rewardId}`);
-        if (!rewardData) throw new Error('Prêmio não encontrado');
+        const { data: rewardData, error: fetchError } = await supabase
+            .from('client_rewards')
+            .select('*')
+            .eq('id', rewardId)
+            .single();
 
-        const kits_required = Number(rewardData.kits_required || 0);
-        const kits_completed = Number(rewardData.kits_completed || 0);
-        const kits_consumed = Number(rewardData.kits_consumed || 0);
-        
-        const totalToConsume = kits_required * quantity;
+        if (fetchError || !rewardData) throw fetchError || new Error('Prêmio não encontrado');
 
-        await apiFetch(`/gestor/rewards/${rewardId}`, {
-            method: 'PUT',
-            body: {
-                reward_status: (kits_completed - totalToConsume) >= kits_required ? 'liberado' : 'resgatado',
+        const totalToConsume = rewardData.kits_required * quantity;
+
+        const { error } = await supabase
+            .from('client_rewards')
+            .update({
+                reward_status: (rewardData.kits_completed - totalToConsume) >= rewardData.kits_required ? 'liberado' : 'resgatado',
                 reward_redeemed_at: new Date().toISOString(),
-                kits_consumed: kits_consumed + totalToConsume
-            }
-        });
+                kits_consumed: (rewardData.kits_consumed || 0) + totalToConsume
+            })
+            .eq('id', rewardId);
 
+        if (error) throw error;
         return true;
     } catch (err: any) {
         console.error('[Rewards] Erro ao resgatar prêmio:', err.message);
@@ -139,26 +151,30 @@ export const redeemReward = async (rewardId: string, quantity: number = 1): Prom
 
 export const cancelRedeemReward = async (rewardId: string, quantity: number = 1): Promise<boolean> => {
     try {
-        console.log('[Rewards] 📝 Cancelando resgate de prêmio local:', rewardId);
-        const rewardData = await apiFetch(`/gestor/rewards/${rewardId}`);
-        if (!rewardData) throw new Error('Prêmio não encontrado');
+        const { data: rewardData, error: fetchError } = await supabase
+            .from('client_rewards')
+            .select('*')
+            .eq('id', rewardId)
+            .single();
+
+        if (fetchError || !rewardData) throw fetchError || new Error('Prêmio não encontrado');
 
         // Só cancela se estiver no status 'resgatado' ou 'liberado' (em processo)
         if (rewardData.reward_status !== 'resgatado' && rewardData.reward_status !== 'liberado') return false;
 
-        const kits_required = Number(rewardData.kits_required || 0);
-        const kits_consumed = Number(rewardData.kits_consumed || 0);
-        const kitsToRestore = kits_required * quantity;
+        const kitsToRestore = rewardData.kits_required * quantity;
 
-        await apiFetch(`/gestor/rewards/${rewardId}`, {
-            method: 'PUT',
-            body: {
+        const { error } = await supabase
+            .from('client_rewards')
+            .update({
                 reward_status: 'liberado', 
                 reward_redeemed_at: null,
-                kits_consumed: Math.max(0, kits_consumed - kitsToRestore)
-            }
-        });
+                kits_consumed: Math.max(0, (rewardData.kits_consumed || 0) - kitsToRestore),
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', rewardId);
 
+        if (error) throw error;
         return true;
     } catch (err: any) {
         console.error('[Rewards] Erro ao cancelar resgate de prêmio:', err.message);
@@ -168,22 +184,29 @@ export const cancelRedeemReward = async (rewardId: string, quantity: number = 1)
 
 export const resetReward = async (rewardId: string, currentBalance: number): Promise<boolean> => {
     try {
-        console.log('[Rewards] 📝 Zerando premiação local:', rewardId);
-        const rewardData = await apiFetch(`/gestor/rewards/${rewardId}`);
-        if (!rewardData) throw new Error('Prêmio não encontrado');
+        // Buscar dados atuais para saber o ajuste atual
+        const { data: rewardData, error: fetchError } = await supabase
+            .from('client_rewards')
+            .select('kits_adjustment')
+            .eq('id', rewardId)
+            .single();
 
-        const currentAdjustment = Number(rewardData.kits_adjustment || 0);
+        if (fetchError || !rewardData) throw fetchError || new Error('Prêmio não encontrado');
+
+        const currentAdjustment = rewardData.kits_adjustment || 0;
         const newAdjustment = currentAdjustment - currentBalance;
 
-        await apiFetch(`/gestor/rewards/${rewardId}`, {
-            method: 'PUT',
-            body: {
+        const { error } = await supabase
+            .from('client_rewards')
+            .update({
                 kits_adjustment: newAdjustment,
                 kits_completed: 0,
-                reward_status: 'pendente'
-            }
-        });
+                reward_status: 'pendente',
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', rewardId);
 
+        if (error) throw error;
         return true;
     } catch (err: any) {
         console.error('[Rewards] Erro ao zerar premiação:', err.message);
@@ -193,20 +216,26 @@ export const resetReward = async (rewardId: string, currentBalance: number): Pro
 
 export const adjustReward = async (rewardId: string, amount: number): Promise<boolean> => {
     try {
-        console.log('[Rewards] 📝 Ajustando premiação local:', rewardId);
-        const rewardData = await apiFetch(`/gestor/rewards/${rewardId}`);
-        if (!rewardData) throw new Error('Prêmio não encontrado');
+        const { data: rewardData, error: fetchError } = await supabase
+            .from('client_rewards')
+            .select('kits_adjustment')
+            .eq('id', rewardId)
+            .single();
 
-        const currentAdjustment = Number(rewardData.kits_adjustment || 0);
+        if (fetchError || !rewardData) throw fetchError || new Error('Prêmio não encontrado');
+
+        const currentAdjustment = rewardData.kits_adjustment || 0;
         const newAdjustment = currentAdjustment + amount;
 
-        await apiFetch(`/gestor/rewards/${rewardId}`, {
-            method: 'PUT',
-            body: {
-                kits_adjustment: newAdjustment
-            }
-        });
+        const { error } = await supabase
+            .from('client_rewards')
+            .update({
+                kits_adjustment: newAdjustment,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', rewardId);
 
+        if (error) throw error;
         return true;
     } catch (err: any) {
         console.error('[Rewards] Erro ao ajustar premiação:', err.message);
@@ -216,7 +245,6 @@ export const adjustReward = async (rewardId: string, amount: number): Promise<bo
 
 export const updateClientRewardsAuto = async (clientId: string): Promise<void> => {
     try {
-        console.log('[Rewards] 📝 Sincronizando premiações automáticas locais:', clientId);
         const ranking = await calculateClientRanking(clientId);
         const existingRewards = await fetchClientRewards(clientId);
 
@@ -237,7 +265,7 @@ export const updateClientRewardsAuto = async (clientId: string): Promise<void> =
                 // Mantém o primeiro, deleta os outros do banco
                 const extras = matches.slice(1);
                 for (const extra of extras) {
-                    await apiFetch(`/gestor/rewards/${extra.id}`, { method: 'DELETE' });
+                    await supabase.from('client_rewards').delete().eq('id', extra.id);
                 }
             }
 
@@ -249,25 +277,25 @@ export const updateClientRewardsAuto = async (clientId: string): Promise<void> =
 
             if (existing) {
                 // Atualiza o registro existente com o novo total efetivo e novo status
-                await apiFetch(`/gestor/rewards/${existing.id}`, {
-                    method: 'PUT',
-                    body: {
+                await supabase
+                    .from('client_rewards')
+                    .update({
                         kits_completed: currentEffectiveKits,
-                        reward_status: newStatus
-                    }
-                });
+                        reward_status: newStatus,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', existing.id);
             } else {
                 // Criar nova premiação
-                await apiFetch('/gestor/rewards', {
-                    method: 'POST',
-                    body: {
+                await supabase
+                    .from('client_rewards')
+                    .insert([{
                         client_id: clientId,
                         reward_type: tier.type,
                         kits_required: tier.required,
                         kits_completed: currentEffectiveKits,
                         reward_status: newStatus
-                    }
-                });
+                    }]);
             }
         }
     } catch (err: any) {

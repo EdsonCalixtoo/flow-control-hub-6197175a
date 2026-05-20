@@ -87,7 +87,7 @@ const LoginPage: React.FC = () => {
                 transition={{ delay: 0.2 }}
                 className="mb-12 relative group"
               >
-                <img src="./logonovo.jpeg" alt="Logo" className="h-16 w-auto object-contain filter drop-shadow-2xl" />
+                <img src="/logonovo.jpeg" alt="Logo" className="h-16 w-auto object-contain filter drop-shadow-2xl" />
                 <div className="absolute -inset-x-4 -inset-y-4 bg-blue-500/5 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity rounded-full -z-10" />
               </motion.div>
 

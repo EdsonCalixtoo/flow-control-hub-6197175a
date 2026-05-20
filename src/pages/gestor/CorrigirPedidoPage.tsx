@@ -26,7 +26,6 @@ const CorrigirPedidoPage: React.FC = () => {
    const [orderType, setOrderType] = useState<any>('entrega');
    const [loading, setLoading] = useState(false);
    const [unifySearch, setUnifySearch] = useState('');
-   const [newStatus, setNewStatus] = useState<string>('');
 
   // Filtra pedidos com base no termo de busca
   const filteredOrders = useMemo(() => {
@@ -170,19 +169,20 @@ const CorrigirPedidoPage: React.FC = () => {
     }
   };
 
-  const handleChangeStatus = async () => {
-    if (!selectedOrderId || !newStatus) return;
-    if (!window.confirm('Atenção: Mudar o status manualmente pode impactar o fluxo do pedido. Deseja continuar?')) return;
+  const handleMoveToProduction = async () => {
+    if (!selectedOrderId) return;
+    if (!window.confirm('Deseja realmente VOLTAR este pedido para a produção? O status será alterado para "Aguardando Produção", permitindo que a fábrica o veja novamente.')) return;
 
     setLoading(true);
     try {
-      await updateOrder(selectedOrderId, { status: newStatus as any });
-      toast.success('Status do pedido alterado com sucesso!');
+      await updateOrder(selectedOrderId, { 
+        status: 'aguardando_producao'
+      });
+      toast.success('Pedido movido de volta para a produção!');
       setSelectedOrderId(null);
-      setNewStatus('');
     } catch (err) {
       console.error(err);
-      toast.error('Erro ao mudar status do pedido.');
+      toast.error('Erro ao mover pedido de volta para a produção.');
     } finally {
       setLoading(false);
     }
@@ -580,37 +580,16 @@ const CorrigirPedidoPage: React.FC = () => {
                     <label className="text-[10px] font-bold text-destructive uppercase flex items-center gap-1 mb-2 ml-1">
                       <RotateCcw className="w-3 h-3" /> Ações Críticas (Gestor)
                     </label>
-                    <div className="space-y-3 bg-destructive/5 p-4 rounded-xl border border-destructive/10">
-                      <p className="text-[10px] text-destructive/80 font-black uppercase tracking-widest text-center">Forçar Mudança de Status</p>
-                      
-                      <div className="flex gap-2">
-                        <select 
-                          className="input-modern bg-white text-xs font-bold border-destructive/20 h-12 flex-1"
-                          value={newStatus}
-                          onChange={(e) => setNewStatus(e.target.value)}
-                        >
-                          <option value="">Selecione o novo status...</option>
-                          <option value="pendente">Pendente / Cancelado (Tirar de Produção)</option>
-                          <option value="aguardando_financeiro">Aguardando Financeiro</option>
-                          <option value="aguardando_producao">Aguardando Produção</option>
-                          <option value="em_producao">Em Produção</option>
-                          <option value="producao_finalizada">Produção Finalizada</option>
-                          <option value="produto_liberado">Produto Liberado</option>
-                          <option value="retirado_entregador">Retirado pelo Entregador</option>
-                          <option value="entregue">Entregue / Concluído</option>
-                        </select>
-                        <button
-                          onClick={handleChangeStatus}
-                          disabled={loading || !newStatus}
-                          className="px-6 rounded-xl bg-destructive text-white hover:bg-destructive/90 transition-all font-black text-[10px] uppercase tracking-widest disabled:opacity-50"
-                        >
-                          Aplicar
-                        </button>
-                      </div>
-                      <p className="text-[9px] text-destructive/60 text-center italic leading-tight">
-                        * O Gestor tem o poder de retirar o pedido da produção ou avançá-lo manualmente usando esta ferramenta. Cuidado ao usá-la.
-                      </p>
-                    </div>
+                    <button
+                      onClick={handleMoveToProduction}
+                      disabled={loading}
+                      className="w-full h-12 rounded-xl bg-destructive/5 text-destructive hover:bg-destructive hover:text-white transition-all font-black text-[10px] uppercase tracking-widest border border-destructive/10 flex items-center justify-center gap-2"
+                    >
+                      <RotateCcw className="w-4 h-4" /> Mover de Volta para Produção
+                    </button>
+                    <p className="text-[9px] text-muted-foreground text-center mt-2 italic px-4">
+                      * Use esta opção para pedidos que precisam ser refeitos ou corrigidos na fábrica, mesmo que já tenham sido retirados.
+                    </p>
                   </div>
                 </div>
               </div>

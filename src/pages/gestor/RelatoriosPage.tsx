@@ -2,7 +2,7 @@ import React from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { formatCurrency, StatusBadge } from '@/components/shared/StatusBadge';
 import { Truck, Package, User, Camera, PenLine, ClipboardList, RefreshCw, Trophy, Loader2, Calendar, Search, Trash2, Edit2, Check, X } from 'lucide-react';
-import { apiFetch } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { updateClientRewardsAuto } from '@/lib/rewardServiceSupabase';
 import { toast } from 'sonner';
 import { uploadToR2 } from '@/lib/storageServiceR2';
@@ -33,10 +33,14 @@ const RelatoriosPage: React.FC = () => {
       console.log('[Relatorios] 📡 Buscando histórico profundo de logística...');
       
       // 1. Busca as retiradas primeiro
-      const pickupsData = await apiFetch('/gestor/delivery-pickups');
+      const { data: pickupsData } = await supabase
+        .from('delivery_pickups')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1000);
 
       if (pickupsData) {
-        setDeepPickups(pickupsData.map((p: any) => ({
+        setDeepPickups(pickupsData.map(p => ({
           ...p,
           orderId: p.order_id,
           orderNumber: p.order_number,
@@ -48,10 +52,12 @@ const RelatoriosPage: React.FC = () => {
         })));
 
         // 2. Busca específica de todos os pedidos mencionados nessas retiradas (independente do status atual)
-        const orderIds = [...new Set(pickupsData.map((p: any) => p.order_id).filter(Boolean))];
+        const orderIds = [...new Set(pickupsData.map(p => p.order_id).filter(Boolean))];
         if (orderIds.length > 0) {
-          const allOrdersFetched = await apiFetch('/orders');
-          const ordersData = (allOrdersFetched || []).filter((o: any) => orderIds.includes(o.id));
+          const { data: ordersData } = await supabase
+            .from('orders')
+            .select('*')
+            .in('id', orderIds);
           
           if (ordersData) {
             setDeepOrders(ordersData.map(o => ({ 
@@ -291,24 +297,16 @@ const RelatoriosPage: React.FC = () => {
           if (blob) finalSig = await uploadToR2(blob, `recuperado/sig-${pickup.orderNumber}-${Date.now()}.png`);
         }
 
-        let error = null;
-        try {
-          await apiFetch('/gestor/delivery-pickups', {
-            method: 'POST',
-            body: {
-              order_id: pickup.orderId,
-              order_number: pickup.orderNumber,
-              deliverer_name: pickup.delivererName,
-              photo_url: finalPhoto,
-              signature_url: finalSig,
-              batch_id: pickup.batchId || null,
-              note: pickup.note || 'Recuperado do Cache Local',
-              created_at: pickup.pickedUpAt
-            }
-          });
-        } catch (e: any) {
-          error = e;
-        }
+        const { error } = await supabase.from('delivery_pickups').insert([{
+          order_id: pickup.orderId,
+          order_number: pickup.orderNumber,
+          deliverer_name: pickup.delivererName,
+          photo_url: finalPhoto,
+          signature_url: finalSig,
+          batch_id: pickup.batchId || null,
+          note: pickup.note || 'Recuperado do Cache Local',
+          created_at: pickup.pickedUpAt
+        }]);
 
         if (!error) recovered++;
       }
@@ -327,13 +325,7 @@ const RelatoriosPage: React.FC = () => {
     setMigrating(true);
     toast.info('Iniciando recalculo de premiações para todos os clientes...');
     try {
-      let clients = null;
-      let error = null;
-      try {
-        clients = await apiFetch('/clients');
-      } catch (e: any) {
-        error = e;
-      }
+      const { data: clients, error } = await supabase.from('clients').select('id, name');
       if (error) throw error;
 
       let count = 0;
@@ -357,15 +349,10 @@ const RelatoriosPage: React.FC = () => {
     }
     setUpdating(true);
     try {
-      let error = null;
-      try {
-        await apiFetch(`/gestor/delivery-pickups/batch/${encodeURIComponent(batchId)}`, {
-          method: 'PUT',
-          body: { deliverer_name: newDelivererName.trim() }
-        });
-      } catch (e: any) {
-        error = e;
-      }
+      const { error } = await supabase
+        .from('delivery_pickups')
+        .update({ deliverer_name: newDelivererName.trim() })
+        .eq('batch_id', batchId);
 
       if (error) throw error;
       toast.success('Entregador atualizado com sucesso!');
@@ -384,7 +371,11 @@ const RelatoriosPage: React.FC = () => {
     setUpdating(true);
     try {
       // 1. Busca o pedido atual para preservar o histórico
-      const orderData = await apiFetch(`/orders/${orderId}`);
+      const { data: orderData } = await supabase
+        .from('orders')
+        .select('*')
+        .eq('id', orderId)
+        .single();
 
       if (orderData) {
         const history = orderData.status_history || [];
@@ -399,19 +390,24 @@ const RelatoriosPage: React.FC = () => {
         ];
 
         // 2. Atualiza o status do pedido
-        await apiFetch(`/orders/${orderId}`, {
-          method: 'PUT',
-          body: {
+        const { error: orderError } = await supabase
+          .from('orders')
+          .update({ 
             status: 'produto_liberado',
             status_history: newHistory
-          }
-        });
+          })
+          .eq('id', orderId);
+
+        if (orderError) throw orderError;
       }
 
       // 3. Deleta o registro de retirada
-      await apiFetch(`/gestor/delivery-pickups/order/${orderId}`, {
-        method: 'DELETE'
-      });
+      const { error: pickupError } = await supabase
+        .from('delivery_pickups')
+        .delete()
+        .eq('order_id', orderId);
+
+      if (pickupError) throw pickupError;
 
       toast.success('Retirada excluída e pedido retornado para expedição!');
       fetchDeepData();

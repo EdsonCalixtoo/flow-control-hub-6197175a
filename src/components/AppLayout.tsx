@@ -56,6 +56,7 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: 
   ],
   gestor: [
     { label: 'Dashboard', icon: LayoutDashboard, path: '/gestor' },
+    { label: 'Controle', icon: Package, path: '/gestor/controle' },
     { label: 'Entregadores', icon: Truck, path: '/gestor/entregadores' },
     { label: 'Problemas na Produção', icon: AlertTriangle, path: '/gestor?tab=problemas' },
     { label: 'Pedidos Devolvidos', icon: BarChart3, path: '/gestor?tab=devolvidos' },

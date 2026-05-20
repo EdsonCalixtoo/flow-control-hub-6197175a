@@ -29,6 +29,7 @@ import RelatoriosPage from "@/pages/gestor/RelatoriosPage";
 import EstoquePage from "@/pages/gestor/EstoquePage";
 import ProdutosPage from "@/pages/gestor/ProdutosPage";
 import EntregadoresPage from "@/pages/gestor/EntregadoresPage";
+import ControleGalvanizacaoPage from "@/pages/gestor/ControleGalvanizacaoPage"; // TS ignore next line if needed
 import CorrigirPedidoPage from "@/pages/gestor/CorrigirPedidoPage";
 import ProducaoDashboard from "@/pages/producao/ProducaoDashboard";
 import PedidosProducaoPage from "@/pages/producao/PedidosProducaoPage";
@@ -118,6 +119,7 @@ const App = () => (
                 <Route path="/gestor/estoque" element={<ProtectedRoute role="gestor"><EstoquePage /></ProtectedRoute>} />
                 <Route path="/gestor/produtos" element={<ProtectedRoute role="gestor"><ProdutosPage /></ProtectedRoute>} />
                 <Route path="/gestor/relatorios" element={<ProtectedRoute role="gestor"><RelatoriosPage /></ProtectedRoute>} />
+                <Route path="/gestor/controle" element={<ProtectedRoute role="gestor"><ControleGalvanizacaoPage /></ProtectedRoute>} />
                 <Route path="/gestor/entregadores" element={<ProtectedRoute role="gestor"><EntregadoresPage /></ProtectedRoute>} />
                 <Route path="/gestor/corrigir-pedido" element={<ProtectedRoute role="gestor"><CorrigirPedidoPage /></ProtectedRoute>} />
 

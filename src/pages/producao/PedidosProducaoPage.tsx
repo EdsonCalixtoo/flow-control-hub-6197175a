@@ -431,7 +431,7 @@ const PedidosProducaoPage: React.FC = () => {
 
     let logoDataUrl = '';
     try {
-      const response = await fetch('./logonovo.jpeg');
+      const response = await fetch('/logonovo.jpeg');
       const blob = await response.blob();
       logoDataUrl = await new Promise<string>((resolve) => {
         const reader = new FileReader();

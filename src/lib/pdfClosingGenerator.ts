@@ -36,7 +36,7 @@ export const generateClosingPDF = (data: ClosingPdfData, shouldDownload: boolean
     doc.setFillColor(255, 255, 255);
     doc.roundedRect(150, 12, 50, 25, 2, 2, 'F');
     // Horizontal logo dimensions adjustment
-    doc.addImage('/logonovo.jpeg', 'JPEG', 152, 15, 46, 18);
+    doc.addImage('./logonovo.jpeg', 'JPEG', 152, 15, 46, 18);
   } catch (e) {
     // Fallback
     doc.setFont('helvetica', 'bold');

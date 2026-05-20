@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { HashRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ERPProvider } from "@/contexts/ERPContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
@@ -32,6 +32,7 @@ import EntregadoresPage from "@/pages/gestor/EntregadoresPage";
 import CorrigirPedidoPage from "@/pages/gestor/CorrigirPedidoPage";
 import ProducaoDashboard from "@/pages/producao/ProducaoDashboard";
 import PedidosProducaoPage from "@/pages/producao/PedidosProducaoPage";
+import GalvanizacaoControlePage from "@/pages/gestor/GalvanizacaoControlePage";
 import TrackingPage from "@/pages/TrackingPage";
 import WarrantyTrackingPage from "@/pages/WarrantyTrackingPage";
 import QRCodePage from "@/pages/QRCodePage";
@@ -87,7 +88,7 @@ const App = () => (
         <Sonner />
         <AuthProvider>
           <ERPProvider>
-            <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <HashRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
               <Routes>
                 <Route path="/" element={<AuthGate />} />
 
@@ -120,6 +121,7 @@ const App = () => (
                 <Route path="/gestor/relatorios" element={<ProtectedRoute role="gestor"><RelatoriosPage /></ProtectedRoute>} />
                 <Route path="/gestor/entregadores" element={<ProtectedRoute role="gestor"><EntregadoresPage /></ProtectedRoute>} />
                 <Route path="/gestor/corrigir-pedido" element={<ProtectedRoute role="gestor"><CorrigirPedidoPage /></ProtectedRoute>} />
+                <Route path="/gestor/controle" element={<ProtectedRoute role="gestor"><GalvanizacaoControlePage /></ProtectedRoute>} />
 
                 {/* Produção */}
                 <Route path="/producao" element={<ProtectedRoute role="producao"><ProducaoDashboard /></ProtectedRoute>} />
@@ -150,7 +152,7 @@ const App = () => (
 
                 <Route path="*" element={<NotFound />} />
               </Routes>
-            </BrowserRouter>
+            </HashRouter>
           </ERPProvider>
         </AuthProvider>
       </TooltipProvider>

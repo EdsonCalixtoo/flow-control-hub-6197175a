@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { apiFetch } from './api';
 import type { Warranty } from '@/types/erp';
 
 const supabaseToWarranty = (data: any): Warranty => ({
@@ -39,54 +39,63 @@ const warrantyToSupabase = (w: Partial<Warranty>) => {
 };
 
 export const fetchWarranties = async (): Promise<Warranty[]> => {
-    const { data, error } = await supabase
-        .from('warranties')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-    if (error) throw error;
-    return (data || []).map(supabaseToWarranty);
+    try {
+        console.log('[Warranties] 📝 Buscando garantias locais...');
+        const data = await apiFetch('/gestor/warranties');
+        return (data || []).map(supabaseToWarranty);
+    } catch (err: any) {
+        console.error('[Warranties] Erro ao buscar garantias:', err.message);
+        return [];
+    }
 };
 
 export const createWarranty = async (warranty: Omit<Warranty, 'id' | 'createdAt' | 'updatedAt'>): Promise<Warranty> => {
-    const payload = { 
-        id: crypto.randomUUID(), 
-        ...warrantyToSupabase(warranty) 
-    };
-    const { data, error } = await supabase
-        .from('warranties')
-        .insert([payload])
-        .select()
-        .single();
-
-    if (error) throw error;
-    return supabaseToWarranty(data);
+    try {
+        const payload = { 
+            id: crypto.randomUUID(), 
+            ...warrantyToSupabase(warranty) 
+        };
+        console.log('[Warranties] 📝 Criando garantia local:', payload);
+        const data = await apiFetch('/gestor/warranties', {
+            method: 'POST',
+            body: payload,
+        });
+        if (!data) {
+            throw new Error('A API não retornou a garantia criada.');
+        }
+        return supabaseToWarranty(data);
+    } catch (err: any) {
+        console.error('[Warranties] Erro ao criar garantia:', err.message);
+        throw err;
+    }
 };
 
 export const updateWarranty = async (id: string, updates: Partial<Warranty>): Promise<Warranty> => {
-    const payload = warrantyToSupabase(updates);
-    const { data, error } = await supabase
-        .from('warranties')
-        .update(payload)
-        .eq('id', id)
-        .select();
-
-    if (error) throw error;
-    return data && data.length > 0 ? supabaseToWarranty(data[0]) : null;
+    try {
+        const payload = warrantyToSupabase(updates);
+        console.log('[Warranties] 📝 Atualizando garantia local:', id);
+        const data = await apiFetch(`/gestor/warranties/${id}`, {
+            method: 'PUT',
+            body: payload,
+        });
+        if (!data) {
+            throw new Error('A API não retornou a garantia atualizada.');
+        }
+        return supabaseToWarranty(data);
+    } catch (err: any) {
+        console.error('[Warranties] Erro ao atualizar garantia:', err.message);
+        throw err;
+    }
 };
 
 export const fetchWarrantyByNumberSupabase = async (num: string): Promise<Warranty | null> => {
     try {
-        const { data, error } = await supabase
-            .from('warranties')
-            .select('*')
-            .or(`order_number.ilike.%${num}%`)
-            .limit(1)
-            .maybeSingle();
-
-        if (error) throw error;
-        if (!data) return null;
-        return supabaseToWarranty(data);
+        console.log('[Warranties] 🔍 Buscando garantia por número local:', num);
+        const data = await fetchWarranties();
+        if (!data || data.length === 0) return null;
+        
+        const fuzzyMatch = data.find(w => w.orderNumber?.toLowerCase().includes(num.toLowerCase().trim()));
+        return fuzzyMatch || null;
     } catch (err: any) {
         console.error('[Warranties] Erro ao buscar garantia por número:', err.message);
         return null;

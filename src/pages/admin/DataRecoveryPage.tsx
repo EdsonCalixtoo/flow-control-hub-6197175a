@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
+import { apiFetch } from '@/lib/api';
 
 interface ConciliationResult {
   name: string;
@@ -191,39 +191,26 @@ export const DataRecoveryPage: React.FC = () => {
   const fetchSystemOrders = async () => {
     setIsFetchingOrders(true);
     try {
-      const { data: ordersData, error: ordersError } = await supabase
-        .from('orders')
-        .select('number, client_id, client_name, seller_name, status, total, created_at')
-        .order('created_at', { ascending: false });
-
-      if (ordersError) throw ordersError;
-
-      // Busca CPFs dos clientes para cruzamento preciso
-      const { data: clientsData } = await supabase
-        .from('clients')
-        .select('id, cpf_cnpj');
+      const backupData = await apiFetch('/gestor/backup');
+      const ordersData = backupData.orders || [];
+      const clientsData = backupData.clients || [];
+      const pickupsData = backupData.delivery_pickups || [];
 
       const clientDocsMap: Record<string, string> = {};
-      clientsData?.forEach(c => {
-        const doc = (c as any).cpf_cnpj;
+      clientsData.forEach((c: any) => {
+        const doc = c.cpf_cnpj;
         if (doc) clientDocsMap[c.id] = String(doc).replace(/\D/g, '');
       });
 
-      const ordersWithDocs = ordersData?.map(o => ({
+      const ordersWithDocs = ordersData.map((o: any) => ({
         ...o,
         client_document: o.client_id ? clientDocsMap[o.client_id] : null
       }));
 
-      setExistingOrders(ordersWithDocs || []);
+      setExistingOrders(ordersWithDocs);
+      setDeliveryPickups(pickupsData);
 
-      // Busca retiradas dos entregadores
-      const { data: pickupsData } = await supabase
-        .from('delivery_pickups')
-        .select('*');
-      
-      setDeliveryPickups(pickupsData || []);
-
-      toast.success(`${ordersData?.length || 0} pedidos e ${pickupsData?.length || 0} retiradas carregados.`);
+      toast.success(`${ordersData.length} pedidos e ${pickupsData.length} retiradas carregados.`);
     } catch (err: any) {
       toast.error('Erro ao buscar pedidos: ' + err.message);
     } finally {

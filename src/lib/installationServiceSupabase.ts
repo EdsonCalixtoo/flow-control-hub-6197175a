@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { apiFetch } from './api';
 
 export interface InstallationAppointment {
     id: string;
@@ -15,12 +15,12 @@ export interface InstallationAppointment {
 
 export const fetchInstallations = async (date?: string): Promise<InstallationAppointment[]> => {
     try {
-        let query = supabase.from('installations').select('*');
+        console.log('[Installations] 📝 Buscando instalações locais...');
+        let path = '/gestor/installations';
         if (date) {
-            query = query.eq('date', date);
+            path += `?date=${encodeURIComponent(date)}`;
         }
-        const { data, error } = await query;
-        if (error) throw error;
+        const data = await apiFetch(path);
         return data || [];
     } catch (err: any) {
         console.error('[Installations] Erro ao buscar instalações:', err.message);
@@ -30,19 +30,12 @@ export const fetchInstallations = async (date?: string): Promise<InstallationApp
 
 export const checkInstallationConflict = async (date: string, time: string, excludeOrderId?: string): Promise<boolean> => {
     try {
-        let query = supabase
-            .from('installations')
-            .select('id')
-            .eq('date', date)
-            .eq('time', time);
-            
+        console.log('[Installations] 🔍 Verificando conflito local...');
+        let path = `/gestor/installations/conflict?date=${encodeURIComponent(date)}&time=${encodeURIComponent(time)}`;
         if (excludeOrderId) {
-            query = query.neq('order_id', excludeOrderId);
+            path += `&exclude_order_id=${encodeURIComponent(excludeOrderId)}`;
         }
-
-        const { data, error } = await query.maybeSingle();
-
-        if (error) throw error;
+        const data = await apiFetch(path);
         return !!data;
     } catch (err: any) {
         console.error('[Installations] Erro ao verificar conflito:', err.message);
@@ -52,21 +45,17 @@ export const checkInstallationConflict = async (date: string, time: string, excl
 
 export const saveInstallation = async (appointment: Omit<InstallationAppointment, 'id'>): Promise<InstallationAppointment | null> => {
     try {
-        // 🔥 CORREÇÃO: Geramos o UUID no client-side para evitar erro de 'null id' no Supabase
         const payload = {
             ...appointment,
             id: crypto.randomUUID()
         };
 
-        console.log('[Installations] Salvando agendamento:', payload);
+        console.log('[Installations] 📝 Salvando agendamento local:', payload);
+        const data = await apiFetch('/gestor/installations', {
+            method: 'POST',
+            body: payload,
+        });
 
-        const { data, error } = await supabase
-            .from('installations')
-            .insert([payload])
-            .select()
-            .single();
-
-        if (error) throw error;
         return data;
     } catch (err: any) {
         console.error('[Installations] Erro ao salvar instalação:', err.message);
@@ -76,12 +65,10 @@ export const saveInstallation = async (appointment: Omit<InstallationAppointment
 
 export const deleteInstallationByOrder = async (orderId: string): Promise<void> => {
     try {
-        const { error } = await supabase
-            .from('installations')
-            .delete()
-            .eq('order_id', orderId);
-
-        if (error) throw error;
+        console.log('[Installations] 🗑️ Deletando agendamento por pedido local:', orderId);
+        await apiFetch(`/gestor/installations/order/${orderId}`, {
+            method: 'DELETE',
+        });
     } catch (err: any) {
         console.error('[Installations] Erro ao deletar instalação:', err.message);
     }

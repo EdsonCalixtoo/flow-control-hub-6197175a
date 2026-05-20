@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useCallback, useEffect, useMemo } from 'react';
 import type { Order, Client, FinancialEntry, Product, OrderStatus, StatusHistoryEntry, DelayReport, ChatMessage, OrderReturn, ProductionError, BarcodeScan, DeliveryPickup, Warranty, WarrantyStatus } from '@/types/erp';
 import { supabase } from '@/lib/supabase';
+import { apiFetch } from '@/lib/api';
 import { toast } from 'sonner';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,7 +14,8 @@ import {
   fetchOrderReturns, createOrderReturnSupabase,
   fetchProductionErrors, createProductionErrorSupabase, resolveProductionErrorSupabase,
   fetchBarcodeScans, createBarcodeScanSupabase,
-  fetchDeliveryPickups, createDeliveryPickupSupabase
+  fetchDeliveryPickups, createDeliveryPickupSupabase,
+  deleteDeliveryPickupsByOrderIdSupabase, deleteBarcodeScansByOrderIdSupabase
 } from '@/lib/gestorServiceSupabase';
 import { fetchWarranties, createWarranty as createWarrantySupabase, updateWarranty as updateWarrantySupabase } from '@/lib/warrantyServiceSupabase';
 import { fetchMonthlyClosings, createMonthlyClosing } from '@/lib/fechamentoServiceSupabase';
@@ -179,81 +181,20 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [isAuthenticated]);
 
-  // ── Polling de Fallback (30 segundos) ──────────────────────
-  // Garante sincronização se o Realtime falhar.
+  // ── Polling de Sincronização Local (10 segundos) ───────────
   useEffect(() => {
     if (!isAuthenticated) return;
     
     // Sincronização inicial
     loadFromSupabase();
 
-    // ── CONFIGURAÇÃO REALTIME (SUPABASE) ──────────────────
-    // Ouve mudanças na tabela de pedidos e atualiza o estado instantaneamente
-    const channel = supabase
-      .channel('erp_orders_realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', table: 'orders', schema: 'public' },
-        (payload) => {
-          console.log('[ERP] 🔔 Mudança detectada (Realtime):', payload.eventType);
-          
-          if (payload.eventType === 'INSERT') {
-            const newOrder = supabaseToOrder(payload.new);
-            setOrders(prev => {
-              if (prev.find(o => o.id === newOrder.id)) return prev;
-              return [newOrder, ...prev];
-            });
-          } else if (payload.eventType === 'UPDATE') {
-            const updatedOrder = supabaseToOrder(payload.new);
-            setOrders(prev => prev.map(o => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o));
-          } else if (payload.eventType === 'DELETE') {
-            setOrders(prev => prev.filter(o => o.id !== payload.old.id));
-          }
-        }
-      )
-      .subscribe((status) => {
-        console.log('[ERP] 📡 Status do canal Realtime (Orders):', status);
-      });
-
-    // ── CONFIGURAÇÃO REALTIME (CLIENTS) ──────────────────
-    const clientChannel = supabase
-      .channel('erp_clients_realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', table: 'clients', schema: 'public' },
-        (payload) => {
-          console.log('[ERP] 🔔 Mudança detectada em Clientes (Realtime):', payload.eventType);
-          
-          if (payload.eventType === 'INSERT') {
-            const newClient = supabaseToClientClient(payload.new);
-            setClients(prev => {
-              if (prev.find(c => c.id === newClient.id)) return prev;
-              return [newClient, ...prev];
-            });
-          } else if (payload.eventType === 'UPDATE') {
-            const updatedClient = supabaseToClientClient(payload.new);
-            setClients(prev => prev.map(c => c.id === updatedClient.id ? updatedClient : c));
-          } else if (payload.eventType === 'DELETE') {
-            setClients(prev => prev.filter(c => c.id !== payload.old.id));
-          }
-        }
-      )
-      .subscribe((status) => {
-        console.log('[ERP] 📡 Status do canal Realtime (Clients):', status);
-      });
-
     const interval = setInterval(() => {
-      // ⚡ OTIMIZAÇÃO: Polling de segurança aumentado para 5 minutos (300.000ms)
-      // O Realtime já cuida de atualizações imediatas de pedidos.
-      // O polling serve apenas como fallback para inconsistências.
-      console.log('[ERP] 🔄 Polling de segurança (refetch de 5 min)...');
+      console.log('[ERP] 🔄 Sincronizando dados locais (polling)...');
       loadFromSupabase();
-    }, 300000);
+    }, 10000);
 
     return () => {
       clearInterval(interval);
-      supabase.removeChannel(channel);
-      supabase.removeChannel(clientChannel);
     };
   }, [loadFromSupabase, isAuthenticated]);
   
@@ -506,9 +447,9 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         try {
           console.log(`[ERP] 🧹 Limpando histórico de logística do pedido ${currentOrder.number} para novo ciclo de produção.`);
           
-          // 1. Remove do Supabase
-          await supabase.from('delivery_pickups').delete().eq('order_id', orderId);
-          await supabase.from('barcode_scans').delete().eq('order_id', orderId);
+          // 1. Remove do Banco Local
+          await deleteDeliveryPickupsByOrderIdSupabase(orderId);
+          await deleteBarcodeScansByOrderIdSupabase(orderId);
 
           // 2. Remove do Estado Local (Otimista)
           setDeliveryPickups(prev => prev.filter(p => p.orderId !== orderId));

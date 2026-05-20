@@ -1,5 +1,27 @@
-import { supabase } from './supabase';
+import { apiFetch } from './api';
 import type { Order, OrderStatus } from '@/types/erp';
+
+// ── Token Helper ─────────────────────────────────────────────────────────────
+const getLoggedUserInfo = () => {
+    try {
+        const token = localStorage.getItem('flow-control-token');
+        if (!token) return null;
+        const base64Url = token.split('.')[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const jsonPayload = decodeURIComponent(window.atob(base64).split('').map((c) => {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        const decoded = JSON.parse(jsonPayload);
+        return {
+            userId: decoded.sub,
+            email: decoded.email,
+            role: decoded.role
+        };
+    } catch (e) {
+        console.error('Erro ao decodificar token:', e);
+        return null;
+    }
+};
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 export const supabaseToOrder = (data: any): Order => ({
@@ -99,41 +121,31 @@ export const orderToSupabase = (order: Partial<Order>) => {
     return data;
 };
 
-// ⚡ OTIMIZAÇÃO DE EGRESS: Colunas mínimas para listagem (sem histórico pesado)
-const LIST_ORDER_COLUMNS = 'id, number, client_id, client_name, seller_id, seller_name, subtotal, taxes, total, status, notes, observation, order_type, is_cronograma, financeiro_aprovado, is_warranty, status_pagamento, status_producao, created_at, updated_at, delivery_date, installation_date, installation_time, installation_payment_type, scheduled_date, carrier, parent_order_id, parent_order_number, is_site, is_international, attachment_url, attachment_name, items, volumes, requires_invoice, requires_shipping_note, receipt_url, receipt_urls, comprovantes_vistos';
-
 export const fetchOrders = async (role?: string, userId?: string): Promise<Order[]> => {
     try {
+        console.log('[Orders] 📝 Buscando pedidos via API local...');
         let currentRole = role;
         let currentUserId = userId;
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!currentRole || !currentUserId) {
-            if (session?.user) {
-                currentUserId = session.user.id;
-                const { data: profile } = await supabase.from('users').select('role').eq('id', session.user.id).maybeSingle();
-                currentRole = profile?.role || session.user.user_metadata?.role || 'vendedor';
-            }
+        let userEmail = '';
+
+        const loggedUser = getLoggedUserInfo();
+        if (loggedUser) {
+            if (!currentUserId) currentUserId = loggedUser.userId;
+            if (!currentRole) currentRole = loggedUser.role;
+            userEmail = loggedUser.email;
         }
 
-        // 📅 Filtro de data (120 dias) para economizar egress massivo
-        const fourMonthsAgo = new Date();
-        fourMonthsAgo.setDate(fourMonthsAgo.getDate() - 120);
-        const minDate = fourMonthsAgo.toISOString();
-
-        // 🔥 OTIMIZAÇÃO: Limitamos a 1000 e usamos colunas de lista
-        let query = supabase.from('orders')
-            .select(LIST_ORDER_COLUMNS)
-            .gte('created_at', minDate)
-            .order('created_at', { ascending: false })
-            .limit(1000);
-
-        const isExempt = session?.user?.email === 'ericasousa@gmail.com' || session?.user?.email === 'juninho.caxto@gmail.com';
+        const isExempt = userEmail === 'ericasousa@gmail.com' || userEmail === 'juninho.caxto@gmail.com';
+        
+        let path = '/orders';
         if (currentRole === 'vendedor' && currentUserId && !isExempt) {
-            query = query.eq('seller_id', currentUserId);
+            path = `/orders?seller_id=${currentUserId}`;
         }
-        const { data, error } = await query;
-        if (error) throw error;
-        return (data || []).map(supabaseToOrder);
+        
+        const data = await apiFetch(path);
+        const orders = (data || []).map(supabaseToOrder);
+        console.log('[Orders] ✅ Pedidos carregados:', orders.length);
+        return orders;
     } catch (err: any) {
         console.error('[Orders] Erro crítico ao buscar pedidos:', err.message);
         return [];
@@ -142,15 +154,20 @@ export const fetchOrders = async (role?: string, userId?: string): Promise<Order
 
 export const fetchOrderByNumberSupabase = async (orderNumber: string): Promise<Order | null> => {
     try {
+        console.log('[Orders] 🔍 Buscando pedido por número local:', orderNumber);
         const cleanNumber = orderNumber.toUpperCase();
-        const { data: exact } = await supabase.from('orders').select(LIST_ORDER_COLUMNS).ilike('number', cleanNumber).maybeSingle();
-        if (exact) return supabaseToOrder(exact);
+        const data = await apiFetch(`/orders?number=${encodeURIComponent(cleanNumber)}`);
+        
+        if (data && data.length > 0) {
+            return supabaseToOrder(data[0]);
+        }
+        
         const digitPart = cleanNumber.replace(/\D/g, '');
         if (digitPart && digitPart.length >= 3) {
-            const { data: fuzzy } = await supabase.from('orders').select(LIST_ORDER_COLUMNS).ilike('number', `%${digitPart}%`);
-            if (fuzzy && fuzzy.length > 0) {
-                const bestMatch = fuzzy.find(o => o.number.replace(/\D/g, '') === digitPart);
-                return supabaseToOrder(bestMatch || fuzzy[0]);
+            const fuzzyData = await apiFetch(`/orders?number=${encodeURIComponent(digitPart)}`);
+            if (fuzzyData && fuzzyData.length > 0) {
+                const bestMatch = fuzzyData.find((o: any) => o.number.replace(/\D/g, '') === digitPart);
+                return supabaseToOrder(bestMatch || fuzzyData[0]);
             }
         }
         return null;
@@ -162,8 +179,8 @@ export const fetchOrderByNumberSupabase = async (orderNumber: string): Promise<O
 
 export const fetchOrderById = async (orderId: string): Promise<Order | null> => {
     try {
-        const { data, error } = await supabase.from('orders').select('*').eq('id', orderId).maybeSingle();
-        if (error) throw error;
+        console.log('[Orders] 🔍 Buscando pedido por ID local:', orderId);
+        const data = await apiFetch(`/orders/${orderId}`);
         return data ? supabaseToOrder(data) : null;
     } catch (err: any) {
         console.error('[Orders] Erro ao buscar pedido por ID:', err.message);
@@ -173,9 +190,17 @@ export const fetchOrderById = async (orderId: string): Promise<Order | null> => 
 
 export const createOrderSupabase = async (order: Order): Promise<Order | null> => {
     try {
+        console.log('[Orders] 📝 Criando novo pedido local:', order.number);
         const payload = orderToSupabase(order);
-        const { data, error } = await supabase.from('orders').insert([payload]).select().single();
-        if (error) throw error;
+        const data = await apiFetch('/orders', {
+            method: 'POST',
+            body: payload,
+        });
+        
+        if (!data) {
+            throw new Error('A API não retornou o pedido criado.');
+        }
+        
         return supabaseToOrder(data);
     } catch (err: any) {
         console.error('[Orders] Erro ao criar pedido:', err.message);
@@ -185,10 +210,18 @@ export const createOrderSupabase = async (order: Order): Promise<Order | null> =
 
 export const updateOrderSupabase = async (orderId: string, fields: Partial<Order>): Promise<Order | null> => {
     try {
+        console.log('[Orders] 📝 Atualizando pedido local:', orderId);
         const payload = orderToSupabase(fields);
-        const { data, error } = await supabase.from('orders').update(payload).eq('id', orderId).select();
-        if (error) throw error;
-        return data && data.length > 0 ? supabaseToOrder(data[0]) : null;
+        const data = await apiFetch(`/orders/${orderId}`, {
+            method: 'PUT',
+            body: payload,
+        });
+        
+        if (!data) {
+            throw new Error('A API não retornou o pedido atualizado.');
+        }
+        
+        return supabaseToOrder(data);
     } catch (err: any) {
         console.error('[Orders] Erro ao atualizar pedido:', err.message);
         throw err;
@@ -197,8 +230,11 @@ export const updateOrderSupabase = async (orderId: string, fields: Partial<Order
 
 export const deleteOrderSupabase = async (orderId: string): Promise<void> => {
     try {
-        const { error } = await supabase.from('orders').delete().eq('id', orderId);
-        if (error) throw error;
+        console.log('[Orders] 🗑️ Deletando pedido local:', orderId);
+        await apiFetch(`/orders/${orderId}`, {
+            method: 'DELETE',
+        });
+        console.log('[Orders] ✅ Pedido deletado:', orderId);
     } catch (err: any) {
         console.error('[Orders] Erro ao deletar pedido:', err.message);
         throw err;
@@ -207,29 +243,19 @@ export const deleteOrderSupabase = async (orderId: string): Promise<void> => {
 
 export const fetchMaxOrderNumberGlobal = async (): Promise<number> => {
     try {
-        const chunks = await Promise.all([
-            supabase.from('orders').select('number').order('created_at', { ascending: false }).range(0, 999),
-            supabase.from('orders').select('number').order('created_at', { ascending: false }).range(1000, 1999),
-            supabase.from('orders').select('number').order('created_at', { ascending: false }).range(2000, 2999),
-        ]);
-        const allData = chunks.flatMap(c => c.data || []);
-        if (allData.length === 0) return 0;
-        const allNumbers = allData.map(item => {
-            const num = parseInt(item.number.replace(/\D/g, ''), 10);
-            return isNaN(num) ? 0 : num;
-        });
-        const maxFound = Math.max(...allNumbers, 0);
-        return Math.max(maxFound, 8801); 
+        console.log('[Orders] 🔍 Buscando maior número global via API local...');
+        const res = await apiFetch('/orders/max-number');
+        return res?.max || 8801;
     } catch (err: any) {
         console.error('[Orders] Erro ao buscar maior número global:', err.message);
-        return 0;
+        return 8801;
     }
 };
 
 export const fetchOrdersByParentId = async (parentId: string): Promise<Order[]> => {
     try {
-        const { data, error } = await supabase.from('orders').select(LIST_ORDER_COLUMNS).eq('parent_order_id', parentId);
-        if (error) throw error;
+        console.log('[Orders] 🔍 Buscando pedidos filhos local por parentId:', parentId);
+        const data = await apiFetch(`/orders?parent_order_id=${parentId}`);
         return (data || []).map(supabaseToOrder);
     } catch (err: any) {
         console.error('[Orders] Erro ao buscar pedidos filhos:', err.message);
@@ -243,24 +269,23 @@ export const fetchOrdersByParentId = async (parentId: string): Promise<Order[]> 
  */
 export const fetchOrdersByClientInfo = async (clientId: string, clientName: string, cpfCnpj?: string): Promise<Order[]> => {
     try {
-        let query = supabase.from('orders').select(LIST_ORDER_COLUMNS);
+        console.log('[Orders] 🔍 Buscando histórico de pedidos do cliente local:', clientId);
+        // Primeiro tenta buscar por client_id
+        let data = await apiFetch(`/orders?client_id=${clientId}`);
         
-        const cleanCpf = cpfCnpj ? cpfCnpj.replace(/\D/g, '') : '';
-        const conditions = [`client_id.eq.${clientId}`];
-        
-        if (clientName && clientName.trim()) {
-            conditions.push(`client_name.ilike.%${clientName.trim()}%`);
+        // Se não encontrar nada ou for vazio, busca todos e filtra no cliente por nome/CPF
+        if (!data || data.length === 0) {
+            const allOrders = await apiFetch('/orders');
+            const cleanCpf = cpfCnpj ? cpfCnpj.replace(/\D/g, '') : '';
+            
+            data = (allOrders || []).filter((o: any) => {
+                const nameMatch = clientName && o.client_name?.toLowerCase().includes(clientName.toLowerCase().trim());
+                const notesMatch = cleanCpf && o.notes?.includes(cleanCpf);
+                const obsMatch = cleanCpf && o.observation?.includes(cleanCpf);
+                return nameMatch || notesMatch || obsMatch;
+            });
         }
         
-        if (cleanCpf && cleanCpf.length > 5) {
-            conditions.push(`notes.ilike.%${cleanCpf}%`);
-            conditions.push(`observation.ilike.%${cleanCpf}%`);
-        }
-
-        query = query.or(conditions.join(','));
-        const { data, error } = await query.order('created_at', { ascending: false });
-        
-        if (error) throw error;
         return (data || []).map(supabaseToOrder);
     } catch (err: any) {
         console.error('[Orders] Erro ao buscar histórico por info do cliente:', err.message);

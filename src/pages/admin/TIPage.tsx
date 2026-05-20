@@ -5,7 +5,7 @@ import {
   AlertCircle, ShieldCheck, ArrowRight, UserPlus, Download
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/lib/supabase';
+import { apiFetch } from '@/lib/api';
 import { toast } from 'sonner';
 
 const TIPage: React.FC = () => {
@@ -28,15 +28,13 @@ const TIPage: React.FC = () => {
 
   const loadStats = async () => {
     try {
-      const { count: uCount } = await supabase.from('users').select('*', { count: 'exact', head: true });
-      const { count: oCount } = await supabase.from('orders').select('*', { count: 'exact', head: true });
-      const { count: lCount } = await supabase.from('audit_logs').select('*', { count: 'exact', head: true });
+      const data = await apiFetch('/gestor/stats');
       
       setStats(prev => ({
         ...prev,
-        usersCount: uCount || 0,
-        ordersCount: oCount || 0,
-        logsCount: lCount || 0,
+        usersCount: data.usersCount || 0,
+        ordersCount: data.ordersCount || 0,
+        logsCount: data.logsCount || 0,
         lastSync: new Date().toLocaleTimeString('pt-BR')
       }));
     } catch (err) {
@@ -65,15 +63,10 @@ const TIPage: React.FC = () => {
     if (!promoteEmail) return;
     setIsPromoting(true);
     try {
-      const { error } = await supabase
-        .from('users')
-        .upsert({ 
-          email: promoteEmail, 
-          role: 'admin',
-          name: promoteEmail.split('@')[0]
-        }, { onConflict: 'email' });
-
-      if (error) throw error;
+      await apiFetch('/gestor/users/promote', {
+        method: 'PUT',
+        body: JSON.stringify({ email: promoteEmail }),
+      });
       toast.success('Usuário promovido com sucesso! Peça para ele relogar.');
       setPromoteEmail('');
     } catch (err: any) {
@@ -88,11 +81,7 @@ const TIPage: React.FC = () => {
     const toastId = toast.loading('Iniciando backup completo da base de dados...');
     
     try {
-      const tables = [
-        'users', 'orders', 'clients', 'products', 'financial_entries', 
-        'delay_reports', 'order_returns', 'production_errors', 'barcode_scans', 
-        'delivery_pickups', 'installations', 'warranties', 'audit_logs', 'monthly_closings'
-      ];
+      const backupPayload = await apiFetch('/gestor/backup');
 
       const backupData: any = {
         version: '1.0.0',
@@ -102,28 +91,16 @@ const TIPage: React.FC = () => {
         tables: {}
       };
 
-      for (const table of tables) {
+      for (const table of Object.keys(backupPayload)) {
         toast.loading(`Exportando tabela: ${table.toUpperCase()}...`, { id: toastId });
-        const { data, error } = await supabase.from(table).select('*');
-        if (error) {
-          console.error(`[Backup] Erro na tabela ${table}:`, error);
-          backupData.tables[table] = { error: error.message, status: 'failed' };
-        } else {
-          backupData.tables[table] = { data: data || [], count: data?.length || 0, status: 'success' };
-        }
+        const data = backupPayload[table];
+        backupData.tables[table] = { data: data || [], count: data?.length || 0, status: 'success' };
       }
 
-      const jsonString = JSON.stringify(backupData, null, 2);
-      const blob = new Blob([jsonString], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const fileName = `BACKUP_GERAL_FLOW_${new Date().toISOString().split('T')[0]}_${new Date().getHours()}h.json`;
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = fileName;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      const jsonString = JSON.stringify({ message: "Backup will be saved by the backend." });
+      // Modificamos para não baixar no frontend.
+      // O backend deve lidar com a geração e salvar localmente para evitar estourar a RAM do Electron.
+      toast.success(`Comando de Backup enviado ao Servidor (verifique a pasta do BD).`, { id: toastId });
 
       toast.success(`Backup concluído! Arquivo: ${fileName}`, { id: toastId });
     } catch (err: any) {
@@ -159,7 +136,7 @@ const TIPage: React.FC = () => {
             Atualizar Status
           </button>
           <div className="h-12 w-px bg-slate-200 hidden md:block mx-1" />
-          <div className={`px-4 py-2 rounded-xl flex items-center gap-2 font-black text-[10px] uppercase tracking-widest ${maintenanceMode ? 'bg-orange-100 text-orange-600 animate-pulse' : 'bg-green-100 text-green-600'}`}>
+          <div className={`px-4 py-2 rounded-xl flex items-center gap-2 font-black text-[10px] uppercase tracking-widest ${maintenanceMode ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
             <Activity className="w-3 h-3" />
             {maintenanceMode ? 'Manutenção Ativa' : 'Sistema Normal'}
           </div>
@@ -423,7 +400,7 @@ const MaintenanceButton = ({ title, desc, icon, onClick, loading, active }: any)
 const HealthRow = ({ label, status, value, active }: any) => (
   <div className="flex items-center justify-between border-b border-white/5 pb-4 last:border-0 last:pb-0">
     <div className="flex items-center gap-3">
-       <div className={`w-2 h-2 rounded-full ${active ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)] animate-pulse' : 'bg-slate-600'}`} />
+       <div className={`w-2 h-2 rounded-full ${active ? 'bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]' : 'bg-slate-600'}`} />
        <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wide">{label}</span>
     </div>
     <div className="text-right">

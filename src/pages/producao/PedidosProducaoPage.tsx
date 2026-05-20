@@ -444,6 +444,7 @@ const PedidosProducaoPage: React.FC = () => {
     if (!printWindow) { alert('Permita pop-ups para imprimir a etiqueta.'); return; }
 
     const addrFontSize = finalAddress.length > 120 ? '7.5pt' : (finalAddress.length > 80 ? '8.5pt' : '10pt');
+    const nameFontSize = order.clientName.length > 35 ? '11pt' : (order.clientName.length > 25 ? '13pt' : '15pt');
 
     const etiquetasHtml = Array.from({ length: volumes }).map((_, i) => {
       const vol = i + 1;
@@ -495,7 +496,7 @@ const PedidosProducaoPage: React.FC = () => {
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { width: 100mm; font-family: 'Arial', 'Courier New', monospace; color: #000; background: #fff; }
-.etiqueta { width: 100mm; height: 150mm; padding: 4mm; display: flex; flex-direction: column; justify-content: space-between; }
+.etiqueta { width: 100mm; height: 150mm; padding: 4mm; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; page-break-inside: avoid; }
 .header { text-align: center; padding-bottom: 2mm; border-bottom: 1.2mm solid #000; margin-bottom: 2mm; display: flex; align-items: center; justify-content: center; gap: 2mm; }
 .header-logo { max-height: 16mm; max-width: 45mm; object-fit: contain; }
 .header-info { text-align: left; }
@@ -506,14 +507,14 @@ html, body { width: 100mm; font-family: 'Arial', 'Courier New', monospace; color
 .remetente { padding: 2mm 2.5mm; border: 0.8mm solid #000; border-radius: 0.5mm; background: #fff; }
 .remetente .name { font-size: 9pt; font-weight: 900; color: #000; margin-bottom: 0.3mm; letter-spacing: 0.3px; }
 .remetente .address { font-size: 7.5pt; color: #000; line-height: 1.3; font-weight: 700; }
-.destinatario { flex: 1; padding: 4mm; border: 1.5mm solid #000; border-radius: 1mm; background: #fff; display: flex; flex-direction: column; justify-content: center; min-height: 40mm; }
-.destinatario .name { font-size: 15pt; font-weight: 900; color: #000; margin-bottom: 2mm; letter-spacing: 0.5px; text-transform: uppercase; line-height: 1.1; }
+.destinatario { flex: 1; padding: 4mm; border: 1.5mm solid #000; border-radius: 1mm; background: #fff; display: flex; flex-direction: column; justify-content: center; min-height: 40mm; overflow: hidden; }
+.destinatario .name { font-size: ${nameFontSize}; font-weight: 900; color: #000; margin-bottom: 2mm; letter-spacing: 0.5px; text-transform: uppercase; line-height: 1.1; word-break: break-word; }
 .destinatario .address { font-size: ${addrFontSize}; color: #000; line-height: 1.3; font-weight: 800; word-break: break-word; }
 .destinatario .cpf { font-size: 9pt; color: #000; margin-top: 2mm; font-weight: 800; font-family: 'Courier New', monospace; }
 .destinatario .phone { font-size: 9pt; color: #000; margin-top: 1mm; font-weight: 800; }
 .barcode-section { text-align: center; padding-top: 2mm; border-top: 1mm dashed #000; margin-top: 1mm; }
 .barcode-section .barcode-label { font-size: 8pt; font-weight: 900; color: #000; margin-bottom: 1.5mm; letter-spacing: 2px; font-family: 'Courier New', monospace; }
-.barcode-section img { max-width: 85mm; height: auto; }
+.barcode-section img { max-width: 85mm; max-height: 20mm; height: auto; object-fit: contain; }
 .footer { text-align: center; font-size: 6pt; color: #000; margin-top: 1mm; font-weight: 700; border-top: 0.3mm solid #ccc; padding-top: 1mm; }
 </style></head><body>
 ${etiquetasHtml}

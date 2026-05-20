@@ -36,8 +36,8 @@ const ModernSelect: React.FC<{
   }, []);
 
   return (
-    <div 
-      className={`flex-1 min-w-[200px] flex items-center gap-3 bg-card/60 backdrop-blur-md p-2 rounded-[1.5rem] border border-border/60 shadow-sm transition-all hover:shadow-md group relative ${isOpen ? 'z-50' : 'z-20'}`} 
+    <div
+      className={`flex-1 min-w-[200px] flex items-center gap-3 bg-card/60 backdrop-blur-md p-2 rounded-[1.5rem] border border-border/60 shadow-sm transition-all hover:shadow-md group relative ${isOpen ? 'z-50' : 'z-20'}`}
       ref={containerRef}
     >
       <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary shrink-0 transition-transform group-hover:scale-110">
@@ -45,7 +45,7 @@ const ModernSelect: React.FC<{
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-[8px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-0.5">{title}</p>
-        <button 
+        <button
           onClick={() => setIsOpen(!isOpen)}
           className="w-full flex items-center justify-between text-[10px] font-black text-foreground uppercase tracking-widest outline-none"
         >
@@ -67,9 +67,8 @@ const ModernSelect: React.FC<{
                   onChange(opt.value);
                   setIsOpen(false);
                 }}
-                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                  value === opt.value ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-muted/50'
-                }`}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${value === opt.value ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-muted/50'
+                  }`}
               >
                 {opt.icon && <span>{opt.icon}</span>}
                 {opt.label}
@@ -95,14 +94,14 @@ const ModernDateFilter: React.FC<{
       <div className="flex-1 min-w-0">
         <p className="text-[8px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-0.5">{title}</p>
         <div className="flex items-center justify-between gap-2">
-          <input 
+          <input
             type="date"
             value={value}
             onChange={e => onChange(e.target.value)}
             className="bg-transparent border-none text-[10px] font-black text-foreground uppercase tracking-widest outline-none w-full [color-scheme:light] dark:[color-scheme:dark]"
           />
           {value && (
-            <button 
+            <button
               onClick={() => onChange('')}
               className="p-1 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-lg transition-colors shrink-0"
               title="Limpar Data"
@@ -144,7 +143,7 @@ const PedidosProducaoPage: React.FC = () => {
   const tipoFiltro = searchParams.get('tipo') || '';
   const viewParam = searchParams.get('view');
 
-  const scannedOrderIds = useMemo(() => 
+  const scannedOrderIds = useMemo(() =>
     new Set(barcodeScans.filter(s => s.success).map(s => s.orderId)),
     [barcodeScans]
   );
@@ -175,6 +174,8 @@ const PedidosProducaoPage: React.FC = () => {
   const [parentInput, setParentInput] = useState('');
   const [isUnifying, setIsUnifying] = useState(false);
   const [lastParentNumber, setLastParentNumber] = useState('');
+  const [orderForPrint, setOrderForPrint] = useState<any>(null);
+  const [printVolumesInput, setPrintVolumesInput] = useState('1');
 
   const revertStatus = async (orderId: string, currentStatus: string) => {
     const order = orders.find(o => o.id === orderId);
@@ -226,14 +227,14 @@ const PedidosProducaoPage: React.FC = () => {
       loadOrderDetails(guia);
     }
   }, [guia, loadOrderDetails]);
-  
+
   // Sincroniza abas com o tipo de filtro vindo da URL
   useEffect(() => {
     if (tipoFiltro === 'atrasado') setStatusFilter('atrasado');
     else if (tipoFiltro === 'historico') setStatusFilter('historico');
     else if (tipoFiltro === 'garantias') setStatusFilter('garantias');
-    else setStatusFilter('todos'); 
-    
+    else setStatusFilter('todos');
+
     // Sincroniza visão de calendário e detalhe do pedido via URL
     setShowCalendar(searchParams.get('view') === 'calendar');
     const newViewOrderId = searchParams.get('view');
@@ -260,7 +261,7 @@ const PedidosProducaoPage: React.FC = () => {
       setNotificationCount(prev => prev + 1);
       console.log('[PedidosProducaoPage] 🔔 NOVO PEDIDO PARA PRODUÇÃO - Tempo Real');
     }
-    
+
     // ✅ RECARGA BLINDADA: Recarrega a lista em QUALQUER mudança (inclusive se o pedido sair da produção)
     console.log(`[PedidosProducaoPage] 🔄 Atualização detectada (${event.type}) - Recarregando lista...`);
     setTimeout(() => {
@@ -314,15 +315,25 @@ const PedidosProducaoPage: React.FC = () => {
 
   const formatDate = (d?: string) => fmtDate(d);
 
-  const printEtiqueta = async (order: typeof orders[0]) => {
-    console.log('[Etiqueta] 🏷️ Preparando impressão para pedido:', order.number);
+  const printEtiqueta = (order: typeof orders[0]) => {
+    setOrderForPrint(order);
+    setPrintVolumesInput('1');
+  };
+
+  const executePrintEtiqueta = async (order: typeof orders[0], volumes: number) => {
+    if (isNaN(volumes) || volumes < 1) {
+      toast.error("Quantidade inválida de volumes.");
+      return;
+    }
+
+    console.log('[Etiqueta] 🏷️ Preparando impressão para pedido:', order.number, 'Volumes:', volumes);
     console.log('[Etiqueta] 🆔 Tentando encontrar cliente ID:', order.clientId);
 
     // Fallback: Tenta encontrar por ID ou por Nome de forma ultra robusta
     const normalize = (s: string) => s.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, "");
 
     let client = clients.find(c => c.id === order.clientId);
-    
+
     // Se não encontrou no estado local (limitado a 500), tenta buscar no banco pelo ID
     if (!client && order.clientId) {
       console.log('[Etiqueta] 🔍 Cliente não está no estado local. Buscando no banco...');
@@ -339,7 +350,7 @@ const PedidosProducaoPage: React.FC = () => {
       const nameRef = normalize(order.clientName || "");
       // Busca por nome exato
       client = clients.find(c => normalize(c.name) === nameRef);
-      
+
       // Se não encontrou exato, tenta busca parcial (Fuzzy) no estado local
       if (!client) {
         client = clients.find(c => normalize(c.name).includes(nameRef) || nameRef.includes(normalize(c.name)));
@@ -374,10 +385,10 @@ const PedidosProducaoPage: React.FC = () => {
     if (!finalAddress || finalAddress.length < 5) {
       console.log('[Etiqueta] 🕵️ Endereço vazio ou curto. Tentando extrair da observação do pedido...');
       const source = (order.observation || '') + ' ' + (order.notes || '');
-      
+
       const hasAddressKeywords = /rua|av|avenida|travessa|alameda|praça|estrada|rodovia|nº|num|numero/i.test(source);
       const hasItemKeywords = /cracha|camiseta|banner|kit|unid|un\.|qtd/i.test(source);
-      
+
       // Busca CEP (00000-000 ou 00000000)
       const cepMatch = source.match(/\d{5}-?\d{3}/);
       if (cepMatch) finalCep = cepMatch[0];
@@ -420,7 +431,7 @@ const PedidosProducaoPage: React.FC = () => {
 
     let logoDataUrl = '';
     try {
-      const response = await fetch('/logonovo.jpeg');
+      const response = await fetch('./logonovo.jpeg');
       const blob = await response.blob();
       logoDataUrl = await new Promise<string>((resolve) => {
         const reader = new FileReader();
@@ -429,47 +440,20 @@ const PedidosProducaoPage: React.FC = () => {
       });
     } catch (e) { console.warn('Logo não encontrado.'); }
 
-      const printWindow = window.open('', '_blank', 'width=420,height=600');
-      if (!printWindow) { alert('Permita pop-ups para imprimir a etiqueta.'); return; }
+    const printWindow = window.open('', '_blank', 'width=420,height=600');
+    if (!printWindow) { alert('Permita pop-ups para imprimir a etiqueta.'); return; }
 
-const addrFontSize = finalAddress.length > 120 ? '7.5pt' : (finalAddress.length > 80 ? '8.5pt' : '10pt');
+    const addrFontSize = finalAddress.length > 120 ? '7.5pt' : (finalAddress.length > 80 ? '8.5pt' : '10pt');
 
-      const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><title>Etiqueta - ${order.number}</title>
-<style>
-@page { size: 100mm 150mm; margin: 0; }
-@media print {
-  * { -webkit-print-color-adjust: exact !important; color-adjust: exact !important; print-color-adjust: exact !important; }
-  body { margin: 0; padding: 0; }
-}
-* { margin: 0; padding: 0; box-sizing: border-box; }
-html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', monospace; color: #000; background: #fff; overflow: hidden; }
-.etiqueta { width: 100mm; height: 150mm; padding: 4mm; display: flex; flex-direction: column; justify-content: space-between; }
-.header { text-align: center; padding-bottom: 2mm; border-bottom: 1.2mm solid #000; margin-bottom: 2mm; display: flex; align-items: center; justify-content: center; gap: 2mm; }
-.header-logo { max-height: 16mm; max-width: 45mm; object-fit: contain; }
-.header-info { text-align: left; }
-.header-title { font-size: 8pt; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase; color: #000; margin-bottom: 0.2mm; }
-.header-pedido { font-size: 18pt; font-weight: 900; font-family: 'Courier New', monospace; color: #000; letter-spacing: 2px; line-height: 1; }
-.section { margin-bottom: 2mm; }
-.section-label { font-size: 7.5pt; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; color: #000; margin-bottom: 1mm; border-bottom: 0.5mm solid #000; width: fit-content; }
-.remetente { padding: 2mm 2.5mm; border: 0.8mm solid #000; border-radius: 0.5mm; background: #fff; }
-.remetente .name { font-size: 9pt; font-weight: 900; color: #000; margin-bottom: 0.3mm; letter-spacing: 0.3px; }
-.remetente .address { font-size: 7.5pt; color: #000; line-height: 1.3; font-weight: 700; }
-.destinatario { flex: 1; padding: 4mm; border: 1.5mm solid #000; border-radius: 1mm; background: #fff; display: flex; flex-direction: column; justify-content: center; min-height: 40mm; }
-.destinatario .name { font-size: 15pt; font-weight: 900; color: #000; margin-bottom: 2mm; letter-spacing: 0.5px; text-transform: uppercase; line-height: 1.1; }
-.destinatario .address { font-size: ${addrFontSize}; color: #000; line-height: 1.3; font-weight: 800; word-break: break-word; }
-.destinatario .cpf { font-size: 9pt; color: #000; margin-top: 2mm; font-weight: 800; font-family: 'Courier New', monospace; }
-.destinatario .phone { font-size: 9pt; color: #000; margin-top: 1mm; font-weight: 800; }
-.barcode-section { text-align: center; padding-top: 2mm; border-top: 1mm dashed #000; margin-top: 1mm; }
-.barcode-section .barcode-label { font-size: 8pt; font-weight: 900; color: #000; margin-bottom: 1.5mm; letter-spacing: 2px; font-family: 'Courier New', monospace; }
-.barcode-section img { max-width: 85mm; height: auto; }
-.footer { text-align: center; font-size: 6pt; color: #000; margin-top: 1mm; font-weight: 700; border-top: 0.3mm solid #ccc; padding-top: 1mm; }
-</style></head><body>
-<div class="etiqueta">
+    const etiquetasHtml = Array.from({ length: volumes }).map((_, i) => {
+      const vol = i + 1;
+      return `
+<div class="etiqueta" style="${i < volumes - 1 ? 'page-break-after: always;' : ''}">
   <div class="header">
     ${logoDataUrl ? `<img src="${logoDataUrl}" class="header-logo" alt="Logo" />` : ''}
     <div class="header-info">
       <div class="header-title">Etiqueta de Envio ${order.orderType === 'entrega' && (order as any).carrier ? `• ${(order as any).carrier}` : ''}</div>
+      <div class="header-title" style="font-size: 11pt; color: #1e3a8a; border: 1.5px solid #1e3a8a; padding: 1mm 2mm; border-radius: 1mm; margin-top: 1mm; margin-bottom: 1mm; display: inline-block;">VOLUME ${vol} / ${volumes}</div>
       <div class="header-pedido">${order.number}</div>
     </div>
   </div>
@@ -497,46 +481,80 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
     <div class="barcode-label">PEDIDO: ${order.number}</div>
     <img src="${barcodeDataUrl}" alt="Código de barras" />
   </div>
-  <div class="footer">Emitido em: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
-</div>
+  <div class="footer">Emitido em: ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} • Vol: ${vol}/${volumes}</div>
+</div>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>Etiqueta - ${order.number}</title>
+<style>
+@page { size: 100mm 150mm; margin: 0; }
+@media print {
+  * { -webkit-print-color-adjust: exact !important; color-adjust: exact !important; print-color-adjust: exact !important; }
+  body { margin: 0; padding: 0; }
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100mm; font-family: 'Arial', 'Courier New', monospace; color: #000; background: #fff; }
+.etiqueta { width: 100mm; height: 150mm; padding: 4mm; display: flex; flex-direction: column; justify-content: space-between; }
+.header { text-align: center; padding-bottom: 2mm; border-bottom: 1.2mm solid #000; margin-bottom: 2mm; display: flex; align-items: center; justify-content: center; gap: 2mm; }
+.header-logo { max-height: 16mm; max-width: 45mm; object-fit: contain; }
+.header-info { text-align: left; }
+.header-title { font-size: 8pt; font-weight: 900; letter-spacing: 0.5px; text-transform: uppercase; color: #000; margin-bottom: 0.2mm; }
+.header-pedido { font-size: 18pt; font-weight: 900; font-family: 'Courier New', monospace; color: #000; letter-spacing: 2px; line-height: 1; }
+.section { margin-bottom: 2mm; }
+.section-label { font-size: 7.5pt; font-weight: 900; letter-spacing: 1.5px; text-transform: uppercase; color: #000; margin-bottom: 1mm; border-bottom: 0.5mm solid #000; width: fit-content; }
+.remetente { padding: 2mm 2.5mm; border: 0.8mm solid #000; border-radius: 0.5mm; background: #fff; }
+.remetente .name { font-size: 9pt; font-weight: 900; color: #000; margin-bottom: 0.3mm; letter-spacing: 0.3px; }
+.remetente .address { font-size: 7.5pt; color: #000; line-height: 1.3; font-weight: 700; }
+.destinatario { flex: 1; padding: 4mm; border: 1.5mm solid #000; border-radius: 1mm; background: #fff; display: flex; flex-direction: column; justify-content: center; min-height: 40mm; }
+.destinatario .name { font-size: 15pt; font-weight: 900; color: #000; margin-bottom: 2mm; letter-spacing: 0.5px; text-transform: uppercase; line-height: 1.1; }
+.destinatario .address { font-size: ${addrFontSize}; color: #000; line-height: 1.3; font-weight: 800; word-break: break-word; }
+.destinatario .cpf { font-size: 9pt; color: #000; margin-top: 2mm; font-weight: 800; font-family: 'Courier New', monospace; }
+.destinatario .phone { font-size: 9pt; color: #000; margin-top: 1mm; font-weight: 800; }
+.barcode-section { text-align: center; padding-top: 2mm; border-top: 1mm dashed #000; margin-top: 1mm; }
+.barcode-section .barcode-label { font-size: 8pt; font-weight: 900; color: #000; margin-bottom: 1.5mm; letter-spacing: 2px; font-family: 'Courier New', monospace; }
+.barcode-section img { max-width: 85mm; height: auto; }
+.footer { text-align: center; font-size: 6pt; color: #000; margin-top: 1mm; font-weight: 700; border-top: 0.3mm solid #ccc; padding-top: 1mm; }
+</style></head><body>
+${etiquetasHtml}
 <script>window.onload = function() { setTimeout(function() { window.print(); setTimeout(window.close, 1000); }, 500); };</script>
 </body></html>`;
-      printWindow.document.write(html);
-      printWindow.document.close();
-    };
+    printWindow.document.write(html);
+    printWindow.document.close();
+  };
 
   const allOrders = orders.filter(o => {
     const isPlanning = o.status === 'planejamento';
-    
+
     // Lista de status que PODEM aparecer na produção
     const validProductionStatuses = [
-      'aguardando_producao', 
-      'em_producao', 
-      'producao_finalizada', 
-      'produto_liberado', 
+      'aguardando_producao',
+      'em_producao',
+      'producao_finalizada',
+      'produto_liberado',
       'retirado_entregador'
     ];
 
     // Status que BLOQUEIAM a visualização na produção (mesmo que estivessem aprovados antes)
     const isRejectedOrBackToFinance = [
-      'rejeitado_financeiro', 
-      'rejeitado_gestor', 
+      'rejeitado_financeiro',
+      'rejeitado_gestor',
       'aguardando_financeiro',
       'rascunho',
       'orcamento'
     ].includes(o.status);
 
     if (statusFilter === 'planejamento') return isPlanning;
-    
+
     // Se estiver rejeitado ou voltou pro financeiro, NUNCA mostra na produção
     if (isRejectedOrBackToFinance) return false;
-    
+
     // Se não for um status válido de produção, não mostra
     if (!validProductionStatuses.includes(o.status)) return false;
 
     // Filtro por Cargo (Produção vs Produção Carenagem)
-    const hasCarenagem = o.items.some(item => 
-      item.product.toLowerCase().includes('carenagem') || 
+    const hasCarenagem = o.items.some(item =>
+      item.product.toLowerCase().includes('carenagem') ||
       item.product.toLowerCase().includes('side skirt') ||
       item.description?.toLowerCase().includes('carenagem') ||
       item.description?.toLowerCase().includes('side skirt')
@@ -554,13 +572,13 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
     // 🔥 OTIMIZAÇÃO PARA GARANTIAS E EXTRAVIOS:
     // Pedidos de garantia ou extravio devem permanecer no painel de produção até serem de fato retirados.
     const isSpecialOrder = o.isWarranty || (o.notes && /GARANTIA|EXTRAVIO|RETORNO/i.test(o.notes));
-    
+
     // Pedido é considerado "Concluído" para a produção se já foi Finalizado, Liberado para entrega ou Retirado
     // Para pedidos especiais, só sai do painel quando for retirado pelo entregador
     // IMPORTANTE: Pedidos em status de produção ativa NUNCA devem ser considerados concluídos, 
     // mesmo que possuam um registro de escaneamento antigo (caso de pedidos refeitos/garantias).
     const isInActiveFlux = ['aguardando_producao', 'em_producao', 'aprovado_financeiro', 'aprovado_gestor'].includes(o.status);
-    
+
     // Um pedido é considerado concluído se:
     // 1. Estiver em um status finalizado (Finalizado, Liberado ou Retirado)
     // 2. OU tiver sido escaneado (para pedidos normais)
@@ -571,10 +589,10 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 
     // No histórico, mostramos tudo que está concluído
     if (filterToUse === 'historico') return isCompleted;
-    
+
     // Na lista ativa (trabalho), desaparece o que já está concluído
     if (isCompleted) return false;
-    
+
     return true;
   });
 
@@ -583,37 +601,37 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
     if (tipoFiltro === 'instalacao') return o.orderType === 'instalacao';
     if (tipoFiltro === 'retirada') return o.orderType === 'retirada';
     if (tipoFiltro === 'manutencao') return o.orderType === 'manutencao';
-    
+
     // Se não houver tipo específico, mostra tudo (exceto o que statusFilter filtrar)
     return true;
   });
 
   const filteredOrders = tipoFiltered.filter(o => {
-    const matchSearch = o.number.toLowerCase().includes(search.toLowerCase()) || 
-                       o.clientName.toLowerCase().includes(search.toLowerCase()) ||
-                       o.sellerName.toLowerCase().includes(search.toLowerCase());
-    
+    const matchSearch = o.number.toLowerCase().includes(search.toLowerCase()) ||
+      o.clientName.toLowerCase().includes(search.toLowerCase()) ||
+      o.sellerName.toLowerCase().includes(search.toLowerCase());
+
     // Filtro de Transportadora
-    const matchCarrier = carrierFilter === 'todos' || 
-                        (carrierFilter === 'sem_definir' && !o.carrier) ||
-                        (o.carrier && o.carrier.trim().toUpperCase() === carrierFilter.trim().toUpperCase());
-    
+    const matchCarrier = carrierFilter === 'todos' ||
+      (carrierFilter === 'sem_definir' && !o.carrier) ||
+      (o.carrier && o.carrier.trim().toUpperCase() === carrierFilter.trim().toUpperCase());
+
     // Filtro de Tipo de Pedido (específico para história/todos)
     const matchTypeFilter = orderTypeFilter === 'todos' || o.orderType === orderTypeFilter;
 
     // Filtro de Data Universal
-    const matchDate = !selectedDate || 
-      (o.scheduledDate === selectedDate || 
-       o.deliveryDate === selectedDate || 
-       o.installationDate === selectedDate ||
-       o.items.some(item => item.installationDate === selectedDate));
+    const matchDate = !selectedDate ||
+      (o.scheduledDate === selectedDate ||
+        o.deliveryDate === selectedDate ||
+        o.installationDate === selectedDate ||
+        o.items.some(item => item.installationDate === selectedDate));
 
     if (statusFilter === 'atrasado') return matchSearch && isLate(o) && matchCarrier && matchTypeFilter && matchDate;
     if (statusFilter === 'historico') return matchSearch && matchCarrier && matchTypeFilter && matchDate;
     if (statusFilter === 'garantias') return matchSearch && matchCarrier && matchDate;
-    
+
     const matchStatus = statusFilter === 'todos' || o.status === statusFilter;
-    
+
     return matchSearch && matchStatus && matchCarrier && matchDate && matchTypeFilter;
   });
 
@@ -734,7 +752,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 
     if (!order) {
       const cleanCode = code.replace(/[-.]/g, '');
-      order = orders.find(o => 
+      order = orders.find(o =>
         o.number.toUpperCase().replace(/[-.]/g, '') === cleanCode
       );
       if (order) {
@@ -943,7 +961,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
       let successCount = 0;
       for (const childNum of unifyChildren) {
         const currentOrder = orders.find(o => o.number === childNum) || await loadOrderByNumber(childNum);
-        
+
         if (currentOrder && currentOrder.id !== parentOrder.id) {
           if (currentOrder.isWarranty) {
             await editWarranty(currentOrder.id, {
@@ -953,7 +971,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
             await updateOrder(currentOrder.id, {
               parentOrderId: parentOrder.id,
               parentOrderNumber: parentOrder.number
-            }).catch(() => {});
+            }).catch(() => { });
           } else {
             await updateOrder(currentOrder.id, {
               parentOrderId: parentOrder.id,
@@ -1142,8 +1160,8 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                 <p className="text-sm text-muted-foreground font-semibold mt-0.5">Validação industrial via scanner USB, Câmera ou Manual</p>
               </div>
             </div>
-            <button 
-              onClick={() => { setShowScanner(false); setScanResult(null); stopCamera(); }} 
+            <button
+              onClick={() => { setShowScanner(false); setScanResult(null); stopCamera(); }}
               className="w-12 h-12 rounded-2xl bg-card border border-border/60 text-foreground flex items-center justify-center hover:bg-destructive hover:text-white hover:border-destructive transition-all group/close shadow-lg"
             >
               <X className="w-6 h-6 transition-transform group-hover/close:rotate-90" />
@@ -1155,11 +1173,11 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
           {/* Main Scanner Box */}
           <div className="glass-card relative overflow-hidden p-8 sm:p-10 border-2 border-border/40 shadow-[0_30px_70px_-15px_rgba(0,0,0,0.1)]">
             <div className="text-center space-y-2 mb-10">
-               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-black uppercase tracking-[0.2em] animate-pulse mb-2">
-                 <Zap className="w-3 h-3 fill-current" /> Pronto para Scannear
-               </div>
-               <h2 className="text-2xl font-black text-foreground uppercase tracking-tight">Posicione o Código</h2>
-               <p className="text-sm text-muted-foreground font-medium">Aponte o leitor ou digite o identificador do pedido</p>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-black uppercase tracking-[0.2em] animate-pulse mb-2">
+                <Zap className="w-3 h-3 fill-current" /> Pronto para Scannear
+              </div>
+              <h2 className="text-2xl font-black text-foreground uppercase tracking-tight">Posicione o Código</h2>
+              <p className="text-sm text-muted-foreground font-medium">Aponte o leitor ou digite o identificador do pedido</p>
             </div>
 
             {/* Camera Area Modernizada */}
@@ -1172,7 +1190,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                     playsInline autoPlay muted
                     onCanPlay={() => { videoRef.current?.play().catch(() => { }); }}
                   />
-                  
+
                   {/* Laser Animation */}
                   <div className="absolute inset-0 z-10 pointer-events-none">
                     <div className="w-full h-[2px] bg-producao shadow-[0_0_15px_rgba(var(--producao),0.8)] absolute top-0 animate-scanner-laser" />
@@ -1181,10 +1199,10 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 
                   {/* Focus Box */}
                   <div className="absolute inset-x-8 inset-y-6 border-2 border-white/20 rounded-[1.5rem] flex items-center justify-center pointer-events-none">
-                     <div className="w-8 h-8 absolute top-0 left-0 border-t-4 border-l-4 border-producao rounded-tl-xl" />
-                     <div className="w-8 h-8 absolute top-0 right-0 border-t-4 border-r-4 border-producao rounded-tr-xl" />
-                     <div className="w-8 h-8 absolute bottom-0 left-0 border-b-4 border-l-4 border-producao rounded-bl-xl" />
-                     <div className="w-8 h-8 absolute bottom-0 right-0 border-b-4 border-r-4 border-producao rounded-br-xl" />
+                    <div className="w-8 h-8 absolute top-0 left-0 border-t-4 border-l-4 border-producao rounded-tl-xl" />
+                    <div className="w-8 h-8 absolute top-0 right-0 border-t-4 border-r-4 border-producao rounded-tr-xl" />
+                    <div className="w-8 h-8 absolute bottom-0 left-0 border-b-4 border-l-4 border-producao rounded-bl-xl" />
+                    <div className="w-8 h-8 absolute bottom-0 right-0 border-b-4 border-r-4 border-producao rounded-br-xl" />
                   </div>
                 </div>
                 <button onClick={stopCamera} className="w-full py-4 rounded-2xl bg-destructive/10 text-destructive border border-destructive/20 text-xs font-black uppercase tracking-[0.2em] hover:bg-destructive hover:text-white transition-all flex items-center justify-center gap-3 shadow-lg">
@@ -1192,8 +1210,8 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                 </button>
               </div>
             ) : barcodeDetectorAvailable ? (
-              <button 
-                onClick={startCamera} 
+              <button
+                onClick={startCamera}
                 className="w-full relative group overflow-hidden p-8 rounded-[2rem] border-2 border-dashed border-primary/30 hover:border-primary transition-all bg-primary/[0.02]"
               >
                 <div className="relative z-10 flex flex-col items-center gap-3">
@@ -1209,15 +1227,15 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
             {/* Aviso Estilizado */}
             {!barcodeDetectorAvailable && (
               <div className="bg-amber-500/[0.03] border border-amber-500/20 rounded-2xl p-5 flex items-start gap-4">
-                 <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600 shrink-0">
-                    <AlertTriangle className="w-5 h-5" />
-                 </div>
-                 <div className="space-y-1">
-                    <p className="text-xs font-black text-amber-600 uppercase tracking-tight">Scanner Industrial Recomendado</p>
-                    <p className="text-[11px] font-bold text-amber-600/70 leading-relaxed">
-                      Conecte o leitor USB ou digite o número do pedido no campo abaixo para prosseguir.
-                    </p>
-                 </div>
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600 shrink-0">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-black text-amber-600 uppercase tracking-tight">Scanner Industrial Recomendado</p>
+                  <p className="text-[11px] font-bold text-amber-600/70 leading-relaxed">
+                    Conecte o leitor USB ou digite o número do pedido no campo abaixo para prosseguir.
+                  </p>
+                </div>
               </div>
             )}
 
@@ -1230,17 +1248,17 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
             {/* Input Manual Moderno */}
             <div className="mt-10 space-y-6">
               <div className="flex items-center gap-4">
-                 <div className="h-px flex-1 bg-gradient-to-r from-transparent to-border/40" />
-                 <span className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.3em]">Entrada de Dados</span>
-                 <div className="h-px flex-1 bg-gradient-to-l from-transparent to-border/40" />
+                <div className="h-px flex-1 bg-gradient-to-r from-transparent to-border/40" />
+                <span className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.3em]">Entrada de Dados</span>
+                <div className="h-px flex-1 bg-gradient-to-l from-transparent to-border/40" />
               </div>
 
               <div className="flex gap-3">
                 <div className="relative flex-1 group">
-                   <div className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 text-muted-foreground transition-colors group-focus-within:text-primary pointer-events-none">
-                      <Zap className="w-full h-full fill-current opacity-20" />
-                   </div>
-                   <input
+                  <div className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 text-muted-foreground transition-colors group-focus-within:text-primary pointer-events-none">
+                    <Zap className="w-full h-full fill-current opacity-20" />
+                  </div>
+                  <input
                     type="text"
                     value={scanInput}
                     onChange={e => setScanInput(e.target.value)}
@@ -1250,8 +1268,8 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                     autoFocus={!cameraActive || !barcodeDetectorAvailable}
                   />
                 </div>
-                <button 
-                  onClick={handleScan} 
+                <button
+                  onClick={handleScan}
                   disabled={!scanInput.trim()}
                   className="px-8 bg-foreground text-background font-black uppercase tracking-widest rounded-2xl hover:bg-primary hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed group shadow-xl active:scale-95"
                 >
@@ -1263,12 +1281,10 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 
           {/* Scan result com visual Premium */}
           {scanResult && (
-            <div className={`glass-card p-10 text-center animate-in zoom-in-95 duration-500 border-2 ${
-              scanResult.success ? 'border-success/30 bg-success/[0.02]' : 'border-destructive/30 bg-destructive/[0.02]'
-            }`}>
-              <div className={`w-24 h-24 rounded-3xl flex items-center justify-center mx-auto mb-6 transform transition-transform animate-bounce-subtle ${
-                scanResult.success ? 'bg-success text-white shadow-2xl shadow-success/40' : 'bg-destructive text-white shadow-2xl shadow-destructive/40'
+            <div className={`glass-card p-10 text-center animate-in zoom-in-95 duration-500 border-2 ${scanResult.success ? 'border-success/30 bg-success/[0.02]' : 'border-destructive/30 bg-destructive/[0.02]'
               }`}>
+              <div className={`w-24 h-24 rounded-3xl flex items-center justify-center mx-auto mb-6 transform transition-transform animate-bounce-subtle ${scanResult.success ? 'bg-success text-white shadow-2xl shadow-success/40' : 'bg-destructive text-white shadow-2xl shadow-destructive/40'
+                }`}>
                 {scanResult.success ? <CheckCircle className="w-12 h-12" /> : <X className="w-12 h-12" />}
               </div>
               <h3 className={`text-2xl font-black uppercase tracking-tight ${scanResult.success ? 'text-success' : 'text-destructive'}`}>
@@ -1279,7 +1295,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
               {scanResult.success && (
                 <div className="mt-8 pt-6 border-t border-border/20 flex flex-col gap-3">
                   <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Ações de Logística</p>
-                  <button 
+                  <button
                     onClick={() => {
                       setParentInput(lastParentNumber);
                       setUnifyChildren([scanResult.orderNumber]);
@@ -1289,7 +1305,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                   >
                     <Share2 className="w-5 h-5 group-hover:rotate-12 transition-transform" /> Unificar com outro pedido (Mesma Caixa)
                   </button>
-                  <button 
+                  <button
                     onClick={() => { setScanResult(null); setScanInput(''); }}
                     className="w-full py-3 text-[10px] font-black text-muted-foreground uppercase tracking-widest hover:text-foreground transition-colors"
                   >
@@ -1328,14 +1344,14 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 
               <div className="space-y-3 max-h-[450px] overflow-y-auto pr-3 custom-scrollbar">
                 {recentScans.map((scan, idx) => (
-                  <div 
-                    key={scan.id} 
+                  <div
+                    key={scan.id}
                     className={`flex items-center justify-between gap-6 p-4 rounded-2xl border-2 transition-all group relative animate-in slide-in-from-right-4 fade-in duration-500`}
                     style={{ animationDelay: `${idx * 100}ms` }}
                   >
                     {/* Linha lateral de status */}
                     <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-full ${scan.success ? 'bg-success' : 'bg-destructive'}`} />
-                    
+
                     <div className="flex items-center gap-4 flex-1">
                       <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${scan.success ? 'bg-success/10 text-success' : 'bg-destructive/10 text-destructive'}`}>
                         {scan.success ? <BadgeCheck className="w-6 h-6" /> : <AlertTriangle className="w-6 h-6" />}
@@ -1352,13 +1368,13 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 
                     <div className="flex items-center gap-4">
                       {scan.success && (
-                        <button 
-                           onClick={() => {
-                             const ord = orders.find(o => o.number === scan.orderNumber || o.number.includes(scan.orderNumber));
-                             if (ord) revertStatus(ord.id, ord.status);
-                             else toast.error('Pedido não localizado.');
-                           }}
-                           className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive text-[9px] font-black uppercase hover:bg-destructive hover:text-white"
+                        <button
+                          onClick={() => {
+                            const ord = orders.find(o => o.number === scan.orderNumber || o.number.includes(scan.orderNumber));
+                            if (ord) revertStatus(ord.id, ord.status);
+                            else toast.error('Pedido não localizado.');
+                          }}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 px-3 py-1.5 rounded-lg bg-destructive/10 text-destructive text-[9px] font-black uppercase hover:bg-destructive hover:text-white"
                         >
                           <RefreshCw className="w-3 h-3" /> Estornar
                         </button>
@@ -1382,51 +1398,51 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
             <div className="glass-card p-10 w-full max-w-md relative z-10 animate-in zoom-in-95 slide-in-from-bottom-8 duration-500 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.3)]">
               <div className="flex flex-col items-center text-center space-y-6">
                 <div className="w-20 h-20 rounded-[2rem] bg-producao/20 flex items-center justify-center text-producao animate-bounce-subtle">
-                   <Package className="w-10 h-10" />
+                  <Package className="w-10 h-10" />
                 </div>
-                
+
                 <div className="space-y-1">
-                   <h3 className="text-3xl font-black text-foreground uppercase tracking-tighter italic">Carga & Volumes</h3>
-                   <p className="text-sm text-muted-foreground font-medium uppercase tracking-widest opacity-60">Pedido {scannedOrderForVolumes.number}</p>
+                  <h3 className="text-3xl font-black text-foreground uppercase tracking-tighter italic">Carga & Volumes</h3>
+                  <p className="text-sm text-muted-foreground font-medium uppercase tracking-widest opacity-60">Pedido {scannedOrderForVolumes.number}</p>
                 </div>
 
                 <div className="w-full h-px bg-border/40" />
 
                 <div className="w-full space-y-6">
-                   <div className="flex items-center justify-center gap-6">
-                      <button
-                        onClick={() => setVolumesInput(Math.max(1, parseInt(volumesInput) - 1).toString())}
-                        className="w-14 h-14 rounded-2xl bg-muted/50 hover:bg-producao hover:text-white transition-all text-2xl font-black shadow-lg"
-                      >
-                        −
-                      </button>
-                      <div className="relative">
-                         <input
-                          type="number"
-                          min="1"
-                          value={volumesInput}
-                          onChange={e => setVolumesInput(Math.max(1, parseInt(e.target.value) || 1).toString())}
-                          className="w-32 bg-transparent text-center text-6xl font-black text-foreground outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          autoFocus
-                        />
-                        <span className="absolute -bottom-4 left-0 right-0 text-[10px] font-black text-muted-foreground tracking-[0.3em] uppercase">Volumes</span>
-                      </div>
-                      <button
-                        onClick={() => setVolumesInput((parseInt(volumesInput) + 1).toString())}
-                        className="w-14 h-14 rounded-2xl bg-muted/50 hover:bg-producao hover:text-white transition-all text-2xl font-black shadow-lg"
-                      >
-                        +
-                      </button>
-                   </div>
+                  <div className="flex items-center justify-center gap-6">
+                    <button
+                      onClick={() => setVolumesInput(Math.max(1, parseInt(volumesInput) - 1).toString())}
+                      className="w-14 h-14 rounded-2xl bg-muted/50 hover:bg-producao hover:text-white transition-all text-2xl font-black shadow-lg"
+                    >
+                      −
+                    </button>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="1"
+                        value={volumesInput}
+                        onChange={e => setVolumesInput(Math.max(1, parseInt(e.target.value) || 1).toString())}
+                        className="w-32 bg-transparent text-center text-6xl font-black text-foreground outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        autoFocus
+                      />
+                      <span className="absolute -bottom-4 left-0 right-0 text-[10px] font-black text-muted-foreground tracking-[0.3em] uppercase">Volumes</span>
+                    </div>
+                    <button
+                      onClick={() => setVolumesInput((parseInt(volumesInput) + 1).toString())}
+                      className="w-14 h-14 rounded-2xl bg-muted/50 hover:bg-producao hover:text-white transition-all text-2xl font-black shadow-lg"
+                    >
+                      +
+                    </button>
+                  </div>
 
-                   <button
-                     onClick={() => handleConfirmVolumes()}
-                     className="w-full py-5 bg-foreground text-background rounded-2xl text-sm font-black uppercase tracking-[0.2em] hover:bg-producao hover:text-white transition-all shadow-2xl active:scale-95"
-                   >
-                     Confirmar Despacho
-                   </button>
-                   
-                   <button
+                  <button
+                    onClick={() => handleConfirmVolumes()}
+                    className="w-full py-5 bg-foreground text-background rounded-2xl text-sm font-black uppercase tracking-[0.2em] hover:bg-producao hover:text-white transition-all shadow-2xl active:scale-95"
+                  >
+                    Confirmar Despacho
+                  </button>
+
+                  <button
                     onClick={() => {
                       setShowVolumesDialog(false);
                       setScannedOrderForVolumes(null);
@@ -1443,38 +1459,39 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
           </div>
         )}
 
+
+
         {/* Modal de Ações Modernizado (Iniciar/Finalizar via Scanner) */}
         {scannedOrderForAction && actionType && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-background/40 backdrop-blur-3xl animate-in fade-in duration-500" />
             <div className="glass-card p-10 w-full max-w-md relative z-10 animate-in zoom-in-95 slide-in-from-bottom-8 duration-500 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.3)] border-producao/20">
               <div className="flex flex-col items-center text-center space-y-6">
-                <div className={`w-20 h-20 rounded-[2rem] flex items-center justify-center text-white shadow-2xl animate-bounce-subtle ${
-                  actionType === 'iniciar' ? 'bg-producao shadow-producao/40' : 'bg-emerald-500 shadow-emerald-500/40'
-                }`}>
-                   {actionType === 'iniciar' ? <Play className="w-10 h-10" /> : <CheckCircle className="w-10 h-10" />}
+                <div className={`w-20 h-20 rounded-[2rem] flex items-center justify-center text-white shadow-2xl animate-bounce-subtle ${actionType === 'iniciar' ? 'bg-producao shadow-producao/40' : 'bg-emerald-500 shadow-emerald-500/40'
+                  }`}>
+                  {actionType === 'iniciar' ? <Play className="w-10 h-10" /> : <CheckCircle className="w-10 h-10" />}
                 </div>
-                
+
                 <div className="space-y-1">
-                   <h3 className="text-3xl font-black text-foreground uppercase tracking-tighter italic">
-                     {actionType === 'iniciar' ? 'Iniciar Fluxo' : 'Finalizar Fluxo'}
-                   </h3>
-                   <div className="flex items-center justify-center gap-2 mt-1">
-                      <span className="px-2 py-0.5 rounded-md bg-muted text-muted-foreground text-[10px] font-black uppercase">{scannedOrderForAction.number}</span>
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase opacity-60">{scannedOrderForAction.clientName}</span>
-                   </div>
+                  <h3 className="text-3xl font-black text-foreground uppercase tracking-tighter italic">
+                    {actionType === 'iniciar' ? 'Iniciar Fluxo' : 'Finalizar Fluxo'}
+                  </h3>
+                  <div className="flex items-center justify-center gap-2 mt-1">
+                    <span className="px-2 py-0.5 rounded-md bg-muted text-muted-foreground text-[10px] font-black uppercase">{scannedOrderForAction.number}</span>
+                    <span className="text-[10px] font-bold text-muted-foreground uppercase opacity-60">{scannedOrderForAction.clientName}</span>
+                  </div>
                 </div>
 
                 <div className="w-full h-px bg-border/40" />
 
                 <div className="text-sm font-bold text-muted-foreground leading-relaxed">
-                  {actionType === 'iniciar' 
-                    ? 'Confirmar entrada do pedido na linha de produção agora?' 
+                  {actionType === 'iniciar'
+                    ? 'Confirmar entrada do pedido na linha de produção agora?'
                     : 'Confirmar conclusão e liberação técnica deste pedido?'}
                 </div>
 
                 <div className="w-full space-y-3">
-                   <button
+                  <button
                     onClick={() => {
                       if (actionType === 'iniciar') {
                         iniciarProducao(scannedOrderForAction.id);
@@ -1487,14 +1504,13 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                       setShowScanner(false);
                       toast.success(`Pedido ${scannedOrderForAction.number} processado!`);
                     }}
-                    className={`w-full py-5 text-white rounded-2xl text-sm font-black uppercase tracking-[0.2em] transition-all shadow-2xl active:scale-95 ${
-                      actionType === 'iniciar' ? 'bg-producao hover:bg-producao-dark' : 'bg-emerald-500 hover:bg-emerald-600'
-                    }`}
-                   >
-                     Confirmar Operação
-                   </button>
-                   
-                   <button
+                    className={`w-full py-5 text-white rounded-2xl text-sm font-black uppercase tracking-[0.2em] transition-all shadow-2xl active:scale-95 ${actionType === 'iniciar' ? 'bg-producao hover:bg-producao-dark' : 'bg-emerald-500 hover:bg-emerald-600'
+                      }`}
+                  >
+                    Confirmar Operação
+                  </button>
+
+                  <button
                     onClick={() => {
                       setScannedOrderForAction(null);
                       setActionType(null);
@@ -1517,12 +1533,12 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
             <div className="glass-card p-8 w-full max-w-xl relative z-10 animate-in zoom-in-95 slide-in-from-bottom-8 duration-500 shadow-2xl border-primary/20 flex flex-col max-h-[90vh]">
               <div className="flex flex-col items-center text-center space-y-4 mb-6">
                 <div className="w-16 h-16 rounded-[1.5rem] bg-primary/20 flex items-center justify-center text-primary shadow-xl animate-bounce-subtle">
-                   <Share2 className="w-8 h-8" />
+                  <Share2 className="w-8 h-8" />
                 </div>
-                
+
                 <div className="space-y-1">
-                   <h3 className="text-2xl font-black text-foreground uppercase tracking-tighter italic">Central de Unificação</h3>
-                   <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest opacity-60">Vincular múltiplos pedidos a uma única caixa</p>
+                  <h3 className="text-2xl font-black text-foreground uppercase tracking-tighter italic">Central de Unificação</h3>
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest opacity-60">Vincular múltiplos pedidos a uma única caixa</p>
                 </div>
               </div>
 
@@ -1564,7 +1580,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                       placeholder="Bipe ou digite outro pedido..."
                       className="flex-1 bg-muted/30 border-2 border-border/40 focus:border-primary/50 px-4 py-3 rounded-xl text-sm font-bold outline-none uppercase"
                     />
-                    <button 
+                    <button
                       onClick={() => {
                         if (childInput.trim() && !unifyChildren.includes(childInput.trim().toUpperCase())) {
                           setUnifyChildren([...unifyChildren, childInput.trim().toUpperCase()]);
@@ -1581,7 +1597,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                     {unifyChildren.map(num => (
                       <div key={num} className="flex items-center justify-between bg-card border border-border/60 p-3 rounded-xl group animate-in slide-in-from-left-2">
                         <span className="text-xs font-black text-foreground">{num}</span>
-                        <button 
+                        <button
                           onClick={() => setUnifyChildren(unifyChildren.filter(n => n !== num))}
                           className="text-muted-foreground hover:text-destructive transition-colors"
                         >
@@ -1615,7 +1631,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                     </>
                   )}
                 </button>
-                
+
                 <button
                   onClick={() => {
                     setShowUnifyDialog(false);
@@ -1703,7 +1719,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                   <p className="text-sm font-bold text-indigo-900">{guiaOrder.attachmentName || 'Manual'}</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => {
                   const win = window.open(cleanR2Url(guiaOrder.attachmentUrl!), '_blank');
                   if (win) {
@@ -1734,8 +1750,8 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
   const viewOrder = viewOrderId ? orders.find(o => o.id === viewOrderId) : null;
   if (viewOrder) {
     const isOrderWarranty = viewOrder.isWarranty || viewOrder.notes?.toLowerCase().includes('garantia');
-    const viewClientData = clients.find(c => c.id === viewOrder.clientId) || 
-                           clients.find(c => c.name === viewOrder.clientName);
+    const viewClientData = clients.find(c => c.id === viewOrder.clientId) ||
+      clients.find(c => c.name === viewOrder.clientName);
 
     return (
       <div className="space-y-6 max-w-4xl mx-auto pb-12 animate-in fade-in duration-500">
@@ -1783,25 +1799,24 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 
         {/* Barra de Alerta de Pagamento de Altíssima Visibilidade */}
         {viewOrder.installationPaymentType && (
-          <div className={`p-4 rounded-[2rem] flex items-center justify-between shadow-2xl animate-in slide-in-from-top-6 duration-700 border-b-8 ${
-            viewOrder.installationPaymentType === 'pago' 
-            ? 'bg-emerald-600 border-emerald-700/50 text-white shadow-emerald-500/20' 
+          <div className={`p-4 rounded-[2rem] flex items-center justify-between shadow-2xl animate-in slide-in-from-top-6 duration-700 border-b-8 ${viewOrder.installationPaymentType === 'pago'
+            ? 'bg-emerald-600 border-emerald-700/50 text-white shadow-emerald-500/20'
             : 'bg-rose-500 border-rose-600/50 text-white shadow-rose-500/20 animate-pulse'
-          }`}>
+            }`}>
             <div className="flex items-center gap-4 pl-2">
-               <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center backdrop-blur-md shadow-inner">
-                  {viewOrder.installationPaymentType === 'pago' ? <CheckCircle className="w-8 h-8" /> : <DollarSign className="w-8 h-8" />}
-               </div>
-               <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-80 mb-0.5">Status de Pagamento (Técnico)</p>
-                  <p className="text-2xl font-black leading-none tracking-tighter uppercase">
-                    {viewOrder.installationPaymentType === 'pago' ? 'CLIENTE JÁ PAGOU' : 'COBRAR NO LOCAL'}
-                  </p>
-               </div>
+              <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center backdrop-blur-md shadow-inner">
+                {viewOrder.installationPaymentType === 'pago' ? <CheckCircle className="w-8 h-8" /> : <DollarSign className="w-8 h-8" />}
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-80 mb-0.5">Status de Pagamento (Técnico)</p>
+                <p className="text-2xl font-black leading-none tracking-tighter uppercase">
+                  {viewOrder.installationPaymentType === 'pago' ? 'CLIENTE JÁ PAGOU' : 'COBRAR NO LOCAL'}
+                </p>
+              </div>
             </div>
             <div className="text-right pr-4 border-l border-white/20 ml-6">
-               <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-0.5 whitespace-nowrap">Valor a Conferir</p>
-               <p className="text-3xl font-black tracking-tighter leading-none">{formatCurrency(viewOrder.total)}</p>
+              <p className="text-[10px] font-black uppercase tracking-widest opacity-70 mb-0.5 whitespace-nowrap">Valor a Conferir</p>
+              <p className="text-3xl font-black tracking-tighter leading-none">{formatCurrency(viewOrder.total)}</p>
             </div>
           </div>
         )}
@@ -1809,39 +1824,39 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
         {/* Header e Ficha Técnica */}
         <div className="flex items-center justify-between flex-wrap gap-4 border-b border-border/20 pb-6">
           <div className="space-y-1">
-             <div className="flex items-center gap-3">
-                <h1 className="text-4xl font-black text-foreground tracking-tighter uppercase">{viewOrder.number}</h1>
-                {viewOrder.isSite && (
-                   <span className="px-3 py-1.5 rounded-full bg-blue-600 text-white text-[11px] font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 animate-pulse flex items-center gap-2">
-                     🌐 VENDA DO SITE
-                   </span>
-                )}
-                {viewOrder.isInternational && (
-                   <span className="px-3 py-1.5 rounded-full bg-emerald-600 text-white text-[11px] font-black uppercase tracking-widest shadow-xl shadow-emerald-500/20 animate-pulse flex items-center gap-2">
-                     🌍 INTERNACIONAL
-                   </span>
-                )}
-                {isOrderWarranty && (
-                   <span className="px-3 py-1 rounded-full bg-destructive text-white text-[11px] font-black uppercase tracking-widest shadow-xl shadow-destructive/20 animate-pulse">
-                     🔥 GARANTIA CRÍTICA
-                   </span>
-                )}
-             </div>
-             <div className="flex items-center gap-3 text-sm font-bold text-muted-foreground">
-                <span className="flex items-center gap-1.5"><User className="w-4 h-4 text-primary" /> {viewOrder.clientName}</span>
-                <span className="opacity-30">•</span>
-                <span className="flex items-center gap-1.5"><BadgeCheck className="w-4 h-4 text-vendedor" /> Vend: {viewOrder.sellerName}</span>
-             </div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-4xl font-black text-foreground tracking-tighter uppercase">{viewOrder.number}</h1>
+              {viewOrder.isSite && (
+                <span className="px-3 py-1.5 rounded-full bg-blue-600 text-white text-[11px] font-black uppercase tracking-widest shadow-xl shadow-blue-500/20 animate-pulse flex items-center gap-2">
+                  🌐 VENDA DO SITE
+                </span>
+              )}
+              {viewOrder.isInternational && (
+                <span className="px-3 py-1.5 rounded-full bg-emerald-600 text-white text-[11px] font-black uppercase tracking-widest shadow-xl shadow-emerald-500/20 animate-pulse flex items-center gap-2">
+                  🌍 INTERNACIONAL
+                </span>
+              )}
+              {isOrderWarranty && (
+                <span className="px-3 py-1 rounded-full bg-destructive text-white text-[11px] font-black uppercase tracking-widest shadow-xl shadow-destructive/20 animate-pulse">
+                  🔥 GARANTIA CRÍTICA
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3 text-sm font-bold text-muted-foreground">
+              <span className="flex items-center gap-1.5"><User className="w-4 h-4 text-primary" /> {viewOrder.clientName}</span>
+              <span className="opacity-30">•</span>
+              <span className="flex items-center gap-1.5"><BadgeCheck className="w-4 h-4 text-vendedor" /> Vend: {viewOrder.sellerName}</span>
+            </div>
           </div>
           <div className="flex items-center gap-3">
-             <StatusBadge status={viewOrder.status} />
-             <button 
-                onClick={() => setViewOrderId(null)} 
-                className="w-12 h-12 rounded-2xl bg-muted/50 text-foreground flex items-center justify-center hover:bg-muted transition-all border border-border/10 shadow-sm"
-                title="Voltar"
-             >
-                <ArrowLeft className="w-6 h-6" />
-             </button>
+            <StatusBadge status={viewOrder.status} />
+            <button
+              onClick={() => setViewOrderId(null)}
+              className="w-12 h-12 rounded-2xl bg-muted/50 text-foreground flex items-center justify-center hover:bg-muted transition-all border border-border/10 shadow-sm"
+              title="Voltar"
+            >
+              <ArrowLeft className="w-6 h-6" />
+            </button>
           </div>
         </div>
 
@@ -1854,12 +1869,11 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
           if (!hasChildren && !isChild) return null;
 
           return (
-            <div className={`p-4 rounded-[1.5rem] border-2 flex flex-col gap-3 animate-in fade-in slide-in-from-right-4 duration-500 ${
-              hasChildren ? 'border-primary/20 bg-primary/[0.02]' : 'border-amber-500/20 bg-amber-500/[0.02]'
-            }`}>
+            <div className={`p-4 rounded-[1.5rem] border-2 flex flex-col gap-3 animate-in fade-in slide-in-from-right-4 duration-500 ${hasChildren ? 'border-primary/20 bg-primary/[0.02]' : 'border-amber-500/20 bg-amber-500/[0.02]'
+              }`}>
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${hasChildren ? 'bg-primary/10 text-primary' : 'bg-amber-500/10 text-amber-600'}`}>
-                   <Share2 className="w-5 h-5" />
+                  <Share2 className="w-5 h-5" />
                 </div>
                 <div>
                   <h4 className="text-[10px] font-black uppercase tracking-[0.2em] opacity-70">Logística de Unificação</h4>
@@ -1889,122 +1903,121 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 
         {/* Info Cards Row */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-           <div className={`p-5 rounded-3xl border-2 flex flex-col gap-3 transition-colors ${
-             viewOrder.carrier?.toLowerCase() === 'jadlog' ? 'border-[#002d72]/20 bg-[#002d72]/[0.02]' : 'border-border/10 bg-muted/10'
-           }`}>
-              <div className="flex items-center justify-between">
-                 <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Logística</span>
-                 <Truck className={`w-5 h-5 ${viewOrder.carrier?.toLowerCase() === 'jadlog' ? 'text-[#002d72]' : 'text-primary'}`} />
-              </div>
-              <div>
-                 <p className="text-xl font-black text-foreground uppercase truncate">{viewOrder.carrier || 'SEM TRANSP.'}</p>
-                 <p className="text-[10px] font-bold text-muted-foreground mt-0.5">Meio de Despacho</p>
-              </div>
-           </div>
+          <div className={`p-5 rounded-3xl border-2 flex flex-col gap-3 transition-colors ${viewOrder.carrier?.toLowerCase() === 'jadlog' ? 'border-[#002d72]/20 bg-[#002d72]/[0.02]' : 'border-border/10 bg-muted/10'
+            }`}>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Logística</span>
+              <Truck className={`w-5 h-5 ${viewOrder.carrier?.toLowerCase() === 'jadlog' ? 'text-[#002d72]' : 'text-primary'}`} />
+            </div>
+            <div>
+              <p className="text-xl font-black text-foreground uppercase truncate">{viewOrder.carrier || 'SEM TRANSP.'}</p>
+              <p className="text-[10px] font-bold text-muted-foreground mt-0.5">Meio de Despacho</p>
+            </div>
+          </div>
 
-           <div className={`p-5 rounded-3xl border-2 flex flex-col gap-3 ${isLate(viewOrder) ? 'border-destructive/30 bg-destructive/5' : 'border-border/10 bg-muted/10'}`}>
-              <div className="flex items-center justify-between">
-                 <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Previsão</span>
-                 <Calendar className={`w-5 h-5 ${isLate(viewOrder) ? 'text-destructive' : 'text-success'}`} />
-              </div>
-              <div>
-                 <p className={`text-xl font-black uppercase ${isLate(viewOrder) ? 'text-destructive' : 'text-foreground'}`}>
-                   {formatDate(viewOrder.deliveryDate)}
-                 </p>
-                 <p className="text-[10px] font-bold text-muted-foreground mt-0.5">Data de Envio</p>
-              </div>
-           </div>
+          <div className={`p-5 rounded-3xl border-2 flex flex-col gap-3 ${isLate(viewOrder) ? 'border-destructive/30 bg-destructive/5' : 'border-border/10 bg-muted/10'}`}>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Previsão</span>
+              <Calendar className={`w-5 h-5 ${isLate(viewOrder) ? 'text-destructive' : 'text-success'}`} />
+            </div>
+            <div>
+              <p className={`text-xl font-black uppercase ${isLate(viewOrder) ? 'text-destructive' : 'text-foreground'}`}>
+                {formatDate(viewOrder.deliveryDate)}
+              </p>
+              <p className="text-[10px] font-bold text-muted-foreground mt-0.5">Data de Envio</p>
+            </div>
+          </div>
 
-           <div className={`p-5 rounded-3xl border-2 flex flex-col gap-3 ${isScheduled(viewOrder) ? 'border-primary/30 bg-primary/5' : 'border-border/10 bg-muted/10'}`}>
-              <div className="flex items-center justify-between">
-                 <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Execução</span>
-                 <div className="flex gap-2">
-                   <Clock className="w-5 h-5 text-amber-500" />
-                 </div>
+          <div className={`p-5 rounded-3xl border-2 flex flex-col gap-3 ${isScheduled(viewOrder) ? 'border-primary/30 bg-primary/5' : 'border-border/10 bg-muted/10'}`}>
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Execução</span>
+              <div className="flex gap-2">
+                <Clock className="w-5 h-5 text-amber-500" />
               </div>
-              <div className="space-y-2">
-                 {(() => {
-                   const pendingItems = viewOrder.items.filter(item => item.status !== 'finalizado' && item.installationDate);
-                   
-                   // Obtém os agendamentos dos itens, com fallback para o agendamento do pedido se aplicável
-                   let schedules = pendingItems.map(item => ({
-                     date: item.installationDate!,
-                     time: item.installationTime || ''
-                   }));
+            </div>
+            <div className="space-y-2">
+              {(() => {
+                const pendingItems = viewOrder.items.filter(item => item.status !== 'finalizado' && item.installationDate);
 
-                   if (schedules.length === 0 && viewOrder.installationDate) {
-                     schedules = [{
-                       date: viewOrder.installationDate,
-                       time: viewOrder.installationTime || ''
-                     }];
-                   }
+                // Obtém os agendamentos dos itens, com fallback para o agendamento do pedido se aplicável
+                let schedules = pendingItems.map(item => ({
+                  date: item.installationDate!,
+                  time: item.installationTime || ''
+                }));
 
-                   const uniqueSchedules = Array.from(
-                     new Map(
-                       schedules.map(s => [`${s.date}-${s.time}`, s])
-                     ).values()
-                   ).sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
-                   
-                   if (uniqueSchedules.length === 0) {
-                     const allFinished = viewOrder.items.length > 0 && viewOrder.items.every(item => item.status === 'finalizado');
-                     return (
-                       <p className={`text-xl font-black uppercase leading-none tracking-tighter ${allFinished ? 'text-success' : 'text-foreground'}`}>
-                         {allFinished ? 'TUDO CONCLUÍDO' : 'DIRETO'}
-                       </p>
-                     );
-                   }
+                if (schedules.length === 0 && viewOrder.installationDate) {
+                  schedules = [{
+                    date: viewOrder.installationDate,
+                    time: viewOrder.installationTime || ''
+                  }];
+                }
 
-                   return (
-                     <div className="flex flex-wrap gap-2">
-                        {uniqueSchedules.map((schedule, idx) => (
-                          <div key={idx} className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-primary/10 text-primary border border-primary/20 animate-in fade-in zoom-in-95 duration-500">
-                             <Calendar className="w-3 h-3 shrink-0" />
-                             <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">
-                               {fmtDate(schedule.date)}
-                               {schedule.time && ` ÀS ${schedule.time}`}
-                             </span>
-                          </div>
-                        ))}
-                     </div>
-                   );
-                 })()}
-                 <p className="text-[10px] font-bold text-muted-foreground mt-0.5">Cronograma de Instalação</p>
-              </div>
-           </div>
+                const uniqueSchedules = Array.from(
+                  new Map(
+                    schedules.map(s => [`${s.date}-${s.time}`, s])
+                  ).values()
+                ).sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+
+                if (uniqueSchedules.length === 0) {
+                  const allFinished = viewOrder.items.length > 0 && viewOrder.items.every(item => item.status === 'finalizado');
+                  return (
+                    <p className={`text-xl font-black uppercase leading-none tracking-tighter ${allFinished ? 'text-success' : 'text-foreground'}`}>
+                      {allFinished ? 'TUDO CONCLUÍDO' : 'DIRETO'}
+                    </p>
+                  );
+                }
+
+                return (
+                  <div className="flex flex-wrap gap-2">
+                    {uniqueSchedules.map((schedule, idx) => (
+                      <div key={idx} className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-primary/10 text-primary border border-primary/20 animate-in fade-in zoom-in-95 duration-500">
+                        <Calendar className="w-3 h-3 shrink-0" />
+                        <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">
+                          {fmtDate(schedule.date)}
+                          {schedule.time && ` ÀS ${schedule.time}`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+              <p className="text-[10px] font-bold text-muted-foreground mt-0.5">Cronograma de Instalação</p>
+            </div>
+          </div>
         </div>
 
         {/* FICHA DO CLIENTE */}
         <div className="bg-muted/10 rounded-3xl p-6 border border-border/10 relative overflow-hidden">
-           <div className="absolute top-0 right-0 p-4 opacity-5">
-              <Users2 className="w-32 h-32" />
-           </div>
-           <h4 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 mb-6 flex items-center gap-2">
-              <div className="w-4 h-0.5 bg-primary/40" /> Ficha do Cliente
-           </h4>
-           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-sm">
-              <div className="space-y-1">
-                 <span className="text-[9px] font-black uppercase text-muted-foreground/70 tracking-widest block">Nome / Fantasia</span>
-                 <p className="text-sm font-black text-foreground uppercase">{viewClientData?.name || viewOrder.clientName}</p>
-              </div>
-              <div className="space-y-1">
-                 <span className="text-[9px] font-black uppercase text-muted-foreground/70 tracking-widest block">CNPJ / CPF</span>
-                 <p className="text-sm font-bold text-foreground font-mono">
-                    {viewClientData?.isInternational || viewOrder.isInternational ? (
-                      <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 text-[10px] font-black border border-emerald-500/20">🌍 INTERNACIONAL</span>
-                    ) : (
-                      viewClientData?.cpfCnpj || '---'
-                    )}
-                 </p>
-              </div>
-              <div className="space-y-1">
-                 <span className="text-[9px] font-black uppercase text-muted-foreground/70 tracking-widest block">Telefone</span>
-                 <p className="text-sm font-black text-foreground">{viewClientData?.phone || '---'}</p>
-              </div>
-              <div className="space-y-1">
-                 <span className="text-[9px] font-black uppercase text-muted-foreground/70 tracking-widest block">Cidade/UF</span>
-                 <p className="text-sm font-black text-foreground uppercase">{viewClientData?.city || '---'} / {viewClientData?.state || '---'}</p>
-              </div>
-           </div>
+          <div className="absolute top-0 right-0 p-4 opacity-5">
+            <Users2 className="w-32 h-32" />
+          </div>
+          <h4 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 mb-6 flex items-center gap-2">
+            <span className="w-4 h-0.5 bg-primary/40 block" /> Ficha do Cliente
+          </h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-sm">
+            <div className="space-y-1">
+              <span className="text-[9px] font-black uppercase text-muted-foreground/70 tracking-widest block">Nome / Fantasia</span>
+              <p className="text-sm font-black text-foreground uppercase">{viewClientData?.name || viewOrder.clientName}</p>
+            </div>
+            <div className="space-y-1">
+              <span className="text-[9px] font-black uppercase text-muted-foreground/70 tracking-widest block">CNPJ / CPF</span>
+              <p className="text-sm font-bold text-foreground font-mono">
+                {viewClientData?.isInternational || viewOrder.isInternational ? (
+                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 text-[10px] font-black border border-emerald-500/20">🌍 INTERNACIONAL</span>
+                ) : (
+                  viewClientData?.cpfCnpj || '---'
+                )}
+              </p>
+            </div>
+            <div className="space-y-1">
+              <span className="text-[9px] font-black uppercase text-muted-foreground/70 tracking-widest block">Telefone</span>
+              <p className="text-sm font-black text-foreground">{viewClientData?.phone || '---'}</p>
+            </div>
+            <div className="space-y-1">
+              <span className="text-[9px] font-black uppercase text-muted-foreground/70 tracking-widest block">Cidade/UF</span>
+              <p className="text-sm font-black text-foreground uppercase">{viewClientData?.city || '---'} / {viewClientData?.state || '---'}</p>
+            </div>
+          </div>
         </div>
 
         {/* ANEXO TÉCNICO (PDF) */}
@@ -2053,164 +2066,162 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 
         {/* COMPONENTES DE MONTAGEM */}
         <div className="glass-card overflow-hidden rounded-[2rem] border-2 border-border/40 shadow-xl">
-           <div className="bg-foreground py-3 px-6 flex items-center justify-between">
-              <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-background">Componentes de Montagem</h4>
-              <div className="px-2 py-0.5 rounded-full bg-background/10 text-background text-[9px] font-black">{viewOrder.items.length} ITENS</div>
-           </div>
-           <div className="p-2 space-y-1">
-              {viewOrder.items.map((item, itemIdx) => (
-                <div key={item.id || itemIdx} className={`p-4 sm:p-6 rounded-2xl flex flex-col lg:flex-row items-start lg:items-center gap-4 transition-all border-b border-border/10 last:border-none ${item.status === 'finalizado' ? 'bg-emerald-500/[0.05]' : item.status === 'em_producao' ? 'bg-primary/[0.03]' : ''}`}>
-                   <div className="flex items-center gap-4 flex-1 min-w-0 w-full">
-                     <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-xl font-black text-primary shrink-0 border border-border/10 shadow-sm">
-                        {item.quantity}<span className="text-[9px] ml-0.5 mt-2 opacity-50">x</span>
-                     </div>
-                     <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-1 flex-wrap">
-                           <h5 className="text-lg font-black text-foreground tracking-tight uppercase truncate">{item.product}</h5>
-                           {item.product.toUpperCase().includes('KIT') && (
-                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase flex items-center gap-1.5 ${(!item.sensorType || item.sensorType === 'com_sensor') ? 'bg-emerald-500 text-white shadow-sm' : 'bg-muted text-muted-foreground'}`}>
-                                 {(!item.sensorType || item.sensorType === 'com_sensor') ? <><Zap className="w-3 h-3 fill-current" /> COM SENSOR</> : '⚪ SEM SENSOR'}
-                              </span>
-                           )}
-                           {item.installationDate && (
-                             <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[9px] font-black uppercase flex items-center gap-1.5 border border-primary/20 shadow-sm">
-                               <Calendar className="w-3 h-3" /> {fmtDate(item.installationDate)} às {item.installationTime}
-                             </span>
-                           )}
-                        </div>
-                        <p className="text-sm font-bold text-muted-foreground italic leading-tight line-clamp-2">{item.description || 'Nenhuma instrução adicional.'}</p>
-                     </div>
-                   </div>
-
-                   {((viewOrder.orderType === 'instalacao' || viewOrder.orderType === 'manutencao') && viewOrder.items.length > 1) && (
-                     <div className="flex flex-wrap gap-2 w-full lg:w-auto shrink-0 mt-2 lg:mt-0">
-                     {(!item.status || item.status === 'pendente') && (
-                       <button
-                         onClick={async () => {
-                           const newItems = [...viewOrder.items];
-                           newItems[itemIdx] = { ...newItems[itemIdx], status: 'em_producao' };
-                           try {
-                             await updateOrder(viewOrder.id, { items: newItems });
-                             toast.success(`Item "${item.product}" iniciado!`);
-                           } catch (err) {
-                             toast.error("Erro ao iniciar item.");
-                           }
-                         }}
-                         className="flex-1 lg:flex-none px-6 py-3 rounded-xl bg-producao text-white text-[11px] font-black uppercase tracking-widest hover:bg-producao/90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-producao/20 active:scale-95"
-                       >
-                         <Play className="w-4 h-4" /> Iniciar Produção
-                       </button>
-                     )}
-
-                     {item.status === 'em_producao' && (
-                       <button
-                         onClick={async () => {
-                           const newItems = [...viewOrder.items];
-                           newItems[itemIdx] = { ...newItems[itemIdx], status: 'finalizado' };
-                           try {
-                             await updateOrder(viewOrder.id, { items: newItems });
-                             toast.success(`Item "${item.product}" finalizado!`);
-                           } catch (err) {
-                             toast.error("Erro ao finalizar item.");
-                           }
-                         }}
-                         className="flex-1 lg:flex-none px-6 py-3 rounded-xl bg-emerald-500 text-white text-[11px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95"
-                       >
-                         <CheckCircle className="w-4 h-4" /> Finalizar Item
-                       </button>
-                     )}
-                     
-                     {item.status === 'finalizado' && (
-                       <div className="flex items-center gap-2 bg-success/10 text-success px-4 py-3 rounded-xl border border-success/20">
-                          <CheckCircle className="w-4 h-4" />
-                          <span className="text-[11px] font-black uppercase tracking-widest">Concluído</span>
-                          <button
-                            onClick={async () => {
-                              const newItems = [...viewOrder.items];
-                              newItems[itemIdx] = { ...newItems[itemIdx], status: 'em_producao' };
-                              try {
-                                await updateOrder(viewOrder.id, { items: newItems });
-                                toast.success(`Item "${item.product}" reaberto!`);
-                              } catch (err) {
-                                toast.error("Erro ao reabrir item.");
-                              }
-                            }}
-                            className="ml-2 p-1 hover:bg-success/20 rounded-md transition-colors"
-                            title="Refazer Item"
-                          >
-                            <RefreshCw className="w-3 h-3" />
-                          </button>
-                       </div>
-                     )}
-                   </div>
-                 )}
+          <div className="bg-foreground py-3 px-6 flex items-center justify-between">
+            <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-background">Componentes de Montagem</h4>
+            <div className="px-2 py-0.5 rounded-full bg-background/10 text-background text-[9px] font-black">{viewOrder.items.length} ITENS</div>
+          </div>
+          <div className="p-2 space-y-1">
+            {viewOrder.items.map((item, itemIdx) => (
+              <div key={item.id || itemIdx} className={`p-4 sm:p-6 rounded-2xl flex flex-col lg:flex-row items-start lg:items-center gap-4 transition-all border-b border-border/10 last:border-none ${item.status === 'finalizado' ? 'bg-emerald-500/[0.05]' : item.status === 'em_producao' ? 'bg-primary/[0.03]' : ''}`}>
+                <div className="flex items-center gap-4 flex-1 min-w-0 w-full">
+                  <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-xl font-black text-primary shrink-0 border border-border/10 shadow-sm">
+                    {item.quantity}<span className="text-[9px] ml-0.5 mt-2 opacity-50">x</span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 mb-1 flex-wrap">
+                      <h5 className="text-lg font-black text-foreground tracking-tight uppercase truncate">{item.product}</h5>
+                      {item.product.toUpperCase().includes('KIT') && (
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase flex items-center gap-1.5 ${(!item.sensorType || item.sensorType === 'com_sensor') ? 'bg-emerald-500 text-white shadow-sm' : 'bg-muted text-muted-foreground'}`}>
+                          {(!item.sensorType || item.sensorType === 'com_sensor') ? <><Zap className="w-3 h-3 fill-current" /> COM SENSOR</> : '⚪ SEM SENSOR'}
+                        </span>
+                      )}
+                      {item.installationDate && (
+                        <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[9px] font-black uppercase flex items-center gap-1.5 border border-primary/20 shadow-sm">
+                          <Calendar className="w-3 h-3" /> {fmtDate(item.installationDate)} às {item.installationTime}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm font-bold text-muted-foreground italic leading-tight line-clamp-2">{item.description || 'Nenhuma instrução adicional.'}</p>
+                  </div>
                 </div>
-              ))}
-           </div>
+
+                {((viewOrder.orderType === 'instalacao' || viewOrder.orderType === 'manutencao') && viewOrder.items.length > 1) && (
+                  <div className="flex flex-wrap gap-2 w-full lg:w-auto shrink-0 mt-2 lg:mt-0">
+                    {(!item.status || item.status === 'pendente') && (
+                      <button
+                        onClick={async () => {
+                          const newItems = [...viewOrder.items];
+                          newItems[itemIdx] = { ...newItems[itemIdx], status: 'em_producao' };
+                          try {
+                            await updateOrder(viewOrder.id, { items: newItems });
+                            toast.success(`Item "${item.product}" iniciado!`);
+                          } catch (err) {
+                            toast.error("Erro ao iniciar item.");
+                          }
+                        }}
+                        className="flex-1 lg:flex-none px-6 py-3 rounded-xl bg-producao text-white text-[11px] font-black uppercase tracking-widest hover:bg-producao/90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-producao/20 active:scale-95"
+                      >
+                        <Play className="w-4 h-4" /> Iniciar Produção
+                      </button>
+                    )}
+
+                    {item.status === 'em_producao' && (
+                      <button
+                        onClick={async () => {
+                          const newItems = [...viewOrder.items];
+                          newItems[itemIdx] = { ...newItems[itemIdx], status: 'finalizado' };
+                          try {
+                            await updateOrder(viewOrder.id, { items: newItems });
+                            toast.success(`Item "${item.product}" finalizado!`);
+                          } catch (err) {
+                            toast.error("Erro ao finalizar item.");
+                          }
+                        }}
+                        className="flex-1 lg:flex-none px-6 py-3 rounded-xl bg-emerald-500 text-white text-[11px] font-black uppercase tracking-widest hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 active:scale-95"
+                      >
+                        <CheckCircle className="w-4 h-4" /> Finalizar Item
+                      </button>
+                    )}
+
+                    {item.status === 'finalizado' && (
+                      <div className="flex items-center gap-2 bg-success/10 text-success px-4 py-3 rounded-xl border border-success/20">
+                        <CheckCircle className="w-4 h-4" />
+                        <span className="text-[11px] font-black uppercase tracking-widest">Concluído</span>
+                        <button
+                          onClick={async () => {
+                            const newItems = [...viewOrder.items];
+                            newItems[itemIdx] = { ...newItems[itemIdx], status: 'em_producao' };
+                            try {
+                              await updateOrder(viewOrder.id, { items: newItems });
+                              toast.success(`Item "${item.product}" reaberto!`);
+                            } catch (err) {
+                              toast.error("Erro ao reabrir item.");
+                            }
+                          }}
+                          className="ml-2 p-1 hover:bg-success/20 rounded-md transition-colors"
+                          title="Refazer Item"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* OBSERVAÇÕES */}
         {(viewOrder.observation || viewOrder.notes) && (
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {viewOrder.observation && (
-                <div className="p-5 rounded-3xl bg-amber-500/5 border border-amber-500/20">
-                   <h5 className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-2 flex items-center gap-2"><Info className="w-4 h-4" /> Obs. Vendedor</h5>
-                   <p className="text-sm font-bold text-foreground leading-relaxed">{viewOrder.observation}</p>
-                </div>
-              )}
-              {viewOrder.notes && (
-                <div className="p-5 rounded-3xl bg-primary/5 border border-primary/20">
-                   <h5 className="text-[10px] font-black uppercase tracking-widest text-primary mb-2 flex items-center gap-2"><FileText className="w-4 h-4" /> Notas do Pedido</h5>
-                   <p className="text-sm font-bold text-foreground italic opacity-80">{viewOrder.notes}</p>
-                </div>
-              )}
-           </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {viewOrder.observation && (
+              <div className="p-5 rounded-3xl bg-amber-500/5 border border-amber-500/20">
+                <h5 className="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-2 flex items-center gap-2"><Info className="w-4 h-4" /> Obs. Vendedor</h5>
+                <p className="text-sm font-bold text-foreground leading-relaxed">{viewOrder.observation}</p>
+              </div>
+            )}
+            {viewOrder.notes && (
+              <div className="p-5 rounded-3xl bg-primary/5 border border-primary/20">
+                <h5 className="text-[10px] font-black uppercase tracking-widest text-primary mb-2 flex items-center gap-2"><FileText className="w-4 h-4" /> Notas do Pedido</h5>
+                <p className="text-sm font-bold text-foreground italic opacity-80">{viewOrder.notes}</p>
+              </div>
+            )}
+          </div>
         )}
 
         {/* FOOTER AÇÕES */}
         <div className="sticky bottom-6 left-0 right-0 z-40 px-4">
-           <div className="glass-card p-3 rounded-[1.5rem] border-border/20 shadow-2xl flex items-center justify-between gap-4">
-              <div className={`px-4 py-2 rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest ${
-                viewOrder.paymentStatus === 'pago' || isOrderWarranty || viewOrder.total === 0 || viewOrder.financeiroAprovado
-                ? 'bg-success/10 text-success' 
-                : 'bg-warning/10 text-warning animate-pulse'
+          <div className="glass-card p-3 rounded-[1.5rem] border-border/20 shadow-2xl flex items-center justify-between gap-4">
+            <div className={`px-4 py-2 rounded-xl flex items-center gap-2 text-[10px] font-black uppercase tracking-widest ${viewOrder.paymentStatus === 'pago' || isOrderWarranty || viewOrder.total === 0 || viewOrder.financeiroAprovado
+              ? 'bg-success/10 text-success'
+              : 'bg-warning/10 text-warning animate-pulse'
               }`}>
-                 <div className={`w-2 h-2 rounded-full ${
-                   viewOrder.paymentStatus === 'pago' || isOrderWarranty || viewOrder.total === 0 || viewOrder.financeiroAprovado
-                   ? 'bg-success' 
-                   : 'bg-warning'
-                 }`} />
-                 {viewOrder.paymentStatus === 'pago' || isOrderWarranty || viewOrder.total === 0 || viewOrder.financeiroAprovado
-                   ? 'Liberado Saída' 
-                   : 'Pagam. Pendente'
-                 }
-              </div>
+              <div className={`w-2 h-2 rounded-full ${viewOrder.paymentStatus === 'pago' || isOrderWarranty || viewOrder.total === 0 || viewOrder.financeiroAprovado
+                ? 'bg-success'
+                : 'bg-warning'
+                }`} />
+              {viewOrder.paymentStatus === 'pago' || isOrderWarranty || viewOrder.total === 0 || viewOrder.financeiroAprovado
+                ? 'Liberado Saída'
+                : 'Pagam. Pendente'
+              }
+            </div>
 
-              <div className="flex items-center gap-2">
-                 {['aguardando_producao', 'aprovado_financeiro', 'aprovado_gestor'].includes(viewOrder.status) && (
-                    <button onClick={() => { iniciarProducao(viewOrder.id); }} className="btn-primary from-producao to-producao/80 px-6 py-3 text-xs font-black uppercase rounded-xl transition-all text-white">
-                       <Play className="w-4 h-4 mr-2" /> Iniciar
+            <div className="flex items-center gap-2">
+              {['aguardando_producao', 'aprovado_financeiro', 'aprovado_gestor'].includes(viewOrder.status) && (
+                <button onClick={() => { iniciarProducao(viewOrder.id); }} className="btn-primary from-producao to-producao/80 px-6 py-3 text-xs font-black uppercase rounded-xl transition-all text-white">
+                  <Play className="w-4 h-4 mr-2" /> Iniciar
+                </button>
+              )}
+              {viewOrder.status === 'em_producao' && (
+                <button onClick={() => { finalizarProducao(viewOrder.id); }} className="btn-primary bg-gradient-to-br from-emerald-500 to-emerald-600 px-6 py-3 text-xs font-black uppercase rounded-xl transition-all text-white">
+                  <CheckCircle className="w-4 h-4 mr-2" /> Finalizar
+                </button>
+              )}
+              {(viewOrder.status === 'producao_finalizada' || viewOrder.status === 'produto_liberado' || viewOrder.status === 'retirado_entregador') && (
+                <div className="flex gap-2">
+                  <button onClick={() => setGuia(viewOrder.id)} className="btn-primary from-primary to-primary/80 px-6 py-3 text-xs font-black uppercase rounded-xl transition-all text-white">
+                    <Printer className="w-4 h-4 mr-2" /> Guia
+                  </button>
+                  {viewOrder.orderType === 'entrega' && (
+                    <button onClick={() => printEtiqueta(viewOrder)} className="btn-modern bg-emerald-500/10 text-emerald-600 px-6 py-3 text-xs font-black hover:bg-emerald-500/20 border border-emerald-500/20 rounded-xl">
+                      <Printer className="w-4 h-4 mr-2" /> Etiqueta
                     </button>
-                 )}
-                 {viewOrder.status === 'em_producao' && (
-                    <button onClick={() => { finalizarProducao(viewOrder.id); }} className="btn-primary bg-gradient-to-br from-emerald-500 to-emerald-600 px-6 py-3 text-xs font-black uppercase rounded-xl transition-all text-white">
-                       <CheckCircle className="w-4 h-4 mr-2" /> Finalizar
-                    </button>
-                 )}
-                 {(viewOrder.status === 'producao_finalizada' || viewOrder.status === 'produto_liberado' || viewOrder.status === 'retirado_entregador') && (
-                    <div className="flex gap-2">
-                       <button onClick={() => setGuia(viewOrder.id)} className="btn-primary from-primary to-primary/80 px-6 py-3 text-xs font-black uppercase rounded-xl transition-all text-white">
-                          <Printer className="w-4 h-4 mr-2" /> Guia
-                       </button>
-                       {viewOrder.orderType === 'entrega' && (
-                         <button onClick={() => printEtiqueta(viewOrder)} className="btn-modern bg-emerald-500/10 text-emerald-600 px-6 py-3 text-xs font-black hover:bg-emerald-500/20 border border-emerald-500/20 rounded-xl">
-                            <Printer className="w-4 h-4 mr-2" /> Etiqueta
-                         </button>
-                       )}
-                    </div>
-                 )}
-              </div>
-           </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -2226,12 +2237,12 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
       </div>
 
       <RealtimeNotificationHandler />
-      
+
       {/* Premium Header */}
       <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-card to-card/50 border border-border/40 p-8 sm:p-10 shadow-2xl shadow-primary/5 group">
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-32 -mt-32 transition-transform duration-1000 group-hover:scale-110" />
         <div className="absolute bottom-0 left-0 w-64 h-64 bg-[hsl(var(--gestor))]/5 rounded-full blur-3xl -ml-32 -mb-32 transition-transform duration-1000 group-hover:scale-110" />
-        
+
         <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-8">
           <div className="space-y-3">
             <div className="flex items-center gap-4">
@@ -2267,8 +2278,8 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
               <CalendarClock className={`w-4 h-4 ${showCalendar ? 'animate-bounce' : ''}`} />
               {showCalendar ? 'Ocultar Calendário' : 'Ver Calendário'}
             </button>
-            <button 
-              onClick={() => setShowScanner(true)} 
+            <button
+              onClick={() => setShowScanner(true)}
               className={`btn-modern bg-gradient-to-r ${mainGradient} text-white px-6 py-3.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-2xl ${mainShadow} hover:scale-105 active:scale-95 duration-300`}
             >
               <ScanLine className="w-4 h-4 mr-2" /> <span>Ler Código de Barras</span>
@@ -2306,17 +2317,17 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center animate-in fade-in slide-in-from-bottom-4 duration-700">
         <div className="lg:col-span-4 relative group">
           <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground transition-colors group-focus-within:text-primary" />
-          <input 
-            type="text" 
-            placeholder="Buscar por Pedido, Cliente ou Vendedor..." 
-            value={search} 
-            onChange={e => setSearch(e.target.value)} 
-            className="w-full bg-card/60 backdrop-blur-md border border-border/60 hover:border-primary/30 pl-14 pr-6 py-4 rounded-[1.5rem] text-sm font-semibold text-foreground placeholder:text-muted-foreground/50 focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all shadow-inner outline-none" 
+          <input
+            type="text"
+            placeholder="Buscar por Pedido, Cliente ou Vendedor..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full bg-card/60 backdrop-blur-md border border-border/60 hover:border-primary/30 pl-14 pr-6 py-4 rounded-[1.5rem] text-sm font-semibold text-foreground placeholder:text-muted-foreground/50 focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all shadow-inner outline-none"
           />
         </div>
-        
+
         <div className="lg:col-span-8 flex flex-wrap items-center gap-4">
-          <ModernSelect 
+          <ModernSelect
             title="Tipo de Pedido"
             icon={Filter}
             value={orderTypeFilter}
@@ -2330,7 +2341,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
             ]}
           />
 
-          <ModernSelect 
+          <ModernSelect
             title="Meio de Envio"
             icon={Truck}
             value={carrierFilter}
@@ -2346,7 +2357,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
             ]}
           />
 
-          <ModernDateFilter 
+          <ModernDateFilter
             title="Filtrar por Data"
             value={selectedDate}
             onChange={setSelectedDate}
@@ -2357,45 +2368,45 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
       {/* Resumo de Kits Filtrados */}
       {(kitSummary.totalKits > 0) && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-1000">
-           <div className="glass-card p-6 border-primary/20 bg-primary/[0.02] flex flex-wrap items-center justify-between gap-6">
-              <div className="flex items-center gap-5">
-                 <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center text-white shadow-xl shadow-primary/30">
-                    <Zap className="w-7 h-7 fill-current" />
-                 </div>
-                 <div>
-                    <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-1">Resumo de Kits na Fila</h3>
-                    <div className="flex items-baseline gap-2">
-                       <span className="text-3xl font-black text-foreground">{kitSummary.totalKits}</span>
-                       <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Kits Totais</span>
-                    </div>
-                 </div>
+          <div className="glass-card p-6 border-primary/20 bg-primary/[0.02] flex flex-wrap items-center justify-between gap-6">
+            <div className="flex items-center gap-5">
+              <div className="w-14 h-14 rounded-2xl bg-primary flex items-center justify-center text-white shadow-xl shadow-primary/30">
+                <Zap className="w-7 h-7 fill-current" />
               </div>
+              <div>
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-1">Resumo de Kits na Fila</h3>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-black text-foreground">{kitSummary.totalKits}</span>
+                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Kits Totais</span>
+                </div>
+              </div>
+            </div>
 
-              <div className="flex items-center gap-8 pr-4">
-                 <div className="text-right">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600 mb-1 flex items-center justify-end gap-1.5">
-                       <CheckCircle className="w-3 h-3" /> COM SENSOR
-                    </p>
-                    <p className="text-xl font-black text-foreground">{kitSummary.kitsWithSensor}</p>
-                 </div>
-                 <div className="w-px h-10 bg-border/40" />
-                 <div className="text-right">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1 flex items-center justify-end gap-1.5">
-                       <div className="w-2 h-2 rounded-full bg-muted-foreground/30" /> SEM SENSOR
-                    </p>
-                    <p className="text-xl font-black text-foreground">{kitSummary.kitsWithoutSensor}</p>
-                 </div>
+            <div className="flex items-center gap-8 pr-4">
+              <div className="text-right">
+                <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600 mb-1 flex items-center justify-end gap-1.5">
+                  <CheckCircle className="w-3 h-3" /> COM SENSOR
+                </p>
+                <p className="text-xl font-black text-foreground">{kitSummary.kitsWithSensor}</p>
               </div>
+              <div className="w-px h-10 bg-border/40" />
+              <div className="text-right">
+                <p className="text-[9px] font-black uppercase tracking-widest text-muted-foreground mb-1 flex items-center justify-end gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-muted-foreground/30 block" /> SEM SENSOR
+                </p>
+                <p className="text-xl font-black text-foreground">{kitSummary.kitsWithoutSensor}</p>
+              </div>
+            </div>
 
-              <div className="hidden xl:block max-w-[200px]">
-                 <p className="text-[9px] font-bold text-muted-foreground leading-tight italic">
-                    * Os valores acima atualizam automaticamente conforme você aplica filtros de transportadora ou busca.
-                 </p>
-              </div>
-           </div>
+            <div className="hidden xl:block max-w-[200px]">
+              <p className="text-[9px] font-bold text-muted-foreground leading-tight italic">
+                * Os valores acima atualizam automaticamente conforme você aplica filtros de transportadora ou busca.
+              </p>
+            </div>
+          </div>
         </div>
       )}
-      
+
       {
         statusFilter === 'garantias' ? (
           <div className="space-y-3">
@@ -2463,7 +2474,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                       <h2 className="text-xl font-black text-foreground uppercase tracking-tight leading-none group-hover/header:text-primary transition-colors">{clientName}</h2>
                       <div className="flex items-center gap-3 mt-1.5">
                         <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.1em] flex items-center gap-2">
-                           Linha de Montagem • <span className="text-primary">{clientOrders.length} {clientOrders.length === 1 ? 'Pedido' : 'Pedidos'} em fila</span>
+                          Linha de Montagem • <span className="text-primary">{clientOrders.length} {clientOrders.length === 1 ? 'Pedido' : 'Pedidos'} em fila</span>
                         </p>
                       </div>
                     </div>
@@ -2476,7 +2487,7 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                     const late = isLate(order);
                     const scheduled = isScheduled(order);
                     const isPlanning = order.status === 'planejamento';
-                    
+
                     // Cores e Ícones por transportadora
                     const carrierInfo = {
                       jadlog: { color: 'bg-[#002d72] text-white', label: 'JADLOG', icon: Truck },
@@ -2491,13 +2502,12 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                         dark:hover:shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)]
                         ${late ? 'ring-2 ring-destructive/20 border-destructive/30' : ''} 
                         ${order.isSite ? 'ring-2 ring-blue-500/20 border-blue-500/30' : ''}`}>
-                        
+
                         <div className="absolute inset-x-0 bottom-0 h-1.5 bg-muted/20" />
-                        <div className={`absolute inset-x-0 bottom-0 h-1.5 transition-all duration-500 w-0 group-hover/card:w-full ${
-                          order.status === 'aguardando_producao' ? 'bg-warning' :
+                        <div className={`absolute inset-x-0 bottom-0 h-1.5 transition-all duration-500 w-0 group-hover/card:w-full ${order.status === 'aguardando_producao' ? 'bg-warning' :
                           order.status === 'em_producao' ? 'bg-primary' :
-                          'bg-success'
-                        }`} />
+                            'bg-success'
+                          }`} />
 
                         <div className="p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
                           <div className="flex items-center gap-5 sm:gap-6 flex-1 min-w-0">
@@ -2548,56 +2558,55 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                                     )}
                                   </div>
                                 </h3>
-                                
+
                                 <div className="flex items-center gap-2 flex-wrap">
-                                   <StatusBadge status={order.status} />
-                                   
-                                   {order.carrier && (
-                                     <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm ${carrierInfo.color}`}>
-                                       <carrierInfo.icon className="w-3 h-3" />
-                                       {carrierInfo.label}
-                                     </span>
-                                   )}
+                                  <StatusBadge status={order.status} />
 
-                                   {/* Badge de Tipo de Pedido */}
-                                   <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm ${
-                                     order.orderType === 'instalacao' ? 'bg-amber-500 text-white' :
-                                     order.orderType === 'manutencao' ? 'bg-indigo-500 text-white' :
-                                     order.orderType === 'retirada' ? 'bg-slate-700 text-white' :
-                                     'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                                   }`}>
-                                     {order.orderType === 'instalacao' ? '🔧 Inst.' :
+                                  {order.carrier && (
+                                    <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm ${carrierInfo.color}`}>
+                                      <carrierInfo.icon className="w-3 h-3" />
+                                      {carrierInfo.label}
+                                    </span>
+                                  )}
+
+                                  {/* Badge de Tipo de Pedido */}
+                                  <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm ${order.orderType === 'instalacao' ? 'bg-amber-500 text-white' :
+                                    order.orderType === 'manutencao' ? 'bg-indigo-500 text-white' :
+                                      order.orderType === 'retirada' ? 'bg-slate-700 text-white' :
+                                        'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                                    }`}>
+                                    {order.orderType === 'instalacao' ? '🔧 Inst.' :
                                       order.orderType === 'manutencao' ? '🛠️ Manut.' :
-                                      order.orderType === 'retirada' ? '🏢 Retirada' :
-                                      '📦 Entrega'}
-                                   </span>
+                                        order.orderType === 'retirada' ? '🏢 Retirada' :
+                                          '📦 Entrega'}
+                                  </span>
 
-                                   {late && (
-                                     <span className="px-3 py-1 rounded-full bg-destructive text-white text-[9px] font-black uppercase tracking-widest animate-bounce shadow-lg shadow-destructive/40">
-                                       ATRASADO
-                                     </span>
-                                   )}
+                                  {late && (
+                                    <span className="px-3 py-1 rounded-full bg-destructive text-white text-[9px] font-black uppercase tracking-widest animate-bounce shadow-lg shadow-destructive/40">
+                                      ATRASADO
+                                    </span>
+                                  )}
                                 </div>
                               </div>
 
                               <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5 text-xs mb-4">
-                                 <span className="font-extrabold text-foreground/90 flex items-center gap-2 group/client transition-colors hover:text-primary cursor-default">
-                                   <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                                     <User className="w-3.5 h-3.5" />
-                                   </div>
-                                   {order.clientName}
-                                 </span>
-                                 <div className="flex items-center gap-3">
-                                   <span className="text-muted-foreground font-bold flex items-center gap-2">
-                                     Vendedor: <span className="text-foreground">{order.sellerName}</span>
-                                   </span>
-                                   {(order.orderType === 'instalacao' || order.orderType === 'manutencao' || order.orderType === 'retirada') && (order.installationDate || order.scheduledDate) && (
-                                      <span className="text-primary font-black flex items-center gap-2 bg-primary/5 px-3 py-1 rounded-full border border-primary/10 transition-transform group-hover/card:scale-105">
-                                        <Clock className="w-3.5 h-3.5" />
-                                        {fmtDate(order.installationDate || order.scheduledDate)} {order.installationTime ? `@ ${order.installationTime}` : ''}
-                                      </span>
-                                   )}
-                                 </div>
+                                <span className="font-extrabold text-foreground/90 flex items-center gap-2 group/client transition-colors hover:text-primary cursor-default">
+                                  <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                                    <User className="w-3.5 h-3.5" />
+                                  </div>
+                                  {order.clientName}
+                                </span>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-muted-foreground font-bold flex items-center gap-2">
+                                    Vendedor: <span className="text-foreground">{order.sellerName}</span>
+                                  </span>
+                                  {(order.orderType === 'instalacao' || order.orderType === 'manutencao' || order.orderType === 'retirada') && (order.installationDate || order.scheduledDate) && (
+                                    <span className="text-primary font-black flex items-center gap-2 bg-primary/5 px-3 py-1 rounded-full border border-primary/10 transition-transform group-hover/card:scale-105">
+                                      <Clock className="w-3.5 h-3.5" />
+                                      {fmtDate(order.installationDate || order.scheduledDate)} {order.installationTime ? `@ ${order.installationTime}` : ''}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
 
                               {/* Modern Itens List */}
@@ -2606,17 +2615,16 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                                   <div key={idx} className="group/item relative">
                                     <div className={`px-4 py-2 rounded-2xl border flex items-center gap-3 transition-all duration-300
                                       group-hover/card:shadow-sm
-                                      ${i.sensorType === 'com_sensor' 
-                                        ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-700 dark:text-emerald-400 group-hover/item:bg-emerald-500/10' 
+                                      ${i.sensorType === 'com_sensor'
+                                        ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-700 dark:text-emerald-400 group-hover/item:bg-emerald-500/10'
                                         : 'bg-muted/40 border-border/20 text-foreground/80 group-hover/item:bg-muted/60'}
                                     `}>
-                                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black ${
-                                        i.sensorType === 'com_sensor' ? 'bg-emerald-500 text-white' : 'bg-muted-foreground/10 text-muted-foreground'
-                                      }`}>
+                                      <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black ${i.sensorType === 'com_sensor' ? 'bg-emerald-500 text-white' : 'bg-muted-foreground/10 text-muted-foreground'
+                                        }`}>
                                         {i.quantity}x
                                       </div>
                                       <span className="font-bold text-[10px] sm:text-[11px] uppercase tracking-tight truncate max-w-[150px]">{i.product}</span>
-                                      
+
                                       {i.installationDate && (
                                         <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-primary/10 text-primary border border-primary/20 text-[8px] font-black">
                                           <Calendar className="w-2.5 h-2.5" /> {fmtDate(i.installationDate)}
@@ -2624,15 +2632,15 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                                       )}
 
                                       {i.status === 'finalizado' && (
-                                         <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-success/10 text-success border border-success/20 text-[8px] font-black animate-in fade-in zoom-in-95">
-                                           <CheckCircle className="w-2.5 h-2.5" /> OK
-                                         </div>
+                                        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-success/10 text-success border border-success/20 text-[8px] font-black animate-in fade-in zoom-in-95">
+                                          <CheckCircle className="w-2.5 h-2.5" /> OK
+                                        </div>
                                       )}
-                                      
+
                                       {i.status === 'em_producao' && (
-                                         <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-producao/10 text-producao border border-producao/20 text-[8px] font-black animate-pulse">
-                                           <Play className="w-2.5 h-2.5" /> INICIADO
-                                         </div>
+                                        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-producao/10 text-producao border border-producao/20 text-[8px] font-black animate-pulse">
+                                          <Play className="w-2.5 h-2.5" /> INICIADO
+                                        </div>
                                       )}
 
                                       {i.sensorType === 'com_sensor' && (
@@ -2650,16 +2658,16 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 
                           {/* Refined Actions Group */}
                           <div className="flex flex-row items-center gap-3 w-full md:w-auto shrink-0 self-end md:self-center">
-                            <button 
-                              onClick={() => setViewOrderId(order.id)} 
+                            <button
+                              onClick={() => setViewOrderId(order.id)}
                               className="h-12 flex-1 md:flex-none justify-center btn-modern bg-muted/50 text-foreground text-[10px] sm:px-6 font-black hover:bg-muted border border-border/10 rounded-2xl transition-all"
                             >
                               DETALHES
                             </button>
 
                             {['aguardando_producao', 'aprovado_financeiro', 'aprovado_gestor'].includes(order.status) && (
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); iniciarProducao(order.id); }} 
+                              <button
+                                onClick={(e) => { e.stopPropagation(); iniciarProducao(order.id); }}
                                 className={`h-12 flex-1 md:flex-none justify-center btn-primary bg-gradient-to-br ${mainGradient} px-8 text-xs font-black uppercase rounded-2xl shadow-xl ${mainShadow} transform active:scale-95 transition-all text-white border-none group/btn`}
                               >
                                 <Play className="w-4 h-4 mr-2 group-hover/btn:translate-x-1 transition-transform" /> INICIAR
@@ -2667,8 +2675,8 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
                             )}
 
                             {order.status === 'em_producao' && (
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); finalizarProducao(order.id); }} 
+                              <button
+                                onClick={(e) => { e.stopPropagation(); finalizarProducao(order.id); }}
                                 className="h-12 flex-1 md:flex-none justify-center btn-primary bg-gradient-to-br from-emerald-500 to-emerald-600 px-8 text-xs font-black uppercase rounded-2xl shadow-xl shadow-success/20 transform active:scale-95 transition-all text-white group/btn"
                               >
                                 <CheckCircle className="w-4 h-4 mr-2 group-hover/btn:scale-110 transition-transform" /> FINALIZAR
@@ -2677,16 +2685,16 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
 
                             <div className="flex gap-2.5 flex-1 md:flex-none">
                               {(order.status === 'producao_finalizada' || order.status === 'produto_liberado') && (
-                                <button 
-                                  onClick={(e) => { e.stopPropagation(); setGuia(order.id); }} 
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setGuia(order.id); }}
                                   className="h-12 flex-1 md:flex-none justify-center btn-modern bg-primary/10 text-primary px-6 text-xs font-black hover:bg-primary/20 border border-primary/20 rounded-2xl shadow-lg shadow-primary/5 transition-all"
                                 >
                                   GUIA
                                 </button>
                               )}
                               {order.orderType === 'entrega' && (
-                                <button 
-                                  onClick={(e) => { e.stopPropagation(); printEtiqueta(order); }} 
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); printEtiqueta(order); }}
                                   className="h-12 w-12 flex items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all shadow-sm"
                                   title="Imprimir Etiqueta"
                                 >
@@ -2704,6 +2712,76 @@ html, body { width: 100mm; height: 150mm; font-family: 'Arial', 'Courier New', m
             ))}
           </div>
         )}
+
+      {/* Modal de Impressão Modernizado */}
+      {orderForPrint && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-background/40 backdrop-blur-3xl animate-in fade-in duration-500" />
+          <div className="glass-card p-10 w-full max-w-md relative z-10 animate-in zoom-in-95 slide-in-from-bottom-8 duration-500 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.3)]">
+            <div className="flex flex-col items-center text-center space-y-6">
+              <div className="w-20 h-20 rounded-[2rem] bg-primary/20 flex items-center justify-center text-primary animate-bounce-subtle">
+                <Printer className="w-10 h-10" />
+              </div>
+
+              <div className="space-y-1">
+                <h3 className="text-3xl font-black text-foreground uppercase tracking-tighter italic">Impressão de Etiqueta</h3>
+                <p className="text-sm text-muted-foreground font-medium uppercase tracking-widest opacity-60">Pedido {orderForPrint.number}</p>
+              </div>
+
+              <div className="w-full h-px bg-border/40" />
+
+              <div className="w-full space-y-6">
+                <div className="flex items-center justify-center gap-6">
+                  <button
+                    onClick={() => setPrintVolumesInput(Math.max(1, parseInt(printVolumesInput) - 1).toString())}
+                    className="w-14 h-14 rounded-2xl bg-muted/50 hover:bg-primary hover:text-white transition-all text-2xl font-black shadow-lg"
+                  >
+                    −
+                  </button>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="1"
+                      value={printVolumesInput}
+                      onChange={e => setPrintVolumesInput(e.target.value.replace(/\D/g, ''))}
+                      className="w-32 bg-transparent text-center text-6xl font-black text-foreground outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      autoFocus
+                    />
+                    <span className="absolute -bottom-4 left-0 right-0 text-[10px] font-black text-muted-foreground tracking-[0.3em] uppercase">Volumes</span>
+                  </div>
+                  <button
+                    onClick={() => setPrintVolumesInput((parseInt(printVolumesInput) + 1).toString())}
+                    className="w-14 h-14 rounded-2xl bg-muted/50 hover:bg-primary hover:text-white transition-all text-2xl font-black shadow-lg"
+                  >
+                    +
+                  </button>
+                </div>
+
+                <button
+                  onClick={() => {
+                    const v = parseInt(printVolumesInput);
+                    executePrintEtiqueta(orderForPrint, isNaN(v) || v < 1 ? 1 : v);
+                    setOrderForPrint(null);
+                  }}
+                  className="w-full py-5 bg-foreground text-background rounded-2xl text-sm font-black uppercase tracking-[0.2em] hover:bg-primary hover:text-white transition-all shadow-2xl active:scale-95"
+                >
+                  Imprimir Etiqueta
+                </button>
+
+                <button
+                  onClick={() => {
+                    setOrderForPrint(null);
+                    setPrintVolumesInput('1');
+                  }}
+                  className="w-full py-2 text-[10px] font-black text-muted-foreground uppercase tracking-widest hover:text-foreground transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

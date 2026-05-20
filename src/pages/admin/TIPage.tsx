@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Wrench, Database, Users, ShieldAlert, RefreshCcw, 
   Trash2, Terminal, Activity, Server, Search, CheckCircle2,
-  AlertCircle, ShieldCheck, ArrowRight, UserPlus, Download
+  AlertCircle, ShieldCheck, ArrowRight, UserPlus, Download, Truck
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';

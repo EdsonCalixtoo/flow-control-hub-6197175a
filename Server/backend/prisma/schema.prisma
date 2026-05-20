@@ -1,0 +1,332 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model barcode_scans {
+  id           String    @id @default(dbgenerated("gen_random_uuid()"))
+  order_id     String?
+  order_number String?
+  scanned_by   String?
+  success      Boolean?
+  note         String?
+  scanned_at   DateTime? @default(now()) @db.Timestamptz(6)
+  created_at   DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model categories {
+  id         String    @id
+  name       String    @unique
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model chat_messages {
+  id          String    @id @default(dbgenerated("gen_random_uuid()"))
+  order_id    String?
+  sender_id   String?
+  sender_name String?
+  sender_role String?
+  message     String?
+  read_by     Json?
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model client_rewards {
+  id                 String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  client_id          String?
+  reward_type        String?
+  kits_required      Decimal?  @default(0) @db.Decimal
+  kits_completed     Decimal?  @default(0) @db.Decimal
+  kits_consumed      Decimal?  @default(0) @db.Decimal
+  kits_adjustment    Decimal?  @default(0) @db.Decimal
+  reward_status      String?   @default("pendente")
+  reward_redeemed_at DateTime? @db.Timestamptz(6)
+  updated_at         DateTime? @default(now()) @db.Timestamptz(6)
+  created_at         DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model clients {
+  id               String    @id @default(dbgenerated("gen_random_uuid()"))
+  user_id          String?
+  name             String
+  cpf_cnpj         String?
+  phone            String?
+  email            String?
+  address          String?
+  bairro           String?
+  city             String?
+  state            String?
+  cep              String?
+  notes            String?
+  consignado       Boolean?
+  created_at       DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime? @default(now()) @db.Timestamptz(6)
+  is_site          Boolean?  @default(false)
+  is_international Boolean?  @default(false)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model delay_reports {
+  id            String    @id @default(dbgenerated("gen_random_uuid()"))
+  order_id      String?
+  order_number  String?
+  client_name   String?
+  order_total   Decimal?  @db.Decimal
+  reason        String?
+  sent_by       String?
+  order_type    String?
+  delivery_date String?
+  sent_at       DateTime? @default(now()) @db.Timestamptz(6)
+  read_at       DateTime? @db.Timestamptz(6)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model delivery_pickups {
+  id             String    @id
+  order_id       String?
+  order_number   String?
+  deliverer_name String?
+  photo_url      String?
+  signature_url  String?
+  note           String?
+  batch_id       String?
+  migrado_r2     Boolean?
+  picked_up_at   DateTime? @default(now()) @db.Timestamptz(6)
+  created_at     DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model financial_entries {
+  id               String    @id @default(dbgenerated("gen_random_uuid()"))
+  type             String?
+  description      String?
+  amount           Decimal?  @db.Decimal
+  category         String?
+  status           String?
+  date             String?
+  order_id         String?
+  order_number     String?
+  client_id        String?
+  client_name      String?
+  payment_method   String?
+  due_date         String?
+  paid_at          String?
+  receipt_url      String?
+  receipt_urls     Json?
+  transaction_id   String?
+  card_last_digits String?
+  migrado_r2       Boolean?
+  created_at       DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model installations {
+  id           String    @id
+  order_id     String?
+  seller_id    String?
+  client_name  String?
+  date         String?
+  time         String?
+  payment_type String?
+  type         String?
+  created_at   DateTime? @default(now()) @db.Timestamptz(6)
+  product_name String?
+}
+
+model monthly_closings {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  seller_id         String?   @db.Uuid
+  seller_name       String?
+  reference_month   String?
+  closing_date      DateTime? @default(now()) @db.Timestamptz(6)
+  total_sold        Decimal?  @default(0) @db.Decimal
+  order_count       Decimal?  @default(0) @db.Decimal
+  outstanding_value Decimal?  @default(0) @db.Decimal
+  details           Json?     @default("[]")
+  created_at        DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@index([seller_id], map: "idx_monthly_closings_seller")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model order_returns {
+  id           String    @id @default(dbgenerated("gen_random_uuid()"))
+  order_id     String?
+  order_number String?
+  items        Json?
+  reason       String?
+  status       String?
+  created_at   DateTime? @default(now()) @db.Timestamptz(6)
+  client_name  String?
+  reported_by  String?
+  resolved     Boolean?  @default(false)
+  resolved_at  DateTime? @db.Timestamptz(6)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model orders {
+  id                        String    @id @default(dbgenerated("gen_random_uuid()"))
+  number                    String    @unique
+  client_id                 String?
+  client_name               String?
+  seller_id                 String?
+  seller_name               String?
+  items                     Json?
+  subtotal                  Decimal?  @db.Decimal
+  taxes                     Decimal?  @db.Decimal
+  total                     Decimal?  @db.Decimal
+  status                    String?
+  notes                     String?
+  observation               String?
+  payment_method            String?
+  payment_status            String?
+  installments              Decimal?  @db.Decimal
+  delivery_date             String?
+  receipt_url               String?
+  receipt_urls              Json?
+  order_type                String?
+  status_history            Json?
+  carrier                   String?
+  is_cronograma             Boolean?
+  financeiro_aprovado       Boolean?
+  status_pagamento          String?
+  status_producao           String?
+  scheduled_date            String?
+  volumes                   Decimal?  @db.Decimal
+  requires_invoice          Boolean?
+  comprovantes_vistos       Decimal?  @db.Decimal
+  is_consigned              Boolean?
+  is_warranty               Boolean?
+  installation_date         String?
+  installation_time         String?
+  installation_payment_type String?
+  production_status         String?
+  production_started_at     DateTime? @db.Timestamptz(6)
+  production_finished_at    DateTime? @db.Timestamptz(6)
+  released_at               DateTime? @db.Timestamptz(6)
+  released_by               String?
+  qr_code                   String?
+  migrado_r2                Boolean?
+  created_at                DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime? @default(now()) @db.Timestamptz(6)
+  requires_shipping_note    Boolean?  @default(false)
+  parent_order_id           String?
+  parent_order_number       String?
+  is_site                   Boolean?  @default(false)
+  attachment_url            String?
+  attachment_name           String?
+  is_international          Boolean?  @default(false)
+  orders                    orders?   @relation("ordersToorders", fields: [parent_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  other_orders              orders[]  @relation("ordersToorders")
+
+  @@index([parent_order_id], map: "idx_parent_order_id")
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model production_errors {
+  id           String    @id @default(dbgenerated("gen_random_uuid()"))
+  order_id     String?
+  order_number String?
+  error_type   String?
+  description  String?
+  reported_by  String?
+  resolved     Boolean?  @default(false)
+  created_at   DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model products {
+  id             String    @id @default(dbgenerated("gen_random_uuid()"))
+  sku            String    @unique
+  name           String
+  description    String?
+  category       String?
+  unit_price     Decimal?  @db.Decimal
+  cost_price     Decimal?  @db.Decimal
+  stock_quantity Decimal?  @db.Decimal
+  min_stock      Decimal?  @db.Decimal
+  unit           String?
+  supplier       String?
+  status         String?
+  created_at     DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model rewards {
+  id             String    @id
+  client_id      String?
+  reward_type    String?
+  kits_required  Decimal?  @db.Decimal
+  kits_completed Decimal?  @db.Decimal
+  status         String?
+  created_at     DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model subcategories {
+  id          String    @id
+  category_id String?
+  name        String
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model system_logs {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+  user_id     String?
+  user_name   String?
+  user_role   String?
+  action      String
+  entity_type String?
+  entity_id   String?
+  old_data    Json?
+  new_data    Json?
+  ip_address  String?
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model users {
+  id         String    @id @default(dbgenerated("gen_random_uuid()"))
+  name       String?
+  email      String?   @unique
+  password   String?
+  role       String?
+  avatar_url String?
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+/// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.
+model warranties {
+  id                String    @id @default(dbgenerated("gen_random_uuid()"))
+  order_id          String?
+  order_number      String?
+  client_id         String?
+  client_name       String?
+  seller_id         String?
+  seller_name       String?
+  product           String?
+  description       String?
+  status            String?
+  receipt_urls      Json?
+  resolution        String?
+  carrier           String?
+  history           Json?
+  created_at        DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime? @default(now()) @db.Timestamptz(6)
+  order_type        String?   @default("entrega")
+  installation_date String?
+  installation_time String?
+}

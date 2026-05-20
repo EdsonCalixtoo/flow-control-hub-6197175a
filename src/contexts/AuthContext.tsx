@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { apiFetch, getStoredToken, setStoredToken, clearStoredToken } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { UserRole } from '@/types/erp';
 
 interface User {
@@ -21,30 +21,61 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+// Limpa chaves de sessão do Supabase do localStorage (tokens expirados/corrompidos)
+function clearSupabaseStorage() {
+  const keysToRemove = Object.keys(localStorage).filter(k =>
+    k.startsWith('sb-') || k.includes('supabase')
+  );
+  keysToRemove.forEach(k => localStorage.removeItem(k));
+  console.log('[Auth] 🗑️ Storage limpo:', keysToRemove);
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const currentUserIdRef = useRef<string | null>(null);
   const initializedRef = useRef(false);
 
-  const loadUserProfile = useCallback(async () => {
+  const loadUserProfile = useCallback(async (authUser: { id: string; email?: string; user_metadata?: any }) => {
+    if (currentUserIdRef.current === authUser.id) return;
+
     try {
-      const userData = await apiFetch('/auth/me');
-      const ADMIN_EMAILS = ['juninho.caxto@gmail.com', 'edsoncalixto@gmail.com'];
-      const isHardcodedAdmin = userData.email && ADMIN_EMAILS.includes(userData.email.toLowerCase());
+      const { data: userData } = await supabase
+        .from('users')
+        .select('id, email, name, role')
+        .eq('id', authUser.id)
+        .maybeSingle();
 
-      const appUser: User = {
-        id: userData.id,
-        email: userData.email,
-        name: userData.name || 'Usuário',
-        role: (isHardcodedAdmin ? 'admin' : (userData.role || 'vendedor')) as User['role'],
-      };
+      const ADMIN_EMAILS = ['juninho.caxto@gmail.com', 'edsoncalixto@gmail.com']; // Adicione outros se precisar
+      const isHardcodedAdmin = authUser.email && ADMIN_EMAILS.includes(authUser.email.toLowerCase());
 
+      const appUser: User = userData
+        ? {
+            id: userData.id,
+            email: userData.email,
+            name: userData.name,
+            role: (isHardcodedAdmin ? 'admin' : (userData.role || 'vendedor')) as User['role'],
+          }
+        : {
+            id: authUser.id,
+            email: authUser.email || '',
+            name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Usuário',
+            role: (isHardcodedAdmin ? 'admin' : (authUser.user_metadata?.role || 'vendedor')) as User['role'],
+          };
+
+      currentUserIdRef.current = appUser.id;
       setUser(appUser);
       console.log('[Auth] ✅ Perfil carregado:', appUser.email, '| role:', appUser.role);
     } catch (err: any) {
-      console.error('[Auth] ❌ Erro ao carregar perfil do NestJS:', err.message);
-      setUser(null);
-      clearStoredToken();
+      console.error('[Auth] ❌ Erro no loadUserProfile:', err.message);
+      const fallback: User = {
+        id: authUser.id,
+        email: authUser.email || '',
+        name: authUser.user_metadata?.name || 'Usuário',
+        role: (authUser.user_metadata?.role || 'vendedor') as User['role'],
+      };
+      currentUserIdRef.current = fallback.id;
+      setUser(fallback);
     }
   }, []);
 
@@ -52,8 +83,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (initializedRef.current) return;
     initializedRef.current = true;
 
-    console.log('[Auth] Inicializando autenticação local...');
+    console.log('[Auth] Inicializando autenticação...');
 
+    // Timeout de segurança: garante que o authLoading some em no máximo 5s
     const safetyTimer = setTimeout(() => {
       console.warn('[Auth] ⚠️ Timeout de segurança atingido — liberando loading');
       setAuthLoading(false);
@@ -61,16 +93,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const init = async () => {
       try {
-        const token = getStoredToken();
-        if (token) {
-          await loadUserProfile();
-        } else {
+        const { data: { session }, error } = await supabase.auth.getSession();
+
+        if (error) {
+          // Token inválido/expirado — limpa storage e pede novo login
+          console.warn('[Auth] ⚠️ Sessão inválida, limpando storage:', error.message);
+          clearSupabaseStorage();
           setUser(null);
+        } else if (session?.user) {
+          await loadUserProfile(session.user);
         }
       } catch (err: any) {
-        console.error('[Auth] ❌ Erro ao inicializar sessão local:', err.message);
-        clearStoredToken();
-        setUser(null);
+        console.error('[Auth] ❌ Erro ao inicializar sessão:', err.message);
+        // Se falhar (ex: offline), limpa tokens corrompidos para não travar
+        clearSupabaseStorage();
       } finally {
         clearTimeout(safetyTimer);
         setAuthLoading(false);
@@ -79,47 +115,88 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     init();
 
+    // Escuta mudanças futuras de autenticação com segurança reforçada contra loops
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log('[Auth] Evento:', event);
+      
+      const handleEvent = async () => {
+        if (event === 'SIGNED_IN' && session?.user) {
+          setAuthLoading(true);
+          try {
+            await loadUserProfile(session.user);
+          } finally {
+            setAuthLoading(false);
+          }
+        } else if (event === 'SIGNED_OUT') {
+          try {
+            // Evita logout por eventos fantasmas/transientes de refresh de token.
+            // Só limpa o estado se de fato não houver sessão ativa recuperada.
+            const { data: { session: activeSession } } = await supabase.auth.getSession();
+            if (!activeSession) {
+              console.log('[Auth] 🚪 Logout confirmado por ausência de sessão ativa');
+              setUser(null);
+              currentUserIdRef.current = null;
+            } else {
+              console.log('[Auth] ℹ️ Evento SIGNED_OUT ignorado: sessão ativa ainda existe no cliente');
+            }
+          } catch (err) {
+            setUser(null);
+            currentUserIdRef.current = null;
+          }
+        }
+      };
+
+      handleEvent();
+    });
+
     return () => {
+      subscription?.unsubscribe();
       clearTimeout(safetyTimer);
     };
   }, [loadUserProfile]);
 
   const login = useCallback(async (email: string, password: string) => {
-    console.log('[Auth] Fazendo login na API local...');
-    const data = await apiFetch('/auth/login', {
-      method: 'POST',
-      body: { email, password },
-    });
-    
-    if (!data.access_token) {
-      throw new Error('Falha na autenticação: token não retornado.');
-    }
-    
-    setStoredToken(data.access_token);
-    await loadUserProfile();
-  }, [loadUserProfile]);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw new Error(error.message);
+    if (!data.session) throw new Error('Sem sessão após login');
+  }, []);
 
   const register = useCallback(async (email: string, password: string, name: string, role: string) => {
-    console.log('[Auth] Cadastrando novo usuário local...');
-    await apiFetch('/auth/register', {
-      method: 'POST',
-      body: { email, password, name, role: role || 'vendedor' },
+    const { data: authData, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { name, role: role || 'vendedor' } },
     });
-    
-    // Autentica automaticamente após registrar
-    await login(email, password);
-  }, [login]);
+    if (signUpError) throw new Error(signUpError.message);
+    if (!authData.user) throw new Error('Falha ao criar usuário');
+    await new Promise(r => setTimeout(r, 500));
+    const { error: loginError } = await supabase.auth.signInWithPassword({ email, password });
+    if (loginError) throw new Error(loginError.message);
+  }, []);
 
   const logout = useCallback(async () => {
-    console.log('[Auth] Efetuando logout...');
-    clearStoredToken();
-    setUser(null);
-    console.log('[Auth] Logout concluído');
+    try {
+      console.log('[Auth] Efetuando logout...');
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.warn('[Auth] Erro ao deslogar da API:', err);
+    } finally {
+      setUser(null);
+      currentUserIdRef.current = null;
+      // Limpa storage por segurança
+      const keys = Object.keys(localStorage);
+      keys.forEach(k => {
+        if (k.startsWith('sb-') || k.includes('supabase')) localStorage.removeItem(k);
+      });
+      console.log('[Auth] Logout concluído (estado local limpo)');
+    }
   }, []);
 
   const clearSessionCompletely = useCallback(async () => {
-    clearStoredToken();
+    try { await supabase.auth.signOut(); } catch (_) {}
+    clearSupabaseStorage();
     setUser(null);
+    currentUserIdRef.current = null;
     window.location.reload();
   }, []);
 

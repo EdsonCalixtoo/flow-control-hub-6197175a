@@ -453,7 +453,7 @@ const PedidosProducaoPage: React.FC = () => {
   <div class="header">
     ${logoDataUrl ? `<img src="${logoDataUrl}" class="header-logo" alt="Logo" />` : ''}
     <div class="header-info">
-      <div class="header-title">Etiqueta de Envio ${order.orderType === 'entrega' && (order as any).carrier ? `• ${(order as any).carrier}` : ''}</div>
+      <div class="header-title">${order.orderType === 'retirada' ? 'Etiqueta de Retirada' : 'Etiqueta de Envio'} ${order.orderType === 'entrega' && (order as any).carrier ? `• ${(order as any).carrier}` : ''}</div>
       <div class="header-title" style="font-size: 11pt; color: #1e3a8a; border: 1.5px solid #1e3a8a; padding: 1mm 2mm; border-radius: 1mm; margin-top: 1mm; margin-bottom: 1mm; display: inline-block;">VOLUME ${vol} / ${volumes}</div>
       <div class="header-pedido">${order.number}</div>
     </div>
@@ -1659,7 +1659,7 @@ ${etiquetasHtml}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <h1 className="page-header">Guia de Producao</h1>
           <div className="flex gap-2">
-            {guiaOrder.orderType === 'entrega' && (
+            {(guiaOrder.orderType === 'entrega' || guiaOrder.orderType === 'retirada') && (
               <button onClick={() => printEtiqueta(guiaOrder)} className="btn-primary">
                 <Printer className="w-4 h-4" /> Imprimir Etiqueta
               </button>
@@ -2214,7 +2214,7 @@ ${etiquetasHtml}
                   <button onClick={() => setGuia(viewOrder.id)} className="btn-primary from-primary to-primary/80 px-6 py-3 text-xs font-black uppercase rounded-xl transition-all text-white">
                     <Printer className="w-4 h-4 mr-2" /> Guia
                   </button>
-                  {viewOrder.orderType === 'entrega' && (
+                  {(viewOrder.orderType === 'entrega' || viewOrder.orderType === 'retirada') && (
                     <button onClick={() => printEtiqueta(viewOrder)} className="btn-modern bg-emerald-500/10 text-emerald-600 px-6 py-3 text-xs font-black hover:bg-emerald-500/20 border border-emerald-500/20 rounded-xl">
                       <Printer className="w-4 h-4 mr-2" /> Etiqueta
                     </button>
@@ -2693,7 +2693,7 @@ ${etiquetasHtml}
                                   GUIA
                                 </button>
                               )}
-                              {order.orderType === 'entrega' && (
+                              {(order.orderType === 'entrega' || order.orderType === 'retirada') && (
                                 <button
                                   onClick={(e) => { e.stopPropagation(); printEtiqueta(order); }}
                                   className="h-12 w-12 flex items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all shadow-sm"

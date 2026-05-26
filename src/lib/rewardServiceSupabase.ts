@@ -131,13 +131,15 @@ export const redeemReward = async (rewardId: string, quantity: number = 1): Prom
         if (fetchError || !rewardData) throw fetchError || new Error('Prêmio não encontrado');
 
         const totalToConsume = rewardData.kits_required * quantity;
+        const newCompleted = Math.max(0, rewardData.kits_completed - totalToConsume);
 
         const { error } = await supabase
             .from('client_rewards')
             .update({
-                reward_status: (rewardData.kits_completed - totalToConsume) >= rewardData.kits_required ? 'liberado' : 'resgatado',
+                reward_status: newCompleted >= rewardData.kits_required ? 'liberado' : 'resgatado',
                 reward_redeemed_at: new Date().toISOString(),
-                kits_consumed: (rewardData.kits_consumed || 0) + totalToConsume
+                kits_consumed: (rewardData.kits_consumed || 0) + totalToConsume,
+                kits_completed: newCompleted
             })
             .eq('id', rewardId);
 
@@ -163,6 +165,7 @@ export const cancelRedeemReward = async (rewardId: string, quantity: number = 1)
         if (rewardData.reward_status !== 'resgatado' && rewardData.reward_status !== 'liberado') return false;
 
         const kitsToRestore = rewardData.kits_required * quantity;
+        const newCompleted = rewardData.kits_completed + kitsToRestore;
 
         const { error } = await supabase
             .from('client_rewards')
@@ -170,6 +173,7 @@ export const cancelRedeemReward = async (rewardId: string, quantity: number = 1)
                 reward_status: 'liberado', 
                 reward_redeemed_at: null,
                 kits_consumed: Math.max(0, (rewardData.kits_consumed || 0) - kitsToRestore),
+                kits_completed: newCompleted,
                 updated_at: new Date().toISOString()
             })
             .eq('id', rewardId);

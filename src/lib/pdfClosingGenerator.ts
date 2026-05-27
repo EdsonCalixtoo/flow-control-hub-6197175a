@@ -10,9 +10,11 @@ export interface ClosingPdfData {
   outstandingValue: number;
   kitsComSensor: number;
   kitsSemSensor: number;
+  kitsDtp: number;
   premios: number;
   totalProducts: number;
   estribos: number;
+  carenagem: number;
   others: number;
 }
 
@@ -81,9 +83,12 @@ export const generateClosingPDF = (data: ClosingPdfData, shouldDownload: boolean
   doc.text(new Date(data.closingDate).toLocaleString('pt-BR'), 65, 85);
 
   // 3. Performance Grid (Modern Cards)
+  const isHigor = data.sellerName.toUpperCase().includes('HIGOR');
+  const boxHeight = isHigor ? 60 : 50;
+
   doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
-  doc.roundedRect(20, 100, 80, 50, 4, 4, 'F');
-  doc.roundedRect(110, 100, 80, 50, 4, 4, 'F');
+  doc.roundedRect(20, 100, 80, boxHeight, 4, 4, 'F');
+  doc.roundedRect(110, 100, 80, boxHeight, 4, 4, 'F');
 
   // Card Left: Financeiro
   doc.setFontSize(10);
@@ -131,8 +136,16 @@ export const generateClosingPDF = (data: ClosingPdfData, shouldDownload: boolean
   doc.text('Kits s/ Sensor', 115, 135);
   doc.text(data.kitsSemSensor.toString(), 185, 135, { align: 'right' });
   
-  doc.text('Estribos', 115, 144);
-  doc.text(data.estribos.toString(), 185, 144, { align: 'right' });
+  doc.text('Kits DTP', 115, 144);
+  doc.text(data.kitsDtp.toString(), 185, 144, { align: 'right' });
+
+  doc.text('Estribos', 115, 153);
+  doc.text(data.estribos.toString(), 185, 153, { align: 'right' });
+
+  if (isHigor) {
+    doc.text('Carenagem', 115, 162);
+    doc.text(data.carenagem.toString(), 185, 162, { align: 'right' });
+  }
 
   // Outros Itens e Premiações REMOVIDOS da contagem principal conforme solicitação.
   // Manteremos as métricas nos dados para auditoria interna, mas não aparecem no PDF final de venda.
@@ -140,19 +153,19 @@ export const generateClosingPDF = (data: ClosingPdfData, shouldDownload: boolean
   // 4. Declaration Section
   doc.setFillColor(252, 252, 252);
   doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(20, 165, 170, 35, 2, 2, 'FD');
+  doc.roundedRect(20, 175, 170, 35, 2, 2, 'FD');
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-  doc.text('DECLARAÇÃO DE CONFORMIDADE', 25, 173);
+  doc.text('DECLARAÇÃO DE CONFORMIDADE', 25, 183);
 
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(9);
   doc.setTextColor(textColor[0], textColor[1], textColor[2]);
   const words = `Certificamos que o vendedor ${data.sellerName} completou o ciclo operacional de ${data.referenceMonth}. Foram validados ${data.orderCount} pedidos com receita bruta de ${formatCurrency(data.totalSold)}. Este documento serve como base para conciliação financeira entre as partes.`;
   const splitTitle = doc.splitTextToSize(words, 160);
-  doc.text(splitTitle, 25, 182);
+  doc.text(splitTitle, 25, 192);
 
   // 5. Signatures (Modernized)
   const sigY = 240;

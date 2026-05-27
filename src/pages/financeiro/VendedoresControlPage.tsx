@@ -51,7 +51,9 @@ const VendedoresControlPage: React.FC = () => {
       valoresEmAberto: number;
       kitsComSensor: number;
       kitsSemSensor: number;
+      kitsDtp: number;
       estribos: number;
+      carenagem: number;
       totalProdutos: number;
       premios: number;
       others: number;
@@ -86,7 +88,9 @@ const VendedoresControlPage: React.FC = () => {
           valoresEmAberto: 0,
           kitsComSensor: 0,
           kitsSemSensor: 0,
+          kitsDtp: 0,
           estribos: 0,
+          carenagem: 0,
           totalProdutos: 0,
           premios: 0,
           others: 0,
@@ -118,13 +122,20 @@ const VendedoresControlPage: React.FC = () => {
             const prodName = item.product.toUpperCase();
             const isEstribo = prodName.includes('ESTRIBO');
             const isKit = prodName.includes('KIT');
+            const isCarenagem = prodName.includes('CARENAGEM');
+            const isHigor = key.toUpperCase().includes('HIGOR');
             
             if (isEstribo) {
               stats[key].estribos += item.quantity;
               stats[key].totalProdutos += item.quantity; // ✅ Entra na contagem
+            } else if (isCarenagem && isHigor) {
+              stats[key].carenagem += item.quantity;
+              stats[key].totalProdutos += item.quantity; // ✅ Entra na contagem
             } else if (isKit) {
               const hasSensorRef = item.sensorType === 'com_sensor' || prodName.includes('.A') || prodName.includes('COM SENSOR');
-              if (hasSensorRef) {
+              if (prodName.includes('DTP')) {
+                stats[key].kitsDtp += item.quantity;
+              } else if (hasSensorRef) {
                 stats[key].kitsComSensor += item.quantity;
               } else {
                 stats[key].kitsSemSensor += item.quantity;
@@ -188,7 +199,9 @@ const VendedoresControlPage: React.FC = () => {
       `📦 Total de Produtos: ${seller.totalProdutos}\n` +
       `📡 Kits Com Sensor: ${seller.kitsComSensor}\n` +
       `📦 Kits Sem Sensor: ${seller.kitsSemSensor}\n` +
+      `📦 Kits DTP: ${seller.kitsDtp}\n` +
       `🪜 Estribos: ${seller.estribos}\n` +
+      (seller.name.toUpperCase().includes('HIGOR') ? `🏍️ Carenagem: ${seller.carenagem}\n` : '') +
       `📦 Outros Itens: ${seller.others}\n` +
       `🎁 Premiações: ${seller.premios}`;
     
@@ -207,9 +220,11 @@ const VendedoresControlPage: React.FC = () => {
       outstandingValue: seller.valoresEmAberto,
       kitsComSensor: seller.kitsComSensor,
       kitsSemSensor: seller.kitsSemSensor,
+      kitsDtp: seller.kitsDtp,
       premios: seller.premios,
       totalProducts: seller.totalProdutos,
       estribos: seller.estribos,
+      carenagem: seller.carenagem,
       others: seller.others
     }, true); // Já baixa para o usuário ter a cópia dele
 
@@ -237,9 +252,11 @@ const VendedoresControlPage: React.FC = () => {
         calculatedAt: now.toISOString(),
         kitsComSensor: seller.kitsComSensor,
         kitsSemSensor: seller.kitsSemSensor,
+        kitsDtp: seller.kitsDtp,
         premios: seller.premios,
         totalItems: seller.totalProdutos,
         estribos: seller.estribos,
+        carenagem: seller.carenagem,
         others: seller.others,
         pdfUrl: pdfUrl
       }
@@ -362,8 +379,13 @@ const VendedoresControlPage: React.FC = () => {
       let estribos = 0;
       let kitsCom = 0;
       let kitsSem = 0;
+      let kitsDtp = 0;
+      let estribos = 0;
+      let carenagem = 0;
       let premios = 0;
       let others = 0;
+
+      const isHigor = closing.sellerName.toUpperCase().includes('HIGOR');
 
       orders.forEach(order => {
         // ✅ Tudo que foi enviado
@@ -384,9 +406,13 @@ const VendedoresControlPage: React.FC = () => {
               if (prodName.includes('ESTRIBO')) {
                 estribos += item.quantity;
                 totalProdutos += item.quantity;
+              } else if (prodName.includes('CARENAGEM') && isHigor) {
+                carenagem += item.quantity;
+                totalProdutos += item.quantity;
               } else if (prodName.includes('KIT')) {
                 const hasSensorRef = item.sensorType === 'com_sensor' || prodName.includes('.A') || prodName.includes('COM SENSOR');
-                if (hasSensorRef) kitsCom += item.quantity;
+                if (prodName.includes('DTP')) kitsDtp += item.quantity;
+                else if (hasSensorRef) kitsCom += item.quantity;
                 else kitsSem += item.quantity;
                 totalProdutos += item.quantity;
               } else {
@@ -405,6 +431,8 @@ const VendedoresControlPage: React.FC = () => {
         others,
         kitsComSensor: kitsCom || closing.details?.kitsComSensor || 0,
         kitsSemSensor: kitsSem || closing.details?.kitsSemSensor || 0,
+        kitsDtp: kitsDtp || closing.details?.kitsDtp || 0,
+        carenagem: carenagem || closing.details?.carenagem || 0,
         premios: premios || closing.details?.premios || 0
       };
 

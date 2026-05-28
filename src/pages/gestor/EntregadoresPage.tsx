@@ -615,6 +615,51 @@ const EntregadoresPage: React.FC = () => {
 
     const filteredPendingCount = React.useMemo(() => filtered.filter(g => !g.alreadyPickedUp).length, [filtered]);
     
+    // Contagem de kits por transportadora (Aguardando retirada)
+    const kitsPerCarrier = React.useMemo(() => {
+        const counts = new Map<string, number>();
+        const countedOrderIds = new Set<string>(); // Para evitar contagem duplicada de volumes do mesmo pedido
+        
+        groups.forEach(g => {
+            // Conta apenas se não foi retirado ainda (está pendente na tela)
+            if (g.alreadyPickedUp) return;
+            
+            let kitsInGroup = 0;
+            
+            const countKits = (orderId: string) => {
+                if (countedOrderIds.has(orderId)) return 0;
+                countedOrderIds.add(orderId);
+                
+                const order = orders.find(o => o.id === orderId);
+                if (!order) return 0;
+                let k = 0;
+                (order.items || []).forEach((item: any) => {
+                    const name = (item.product || item.name || '').toUpperCase();
+                    if (name.includes('KIT')) {
+                        k += Number(item.quantity || 1);
+                    }
+                });
+                return k;
+            };
+
+            // Somar os kits do pedido principal (se ainda não contados)
+            kitsInGroup += countKits(g.orderId);
+            
+            // Somar os kits dos pedidos unificados (se ainda não contados)
+            g.unifiedOrders?.forEach(uo => {
+                kitsInGroup += countKits(uo.id);
+            });
+
+            if (kitsInGroup > 0) {
+                const cName = (g.carrier || 'SEM TRANSPORTADORA').trim().toUpperCase();
+                const normalized = cName === 'CLEYTON' ? 'KLEYTON' : cName;
+                counts.set(normalized, (counts.get(normalized) || 0) + kitsInGroup);
+            }
+        });
+
+        return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+    }, [groups, orders]);
+
     // Contagem de volumes selecionados no lote (respeitando o filtro atual se desejado, 
     // mas aqui vamos mostrar o total selecionado no mapa para transparência)
     const selectedVolumesCount = React.useMemo(() => {
@@ -891,6 +936,28 @@ const EntregadoresPage: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Painel de Kits por Transportadora */}
+            {kitsPerCarrier.length > 0 && (
+                <div className="space-y-3">
+                    <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 flex items-center gap-2">
+                        <Package className="w-4 h-4 text-primary" /> Kits Aguardando Coleta por Transportadora
+                    </h2>
+                    <div className="flex gap-4 overflow-x-auto custom-scrollbar pb-3">
+                        {kitsPerCarrier.map(([carrier, count]) => (
+                            <div key={carrier} className="flex-shrink-0 flex items-center gap-4 p-5 rounded-[2rem] bg-white/60 backdrop-blur-md border border-border/20 shadow-sm min-w-[240px] hover:-translate-y-1 transition-transform">
+                                <div className="w-12 h-12 rounded-[1.25rem] bg-producao/10 flex items-center justify-center">
+                                    <Truck className="w-6 h-6 text-producao" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black uppercase text-muted-foreground tracking-widest">{carrier}</p>
+                                    <p className="text-2xl font-black text-foreground">{count} <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Kits</span></p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {success && (
                 <div className="flex items-center gap-4 p-5 rounded-[2rem] bg-success/10 border border-success/30 text-success animate-scale-in">

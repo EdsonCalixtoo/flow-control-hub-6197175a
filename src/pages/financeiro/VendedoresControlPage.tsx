@@ -380,7 +380,6 @@ const VendedoresControlPage: React.FC = () => {
       let kitsCom = 0;
       let kitsSem = 0;
       let kitsDtp = 0;
-      let estribos = 0;
       let carenagem = 0;
       let premios = 0;
       let others = 0;

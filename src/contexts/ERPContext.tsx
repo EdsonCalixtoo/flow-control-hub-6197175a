@@ -215,34 +215,100 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.log('[ERP] 📡 Status do canal Realtime (Orders):', status);
       });
 
-    // ── CONFIGURAÇÃO REALTIME (CLIENTS) ──────────────────
-    const clientChannel = supabase
-      .channel('erp_clients_realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', table: 'clients', schema: 'public' },
-        (payload) => {
-          console.log('[ERP] 🔔 Mudança detectada em Clientes (Realtime):', payload.eventType);
-          
-          if (payload.eventType === 'INSERT') {
-            const newClient = supabaseToClientClient(payload.new);
-            setClients(prev => {
-              if (prev.find(c => c.id === newClient.id)) return prev;
-              return [newClient, ...prev];
-            });
-          } else if (payload.eventType === 'UPDATE') {
-            const updatedClient = supabaseToClientClient(payload.new);
-            setClients(prev => prev.map(c => c.id === updatedClient.id ? updatedClient : c));
-          } else if (payload.eventType === 'DELETE') {
-            setClients(prev => prev.filter(c => c.id !== payload.old.id));
+      // ── CONFIGURAÇÃO REALTIME (CLIENTS) ──────────────────
+      const clientChannel = supabase
+        .channel('erp_clients_realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', table: 'clients', schema: 'public' },
+          (payload) => {
+            console.log('[ERP] 🔔 Mudança detectada em Clientes (Realtime):', payload.eventType);
+            
+            if (payload.eventType === 'INSERT') {
+              const newClient = supabaseToClientClient(payload.new);
+              setClients(prev => {
+                if (prev.find(c => c.id === newClient.id)) return prev;
+                return [newClient, ...prev];
+              });
+            } else if (payload.eventType === 'UPDATE') {
+              const updatedClient = supabaseToClientClient(payload.new);
+              setClients(prev => prev.map(c => c.id === updatedClient.id ? updatedClient : c));
+            } else if (payload.eventType === 'DELETE') {
+              setClients(prev => prev.filter(c => c.id !== payload.old.id));
+            }
           }
-        }
-      )
-      .subscribe((status) => {
-        console.log('[ERP] 📡 Status do canal Realtime (Clients):', status);
-      });
+        )
+        .subscribe((status) => {
+          console.log('[ERP] 📡 Status do canal Realtime (Clients):', status);
+        });
 
-    // ⚡ OTIMIZAÇÃO OBRIGATÓRIA: Removido o polling de 5 minutos.
+      // ── CONFIGURAÇÃO REALTIME (BARCODE SCANS) ──────────────────
+      const barcodeScansChannel = supabase
+        .channel('erp_barcode_scans_realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', table: 'barcode_scans', schema: 'public' },
+          (payload) => {
+            console.log('[ERP] 🔔 Mudança detectada em Barcode Scans (Realtime):', payload.eventType);
+            
+            if (payload.eventType === 'INSERT') {
+              const newScan = {
+                id: payload.new.id,
+                orderId: payload.new.order_id,
+                orderNumber: payload.new.order_number,
+                scannedBy: payload.new.scanned_by,
+                scannedAt: payload.new.created_at,
+                success: payload.new.success,
+                note: payload.new.note,
+              };
+              setBarcodeScans(prev => {
+                if (prev.find(s => s.id === newScan.id)) return prev;
+                return [newScan, ...prev];
+              });
+            } else if (payload.eventType === 'DELETE') {
+              setBarcodeScans(prev => prev.filter(s => s.id !== payload.old.id));
+            }
+          }
+        )
+        .subscribe((status) => {
+          console.log('[ERP] 📡 Status do canal Realtime (Barcode Scans):', status);
+        });
+
+      // ── CONFIGURAÇÃO REALTIME (DELIVERY PICKUPS) ──────────────────
+      const deliveryPickupsChannel = supabase
+        .channel('erp_delivery_pickups_realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', table: 'delivery_pickups', schema: 'public' },
+          (payload) => {
+            console.log('[ERP] 🔔 Mudança detectada em Delivery Pickups (Realtime):', payload.eventType);
+            
+            if (payload.eventType === 'INSERT') {
+              const newPickup = {
+                id: payload.new.id,
+                orderId: payload.new.order_id,
+                orderNumber: payload.new.order_number,
+                delivererName: payload.new.deliverer_name,
+                photoUrl: payload.new.photo_url,
+                signatureUrl: payload.new.signature_url,
+                pickedUpAt: payload.new.created_at,
+                batchId: payload.new.batch_id,
+                note: payload.new.note,
+              };
+              setDeliveryPickups(prev => {
+                if (prev.find(p => p.id === newPickup.id)) return prev;
+                return [newPickup, ...prev];
+              });
+            } else if (payload.eventType === 'DELETE') {
+              setDeliveryPickups(prev => prev.filter(p => p.id !== payload.old.id));
+            }
+          }
+        )
+        .subscribe((status) => {
+          console.log('[ERP] 📡 Status do canal Realtime (Delivery Pickups):', status);
+        });
+
+      // ⚡ OTIMIZAÇÃO OBRIGATÓRIA: Removido o polling de 5 minutos.
     // O Realtime já escuta mudanças na nuvem e o polling massivo estava 
     // estourando os limites de Egress da conta do Supabase!
     // const interval = setInterval(() => {

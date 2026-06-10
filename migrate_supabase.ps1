@@ -1,6 +1,6 @@
 # SCRIPT DE MIGRAÇÃO PROFISSIONAL SUPABASE (PowerShell) - VERSÃO LIMPA
-$SOURCE_URL = "postgresql://postgres:lICANTROPOS1324%40@db.wezxkgeaaddmpmijudjt.supabase.co:5432/postgres"
-$TARGET_URL = "postgresql://postgres:lICANTROPOS1324%40@db.iyjvaizmeimwxatdhnne.supabase.co:5432/postgres"
+$SOURCE_URL = "postgresql://postgres.glcgtnopotluvppsygyl:lICANTROPOS1324%40@aws-1-sa-east-1.pooler.supabase.com:5432/postgres"
+$TARGET_URL = "postgresql://postgres:lICANTROPOS1324%40@db.kugqvgktumkebcyuymcx.supabase.co:5432/postgres"
 $DUMP_FILE = "supabase_dump.sql"
 
 Write-Host "--- Iniciando Migracao Supabase ---" -ForegroundColor Cyan

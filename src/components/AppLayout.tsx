@@ -85,20 +85,11 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: 
     { label: 'Atrasados', icon: AlertTriangle, path: '/producao_carenagem/pedidos?tipo=atrasado' },
   ],
   admin: [
-    { label: 'Gestão Vendas', icon: LayoutDashboard, path: '/gestor' },
-    { label: 'Clientes', icon: Users, path: '/vendedor/clientes' },
-    { label: 'Orçamentos', icon: FileText, path: '/vendedor/orcamentos' },
-    { label: 'Garantias', icon: ShieldAlert, path: '/vendedor/garantias' },
+    { label: 'Painel Admin', icon: LayoutDashboard, path: '/admin' },
+    { label: 'Clientes & Pedidos', icon: Users, path: '/vendedor/clientes' },
     { label: 'Financeiro', icon: DollarSign, path: '/financeiro' },
-    { label: 'Fluxo Caixa', icon: TrendingUp, path: '/financeiro/fluxo' },
-    { label: 'Produção', icon: Factory, path: '/producao/pedidos' },
-    { label: 'Entregadores', icon: Truck, path: '/gestor/entregadores' },
-    { label: 'Calendário', icon: Calendar, path: '/vendedor/calendario' },
-    { label: 'Relatórios', icon: BarChart3, path: '/gestor/relatorios' },
-    { label: 'Produtos/Estoque', icon: Package, path: '/gestor/produtos' },
+    { label: 'Operações', icon: Factory, path: '/producao/pedidos' },
     { label: 'Administrador TI', icon: Wrench, path: '/admin/ti' },
-    { label: 'Gestão de Usuários', icon: Users, path: '/admin/usuarios' },
-    { label: 'Logs de Auditoria', icon: History, path: '/admin/logs' },
   ],
 };
 

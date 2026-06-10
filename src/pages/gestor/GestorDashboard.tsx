@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatCard, StatusBadge, formatCurrency, formatDate } from '@/components/shared/StatusBadge';
-import { LayoutDashboard, FileText, ShoppingCart, Factory, CheckCircle, AlertTriangle, Package, Send, Truck, Wrench, Calendar, Bell, X, ExternalLink, RotateCcw, Bug, ClipboardList, Plus, ShieldCheck, XCircle, History as HistoryIcon, Share2, Download } from 'lucide-react';
+import { LayoutDashboard, FileText, ShoppingCart, Factory, CheckCircle, AlertTriangle, Package, Send, Truck, Wrench, Calendar, Bell, X, ExternalLink, RotateCcw, Bug, ClipboardList, Plus, ShieldCheck, XCircle, History as HistoryIcon, Share2, Download, Database, ShieldAlert, Activity } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import type { Order, OrderStatus, ProductionError } from '@/types/erp';

@@ -75,22 +75,115 @@ const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Grid de Atalhos */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {menuItems.map((item, idx) => (
-          <button
-            key={idx}
-            onClick={() => navigate(item.path)}
-            className="group relative overflow-hidden bg-card hover:bg-muted/50 border border-border/50 rounded-3xl p-6 text-left transition-all duration-300 hover:shadow-2xl hover:shadow-primary/5 hover:-translate-y-1"
-          >
-            <div className={`w-12 h-12 rounded-2xl ${item.color} flex items-center justify-center text-white mb-4 shadow-lg transition-transform group-hover:scale-110 group-hover:rotate-3`}>
-              <item.icon className="w-6 h-6" />
-            </div>
-            <h3 className="font-black text-foreground uppercase tracking-tight text-sm mb-1">{item.label}</h3>
-            <p className="text-xs text-muted-foreground font-medium">{item.desc}</p>
-            <ArrowRight className="absolute bottom-6 right-6 w-5 h-5 text-muted-foreground/30 group-hover:text-primary group-hover:translate-x-1 transition-all" />
-          </button>
-        ))}
+      {/* Grupos de Atalhos */}
+      <div className="space-y-8">
+        
+        {/* Gestão Comercial & Clientes */}
+        <div>
+          <h2 className="text-xs font-black uppercase text-muted-foreground tracking-widest mb-4 flex items-center gap-2">
+            <Users className="w-4 h-4" /> Comercial & Clientes
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              { label: 'Base de Clientes', icon: Users, path: '/vendedor/clientes', color: 'bg-blue-600', desc: 'Ver todos os clientes, editar perfis, resgatar prêmios' },
+              { label: 'Orçamentos & Vendas', icon: ShoppingCart, path: '/vendedor/orcamentos', color: 'bg-indigo-600', desc: 'Ver todos orçamentos, aprovar descontos' },
+              { label: 'Corretor de Pedidos', icon: Wrench, path: '/gestor/corrigir-pedido', color: 'bg-purple-600', desc: 'Editar, corrigir e unificar pedidos errados' },
+            ].map((item, idx) => (
+              <button
+                key={idx}
+                onClick={() => navigate(item.path)}
+                className="group relative overflow-hidden bg-card hover:bg-muted/30 border border-border/50 rounded-3xl p-6 text-left transition-all duration-300 hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1"
+              >
+                <div className={`w-12 h-12 rounded-2xl ${item.color} flex items-center justify-center text-white mb-4 shadow-lg transition-transform group-hover:scale-110 group-hover:rotate-3`}>
+                  <item.icon className="w-6 h-6" />
+                </div>
+                <h3 className="font-black text-foreground uppercase tracking-tight text-sm mb-1">{item.label}</h3>
+                <p className="text-xs text-muted-foreground font-medium leading-relaxed">{item.desc}</p>
+                <ArrowRight className="absolute bottom-6 right-6 w-5 h-5 text-muted-foreground/20 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Operações & Produção */}
+        <div>
+          <h2 className="text-xs font-black uppercase text-muted-foreground tracking-widest mb-4 flex items-center gap-2">
+            <Factory className="w-4 h-4" /> Operações & Fábrica
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              { label: 'Controle de Produção', icon: Factory, path: '/producao/pedidos', color: 'bg-orange-500', desc: 'Acompanhar fabricação, atualizar status' },
+              { label: 'Entregadores & Logística', icon: Truck, path: '/gestor/entregadores', color: 'bg-emerald-600', desc: 'Gerenciar motoboys, rotas e coletas' },
+              { label: 'Gestão de Rastreios', icon: Package, path: '/admin/rastreio', color: 'bg-teal-600', desc: 'Criar códigos e atualizar status de entrega' },
+            ].map((item, idx) => (
+              <button
+                key={idx}
+                onClick={() => navigate(item.path)}
+                className="group relative overflow-hidden bg-card hover:bg-muted/30 border border-border/50 rounded-3xl p-6 text-left transition-all duration-300 hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1"
+              >
+                <div className={`w-12 h-12 rounded-2xl ${item.color} flex items-center justify-center text-white mb-4 shadow-lg transition-transform group-hover:scale-110 group-hover:rotate-3`}>
+                  <item.icon className="w-6 h-6" />
+                </div>
+                <h3 className="font-black text-foreground uppercase tracking-tight text-sm mb-1">{item.label}</h3>
+                <p className="text-xs text-muted-foreground font-medium leading-relaxed">{item.desc}</p>
+                <ArrowRight className="absolute bottom-6 right-6 w-5 h-5 text-muted-foreground/20 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Financeiro & Relatórios */}
+        <div>
+          <h2 className="text-xs font-black uppercase text-muted-foreground tracking-widest mb-4 flex items-center gap-2">
+            <DollarSign className="w-4 h-4" /> Gestão Corporativa
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[
+              { label: 'Painel Financeiro', icon: DollarSign, path: '/financeiro', color: 'bg-emerald-500', desc: 'Contas a pagar, fluxo de caixa e aprovações' },
+              { label: 'Relatórios Gerenciais', icon: BarChart3, path: '/gestor/relatorios', color: 'bg-blue-500', desc: 'Métricas, faturamento e performance' },
+              { label: 'Produtos & Estoque', icon: Package, path: '/gestor/produtos', color: 'bg-slate-700', desc: 'Criar e editar os produtos do sistema' },
+            ].map((item, idx) => (
+              <button
+                key={idx}
+                onClick={() => navigate(item.path)}
+                className="group relative overflow-hidden bg-card hover:bg-muted/30 border border-border/50 rounded-3xl p-6 text-left transition-all duration-300 hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1"
+              >
+                <div className={`w-12 h-12 rounded-2xl ${item.color} flex items-center justify-center text-white mb-4 shadow-lg transition-transform group-hover:scale-110 group-hover:rotate-3`}>
+                  <item.icon className="w-6 h-6" />
+                </div>
+                <h3 className="font-black text-foreground uppercase tracking-tight text-sm mb-1">{item.label}</h3>
+                <p className="text-xs text-muted-foreground font-medium leading-relaxed">{item.desc}</p>
+                <ArrowRight className="absolute bottom-6 right-6 w-5 h-5 text-muted-foreground/20 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* TI & Infra */}
+        <div>
+          <h2 className="text-xs font-black uppercase text-muted-foreground tracking-widest mb-4 flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4" /> Infraestrutura e Sistema
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4">
+            {[
+              { label: 'Administrador T.I', icon: Settings, path: '/admin/ti', color: 'bg-slate-900', desc: 'Central de Saúde, Backups e Ferramentas' },
+              { label: 'Gestão de Usuários', icon: ShieldCheck, path: '/admin/usuarios', color: 'bg-slate-800', desc: 'Acessos, senhas e cargos (Vendedor, Financeiro...)' },
+            ].map((item, idx) => (
+              <button
+                key={idx}
+                onClick={() => navigate(item.path)}
+                className="group relative overflow-hidden bg-card hover:bg-muted/30 border border-border/50 rounded-3xl p-6 text-left transition-all duration-300 hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1"
+              >
+                <div className={`w-12 h-12 rounded-2xl ${item.color} flex items-center justify-center text-white mb-4 shadow-lg transition-transform group-hover:scale-110 group-hover:rotate-3`}>
+                  <item.icon className="w-6 h-6" />
+                </div>
+                <h3 className="font-black text-foreground uppercase tracking-tight text-sm mb-1">{item.label}</h3>
+                <p className="text-xs text-muted-foreground font-medium leading-relaxed">{item.desc}</p>
+                <ArrowRight className="absolute bottom-6 right-6 w-5 h-5 text-muted-foreground/20 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

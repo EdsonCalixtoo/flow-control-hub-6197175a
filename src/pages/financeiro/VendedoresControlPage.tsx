@@ -856,6 +856,8 @@ const VendedoresControlPage: React.FC = () => {
                                     outstandingValue: closing.outstandingValue,
                                     kitsComSensor: closing.details?.kitsComSensor || 0,
                                     kitsSemSensor: closing.details?.kitsSemSensor || 0,
+                                    kitsDtp: closing.details?.kitsDtp || 0,
+                                    carenagem: closing.details?.carenagem || 0,
                                     premios: closing.details?.premios || 0,
                                     totalProducts: closing.details?.totalItems || 0,
                                     estribos: closing.details?.estribos || 0,

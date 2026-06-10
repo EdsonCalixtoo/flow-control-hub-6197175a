@@ -706,10 +706,12 @@ ${etiquetasHtml}
     }, finishedBy, isFieldWork ? 'Produção finalizada e liberada para o campo' : 'Producao finalizada');
 
     if (!isFieldWork) {
-      toast.success('Produção finalizada! Escaneie o código de barras agora para enviar aos entregadores.', {
-        duration: 5000,
+      toast.success('Produção finalizada! Preparando impressão de etiqueta...', {
+        duration: 3000,
         icon: '🚀'
       });
+      // Em vez de só setGuia(orderId), vamos chamar printEtiqueta automaticamente
+      printEtiqueta(order);
     }
 
     setGuia(orderId);
@@ -2465,26 +2467,27 @@ ${etiquetasHtml}
             <p className="text-sm text-muted-foreground mt-2 font-medium">Aguardando novos fluxos da fábrica ou critérios de busca</p>
           </div>
         ) : (
-          <div className="space-y-12 mt-4">
-            {Object.entries(groupedOrders).map(([clientName, clientOrders]) => (
-              <div key={clientName} className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-700">
-                <div className="flex items-center justify-between group/header cursor-default px-2">
-                  <div className="flex items-center gap-5">
-                    <div className={`w-2 h-10 bg-gradient-to-b ${mainGradient} rounded-full shadow-lg ${mainShadow}`} />
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mt-4 items-start">
+            {[
+              { id: 'aguardando', title: 'Fila de Espera', icon: Clock, bg: 'bg-warning', bgIcon: 'bg-warning/20', text: 'text-amber-600', orders: filteredOrders.filter(o => o.status === 'aguardando_producao' || o.status === 'planejamento') },
+              { id: 'producao', title: 'Em Produção', icon: Play, bg: 'bg-producao', bgIcon: 'bg-producao', text: 'text-white', orders: filteredOrders.filter(o => o.status === 'em_producao') },
+              { id: 'concluido', title: 'Finalizados', icon: CheckCircle, bg: 'bg-success', bgIcon: 'bg-success', text: 'text-white', orders: filteredOrders.filter(o => ['producao_finalizada', 'produto_liberado', 'retirado_entregador'].includes(o.status)) }
+            ].map(col => (
+              <div key={col.id} className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-4 duration-700">
+                <div className="flex items-center justify-between bg-card border border-border/50 p-4 rounded-[2rem] shadow-sm">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-12 h-12 rounded-[1.2rem] ${col.bgIcon} ${col.text} flex items-center justify-center shadow-inner`}>
+                      <col.icon className="w-5 h-5" />
+                    </div>
                     <div>
-                      <h2 className="text-xl font-black text-foreground uppercase tracking-tight leading-none group-hover/header:text-primary transition-colors">{clientName}</h2>
-                      <div className="flex items-center gap-3 mt-1.5">
-                        <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.1em] flex items-center gap-2">
-                          Linha de Montagem • <span className="text-primary">{clientOrders.length} {clientOrders.length === 1 ? 'Pedido' : 'Pedidos'} em fila</span>
-                        </p>
-                      </div>
+                      <h3 className="font-black text-foreground uppercase tracking-wider text-sm">{col.title}</h3>
+                      <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-widest">{col.orders.length} pedidos na fila</p>
                     </div>
                   </div>
-                  <div className="hidden lg:block h-px flex-1 bg-gradient-to-r from-border/40 to-transparent ml-12" />
                 </div>
 
-                <div className="grid grid-cols-1 gap-5 ml-2 border-l border-border/20 pl-6 stagger-children">
-                  {clientOrders.map(order => {
+                <div className="flex flex-col gap-4 stagger-children">
+                  {col.orders.map(order => {
                     const late = isLate(order);
                     const scheduled = isScheduled(order);
                     const isPlanning = order.status === 'planejamento';

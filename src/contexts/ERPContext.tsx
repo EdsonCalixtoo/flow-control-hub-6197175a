@@ -242,16 +242,16 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.log('[ERP] 📡 Status do canal Realtime (Clients):', status);
       });
 
-    const interval = setInterval(() => {
-      // ⚡ OTIMIZAÇÃO: Polling de segurança aumentado para 5 minutos (300.000ms)
-      // O Realtime já cuida de atualizações imediatas de pedidos.
-      // O polling serve apenas como fallback para inconsistências.
-      console.log('[ERP] 🔄 Polling de segurança (refetch de 5 min)...');
-      loadFromSupabase();
-    }, 300000);
+    // ⚡ OTIMIZAÇÃO OBRIGATÓRIA: Removido o polling de 5 minutos.
+    // O Realtime já escuta mudanças na nuvem e o polling massivo estava 
+    // estourando os limites de Egress da conta do Supabase!
+    // const interval = setInterval(() => {
+    //   console.log('[ERP] 🔄 Polling de segurança desativado para economizar Egress.');
+    //   // loadFromSupabase();
+    // }, 300000);
 
     return () => {
-      clearInterval(interval);
+      // clearInterval(interval);
       supabase.removeChannel(channel);
       supabase.removeChannel(clientChannel);
     };

@@ -64,10 +64,12 @@ const ProducaoDashboard: React.FC = () => {
   const aguardando = prodOrders.filter(o => o.status === 'aguardando_producao').length;
   const emProducao = prodOrders.filter(o => o.status === 'em_producao').length;
   
-  // Finalizados hoje (baseado em scans de sucesso hoje)
-  const finalizadosHoje = useMemo(() => {
-    return barcodeScans.filter(s => s.scannedAt && s.scannedAt.startsWith(todayStr) && s.success).length;
-  }, [barcodeScans, todayStr]);
+  const currentMonthPrefix = todayStr.substring(0, 7); // yyyy-mm
+  
+  // Finalizados no mês (baseado em scans de sucesso no mês atual)
+  const finalizadosMes = useMemo(() => {
+    return barcodeScans.filter(s => s.scannedAt && s.scannedAt.startsWith(currentMonthPrefix) && s.success).length;
+  }, [barcodeScans, currentMonthPrefix]);
 
   const atrasadosCount = prodOrders.filter(o => {
     const dStr = o.deliveryDate || '';
@@ -185,9 +187,16 @@ const ProducaoDashboard: React.FC = () => {
             </div>
             <div className="relative z-10">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-1">Finalizados</p>
-              <h3 className="text-3xl font-black text-foreground">{finalizadosHoje}</h3>
-              <div className="flex items-center gap-1.5 mt-2 text-[10px] font-bold text-success/80">
-                <ArrowUpRight className="w-3.5 h-3.5" /> HOJE
+              <h3 className="text-3xl font-black text-foreground">{finalizadosMes}</h3>
+              <div className="flex flex-col gap-1 mt-2">
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-success/80">
+                  <ArrowUpRight className="w-3.5 h-3.5" /> MÊS ATUAL
+                </div>
+                {recentScans.length > 0 && (
+                  <div className="text-[9px] font-black text-muted-foreground uppercase tracking-widest bg-muted/30 px-2 py-1 rounded-lg inline-flex w-fit mt-1">
+                    ÚLTIMO SCANEADO: #{recentScans[0].orderNumber}
+                  </div>
+                )}
               </div>
             </div>
           </div>

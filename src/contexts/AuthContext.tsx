@@ -48,19 +48,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const ADMIN_EMAILS = ['juninho.caxto@gmail.com', 'edsoncalixto@gmail.com']; // Adicione outros se precisar
       const isHardcodedAdmin = authUser.email && ADMIN_EMAILS.includes(authUser.email.toLowerCase());
+      const isHardcodedFinanceiro = authUser.email && authUser.email.toLowerCase() === 'financeiro@automatiza.com';
+      const isHardcodedCarenagem = authUser.email && authUser.email.toLowerCase() === 'issacmarques3@gmail.com';
 
       const appUser: User = userData
         ? {
             id: userData.id,
             email: userData.email,
             name: userData.name,
-            role: (isHardcodedAdmin ? 'admin' : (userData.role || 'vendedor')) as User['role'],
+            role: (isHardcodedAdmin ? 'admin' : isHardcodedFinanceiro ? 'financeiro' : isHardcodedCarenagem ? 'producao_carenagem' : (userData.role || 'vendedor')) as User['role'],
           }
         : {
             id: authUser.id,
             email: authUser.email || '',
             name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || 'Usuário',
-            role: (isHardcodedAdmin ? 'admin' : (authUser.user_metadata?.role || 'vendedor')) as User['role'],
+            role: (isHardcodedAdmin ? 'admin' : isHardcodedFinanceiro ? 'financeiro' : isHardcodedCarenagem ? 'producao_carenagem' : (authUser.user_metadata?.role || 'vendedor')) as User['role'],
           };
 
       currentUserIdRef.current = appUser.id;

@@ -649,6 +649,13 @@ ${etiquetasHtml}
 
         // Ordena os pedidos filtrados para que "em_producao" fique sempre no topo
         const sortedOrders = [...ordersToProcess].sort((a, b) => {
+            if (isHistorico) {
+                // No histórico, os mais recentemente finalizados/atualizados ficam no topo
+                const aTime = a.productionFinishedAt || a.updatedAt || a.createdAt;
+                const bTime = b.productionFinishedAt || b.updatedAt || b.createdAt;
+                return new Date(bTime).getTime() - new Date(aTime).getTime();
+            }
+
             if (a.status === 'em_producao' && b.status !== 'em_producao') return -1;
             if (b.status === 'em_producao' && a.status !== 'em_producao') return 1;
             // Desempate por prioridade (garantias/atrasados)
@@ -2838,9 +2845,13 @@ ${etiquetasHtml}
                                                 if (e.key === 'Enter' && scanInput.trim()) {
                                                     const code = scanInput.trim().toUpperCase();
                                                     const cleanCode = code.replace(/[-.]/g, '');
+                                                    const orderNumNumberOnly = orderForPrint.number.replace(/[^0-9]/g, '');
+                                                    const scannedNumberOnly = code.replace(/[^0-9]/g, '');
+                                                    
                                                     const isMatch = 
                                                         orderForPrint.number.toUpperCase() === code || 
-                                                        orderForPrint.number.toUpperCase().replace(/[-.]/g, '') === cleanCode;
+                                                        orderForPrint.number.toUpperCase().replace(/[-.]/g, '') === cleanCode ||
+                                                        (orderNumNumberOnly === scannedNumberOnly && scannedNumberOnly.length > 0);
                                                     
                                                     if (isMatch) {
                                                         const vols = parseInt(printVolumesInput) || 1;

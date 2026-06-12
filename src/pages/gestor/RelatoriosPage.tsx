@@ -1,7 +1,7 @@
 import React from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { formatCurrency, StatusBadge } from '@/components/shared/StatusBadge';
-import { Truck, Package, User, Camera, PenLine, ClipboardList, RefreshCw, Trophy, Loader2, Calendar, Search, Trash2, Edit2, Check, X } from 'lucide-react';
+import { Truck, Package, User, Camera, PenLine, ClipboardList, RefreshCw, Trophy, Loader2, Calendar, Search, Trash2, Edit2, Check, X, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { updateClientRewardsAuto } from '@/lib/rewardServiceSupabase';
 import { toast } from 'sonner';
@@ -18,7 +18,7 @@ import {
 
 const RelatoriosPage: React.FC = () => {
   const { user } = useAuth();
-  const { financialEntries, orders: contextOrders, deliveryPickups: contextPickups } = useERP();
+  const { financialEntries, orders: contextOrders, deliveryPickups: contextPickups, updateOrderStatus } = useERP();
   const [deepOrders, setDeepOrders] = React.useState<Order[]>([]);
   const [deepPickups, setDeepPickups] = React.useState<DeliveryPickup[]>([]);
   const [loadingDeep, setLoadingDeep] = React.useState(false);
@@ -156,6 +156,8 @@ const RelatoriosPage: React.FC = () => {
   const [selectedCarrier, setSelectedCarrier] = React.useState('TODOS');
   const [dateRange, setDateRange] = React.useState<'hoje' | 'semana' | 'mes' | 'todos'>('todos');
   const [selectedBatchId, setSelectedBatchId] = React.useState<string | null>(null);
+  const [newOrderNumberToAdd, setNewOrderNumberToAdd] = React.useState('');
+  const [addingOrderToBatch, setAddingOrderToBatch] = React.useState(false);
 
   // Obtém lista de transportadoras para o filtro
   const carriersList = React.useMemo(() => {
@@ -415,6 +417,64 @@ const RelatoriosPage: React.FC = () => {
       toast.error('Erro ao excluir retirada: ' + err.message);
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const handleAddOrderToBatch = async (batch: any) => {
+    if (!newOrderNumberToAdd.trim()) return;
+    setAddingOrderToBatch(true);
+    try {
+      const orderNumber = newOrderNumberToAdd.trim().replace(/^PED-/i, '');
+      const order = allOrders.find(o => o.number === `PED-${orderNumber}` || o.number === orderNumber);
+      
+      let orderId = order?.id;
+      let fullOrderNumber = order?.number || `PED-${orderNumber}`;
+
+      if (!orderId) {
+         // Tentar buscar no supabase
+         const { data, error } = await supabase.from('orders').select('id, number, status_history').ilike('number', `%${orderNumber}%`).single();
+         if (error || !data) throw new Error('Pedido não encontrado no banco');
+         orderId = data.id;
+         fullOrderNumber = data.number;
+      }
+
+      // Check se já existe na retirada atual (para não duplicar no DB)
+      const existingPickup = allPickups.find(p => p.orderId === orderId && p.batchId === batch.id);
+      if (existingPickup) throw new Error('Este pedido já está neste lote!');
+
+      const { error: pickupError } = await supabase.from('delivery_pickups').insert({
+         id: crypto.randomUUID(),
+         order_id: orderId,
+         order_number: fullOrderNumber,
+         deliverer_name: batch.delivererName,
+         photo_url: batch.photoUrl,
+         signature_url: batch.signatureUrl,
+         batch_id: batch.id,
+         note: 'Adicionado manualmente pelo Admin no relatório',
+         created_at: new Date(batch.date).toISOString(),
+         picked_up_at: new Date(batch.date).toISOString()
+      });
+
+      if (pickupError) {
+         console.error('Erro no Supabase:', pickupError);
+         throw new Error(`Erro do banco de dados: ${pickupError.message}`);
+      }
+
+      await updateOrderStatus(
+          orderId,
+          'retirado_entregador',
+          undefined,
+          user?.name || 'Admin',
+          `Retirada registrada manualmente (Lote: ${batch.id.replace('RESGATADO-', '').replace('SINGLE-', '')})`
+      );
+
+      toast.success('Pedido adicionado ao lote com sucesso!');
+      setNewOrderNumberToAdd('');
+      fetchDeepData();
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao adicionar pedido');
+    } finally {
+      setAddingOrderToBatch(false);
     }
   };
 
@@ -788,7 +848,26 @@ const RelatoriosPage: React.FC = () => {
                    <div className="grid grid-cols-1 gap-6">
                       {/* Grid de Pedidos */}
                       <div className="space-y-4">
-                         <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Listagem Completa de Pedidos</h3>
+                         <div className="flex items-center justify-between mb-2">
+                             <h3 className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em]">Listagem Completa de Pedidos</h3>
+                             <div className="flex items-center gap-2">
+                                <input 
+                                   type="text"
+                                   placeholder="Adicionar pedido (ex: 8629)"
+                                   value={newOrderNumberToAdd}
+                                   onChange={e => setNewOrderNumberToAdd(e.target.value)}
+                                   className="bg-white/50 border border-border/40 rounded-lg px-3 py-1.5 text-xs font-black focus:outline-none focus:ring-1 focus:ring-primary w-48"
+                                />
+                                <button 
+                                   onClick={() => handleAddOrderToBatch(selectedBatch)}
+                                   disabled={addingOrderToBatch || !newOrderNumberToAdd.trim()}
+                                   className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 text-xs font-black uppercase tracking-wider flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                                >
+                                   {addingOrderToBatch ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                                   Adicionar
+                                </button>
+                             </div>
+                         </div>
                          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                             {selectedBatch.orders.map(o => {
                                const orderInfo = allOrders.find(ao => ao.id === o.id || ao.number === o.number || (o.number && ao.number === o.number.replace('PED-', '')));

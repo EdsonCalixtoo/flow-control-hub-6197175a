@@ -28,14 +28,35 @@ export const fetchFinancialEntries = async (): Promise<FinancialEntry[]> => {
     try {
         // 🚨 EMERGÊNCIA: Removemos colunas pesadas (receipts) do fetch de listagem do financeiro
         // Os comprovantes devem ser carregados individualmente quando necessário para economizar egress.
-        const BASIC_FINANCIAL_COLUMNS = 'id, order_id, order_number, client_id, client_name, amount, type, category, description, status, payment_method, due_date, paid_at, transaction_id, card_last_digits, created_at, receipt_url, receipt_urls';
+        const BASIC_FINANCIAL_COLUMNS = 'id, order_id, order_number, client_id, client_name, amount, type, category, description, status, payment_method, due_date, paid_at, transaction_id, card_last_digits, created_at';
 
-        const { data, error } = await supabase.from('financial_entries')
-            .select(BASIC_FINANCIAL_COLUMNS)
-            .order('created_at', { ascending: false })
-            .limit(2000); // Reduzido de 5000 para 2000
-        if (error) throw error;
-        return (data || []).map(supabaseToFinancial);
+        let allData: any[] = [];
+        let from = 0;
+        const step = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+            const { data, error } = await supabase.from('financial_entries')
+                .select(BASIC_FINANCIAL_COLUMNS)
+                .order('created_at', { ascending: false })
+                .range(from, from + step - 1);
+
+            if (error) throw error;
+
+            if (data && data.length > 0) {
+                allData = [...allData, ...data];
+                from += step;
+                if (data.length < step) hasMore = false; // Última página
+            } else {
+                hasMore = false;
+            }
+
+            // Trava de segurança para não rodar infinito e explodir a RAM
+            if (allData.length >= 50000) hasMore = false;
+        }
+
+        console.log(`[Financial] Total de registros puxados com paginação: ${allData.length}`);
+        return allData.map(supabaseToFinancial);
     } catch (err: any) {
         console.error('[Financial] Erro ao buscar lançamentos:', err.message);
         return [];

@@ -24,12 +24,12 @@ const VendedorDashboard: React.FC = () => {
   const getSaldoDevedor = (orderId: string, orderTotal: number, paymentStatus?: string, orderNumber?: string) => {
     if (paymentStatus?.toLowerCase() === 'pago') return 0;
     const cleanNum = (n: string) => n.replace('#', '').trim().toLowerCase();
-    const targetNum = orderNumber ? cleanNum(orderNumber) : null;
-
+    const orderNumStr = orderNumber ? cleanNum(orderNumber) : null;
+    
     const pagos = financialEntries
       .filter(e => {
         const matchesId = e.orderId === orderId;
-        const matchesNumber = targetNum && e.orderNumber && cleanNum(e.orderNumber) === targetNum;
+        const matchesNumber = orderNumStr && e.orderNumber && cleanNum(e.orderNumber) === orderNumStr;
         const isReceita = e.type?.toLowerCase() === 'receita';
         const isNotCancelled = e.status?.toLowerCase() !== 'cancelado';
         return (matchesId || matchesNumber) && isReceita && isNotCancelled;

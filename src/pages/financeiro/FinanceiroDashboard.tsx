@@ -344,7 +344,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
 
   // Pedidos de clientes consignados que ainda possuem saldo devedor
   const consignadosOrders = useMemo(() => ordersVisiveisFinanceiro.filter(o => {
-    const isConsigned = o.isConsigned !== undefined ? o.isConsigned : clients.find(c => c.id === o.clientId || c.name === o.clientName)?.consignado === true;
+    const isConsigned = o.isConsigned === true || clients.find(c => c.id === o.clientId || c.name === o.clientName)?.consignado === true;
     if (!isConsigned) return false;
     
     // Filtro crucial: SÓ mostra se ainda houver saldo devedor relevante ou novos comprovantes pendentes de análise
@@ -593,7 +593,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
     const client = clients.find(c => c.id === order.clientId);
     // IMPORTANTE: Se o cliente não for encontrado por ID, tenta por nome como fallback
     const actualClient = client || clients.find(c => c.name === order.clientName);
-    const isConsignado = actualClient?.consignado === true;
+    const isConsignado = order.isConsigned === true || actualClient?.consignado === true;
     
     if (order.isWarranty) {
       // ✅ Pedidos de GARANTIA: Financeiro aprova e envia para o GESTOR (conforme fluxograma)

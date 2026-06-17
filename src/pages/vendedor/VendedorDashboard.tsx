@@ -99,6 +99,12 @@ const VendedorDashboard: React.FC = () => {
     (!o.isWarranty ? (o.total > 0 || (o.items && o.items.some(item => item.isReward))) : true)
   ), [myOrders]);
 
+  // ✅ Filtro abrangente de dívidas (Idêntico ao do Financeiro) para garantir que os valores batam exatamente
+  const ordersParaDividas = useMemo(() => myOrders.filter(o => 
+    STATUS_VISIVEL_FINANCEIRO.includes(o.status) &&
+    o.status !== 'rejeitado_financeiro'
+  ), [myOrders]);
+
   // Vendas que contam para a performance (apenas pedidos APÓS o último fechamento)
   const myCurrentCycleOrders = useMemo(() => myRealOrders.filter(o => 
     !lastClosing || new Date(o.createdAt) > lastClosing
@@ -147,7 +153,7 @@ const VendedorDashboard: React.FC = () => {
   const clientesComDividas = useMemo(() => {
     const map = new Map<string, { clientId: string; name: string; totalDebt: number; totalPaid: number; ordersCount: number; isConsigned: boolean }>();
 
-    myRealOrders.forEach(o => {
+    ordersParaDividas.forEach(o => {
       // ✅ Usa exatamente a mesma lógica do financeiro para saldo
       const saldo = getSaldoDevedor(o.id, o.total, o.paymentStatus, o.number);
       const pago = o.total - saldo;
@@ -171,7 +177,7 @@ const VendedorDashboard: React.FC = () => {
     });
 
     return Array.from(map.values()).sort((a, b) => b.totalDebt - a.totalDebt);
-  }, [myRealOrders, financialEntries, clients]);
+  }, [ordersParaDividas, financialEntries, clients]);
 
   // ✅ LISTAS (Não respeitam o ciclo, mostram tudo para controle do vendedor)
   const pedidosRecentes = useMemo(() => myOrders
@@ -485,7 +491,7 @@ const VendedorDashboard: React.FC = () => {
             <div className="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar space-y-4">
               <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Selecione o pedido pendente:</p>
               
-              {myRealOrders
+              {ordersParaDividas
                 .filter(o => o.clientId === selectedClientOrders.clientId && getSaldoDevedor(o.id, o.total, o.paymentStatus, o.number) > 0)
                 .map(order => {
                   const saldo = getSaldoDevedor(order.id, order.total, order.paymentStatus, order.number);

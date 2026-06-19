@@ -120,12 +120,12 @@ export const fetchOrders = async (role?: string, userId?: string): Promise<Order
         fourMonthsAgo.setDate(fourMonthsAgo.getDate() - 120);
         const minDate = fourMonthsAgo.toISOString();
 
-        // 🔥 OTIMIZAÇÃO: Limitamos a 1000 e usamos colunas de lista
+        // 🔥 OTIMIZAÇÃO: Limitamos a 2000 e usamos colunas de lista
         let query = supabase.from('orders')
             .select(LIST_ORDER_COLUMNS)
             .gte('created_at', minDate)
             .order('created_at', { ascending: false })
-            .limit(1000);
+            .limit(2000);
 
         const isExempt = session?.user?.email === 'ericasousa@gmail.com' || session?.user?.email === 'juninho.caxto@gmail.com';
         if (currentRole === 'vendedor' && currentUserId && !isExempt) {

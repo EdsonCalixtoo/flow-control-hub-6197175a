@@ -120,20 +120,32 @@ export const fetchOrders = async (role?: string, userId?: string): Promise<Order
         fourMonthsAgo.setDate(fourMonthsAgo.getDate() - 120);
         const minDate = fourMonthsAgo.toISOString();
 
-        // 🔥 OTIMIZAÇÃO: Limitamos a 2000 e usamos colunas de lista
-        let query = supabase.from('orders')
-            .select(LIST_ORDER_COLUMNS)
-            .gte('created_at', minDate)
-            .order('created_at', { ascending: false })
-            .limit(2000);
-
+        // 🔥 OTIMIZAÇÃO: Como o Supabase limita a 1000 linhas por query (max_rows), 
+        // buscamos em dois chunks para garantir até 2000 pedidos.
         const isExempt = session?.user?.email === 'ericasousa@gmail.com' || session?.user?.email === 'juninho.caxto@gmail.com';
-        if (currentRole === 'vendedor' && currentUserId && !isExempt) {
-            query = query.eq('seller_id', currentUserId);
-        }
-        const { data, error } = await query;
-        if (error) throw error;
-        return (data || []).map(supabaseToOrder);
+        
+        const buildQuery = (start: number, end: number) => {
+            let q = supabase.from('orders')
+                .select(LIST_ORDER_COLUMNS)
+                .gte('created_at', minDate)
+                .order('created_at', { ascending: false })
+                .range(start, end);
+            if (currentRole === 'vendedor' && currentUserId && !isExempt) {
+                q = q.eq('seller_id', currentUserId);
+            }
+            return q;
+        };
+
+        const [chunk1, chunk2] = await Promise.all([
+            buildQuery(0, 999),
+            buildQuery(1000, 1999)
+        ]);
+
+        if (chunk1.error) throw chunk1.error;
+        if (chunk2.error) throw chunk2.error;
+
+        const allData = [...(chunk1.data || []), ...(chunk2.data || [])];
+        return allData.map(supabaseToOrder);
     } catch (err: any) {
         console.error('[Orders] Erro crítico ao buscar pedidos:', err.message);
         return [];

@@ -136,16 +136,36 @@ export const fetchOrders = async (role?: string, userId?: string): Promise<Order
             return q;
         };
 
-        const [chunk1, chunk2] = await Promise.all([
+        const buildOlderUnpaidQuery = () => {
+            let q = supabase.from('orders')
+                .select(LIST_ORDER_COLUMNS)
+                .lt('created_at', minDate)
+                .neq('status_pagamento', 'pago') // Puxa todos os que não estão totalmente pagos
+                .neq('status', 'rascunho')
+                .neq('status', 'rejeitado_financeiro')
+                .range(0, 999);
+            if (currentRole === 'vendedor' && currentUserId && !isExempt) {
+                q = q.eq('seller_id', currentUserId);
+            }
+            return q;
+        };
+
+        const [chunk1, chunk2, oldUnpaidChunk] = await Promise.all([
             buildQuery(0, 999),
-            buildQuery(1000, 1999)
+            buildQuery(1000, 1999),
+            buildOlderUnpaidQuery()
         ]);
 
         if (chunk1.error) throw chunk1.error;
         if (chunk2.error) throw chunk2.error;
+        // Se der erro no oldUnpaidChunk, ignoramos e seguimos para não quebrar a aplicação inteira
+        if (oldUnpaidChunk.error) console.warn('[Orders] Erro ao buscar dívidas antigas:', oldUnpaidChunk.error.message);
 
-        const allData = [...(chunk1.data || []), ...(chunk2.data || [])];
-        return allData.map(supabaseToOrder);
+        // Remove duplicatas caso a data mude entre as queries
+        const rawData = [...(chunk1.data || []), ...(chunk2.data || []), ...(oldUnpaidChunk.data || [])];
+        const uniqueData = Array.from(new Map(rawData.map(item => [item.id, item])).values());
+        
+        return uniqueData.map(supabaseToOrder);
     } catch (err: any) {
         console.error('[Orders] Erro crítico ao buscar pedidos:', err.message);
         return [];

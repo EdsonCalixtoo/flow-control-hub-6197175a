@@ -129,6 +129,33 @@ const VendedorDashboard: React.FC = () => {
     .reduce((s, o) => s + o.total, 0), [myCurrentCycleOrders]);
 
   // ✅ Resumo de produtos vendidos agrupados (Respeita o Ciclo)
+  const itensNoCiclo = useMemo(() => {
+    let total = 0;
+    const userName = user?.name?.toUpperCase() || '';
+    const isRestrictedSeller = userName.includes('DELLY') || userName.includes('GUSTAVO');
+
+    myCurrentCycleOrders
+      .filter(o => statusesQueContam.includes(o.status))
+      .forEach(order => {
+        order.items.forEach(item => {
+          const isFree = item.isReward || Number(item.unitPrice) === 0 || Number(item.total) === 0;
+          if (isFree) return;
+
+          if (isRestrictedSeller) {
+            // Apenas Kits e Estribos contam para Delly e Gustavo (conforme fechamento)
+            const prodName = item.product.toUpperCase();
+            if (prodName.includes('ESTRIBO') || prodName.includes('KIT') || prodName.includes('DTP')) {
+              total += item.quantity;
+            }
+          } else {
+            // Demais vendedores contam todos os itens vendidos no ciclo
+            total += item.quantity;
+          }
+        });
+      });
+    return total;
+  }, [myCurrentCycleOrders, statusesQueContam, user?.name]);
+
   const produtosVendidosAgrupados = useMemo(() => {
     const map = new Map<string, { product: string; quantity: number; sensorType?: string; totalValue: number }>();
 
@@ -225,7 +252,7 @@ const VendedorDashboard: React.FC = () => {
               <StatCard title="Orçam. Pendentes" value={orcamentosPendentes} icon={Clock} color="text-warning" />
             </Link>
             <Link to="/vendedor/orcamentos" className="block">
-              <StatCard title="Itens no Ciclo" value={produtosVendidosAgrupados.reduce((acc, p) => acc + p.quantity, 0)} icon={Package} color="text-primary" />
+              <StatCard title="Itens no Ciclo" value={itensNoCiclo} icon={Package} color="text-primary" />
             </Link>
           </div>
 

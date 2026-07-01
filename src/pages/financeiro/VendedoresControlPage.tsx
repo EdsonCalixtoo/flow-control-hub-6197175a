@@ -29,11 +29,23 @@ const VendedoresControlPage: React.FC = () => {
   };
 
   // Helper para saldo devedor
-  const getSaldoDevedor = (orderId: string, orderTotal: number) => {
+  const getSaldoDevedor = (orderId: string, orderTotal: number, paymentStatus?: string, orderNumber?: string) => {
+    if (paymentStatus?.toLowerCase() === 'pago') return 0;
+    const cleanNum = (n: string) => n.replace('#', '').trim().toLowerCase();
+    const orderNumStr = orderNumber ? cleanNum(orderNumber) : null;
+    
     const pagos = financialEntries
-      .filter(e => e.orderId === orderId && e.type === 'receita' && e.status === 'pago')
+      .filter(e => {
+        const matchesId = e.orderId === orderId;
+        const matchesNumber = orderNumStr && e.orderNumber && cleanNum(e.orderNumber) === orderNumStr;
+        const isReceita = e.type?.toLowerCase() === 'receita';
+        const isNotCancelled = e.status?.toLowerCase() !== 'cancelado';
+        return (matchesId || matchesNumber) && isReceita && isNotCancelled;
+      })
       .reduce((s, e) => s + e.amount, 0);
-    return Math.max(0, orderTotal - pagos);
+    
+    const saldoRaw = orderTotal - pagos;
+    return saldoRaw < 0.10 ? 0 : saldoRaw;
   };
 
   // Calcula estatísticas por vendedor
@@ -68,8 +80,8 @@ const VendedoresControlPage: React.FC = () => {
     });
 
     orders.forEach(order => {
-      // ✅ Apenas conta vendas que foram enviadas (ignora rascunhos e orçamentos)
-      if (['rascunho', 'orcamento', 'rejeitado_financeiro'].includes(order.status)) return;
+      // ✅ Apenas conta vendas que foram enviadas e não canceladas
+      if (['rascunho', 'orcamento', 'rejeitado_financeiro', 'cancelado'].includes(order.status)) return;
 
       const sellerId = order.sellerId || (order.sellerName ? nameToIdMap.get(order.sellerName) : undefined);
       const key = sellerId || order.sellerName || 'Desconhecido';
@@ -105,11 +117,13 @@ const VendedoresControlPage: React.FC = () => {
       // Acumula história total para o detalhamento
       stats[key].orders.push(order);
 
+      // ✅ O Saldo Devedor do Vendedor é sempre CUMULATIVO (histórico completo até hoje)
+      stats[key].valoresEmAberto += getSaldoDevedor(order.id, order.total, order.paymentStatus, order.number);
+
       // Só incrementa KPIs de performance se for APÓS o último fechamento
       if (isAfterClosing) {
         stats[key].totalVendas += order.total;
         stats[key].qtdPedidos += 1;
-        stats[key].valoresEmAberto += getSaldoDevedor(order.id, order.total);
 
         // Detalhamento de Itens
         order.items.forEach(item => {
@@ -121,7 +135,7 @@ const VendedoresControlPage: React.FC = () => {
           } else {
             const prodName = item.product.toUpperCase();
             const isEstribo = prodName.includes('ESTRIBO');
-            const isKit = prodName.includes('KIT');
+            const isKit = prodName.includes('KIT') || prodName.includes('DTP');
             const isCarenagem = prodName.includes('CARENAGEM');
             const isHigor = key.toUpperCase().includes('HIGOR');
             
@@ -280,14 +294,14 @@ const VendedoresControlPage: React.FC = () => {
       if (isAfterClosing) {
         order.items.forEach(item => {
           const isFree = item.isReward || Number(item.unitPrice) === 0 || Number(item.total) === 0;
-          if (isFree) return;
           
           itemsToPrint.push({
             product: item.product,
             quantity: item.quantity,
             orderNumber: order.number,
             clientName: order.clientName,
-            date: new Date(order.createdAt).toLocaleDateString('pt-BR')
+            date: new Date(order.createdAt).toLocaleDateString('pt-BR'),
+            isReward: isFree
           });
         });
       }
@@ -318,7 +332,7 @@ const VendedoresControlPage: React.FC = () => {
 
     orders.forEach(order => {
       // ✅ Tudo que foi enviado entra no histórico
-      if (['rascunho', 'orcamento'].includes(order.status)) return;
+      if (['rascunho', 'orcamento', 'rejeitado_financeiro', 'cancelado'].includes(order.status)) return;
       
       const isSeller = order.sellerId === closing.sellerId || order.sellerName === closing.sellerName;
       if (!isSeller) return;
@@ -330,14 +344,14 @@ const VendedoresControlPage: React.FC = () => {
       if (isAfterPrev && isBeforeCurrent) {
         order.items.forEach(item => {
           const isFree = item.isReward || Number(item.unitPrice) === 0 || Number(item.total) === 0;
-          if (isFree) return;
           
           itemsToPrint.push({
             product: item.product,
             quantity: item.quantity,
             orderNumber: order.number,
             clientName: order.clientName,
-            date: orderDate.toLocaleDateString('pt-BR')
+            date: orderDate.toLocaleDateString('pt-BR'),
+            isReward: isFree
           });
         });
       }
@@ -361,19 +375,27 @@ const VendedoresControlPage: React.FC = () => {
     return monthlyClosings.length > 0;
   }, [monthlyClosings]);
 
-  const handleFixOldClosings = async () => {
-    if (!window.confirm("Deseja recalcular e atualizar todos os fechamentos antigos com o total de itens e estribos? Isso atualizará os relatórios permanentemente.")) return;
+  const handleFixOldClosings = async (specificClosingId?: string) => {
+    if (!specificClosingId && !window.confirm("Deseja recalcular e atualizar todos os fechamentos antigos com o total de itens e estribos? Isso atualizará os relatórios permanentemente.")) return;
     
     setIsFixing(true);
     let successCount = 0;
 
-    for (const closing of monthlyClosings) {
+    const closingsToFix = specificClosingId 
+      ? monthlyClosings.filter(c => c.id === specificClosingId)
+      : monthlyClosings;
+
+    for (const closing of closingsToFix) {
       // 🔄 Agora permitimos recalcular tudo para aplicar a nova lógica de "tudo o que foi enviado" e "preco=0"
       // if (closing.details?.totalItems !== undefined && closing.details?.estribos !== undefined && closing.details?.others !== undefined) continue;
 
       const lastClosingStr = closing.details?.lastClosing;
       const lastClosingDate = (!lastClosingStr || lastClosingStr === 'Início') ? null : new Date(lastClosingStr);
       const closingDate = new Date(closing.closingDate);
+
+      let totalVendas = 0;
+      let qtdPedidos = 0;
+      let valoresEmAberto = 0;
 
       let totalProdutos = 0;
       let estribos = 0;
@@ -388,13 +410,23 @@ const VendedoresControlPage: React.FC = () => {
 
       orders.forEach(order => {
         // ✅ Tudo que foi enviado
-        if (['rascunho', 'orcamento'].includes(order.status)) return;
+        if (['rascunho', 'orcamento', 'rejeitado_financeiro', 'cancelado'].includes(order.status)) return;
         
         const isSeller = order.sellerId === closing.sellerId || order.sellerName === closing.sellerName;
         if (!isSeller) return;
 
         const orderDate = new Date(order.createdAt);
+
+        // ✅ Saldo Devedor CUMULATIVO de todo o histórico do vendedor até a data deste fechamento
+        if (orderDate <= closingDate) {
+          valoresEmAberto += getSaldoDevedor(order.id, order.total, order.paymentStatus, order.number);
+        }
+
         if ((!lastClosingDate || orderDate > lastClosingDate) && orderDate <= closingDate) {
+          
+          totalVendas += order.total;
+          qtdPedidos += 1;
+
           order.items.forEach(item => {
             const isFree = item.isReward || Number(item.unitPrice) === 0 || Number(item.total) === 0;
 
@@ -408,7 +440,7 @@ const VendedoresControlPage: React.FC = () => {
               } else if (prodName.includes('CARENAGEM') && isHigor) {
                 carenagem += item.quantity;
                 totalProdutos += item.quantity;
-              } else if (prodName.includes('KIT')) {
+              } else if (prodName.includes('KIT') || prodName.includes('DTP')) {
                 const hasSensorRef = item.sensorType === 'com_sensor' || prodName.includes('.A') || prodName.includes('COM SENSOR');
                 if (prodName.includes('DTP')) kitsDtp += item.quantity;
                 else if (hasSensorRef) kitsCom += item.quantity;
@@ -436,7 +468,12 @@ const VendedoresControlPage: React.FC = () => {
       };
 
       try {
-        await updateMonthlyClosing(closing.id, { details: updatedDetails });
+        await updateMonthlyClosing(closing.id, { 
+          details: updatedDetails,
+          totalSold: totalVendas,
+          orderCount: qtdPedidos,
+          outstandingValue: valoresEmAberto
+        });
         successCount++;
       } catch (e) {
         console.error(e);
@@ -587,7 +624,7 @@ const VendedoresControlPage: React.FC = () => {
               <tbody>
                 {sellerOrders.map(order => {
                   const isNew = !seller.lastClosingDate || new Date(order.createdAt) > seller.lastClosingDate;
-                  const saldo = getSaldoDevedor(order.id, order.total);
+                  const saldo = getSaldoDevedor(order.id, order.total, order.paymentStatus, order.number);
                   return (
                     <tr key={order.id} className={isNew ? 'bg-primary/[0.02]' : 'opacity-60'}>
                       <td className="font-semibold text-foreground flex items-center gap-2">
@@ -808,7 +845,7 @@ const VendedoresControlPage: React.FC = () => {
                    </div>
                 </div>
                 <button
-                  onClick={handleFixOldClosings}
+                  onClick={() => handleFixOldClosings()}
                   disabled={isFixing}
                   className="btn-modern bg-primary text-white text-xs font-black shadow-lg shadow-primary/20"
                 >
@@ -836,6 +873,14 @@ const VendedoresControlPage: React.FC = () => {
                              Ref: {closing.referenceMonth}
                            </span>
                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleFixOldClosings(closing.id)}
+                                disabled={isFixing}
+                                className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center hover:bg-primary hover:text-white transition-all shadow-sm"
+                                title="Recalcular Apenas Este Fechamento"
+                              >
+                                {isFixing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
+                              </button>
                               <button
                                 onClick={() => handlePrintHistoricalItems(closing)}
                                 className="w-8 h-8 rounded-lg bg-info/10 text-info flex items-center justify-center hover:bg-info hover:text-white transition-all shadow-sm"

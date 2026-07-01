@@ -84,7 +84,13 @@ export const generateClosingPDF = (data: ClosingPdfData, shouldDownload: boolean
 
   // 3. Performance Grid (Modern Cards)
   const isHigor = data.sellerName.toUpperCase().includes('HIGOR');
-  const boxHeight = isHigor ? 60 : 50;
+  
+  let extraLines = 0;
+  if (isHigor) extraLines++;
+  if (data.others > 0) extraLines++;
+  if (data.premios > 0) extraLines++;
+  
+  const boxHeight = 55 + (extraLines * 9);
 
   doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
   doc.roundedRect(20, 100, 80, boxHeight, 4, 4, 'F');
@@ -142,30 +148,45 @@ export const generateClosingPDF = (data: ClosingPdfData, shouldDownload: boolean
   doc.text('Estribos', 115, 153);
   doc.text(data.estribos.toString(), 185, 153, { align: 'right' });
 
+  let currentY = 162;
   if (isHigor) {
-    doc.text('Carenagem', 115, 162);
-    doc.text(data.carenagem.toString(), 185, 162, { align: 'right' });
+    doc.text('Carenagem', 115, currentY);
+    doc.text(data.carenagem.toString(), 185, currentY, { align: 'right' });
+    currentY += 9;
   }
 
-  // Outros Itens e Premiações REMOVIDOS da contagem principal conforme solicitação.
-  // Manteremos as métricas nos dados para auditoria interna, mas não aparecem no PDF final de venda.
+  if (data.others > 0) {
+    doc.setTextColor(220, 38, 38); // Vermelho
+    doc.text('Outros Itens', 115, currentY);
+    doc.text(data.others.toString(), 185, currentY, { align: 'right' });
+    currentY += 9;
+  }
+
+  if (data.premios > 0) {
+    doc.setTextColor(234, 179, 8); // Amarelo
+    doc.text('Premiações', 115, currentY);
+    doc.text(data.premios.toString(), 185, currentY, { align: 'right' });
+    currentY += 9;
+  }
+  doc.setTextColor(textColor[0], textColor[1], textColor[2]); // Restaura a cor principal
 
   // 4. Declaration Section
+  const decY = 100 + boxHeight + 15;
   doc.setFillColor(252, 252, 252);
   doc.setDrawColor(226, 232, 240);
-  doc.roundedRect(20, 175, 170, 35, 2, 2, 'FD');
+  doc.roundedRect(20, decY, 170, 35, 2, 2, 'FD');
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(secondaryColor[0], secondaryColor[1], secondaryColor[2]);
-  doc.text('DECLARAÇÃO DE CONFORMIDADE', 25, 183);
+  doc.text('DECLARAÇÃO DE CONFORMIDADE', 25, decY + 8);
 
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(9);
   doc.setTextColor(textColor[0], textColor[1], textColor[2]);
   const words = `Certificamos que o vendedor ${data.sellerName} completou o ciclo operacional de ${data.referenceMonth}. Foram validados ${data.orderCount} pedidos com receita bruta de ${formatCurrency(data.totalSold)}. Este documento serve como base para conciliação financeira entre as partes.`;
   const splitTitle = doc.splitTextToSize(words, 160);
-  doc.text(splitTitle, 25, 192);
+  doc.text(splitTitle, 25, decY + 17);
 
   // 5. Signatures (Modernized)
   const sigY = 240;
@@ -215,6 +236,7 @@ export interface SellerItemsPdfData {
     orderNumber: string;
     clientName: string;
     date: string;
+    isReward?: boolean;
   }[];
 }
 
@@ -236,10 +258,32 @@ export const generateSellerItemsPDF = (data: SellerItemsPdfData): void => {
 
   // --- 1. Resumo Agrupado (NOVA SEÇÃO) ---
   let y = 50;
+  const isHigor = data.sellerName.toUpperCase().includes('HIGOR');
+
+  const countedTotals: Record<string, number> = {};
+  const otherItems: typeof data.items = [];
+  const rewardItems: typeof data.items = [];
+  
+  data.items.forEach(item => {
+    if (item.isReward) {
+      rewardItems.push(item);
+      return;
+    }
+    
+    const prodName = item.product.toUpperCase();
+    const isCounted = prodName.includes('KIT') || prodName.includes('DTP') || prodName.includes('ESTRIBO') || (prodName.includes('CARENAGEM') && isHigor);
+    if (isCounted) {
+      countedTotals[item.product] = (countedTotals[item.product] || 0) + item.quantity;
+    } else {
+      otherItems.push(item);
+    }
+  });
+
+  // ITENS CONTABILIZADOS
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(12);
   doc.setTextColor(30, 41, 59);
-  doc.text('RESUMO DE VENDAS (TOTAL POR PRODUTO)', 20, y);
+  doc.text('RESUMO DE VENDAS (ITENS CONTABILIZADOS)', 20, y);
   
   y += 6;
   doc.setFillColor(241, 245, 249);
@@ -247,27 +291,130 @@ export const generateSellerItemsPDF = (data: SellerItemsPdfData): void => {
   
   doc.setFontSize(9);
   doc.text('PRODUTO', 25, y + 5);
-  doc.text('QTD TOTAL', 185, y + 5, { align: 'right' });
-
-  // Agrupamento
-  const productTotals: Record<string, number> = {};
-  data.items.forEach(item => {
-    productTotals[item.product] = (productTotals[item.product] || 0) + item.quantity;
-  });
+  doc.text('QTD', 185, y + 5, { align: 'right' });
 
   y += 12;
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(71, 85, 105);
 
-  Object.entries(productTotals).sort((a, b) => b[1] - a[1]).forEach(([name, qty]) => {
+  let totalCounted = 0;
+  Object.entries(countedTotals).sort((a, b) => b[1] - a[1]).forEach(([name, qty]) => {
      doc.text(name, 25, y);
      doc.setFont('helvetica', 'bold');
      doc.text(qty.toString(), 185, y, { align: 'right' });
      doc.setFont('helvetica', 'normal');
+     totalCounted += qty;
      y += 7;
      doc.setDrawColor(241, 245, 249);
      doc.line(20, y - 2, 190, y - 2);
   });
+
+  // OUTROS ITENS
+  if (otherItems.length > 0) {
+    y += 8;
+    if (y > 270) {
+      doc.addPage();
+      y = 20;
+    }
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(220, 38, 38);
+    doc.text('OUTROS ITENS (NÃO CONTABILIZADOS)', 20, y);
+    
+    y += 6;
+    doc.setFillColor(254, 242, 242);
+    doc.rect(20, y, 170, 8, 'F');
+    
+    doc.setFontSize(9);
+    doc.text('DATA', 22, y + 5);
+    doc.text('PEDIDO', 45, y + 5);
+    doc.text('CLIENTE', 70, y + 5);
+    doc.text('PRODUTO', 110, y + 5);
+    doc.text('QTD', 185, y + 5, { align: 'right' });
+
+    y += 12;
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+
+    otherItems.forEach((item) => {
+       if (y > 270) {
+         doc.addPage();
+         y = 20;
+       }
+       
+       doc.text(item.date, 22, y);
+       doc.text(item.orderNumber, 45, y);
+       
+       const clientName = item.clientName.length > 18 ? item.clientName.substring(0, 16) + '...' : item.clientName;
+       doc.text(clientName, 70, y);
+       
+       const productName = item.product.length > 35 ? item.product.substring(0, 33) + '...' : item.product;
+       doc.text(productName, 110, y);
+       
+       doc.setFont('helvetica', 'bold');
+       doc.text(item.quantity.toString(), 185, y, { align: 'right' });
+       doc.setFont('helvetica', 'normal');
+       
+       y += 7;
+       doc.setDrawColor(241, 245, 249);
+       doc.line(20, y - 2, 190, y - 2);
+    });
+  }
+
+  // PREMIAÇÕES RESGATADAS
+  if (rewardItems.length > 0) {
+    y += 8;
+    if (y > 270) {
+      doc.addPage();
+      y = 20;
+    }
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(234, 179, 8); // Yellow/Gold color for rewards
+    doc.text('PREMIAÇÕES RESGATADAS', 20, y);
+    
+    y += 6;
+    doc.setFillColor(254, 252, 232);
+    doc.rect(20, y, 170, 8, 'F');
+    
+    doc.setFontSize(9);
+    doc.text('DATA', 22, y + 5);
+    doc.text('PEDIDO', 45, y + 5);
+    doc.text('CLIENTE', 70, y + 5);
+    doc.text('PRODUTO', 110, y + 5);
+    doc.text('QTD', 185, y + 5, { align: 'right' });
+
+    y += 12;
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+
+    rewardItems.forEach((item) => {
+       if (y > 270) {
+         doc.addPage();
+         y = 20;
+       }
+       
+       doc.text(item.date, 22, y);
+       doc.text(item.orderNumber, 45, y);
+       
+       const clientName = item.clientName.length > 18 ? item.clientName.substring(0, 16) + '...' : item.clientName;
+       doc.text(clientName, 70, y);
+       
+       const productName = item.product.length > 35 ? item.product.substring(0, 33) + '...' : item.product;
+       doc.text(productName, 110, y);
+       
+       doc.setFont('helvetica', 'bold');
+       doc.text(item.quantity.toString(), 185, y, { align: 'right' });
+       doc.setFont('helvetica', 'normal');
+       
+       y += 7;
+       doc.setDrawColor(241, 245, 249);
+       doc.line(20, y - 2, 190, y - 2);
+    });
+  }
+
 
   // --- 2. Detalhamento por Pedido ---
   y += 15;
@@ -317,9 +464,64 @@ export const generateSellerItemsPDF = (data: SellerItemsPdfData): void => {
 
   // Footer resumo
   y += 10;
-  const totalItems = data.items.reduce((sum, i) => sum + i.quantity, 0);
+  if (y > 270) { doc.addPage(); y = 20; }
+  
+  let totalOthers = 0;
+  otherItems.forEach(i => totalOthers += i.quantity);
+
+  let totalRewards = 0;
+  rewardItems.forEach(i => totalRewards += i.quantity);
+
   doc.setFont('helvetica', 'bold');
-  doc.text(`TOTAL GERAL DE ITENS: ${totalItems}`, 185, y, { align: 'right' });
+  doc.setTextColor(30, 41, 59);
+  doc.text(`TOTAL DE ITENS CONTABILIZADOS: ${totalCounted}`, 185, y, { align: 'right' });
+  
+  if (totalOthers > 0) {
+    y += 6;
+    doc.setTextColor(220, 38, 38);
+    doc.text(`TOTAL DE OUTROS ITENS: ${totalOthers}`, 185, y, { align: 'right' });
+  }
+
+  if (totalRewards > 0) {
+    y += 6;
+    doc.setTextColor(234, 179, 8);
+    doc.text(`TOTAL DE PREMIAÇÕES: ${totalRewards}`, 185, y, { align: 'right' });
+  }
+
+  // --- 3. Total por Produto (Geral) ---
+  y += 10;
+  if (y > 260) { doc.addPage(); y = 20; }
+  
+  doc.setDrawColor(241, 245, 249);
+  doc.line(100, y, 190, y);
+  y += 6;
+  
+  doc.setFontSize(10);
+  doc.setTextColor(30, 41, 59);
+  doc.text('RESUMO GERAL POR PRODUTO:', 185, y, { align: 'right' });
+  y += 6;
+  
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(71, 85, 105);
+
+  const grandTotals: Record<string, number> = {};
+  data.items.forEach(item => {
+    grandTotals[item.product] = (grandTotals[item.product] || 0) + item.quantity;
+  });
+
+  Object.entries(grandTotals).sort((a, b) => b[1] - a[1]).forEach(([productName, qty]) => {
+    if (y > 270) { doc.addPage(); y = 20; }
+    
+    const shortName = productName.toUpperCase();
+    doc.text(`${shortName}:`, 170, y, { align: 'right' });
+    
+    doc.setFont('helvetica', 'bold');
+    doc.text(qty.toString(), 185, y, { align: 'right' });
+    doc.setFont('helvetica', 'normal');
+    
+    y += 5;
+  });
 
   const fileName = `itens_vendidos_${data.sellerName.replace(/\s+/g, '_')}.pdf`;
   doc.save(fileName);

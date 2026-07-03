@@ -827,16 +827,17 @@ ${etiquetasHtml}
                 if (recentScans.length === 0) {
                     // PRIMEIRO SCAN - Liberar direto com 1 volume
                     try {
+                        const volsToSave = order.volumes || 1;
                         await updateOrderStatus(
                             order.id,
                             'produto_liberado',
                             {
                                 releasedAt: now,
                                 releasedBy: scannedBy,
-                                volumes: 1,
+                                volumes: volsToSave,
                             },
                             scannedBy,
-                            'Produto liberado com 1 volume (escaneamento único)'
+                            `Produto liberado com ${volsToSave} volume(s) (escaneamento único)`
                         );
 
                         await addBarcodeScan({
@@ -844,12 +845,12 @@ ${etiquetasHtml}
                             orderNumber: order.number,
                             scannedBy,
                             success: true,
-                            note: 'Produto liberado automaticamente com 1 volume',
+                            note: `Produto liberado automaticamente com ${volsToSave} volume(s)`,
                         });
 
                         setScanResult({
                             success: true,
-                            message: `✅ Pedido ${order.number} liberado automaticamente com 1 volume! Vai para entregadores.`,
+                            message: `✅ Pedido ${order.number} liberado automaticamente com ${volsToSave} volume(s)! Vai para entregadores.`,
                             orderNumber: order.number,
                         });
 
@@ -2616,6 +2617,11 @@ ${etiquetasHtml}
                                                                             ATRASADO
                                                                         </span>
                                                                     )}
+                                                                    {order.status === 'producao_finalizada' && !scannedOrderIds.has(order.id) && (
+                                                                        <span className="px-3 py-1 rounded-full bg-amber-500 text-white text-[9px] font-black uppercase tracking-widest animate-pulse shadow-lg shadow-amber-500/40 flex items-center gap-1">
+                                                                            <AlertTriangle className="w-3 h-3" /> AGUARDANDO BIPAGEM
+                                                                        </span>
+                                                                    )}
                                                                 </div>
                                                             </div>
 
@@ -2820,9 +2826,20 @@ ${etiquetasHtml}
                                 </div>
 
                                 <button
-                                    onClick={() => {
+                                    onClick={async () => {
                                         const v = parseInt(printVolumesInput);
-                                        executePrintEtiqueta(orderForPrint, isNaN(v) || v < 1 ? 1 : v);
+                                        const vols = isNaN(v) || v < 1 ? 1 : v;
+                                        executePrintEtiqueta(orderForPrint, vols);
+                                        
+                                        // Salva os volumes no banco para que o scanner genérico saiba quantos volumes são
+                                        try {
+                                            const { updateOrderSupabase } = await import('@/lib/orderServiceSupabase');
+                                            await updateOrderSupabase(orderForPrint.id, { volumes: vols });
+                                            setOrders(prev => prev.map(o => o.id === orderForPrint.id ? { ...o, volumes: vols } : o));
+                                        } catch (e) {
+                                            console.warn('Erro ao salvar volumes na impressão', e);
+                                        }
+
                                         toast.success('Etiqueta enviada para impressão! Agora escaneie o código para liberar.', { icon: '🖨️' });
                                     }}
                                     className="w-full py-4 bg-foreground text-background rounded-2xl text-sm font-black uppercase tracking-[0.2em] hover:bg-primary hover:text-white transition-all shadow-xl active:scale-95"

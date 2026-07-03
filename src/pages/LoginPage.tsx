@@ -59,14 +59,14 @@ const LoginPage: React.FC = () => {
       {/* Animated Aura Background */}
       <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
         <motion.div 
-          animate={{ scale: [1, 1.2, 1], x: [0, 100, 0], y: [0, 50, 0] }}
+          animate={{ scale: [1, 1.2, 1], x: [0, 50, 0], y: [0, 30, 0] }}
           transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-          className="absolute -top-[20%] -left-[10%] w-[70%] h-[70%] bg-gradient-to-br from-blue-400/20 to-purple-400/20 rounded-full blur-[120px]" 
+          className="absolute -top-[20%] -left-[10%] w-[70%] h-[70%] bg-gradient-to-br from-blue-400/20 to-purple-400/20 rounded-full blur-3xl will-change-transform" 
         />
         <motion.div 
-          animate={{ scale: [1, 1.3, 1], x: [0, -100, 0], y: [0, -50, 0] }}
+          animate={{ scale: [1, 1.3, 1], x: [0, -50, 0], y: [0, -30, 0] }}
           transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-          className="absolute -bottom-[20%] -right-[10%] w-[70%] h-[70%] bg-gradient-to-br from-emerald-400/10 to-blue-400/20 rounded-full blur-[120px]" 
+          className="absolute -bottom-[20%] -right-[10%] w-[70%] h-[70%] bg-gradient-to-br from-emerald-400/10 to-blue-400/20 rounded-full blur-3xl will-change-transform" 
         />
       </div>
 
@@ -107,7 +107,7 @@ const LoginPage: React.FC = () => {
                     whileHover={{ scale: 1.02, y: -5 }}
                     whileTap={{ scale: 0.98 }}
                     onClick={() => handleSelectRole(item.role)}
-                    className={`relative overflow-hidden group p-6 rounded-[32px] bg-white border border-slate-200/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_50px_rgba(59,130,246,0.12)] transition-all flex flex-col justify-between text-left ${
+                    className={`relative overflow-hidden group p-6 rounded-[32px] bg-white border border-slate-200/60 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_20px_50px_rgba(59,130,246,0.12)] transition-shadow duration-300 flex flex-col justify-between text-left will-change-transform ${
                       item.size === 'large' ? 'md:col-span-2 aspect-[2/1] md:aspect-auto' : 'aspect-square md:aspect-auto'
                     }`}
                   >
@@ -152,7 +152,7 @@ const LoginPage: React.FC = () => {
               exit={{ opacity: 0, scale: 0.9 }}
               className="flex items-center justify-center"
             >
-              <div className="w-full max-w-md bg-white/80 backdrop-blur-3xl rounded-[48px] border border-white shadow-[0_40px_80px_-20px_rgba(0,0,0,0.15)] p-12 relative">
+              <div className="w-full max-w-md bg-white/80 backdrop-blur-xl rounded-[48px] border border-white shadow-[0_40px_80px_-20px_rgba(0,0,0,0.15)] p-12 relative will-change-transform">
                 
                 <button 
                   onClick={() => setStep('select')}

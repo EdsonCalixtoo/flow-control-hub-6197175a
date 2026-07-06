@@ -94,13 +94,16 @@ const PedidosFinanceiroPage: React.FC = () => {
         return Math.max(0, orderTotal - pagos);
     };
 
-    const aprovarEEnviarProducao = async (orderId: string) => {
+    const aprovarFinanceiro = async (orderId: string, sendToProduction: boolean = false) => {
         const order = orders.find(o => o.id === orderId);
         if (!order) return;
 
         const client = clients.find(c => c.id === order.clientId);
         const actualClient = client || clients.find(c => c.name === order.clientName);
         const isConsignado = actualClient?.consignado === true;
+
+        const nextStatus = sendToProduction ? 'aguardando_producao' : 'aprovado_financeiro';
+        const actionText = sendToProduction ? 'Aprovado e enviado para produção' : 'Aprovado pelo financeiro';
 
         if (order.isWarranty) {
             // ✅ Pedidos de GARANTIA: Financeiro aprova e envia para o GESTOR (conforme solicitado pelo usuário)
@@ -112,10 +115,10 @@ const PedidosFinanceiroPage: React.FC = () => {
         if (order.isInternational) {
             await updateOrderStatus(
                 orderId,
-                'aguardando_producao',
+                nextStatus,
                 { paymentStatus: 'pago', statusPagamento: 'pago', financeiroAprovado: true },
                 'Financeiro',
-                'Venda Internacional: Aprovado para produção sem obrigatoriedade de CPF/CNPJ ou comprovantes convencionais.'
+                `Venda Internacional: ${actionText}`
             );
             setSelectedOrderId(null);
             setShowReject(false);
@@ -126,46 +129,50 @@ const PedidosFinanceiroPage: React.FC = () => {
         if (isConsignado) {
             await updateOrderStatus(
                 orderId,
-                'aguardando_producao',
+                nextStatus,
                 { paymentStatus: order.paymentStatus || 'pendente', statusPagamento: order.statusPagamento || 'pendente', financeiroAprovado: true },
                 'Financeiro',
-                'Consignado: Aprovado para produção sem obrigatoriedade de pagamento imediato'
+                `Consignado: ${actionText}`
             );
         } else if (order.orderType === 'instalacao') {
             await updateOrderStatus(
                 orderId,
-                'aguardando_producao',
+                nextStatus,
                 { paymentStatus: order.paymentStatus || 'pendente', statusPagamento: order.statusPagamento || 'pendente', financeiroAprovado: true },
                 'Financeiro',
-                'Instalação: Aprovado para produção. Pagamento será controlado pelo financeiro.'
+                `Instalação: ${actionText}`
             );
         } else if (order.orderType === 'retirada') {
             await updateOrderStatus(
                 orderId,
-                'aguardando_producao',
+                nextStatus,
                 { paymentStatus: order.paymentStatus || 'pendente', statusPagamento: order.statusPagamento || 'pendente', financeiroAprovado: true },
                 'Financeiro',
-                'Retirada: Aprovado para produção. Pagamento será controlado pelo financeiro.'
+                `Retirada: ${actionText}`
             );
         } else {
-            const entry: FinancialEntry = {
-                id: crypto.randomUUID(),
-                type: 'receita',
-                description: `Pagamento total - ${order.number} - ${order.clientName}`,
-                amount: order.total,
-                category: 'Venda de Produtos',
-                date: new Date().toISOString().split('T')[0],
-                status: 'pago',
-                orderId: order.id,
-                orderNumber: order.number,
-                clientId: order.clientId,
-                clientName: order.clientName,
-                paymentMethod: order.paymentMethod || 'Pix',
-                createdAt: new Date().toISOString(),
-            };
+            const saldo = getSaldoDevedor(order.id, order.total);
+            if (saldo > 0) {
+                const entry: FinancialEntry = {
+                    id: crypto.randomUUID(),
+                    type: 'receita',
+                    description: `Pagamento total - ${order.number} - ${order.clientName}`,
+                    amount: saldo,
+                    category: 'Venda de Produtos',
+                    date: new Date().toISOString().split('T')[0],
+                    status: 'pago',
+                    orderId: order.id,
+                    orderNumber: order.number,
+                    clientId: order.clientId,
+                    clientName: order.clientName,
+                    paymentMethod: order.paymentMethod || 'Pix',
+                    receiptUrls: order.receiptUrls || [], // 🔥 COPIA OS COMPROVANTES DO PEDIDO PARA O LANÇAMENTO
+                    createdAt: new Date().toISOString(),
+                };
 
-            await addFinancialEntry(entry);
-            await updateOrderStatus(orderId, 'aguardando_producao', { paymentStatus: 'pago', statusPagamento: 'pago', financeiroAprovado: true }, 'Financeiro', 'Pagamento aprovado - Enviando para produção');
+                await addFinancialEntry(entry);
+            }
+            await updateOrderStatus(orderId, nextStatus, { paymentStatus: 'pago', statusPagamento: 'pago', financeiroAprovado: true }, 'Financeiro', `Pagamento: ${actionText}`);
         }
 
         setSelectedOrderId(null);
@@ -548,9 +555,9 @@ const PedidosFinanceiroPage: React.FC = () => {
                                                             }
                                                         }}
                                                         disabled={!rejectReason.trim()}
-                                                        className="btn-modern bg-destructive text-white flex-1 text-xs justify-center"
+                                                        className="btn-modern bg-destructive/10 text-destructive w-full justify-center text-xs"
                                                     >
-                                                        Confirmar
+                                                        Confirmar Rejeição
                                                     </button>
                                                     <button onClick={() => setShowReject(false)} className="btn-modern bg-muted text-foreground px-4 text-xs">Voltar</button>
                                                 </div>
@@ -558,10 +565,16 @@ const PedidosFinanceiroPage: React.FC = () => {
                                         ) : (
                                             <div className="flex flex-col gap-2">
                                                 <button
-                                                    onClick={() => aprovarEEnviarProducao(selectedOrder.id)}
-                                                    className="btn-primary w-full justify-center py-3"
+                                                    onClick={() => aprovarFinanceiro(selectedOrder.id, true)}
+                                                    className="w-full py-4 rounded-xl bg-foreground text-background font-black text-sm uppercase tracking-widest shadow-xl hover:scale-[1.02] active:scale-95 transition-all"
                                                 >
-                                                    <CheckCircle className="w-5 h-5" /> Aprovar e Enviar Produção
+                                                    Aprovar & Enviar Produção
+                                                </button>
+                                                <button
+                                                    onClick={() => aprovarFinanceiro(selectedOrder.id, false)}
+                                                    className="w-full py-4 rounded-xl bg-emerald-500 text-white font-black text-sm uppercase tracking-widest shadow-xl hover:scale-[1.02] active:scale-95 transition-all"
+                                                >
+                                                    Aprovar Recebimento
                                                 </button>
                                                 <button
                                                     onClick={() => setShowReject(true)}
@@ -877,7 +890,7 @@ const PedidosFinanceiroPage: React.FC = () => {
                                             </button>
                                             {isFinanceOrAdmin && order.status === 'aguardando_financeiro' && (
                                                 <button
-                                                    onClick={() => aprovarEEnviarProducao(order.id)}
+                                                    onClick={() => aprovarFinanceiro(order.id, true)}
                                                     className="w-10 h-10 rounded-xl bg-emerald-500/5 text-emerald-600 hover:bg-emerald-500 hover:text-white flex items-center justify-center transition-all shadow-sm"
                                                     title="Aprovar Agora"
                                                 >

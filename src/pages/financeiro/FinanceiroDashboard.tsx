@@ -585,8 +585,8 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
     else { setSortBy(col); setSortDir('asc'); }
   };
 
-  // Fluxo: Financeiro aprova e envia direto para Produção (sem etapa intermediária do Gestor)
-  const aprovarEEnviarProducao = async (orderId: string) => {
+  // Fluxo: Financeiro aprova e opcionalmente envia para Produção
+  const aprovarFinanceiro = async (orderId: string, sendToProduction: boolean = false) => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
 
@@ -595,6 +595,9 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
     const actualClient = client || clients.find(c => c.name === order.clientName);
     const isConsignado = order.isConsigned === true || actualClient?.consignado === true;
     
+    const nextStatus = sendToProduction ? 'aguardando_producao' : 'aprovado_financeiro';
+    const actionText = sendToProduction ? 'Aprovado e enviado para produção' : 'Aprovado pelo financeiro';
+
     if (order.isWarranty) {
       // ✅ Pedidos de GARANTIA: Financeiro aprova e envia para o GESTOR (conforme fluxograma)
       await updateOrderStatus(orderId, 'aguardando_gestor', { financeiroAprovado: true }, 'Financeiro', 'Garantia: Enviado para validação do Gestor');
@@ -603,55 +606,58 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
     }
 
     if (isConsignado) {
-      // ✅ Para clientes CONSIGNADOS, permite enviar para produção SEM obrigatoriedade de pagamento total
+      // ✅ Para clientes CONSIGNADOS, permite aprovar/enviar para produção SEM obrigatoriedade de pagamento total
       await updateOrderStatus(
         orderId,
-        'aguardando_producao',
+        nextStatus,
         { paymentStatus: order.paymentStatus || 'pendente', statusPagamento: order.statusPagamento || 'pendente', financeiroAprovado: true },
         'Financeiro',
-        'Consignado: Aprovado para produção sem obrigatoriedade de pagamento imediato'
+        `Consignado: ${actionText}`
       );
     } else if (order.orderType === 'instalacao') {
-      // ✅ Para INSTALAÇÕES, também permite enviar para produção mesmo sem pagamento total (ex: pagar na hora)
+      // ✅ Para INSTALAÇÕES, também permite aprovar/enviar para produção mesmo sem pagamento total (ex: pagar na hora)
       await updateOrderStatus(
         orderId,
-        'aguardando_producao',
+        nextStatus,
         { paymentStatus: order.paymentStatus || 'pendente', statusPagamento: order.statusPagamento || 'pendente', financeiroAprovado: true },
         'Financeiro',
-        'Instalação: Aprovado para produção. Pagamento será controlado pelo financeiro.'
+        `Instalação: ${actionText}`
       );
     } else if (order.orderType === 'retirada') {
-      // ✅ Para RETIRADAS, também permite enviar para produção mesmo sem pagamento total (ex: cobrar no local)
+      // ✅ Para RETIRADAS, também permite aprovar/enviar para produção mesmo sem pagamento total (ex: cobrar no local)
       await updateOrderStatus(
         orderId,
-        'aguardando_producao',
+        nextStatus,
         { paymentStatus: order.paymentStatus || 'pendente', statusPagamento: order.statusPagamento || 'pendente', financeiroAprovado: true },
         'Financeiro',
-        'Retirada: Aprovado para produção. Pagamento será controlado pelo financeiro.'
+        `Retirada: ${actionText}`
       );
     } else {
-      // ✅ Para clientes normais, cria lançamento financeiro total (venda direta)
-      const entry: FinancialEntry = {
-        id: crypto.randomUUID(),
-        type: 'receita',
-        description: `Pagamento total - ${order.number} - ${order.clientName}`,
-        amount: order.total,
-        category: 'Venda de Produtos',
-        date: new Date().toISOString().split('T')[0],
-        status: 'pago',
-        orderId: order.id,
-        orderNumber: order.number,
-        clientId: order.clientId,
-        clientName: order.clientName,
-        paymentMethod: order.paymentMethod || 'Pix',
-        receiptUrls: order.receiptUrls || [], // 🔥 COPIA OS COMPROVANTES DO PEDIDO PARA O LANÇAMENTO
-        transactionId: (order as any).transactionId,
-        cardLastDigits: (order as any).cardLastDigits,
-        createdAt: new Date().toISOString(),
-      };
+      // ✅ Para clientes normais, cria lançamento financeiro total (venda direta) APENAS para o saldo restante
+      const saldo = getSaldoDevedor(order.id, order.total, order.paymentStatus, order.number);
+      if (saldo > 0) {
+        const entry: FinancialEntry = {
+          id: crypto.randomUUID(),
+          type: 'receita',
+          description: `Pagamento total - ${order.number} - ${order.clientName}`,
+          amount: saldo, // Apenas o saldo devedor restante
+          category: 'Venda de Produtos',
+          date: new Date().toISOString().split('T')[0],
+          status: 'pago',
+          orderId: order.id,
+          orderNumber: order.number,
+          clientId: order.clientId,
+          clientName: order.clientName,
+          paymentMethod: order.paymentMethod || 'Pix',
+          receiptUrls: order.receiptUrls || [], // 🔥 COPIA OS COMPROVANTES DO PEDIDO PARA O LANÇAMENTO
+          transactionId: (order as any).transactionId,
+          cardLastDigits: (order as any).cardLastDigits,
+          createdAt: new Date().toISOString(),
+        };
 
-      await addFinancialEntry(entry);
-      await updateOrderStatus(orderId, 'aguardando_producao', { paymentStatus: 'pago', statusPagamento: 'pago', financeiroAprovado: true }, 'Financeiro', 'Pagamento aprovado - Enviando para produção');
+        await addFinancialEntry(entry);
+      }
+      await updateOrderStatus(orderId, nextStatus, { paymentStatus: 'pago', statusPagamento: 'pago', financeiroAprovado: true }, 'Financeiro', `Pagamento: ${actionText}`);
     }
 
     setSelectedOrderId(null);
@@ -903,11 +909,11 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
       setNovoPagTransactionId('');
       setNovoPagCardDigits('');
 
-      // Se pagou 100%, aprova e envia para produção
+      // Se pagou 100%, aprova
       const novoTotal = totalPago + valor;
       if (novoTotal >= order.total) {
         if (order.status === 'aguardando_financeiro') {
-          await updateOrderStatus(order.id, 'aguardando_producao', { paymentStatus: 'pago', statusPagamento: 'pago', financeiroAprovado: true }, 'Financeiro', 'Valor total quitado — enviando para produção');
+          await updateOrderStatus(order.id, 'aprovado_financeiro', { paymentStatus: 'pago', statusPagamento: 'pago', financeiroAprovado: true }, 'Financeiro', 'Valor total quitado — aprovado pelo financeiro');
         } else {
           // Se já estava em outro status (ex: já em produção), apenas marca como pago
           await updateOrderStatus(order.id, order.status, { paymentStatus: 'pago', statusPagamento: 'pago', financeiroAprovado: true }, 'Financeiro', 'Valor total quitado');
@@ -1764,7 +1770,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                           await addFinancialEntry(entry);
 
                           // 2. Determina próximo status operacional
-                          const newStatus = selectedOrder.status === 'aguardando_financeiro' ? 'aguardando_producao' : selectedOrder.status;
+                          const newStatus = selectedOrder.status === 'aguardando_financeiro' ? 'aprovado_financeiro' : selectedOrder.status;
                           
                           // 3. Atualiza o status do pedido
                           await updateOrderStatus(
@@ -1799,7 +1805,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                       e.stopPropagation();
                       const toastId = toast.loading('Finalizando pedido...');
                       try {
-                        const newStatus = selectedOrder.status === 'aguardando_financeiro' ? 'aguardando_producao' : selectedOrder.status;
+                        const newStatus = selectedOrder.status === 'aguardando_financeiro' ? 'aprovado_financeiro' : selectedOrder.status;
                         
                         // Para pedidos de valor zero (garantia/brinde), cria um lançamento simbólico se ainda não houver nenhum
                         if (selectedOrder.total === 0 && pagamentos.length === 0) {
@@ -1851,18 +1857,37 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                 {['aguardando_financeiro', 'rejeitado_financeiro', 'aguardando_producao', 'em_producao', 'aprovado_financeiro'].includes(selectedOrder.status) && (
                   <>
                     {!showReject ? (
-                      <div className="grid grid-cols-4 gap-3">
+                      <div className="flex flex-col gap-3">
                         {selectedOrder.status === 'aguardando_financeiro' && (
+                          <div className="grid grid-cols-2 gap-3">
+                            <button
+                              onClick={() => aprovarFinanceiro(selectedOrder.id, false)}
+                              className="py-4 rounded-2xl bg-emerald-500 text-white font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:scale-[1.03] transition-all flex items-center justify-center gap-2"
+                            >
+                              <CheckCircle className="w-4 h-4" /> Aprovar Recebimento
+                            </button>
+                            <button
+                              onClick={() => aprovarFinanceiro(selectedOrder.id, true)}
+                              className="py-4 rounded-2xl bg-foreground text-background font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:scale-[1.03] transition-all flex items-center justify-center gap-2"
+                            >
+                              <Send className="w-4 h-4" /> Aprovar & Enviar
+                            </button>
+                          </div>
+                        )}
+                        {selectedOrder.status === 'aprovado_financeiro' && (
                           <button
-                            onClick={() => aprovarEEnviarProducao(selectedOrder.id)}
-                            className="col-span-3 py-4 rounded-2xl bg-foreground text-background font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:scale-[1.03] transition-all flex items-center justify-center gap-2"
+                            onClick={async () => {
+                              await updateOrderStatus(selectedOrder.id, 'aguardando_producao', {}, 'Financeiro', 'Enviado para produção');
+                              setSelectedOrderId(null);
+                            }}
+                            className="w-full py-4 rounded-2xl bg-indigo-600 text-white font-black text-xs uppercase tracking-[0.2em] shadow-xl hover:scale-[1.03] transition-all flex items-center justify-center gap-2"
                           >
-                            Aprovar para Produção
+                            <Send className="w-4 h-4" /> Enviar para Produção
                           </button>
                         )}
                         <button
                           onClick={() => setShowReject(true)}
-                          className={`${selectedOrder.status === 'aguardando_financeiro' ? 'col-span-1' : 'col-span-4'} py-4 rounded-2xl bg-rose-500/10 text-rose-500 border border-rose-500/20 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-2 font-black text-xs uppercase tracking-widest`}
+                          className="w-full py-4 rounded-2xl bg-rose-500/10 text-rose-500 border border-rose-500/20 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-2 font-black text-xs uppercase tracking-widest"
                         >
                           <XCircle className="w-5 h-5" /> Rejeitar Pedido
                         </button>
@@ -3329,7 +3354,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                                 </button>
                                 {order.status === 'aguardando_financeiro' && (
                                   <button
-                                    onClick={() => aprovarEEnviarProducao(order.id)}
+                                    onClick={() => aprovarFinanceiro(order.id, true)}
                                     className="h-10 w-10 rounded-xl bg-gradient-to-tr from-primary to-blue-500 text-white shadow-[0_4px_15px_rgba(14,165,233,0.3)] hover:shadow-[0_8px_25px_rgba(14,165,233,0.5)] hover:scale-110 active:scale-95 transition-all duration-300 flex items-center justify-center"
                                     title="Aprovar Agora"
                                   >

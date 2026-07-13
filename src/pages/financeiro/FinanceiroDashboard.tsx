@@ -9,8 +9,10 @@ import { DollarSign, TrendingUp, Clock, AlertTriangle, Search, Filter, ChevronDo
 import { useRealtimeOrders } from '@/hooks/useRealtimeOrders';
 import { uploadToR2, generateR2Path, cleanR2Url } from '@/lib/storageServiceR2';
 import { generateFinanceiroDashboardPDF } from '@/lib/pdfClosingGenerator';
+import { supabase } from '@/lib/supabase';
+import { supabaseToClient } from '@/lib/clientServiceSupabase';
 import { toast } from 'sonner';
-import type { Order, FinancialEntry } from '@/types/erp';
+import type { Order, FinancialEntry, Client } from '@/types/erp';
 
 // Status que devem aparecer no financeiro (apenas quando o vendedor clicou em Enviar)
 // Fluxo simplificado: Financeiro aprova e envia direto para Produção (sem Gestor)
@@ -42,6 +44,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const selectedOrder = useMemo(() => orders.find(o => o.id === selectedOrderId) || null, [orders, selectedOrderId]);
+  const [dynamicClient, setDynamicClient] = useState<Client | null>(null);
 
   // ⚡ OTIMIZAÇÃO: Carregamento sob demanda para economizar egress
   useEffect(() => {
@@ -49,6 +52,28 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
       loadOrderDetails(selectedOrderId);
     }
   }, [selectedOrderId, loadOrderDetails]);
+
+  // Fetch do cliente caso ele não esteja no cache (limite de 5000 do app)
+  useEffect(() => {
+    if (selectedOrder?.clientId) {
+      const existing = clients.find(c => c.id === selectedOrder.clientId);
+      if (existing) {
+        setDynamicClient(existing);
+      } else {
+        const fetchDynamicClient = async () => {
+          const { data, error } = await supabase.from('clients').select('*').eq('id', selectedOrder.clientId).maybeSingle();
+          if (error) {
+            console.warn('Erro ao carregar cliente dinâmico:', error);
+          } else if (data) {
+            setDynamicClient(supabaseToClient(data));
+          }
+        };
+        fetchDynamicClient();
+      }
+    } else {
+      setDynamicClient(null);
+    }
+  }, [selectedOrder?.clientId, clients]);
   const [showFilters, setShowFilters] = useState(false);
   const [sellerPeriod, setSellerPeriod] = useState<PeriodFilter>('todos');
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
@@ -1027,7 +1052,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
 
   if (selectedOrder) {
     const isDevedor = getSaldoDevedor(selectedOrder.id, selectedOrder.total) > 0;
-    const client = clients.find(c => c.id === selectedOrder.clientId);
+    const client = dynamicClient || clients.find(c => c.id === selectedOrder.clientId);
     const pagamentos = getPagamentosDosPedido(selectedOrder.id);
     const totalPago = pagamentos.reduce((s, p) => s + (p.type === 'despesa' ? -p.amount : p.amount), 0);
     const saldoDevedor = selectedOrder.total - totalPago;

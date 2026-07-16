@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+﻿import React, { useState, useMemo } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { Search, Save, Package, Truck, ArrowLeft, Edit3, Filter, History, Clock, Plus, CheckCircle2, Check, RotateCcw } from 'lucide-react';
+import { Search, Save, Package, Truck, ArrowLeft, Edit3, History, Clock, Plus, CheckCircle2, Check, RotateCcw, Calendar, X, ChevronDown, ChevronUp, AlertCircle, FileEdit } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -14,671 +14,525 @@ const CorrigirPedidoPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  
-  // Campos de edição
   const [volumes, setVolumes] = useState<number>(1);
   const [carrier, setCarrier] = useState('');
   const [items, setItems] = useState<any[]>([]);
   const [installationDate, setInstallationDate] = useState('');
   const [installationTime, setInstallationTime] = useState('');
-   const [parentOrderId, setParentOrderId] = useState<string | null>(null);
-   const [selectedChildIds, setSelectedChildIds] = useState<string[]>([]);
-   const [orderType, setOrderType] = useState<any>('entrega');
-   const [loading, setLoading] = useState(false);
-   const [unifySearch, setUnifySearch] = useState('');
+  const [parentOrderId, setParentOrderId] = useState<string | null>(null);
+  const [selectedChildIds, setSelectedChildIds] = useState<string[]>([]);
+  const [orderType, setOrderType] = useState<any>('entrega');
+  const [loading, setLoading] = useState(false);
+  const [unifySearch, setUnifySearch] = useState('');
+  const [activeSchedulingItemIndex, setActiveSchedulingItemIndex] = useState<number | null>(null);
+  const [isUnifyOpen, setIsUnifyOpen] = useState(false);
 
-  // Filtra pedidos com base no termo de busca
   const filteredOrders = useMemo(() => {
-    if (!searchTerm) {
-        // Mostra os 100 mais recentes por padrão
-        return orders.slice(0, 100);
-    }
+    if (!searchTerm) return orders.slice(0, 100);
     const term = searchTerm.toLowerCase();
-    return orders.filter(o => 
+    return orders.filter(o =>
       (o.number || '').toLowerCase().includes(term) ||
       (o.clientName || '').toLowerCase().includes(term) ||
       (o.sellerName || '').toLowerCase().includes(term)
     ).slice(0, 100);
   }, [orders, searchTerm]);
 
-   const selectedOrder = useMemo(() => 
-     orders.find(o => o.id === selectedOrderId),
-     [orders, selectedOrderId]
-   );
- 
-   const possibleChildren = useMemo(() => {
+  const selectedOrder = useMemo(() => orders.find(o => o.id === selectedOrderId), [orders, selectedOrderId]);
+
+  const possibleChildren = useMemo(() => {
     if (!selectedOrder) return [];
     const term = unifySearch.toLowerCase();
-
     return orders.filter(o => {
-      // Não pode ser o próprio pedido, nem o pai selecionado
       if (o.id === selectedOrderId || o.id === parentOrderId) return false;
-
-      // Se NÃO tem busca: Mostra apenas sugestões do mesmo cliente
-      if (!term) {
-        return o.clientId === selectedOrder.clientId || o.clientName === selectedOrder.clientName;
-      }
-
-      // Se TEM busca: Faz busca GLOBAL por número ou cliente em pedidos ativos
+      if (!term) return o.clientId === selectedOrder.clientId || o.clientName === selectedOrder.clientName;
       const matchesSearch = o.number.toLowerCase().includes(term) || o.clientName.toLowerCase().includes(term);
-      // Filtramos apenas status "vivos" para evitar poluição com histórico antigo
       const isActive = ['aguardando_financeiro', 'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'].includes(o.status);
-      
       return matchesSearch && isActive;
     });
   }, [orders, selectedOrderId, parentOrderId, selectedOrder, unifySearch]);
 
-   const handleSelectOrder = (order: any) => {
-     setSelectedOrderId(order.id);
-     setVolumes(order.volumes || 1);
-     setCarrier(order.carrier || '');
-     setItems(order.items || []);
-     setInstallationDate(order.installationDate || '');
-     setInstallationTime(order.installationTime || '');
-     setParentOrderId(order.parentOrderId || null);
-     setOrderType(order.orderType || 'entrega');
-     
-     // Identifica pedidos que já são filhos deste
-     const children = orders.filter(o => o.parentOrderId === order.id).map(o => o.id);
-     setSelectedChildIds(children);
-     setUnifySearch('');
-
-     // Scroll suave para o formulário no mobile
-     window.scrollTo({ top: 0, behavior: 'smooth' });
-   };
+  const handleSelectOrder = (order: any) => {
+    setSelectedOrderId(order.id);
+    setVolumes(order.volumes || 1);
+    setCarrier(order.carrier || '');
+    setItems(order.items || []);
+    setInstallationDate(order.installationDate || '');
+    setInstallationTime(order.installationTime || '');
+    setParentOrderId(order.parentOrderId || null);
+    setOrderType(order.orderType || 'entrega');
+    const children = orders.filter(o => o.parentOrderId === order.id).map(o => o.id);
+    setSelectedChildIds(children);
+    setUnifySearch('');
+    setIsUnifyOpen(children.length > 0 || !!order.parentOrderId);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const handleSave = async () => {
     if (!selectedOrderId) return;
-    
     setLoading(true);
     try {
-      // Os totais já estão calculados via useMemo
-      const originalTaxes = selectedOrder?.taxes || 0;
-
-      // Se mudar para instalação/manutenção e não tiver data, avisa
       if ((orderType === 'instalacao' || orderType === 'manutencao') && (!installationDate || !installationTime)) {
-        toast.error('Informe a data e o horário da agenda.');
-        setLoading(false);
-        return;
+        const hasItemWithDate = items.some(i => i.installationDate && i.installationTime);
+        if (!hasItemWithDate) { toast.error('Informe data e horario de instalacao.'); setLoading(false); return; }
       }
-
-      // Verifica conflito se mudou horário ou data
-      if ((orderType === 'instalacao' || orderType === 'manutencao') && 
-          (installationDate !== selectedOrder?.installationDate || installationTime !== selectedOrder?.installationTime)) {
-          const hasConflict = await checkInstallationConflict(installationDate, installationTime, selectedOrderId);
-          if (hasConflict) {
-              toast.error('❌ Este horário já está ocupado na agenda.');
-              setLoading(false);
-              return;
-          }
+      if ((orderType === 'instalacao' || orderType === 'manutencao') && installationDate && installationTime &&
+        (installationDate !== selectedOrder?.installationDate || installationTime !== selectedOrder?.installationTime)) {
+        if (await checkInstallationConflict(installationDate, installationTime, selectedOrderId)) {
+          toast.error('Horario ja ocupado.'); setLoading(false); return;
+        }
       }
-
-        await updateOrder(selectedOrderId, {
-          volumes: Number(volumes),
-          carrier: carrier.toUpperCase(),
-          items,
-          subtotal: calculatedSubtotal,
-          total: calculatedTotal,
-          installationDate: (orderType === 'entrega' || orderType === 'retirada') ? '' : installationDate,
-          installationTime: (orderType === 'entrega' || orderType === 'retirada') ? '' : installationTime,
-          scheduledDate: (orderType === 'entrega' || orderType === 'retirada') ? '' : installationDate,
-          orderType,
-          parentOrderId: parentOrderId,
-          parentOrderNumber: orders.find(o => o.id === parentOrderId)?.number
-        });
-
-       // Salva a unificação dos pedidos FILHOS
-       // 1. Limpa filhos antigos que foram desmarcados
-       const oldChildren = orders.filter(o => o.parentOrderId === selectedOrderId);
-       for (const old of oldChildren) {
-          if (!selectedChildIds.includes(old.id)) {
-            await updateOrder(old.id, { parentOrderId: null, parentOrderNumber: null });
-          }
-       }
-       // 2. Define novos filhos
-       for (const childId of selectedChildIds) {
-          await updateOrder(childId, { 
-            parentOrderId: selectedOrderId, 
-            parentOrderNumber: selectedOrder?.number 
-          });
-       }
-
-      // Atualiza Agenda
       if (orderType === 'instalacao' || orderType === 'manutencao') {
-          await deleteInstallationByOrder(selectedOrderId);
-          await saveInstallation({
-              order_id: selectedOrderId,
-              seller_id: selectedOrder?.sellerId || '1',
-              client_name: selectedOrder?.clientName || 'Cliente',
-              date: installationDate,
-              time: installationTime,
-              payment_type: selectedOrder?.installationPaymentType || 'pago',
-              type: orderType as any
-          });
-      } else if ((selectedOrder?.orderType === 'instalacao' || selectedOrder?.orderType === 'manutencao') && orderType !== 'instalacao' && orderType !== 'manutencao') {
-          await deleteInstallationByOrder(selectedOrderId);
+        for (const item of items) {
+          if (item.installationDate && item.installationTime) {
+            if (await checkInstallationConflict(item.installationDate, item.installationTime, selectedOrderId)) {
+              toast.error(`Horario ${item.installationTime} do item ${item.product} ja ocupado.`); setLoading(false); return;
+            }
+          }
+        }
       }
-
+      await updateOrder(selectedOrderId, {
+        volumes: Number(volumes), carrier: carrier.toUpperCase(), items,
+        subtotal: calculatedSubtotal, total: calculatedTotal,
+        installationDate: (orderType === 'entrega' || orderType === 'retirada') ? '' : installationDate,
+        installationTime: (orderType === 'entrega' || orderType === 'retirada') ? '' : installationTime,
+        scheduledDate: (orderType === 'entrega' || orderType === 'retirada') ? '' : installationDate,
+        orderType, parentOrderId, parentOrderNumber: orders.find(o => o.id === parentOrderId)?.number
+      });
+      for (const old of orders.filter(o => o.parentOrderId === selectedOrderId)) {
+        if (!selectedChildIds.includes(old.id)) await updateOrder(old.id, { parentOrderId: null, parentOrderNumber: null });
+      }
+      for (const childId of selectedChildIds) {
+        await updateOrder(childId, { parentOrderId: selectedOrderId, parentOrderNumber: selectedOrder?.number });
+      }
+      if (orderType === 'instalacao' || orderType === 'manutencao') {
+        await deleteInstallationByOrder(selectedOrderId);
+        const itemsWithSchedule = items.filter(i => i.installationDate && i.installationTime);
+        if (itemsWithSchedule.length > 0) {
+          for (const item of itemsWithSchedule) {
+            await saveInstallation({ order_id: selectedOrderId, seller_id: selectedOrder?.sellerId || '1', client_name: selectedOrder?.clientName || 'Cliente', product_name: item.product, date: item.installationDate, time: item.installationTime, payment_type: selectedOrder?.installationPaymentType || 'pago', type: orderType as any });
+          }
+        } else if (installationDate && installationTime) {
+          await saveInstallation({ order_id: selectedOrderId, seller_id: selectedOrder?.sellerId || '1', client_name: selectedOrder?.clientName || 'Cliente', date: installationDate, time: installationTime, payment_type: selectedOrder?.installationPaymentType || 'pago', type: orderType as any });
+        }
+      } else if ((selectedOrder?.orderType === 'instalacao' || selectedOrder?.orderType === 'manutencao') && orderType !== 'instalacao' && orderType !== 'manutencao') {
+        await deleteInstallationByOrder(selectedOrderId);
+      }
       toast.success('Pedido corrigido com sucesso!');
-      setSelectedOrderId(null); // Fecha edição após salvar
-    } catch (err: any) {
-      console.error(err);
-      toast.error('Erro ao salvar correções.');
-    } finally {
-      setLoading(false);
-    }
+      setSelectedOrderId(null);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (err: any) { console.error(err); toast.error('Erro ao salvar.'); }
+    finally { setLoading(false); }
   };
 
   const handleMoveToProduction = async () => {
     if (!selectedOrderId) return;
-    if (!window.confirm('Deseja realmente VOLTAR este pedido para a produção? O status será alterado para "Aguardando Produção", permitindo que a fábrica o veja novamente.')) return;
-
+    if (!window.confirm('Voltar pedido para producao?')) return;
     setLoading(true);
-    try {
-      await updateOrder(selectedOrderId, { 
-        status: 'aguardando_producao'
-      });
-      toast.success('Pedido movido de volta para a produção!');
-      setSelectedOrderId(null);
-    } catch (err) {
-      console.error(err);
-      toast.error('Erro ao mover pedido de volta para a produção.');
-    } finally {
-      setLoading(false);
-    }
+    try { await updateOrder(selectedOrderId, { status: 'aguardando_producao' }); toast.success('Movido para producao!'); setSelectedOrderId(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    catch (err) { toast.error('Erro.'); } finally { setLoading(false); }
   };
 
   const handleItemChange = (index: number, field: string, value: any) => {
-    const newItems = [...items];
-    newItems[index] = { ...newItems[index], [field]: value };
-    setItems(newItems);
+    setItems(prev => { const n = [...prev]; n[index] = { ...n[index], [field]: value }; return n; });
   };
 
-  const addItem = () => {
-    setItems(prev => [...prev, { product: '', quantity: 1, unitPrice: 0 }]);
-  };
-
+  const addItem = () => setItems(prev => [...prev, { product: '', quantity: 1, unitPrice: 0 }]);
   const removeItem = (index: number) => {
-    if (items.length <= 1) {
-      toast.error('O pedido deve ter pelo menos um item.');
-      return;
-    }
+    if (items.length <= 1) return toast.error('O pedido precisa ter ao menos um item.');
     setItems(prev => prev.filter((_, i) => i !== index));
   };
 
-  const calculatedSubtotal = useMemo(() => 
-    items.reduce((sum, item) => sum + (Number(item.unitPrice || 0) * Number(item.quantity || 0)), 0),
-    [items]
-  );
-  
-  const calculatedTotal = useMemo(() => 
-    calculatedSubtotal + (selectedOrder?.taxes || 0),
-    [calculatedSubtotal, selectedOrder]
-  );
-
+  const calculatedSubtotal = useMemo(() => items.reduce((s, i) => s + (Number(i.unitPrice || 0) * Number(i.quantity || 0)), 0), [items]);
+  const calculatedTotal = useMemo(() => calculatedSubtotal + (selectedOrder?.taxes || 0), [calculatedSubtotal, selectedOrder]);
   const CARRIERS = ['JADLOG', 'MOTOBOY', 'KLEYTON', 'LALAMOVE', 'RETIRADA NA LOJA'];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="page-header text-2xl font-black">Arrumar Pedido</h1>
-          <p className="page-subtitle text-sm">Corrija volumes e transportadoras rapidamente</p>
+    <div className="min-h-[calc(100vh-6rem)] flex flex-col space-y-6 pb-20 max-w-[1400px] mx-auto w-full px-4 sm:px-6">
+      
+      {!selectedOrder ? (
+        // ==========================================
+        // VISAO DE LISTA
+        // ==========================================
+        <div className="space-y-8 animate-in fade-in duration-500">
+          
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pt-4">
+            <div>
+              <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-slate-800 flex items-center gap-3">
+                <div className="p-3 bg-primary text-white rounded-2xl shadow-lg shadow-primary/20"><Edit3 className="w-6 h-6 sm:w-8 sm:h-8" /></div>
+                Arrumar Pedido
+              </h1>
+              <p className="text-base font-medium text-slate-500 mt-2 max-w-2xl">
+                Selecione um pedido abaixo para corrigir os volumes, transportadoras, itens ou agendamento de instalacao.
+              </p>
+            </div>
+          </div>
+
+          {/* BUSCA GIGANTE E BONITA */}
+          <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-200/60 max-w-2xl relative flex items-center focus-within:ring-4 focus-within:ring-primary/10 focus-within:border-primary transition-all">
+            <div className="pl-4 pr-3 text-slate-400"><Search className="w-5 h-5" /></div>
+            <input type="text" placeholder="Buscar por numero (ex: PED-123), cliente ou vendedor..."
+              className="w-full h-12 bg-transparent text-sm sm:text-base font-bold focus:outline-none placeholder:text-slate-300 text-slate-700"
+              value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            {searchTerm && (
+               <button onClick={() => setSearchTerm('')} className="pr-4 text-slate-300 hover:text-slate-500 transition-colors"><X className="w-5 h-5" /></button>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-3 px-1">
+              <History className="w-5 h-5 text-slate-400" />
+              <h2 className="text-sm font-black uppercase text-slate-600 tracking-widest">Ultimos Pedidos Ativos</h2>
+              <span className="text-[10px] font-black text-primary bg-primary/10 px-2.5 py-1 rounded-full ml-auto">{filteredOrders.length}</span>
+            </div>
+            
+            {filteredOrders.length === 0 ? (
+              <div className="text-center py-20 bg-white rounded-3xl border border-slate-200 border-dashed">
+                <Search className="w-12 h-12 text-slate-300 mx-auto mb-4 opacity-50" />
+                <h3 className="text-lg font-black text-slate-600">Nenhum pedido encontrado.</h3>
+                <p className="text-slate-400 font-medium">Tente buscar por outro termo.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {filteredOrders.map(order => (
+                  <button key={order.id} onClick={() => handleSelectOrder(order)}
+                    className="group text-left bg-white p-5 rounded-3xl transition-all border border-slate-200/60 hover:border-primary/50 hover:shadow-xl hover:shadow-primary/5 flex flex-col gap-4 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-3xl -mr-10 -mt-10 group-hover:bg-primary/10 transition-colors" />
+                    
+                    <div className="flex items-start justify-between w-full relative z-10">
+                      <div>
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 block">Pedido</span>
+                        <span className="font-black text-slate-800 text-lg leading-none block">{order.number}</span>
+                      </div>
+                      <div className="shrink-0"><StatusBadge status={order.status} /></div>
+                    </div>
+                    
+                    <div className="space-y-2 relative z-10">
+                      <div>
+                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Cliente</p>
+                         <p className="text-sm font-bold text-slate-700 truncate" title={order.clientName}>{order.clientName}</p>
+                      </div>
+                      <div className="flex items-center justify-between border-t border-slate-100 pt-3 mt-1">
+                         <div>
+                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Vendedor</p>
+                           <p className="text-xs font-bold text-slate-600 truncate max-w-[120px]">{order.sellerName}</p>
+                         </div>
+                         <div className="text-right">
+                           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Volumes</p>
+                           <p className="text-xs font-black text-slate-700">{order.volumes || 1} cx</p>
+                         </div>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-        <button onClick={() => navigate(-1)} className="btn-modern bg-muted text-foreground">
-          <ArrowLeft className="w-4 h-4" /> Voltar
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* SEÇÃO DE EDIÇÃO (ESQUERDA NO DESKTOP) */}
-        <div className="lg:col-span-5 space-y-4">
-          {selectedOrder ? (
-            <div className="card-section p-6 space-y-6 border-primary/30 shadow-xl animate-in zoom-in-95 duration-300 ring-4 ring-primary/5">
-              <div className="flex items-center justify-between border-b pb-4">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                        <Edit3 className="w-5 h-5" />
-                    </div>
-                    <div>
-                        <h3 className="text-sm font-black text-foreground uppercase truncate max-w-[150px]">
-                            {selectedOrder.number}
-                        </h3>
-                        <p className="text-[10px] text-muted-foreground font-bold uppercase">{selectedOrder.clientName}</p>
-                    </div>
+      ) : (
+        // ==========================================
+        // VISAO DE EDICAO (TELA CHEIA)
+        // ==========================================
+        <div className="space-y-6 animate-in slide-in-from-bottom-8 duration-500 pb-10">
+          
+          {/* HEADER DA EDICAO (ESTATICO) */}
+          <div className="bg-white border border-slate-200 p-5 sm:p-6 rounded-3xl shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-5 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl -mr-20 -mt-20" />
+            
+            <div className="flex items-center gap-4 relative z-10">
+              <button onClick={() => setSelectedOrderId(null)} className="w-12 h-12 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all flex items-center justify-center shrink-0 border border-slate-200" title="Voltar para lista">
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-black uppercase text-primary tracking-widest bg-primary/10 px-2 py-0.5 rounded-md">Editando</span>
+                  <span className="text-xs font-bold text-slate-400">{selectedOrder.number}</span>
                 </div>
-                <button 
-                    onClick={() => { setSelectedOrderId(null); setOrderType('entrega'); }} 
-                    className="text-[10px] font-black uppercase text-muted-foreground hover:text-destructive px-3 py-1 bg-muted/50 rounded-lg"
-                >
-                  Cancelar
-                </button>
+                <h2 className="text-xl sm:text-2xl font-black text-slate-800 leading-tight">{selectedOrder.clientName}</h2>
               </div>
+            </div>
+            
+            <div className="flex items-center gap-3 w-full sm:w-auto relative z-10">
+              <button onClick={() => setSelectedOrderId(null)} className="flex-1 sm:flex-none px-6 h-12 rounded-2xl text-xs font-black uppercase text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all border border-transparent hover:border-slate-300">
+                Cancelar
+              </button>
+              <button onClick={handleSave} disabled={loading} className="flex-1 sm:flex-none px-8 h-12 rounded-2xl text-xs font-black uppercase text-white bg-primary hover:bg-primary/90 shadow-lg shadow-primary/20 transition-all flex items-center justify-center gap-2 hover:scale-[1.02]">
+                <Save className="w-4 h-4" />{loading ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </div>
 
-              {/* TIPO DE PEDIDO */}
-              <div className="space-y-3 pb-4 border-b">
-                <label className="text-[10px] font-bold text-primary uppercase flex items-center gap-1">
-                  <Package className="w-3 h-3" /> Tipo de Pedido
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {[
-                    { id: 'entrega', label: 'Entrega' },
-                    { id: 'instalacao', label: 'Instalação' },
-                    { id: 'manutencao', label: 'Manutenção' },
-                    { id: 'retirada', label: 'Retirada' }
-                  ].map(type => (
-                    <button
-                      key={type.id}
-                      onClick={() => {
-                        setOrderType(type.id);
-                        if (type.id === 'entrega' || type.id === 'retirada') {
-                          setInstallationDate('');
-                          setInstallationTime('');
-                        }
-                      }}
-                      className={`px-3 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${
-                        orderType === type.id 
-                          ? 'bg-primary text-white shadow-md' 
-                          : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-                      }`}
-                    >
-                      {type.label}
-                    </button>
-                  ))}
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+            
+            {/* COLUNA ESQUERDA (FORMULARIO PRINCIPAL) */}
+            <div className="xl:col-span-8 space-y-8">
+              
+              {/* CARD LOGISTICA */}
+              <div className="bg-white border border-slate-200 rounded-[2rem] shadow-sm p-6 sm:p-8 space-y-6 relative overflow-hidden">
+                <div className="flex items-center gap-3 border-b border-slate-100 pb-5">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600"><Truck className="w-5 h-5" /></div>
+                  <div>
+                    <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">Logistica e Tipo</h3>
+                    <p className="text-xs text-slate-400 font-medium mt-0.5">Defina como o pedido sera entregue</p>
+                  </div>
                 </div>
-              </div>
-
-              <div className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-primary uppercase flex items-center gap-1">
-                    <Package className="w-3 h-3" /> Quantidade de Volumes
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    className="input-modern bg-white text-lg font-black h-14 border-2 focus:border-primary shadow-inner"
-                    value={volumes}
-                    onChange={(e) => setVolumes(parseInt(e.target.value))}
-                  />
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tipo de Pedido</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {[{id:'entrega',label:'Entrega'},{id:'instalacao',label:'Instalacao'},{id:'manutencao',label:'Manutencao'},{id:'retirada',label:'Retirada'}].map(type => (
+                        <button key={type.id} onClick={() => { setOrderType(type.id); if (type.id==='entrega'||type.id==='retirada'){setInstallationDate('');setInstallationTime('');} }}
+                          className={`h-12 rounded-xl text-[11px] font-black uppercase transition-all border-2 ${orderType===type.id?'bg-primary border-primary text-white shadow-md shadow-primary/20':'bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-100'}`}>
+                          {type.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="flex-1 space-y-3">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Volumes (Caixas)</label>
+                      <input type="number" min={1} className="w-full h-12 bg-white border-2 border-slate-200 rounded-xl px-4 font-black text-2xl text-slate-800 focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none transition-all text-center" value={volumes} onChange={(e) => setVolumes(parseInt(e.target.value))} />
+                    </div>
+                  </div>
                 </div>
-
-                <div className="space-y-2">
-                  <label className="text-[10px] font-bold text-primary uppercase flex items-center gap-1">
-                    <Truck className="w-3 h-3" /> Transportadora / Entregador
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
+                
+                <div className="space-y-3 pt-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Transportadora / Entregador</label>
+                  <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
                     {CARRIERS.map(c => (
-                      <button
-                        key={c}
-                        type="button"
-                        onClick={() => setCarrier(c)}
-                        className={`p-3 rounded-xl border-2 text-[10px] font-black uppercase transition-all ${
-                          carrier === c 
-                            ? 'border-primary bg-primary/10 text-primary shadow-lg shadow-primary/5' 
-                            : 'border-transparent bg-muted/40 text-muted-foreground hover:bg-muted/60'
-                        }`}
-                      >
+                      <button key={c} type="button" onClick={() => setCarrier(c)}
+                        className={`px-4 py-3 rounded-xl border-2 text-[10px] font-black uppercase transition-all ${carrier===c?'border-primary bg-primary/10 text-primary':'border-slate-200 bg-white text-slate-500 hover:border-slate-300'}`}>
                         {c}
                       </button>
                     ))}
                   </div>
-                    <input
-                      type="text"
-                      placeholder="Ou digite outro nome..."
-                      className="input-modern mt-2 h-12 bg-white border-2"
-                      value={carrier}
-                      onChange={(e) => setCarrier(e.target.value)}
-                    />
+                  <input type="text" placeholder="Ou digite o nome de outro entregador..." className="w-full h-12 mt-2 bg-white border-2 border-slate-200 rounded-xl px-4 text-sm font-bold text-slate-800 focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none transition-all uppercase placeholder:text-slate-300 placeholder:normal-case" value={carrier} onChange={(e) => setCarrier(e.target.value)} />
                 </div>
+              </div>
 
-                {/* 🔗 SEÇÃO DE UNIFICAÇÃO SIMPLIFICADA */}
-                <div className="space-y-4 pt-4 border-t bg-slate-50 p-5 rounded-2xl border border-slate-200 shadow-sm transition-all">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Package className="w-4 h-4 text-slate-700" />
-                    <h4 className="text-[11px] font-black uppercase text-slate-800 tracking-tight">Unificação de Envio</h4>
-                  </div>
-                  
-                  {/* PAI */}
-                  <div className="space-y-2">
-                    <p className="text-[10px] font-bold text-slate-600">
-                      O pedido <span className="text-primary">{selectedOrder.number}</span> vai ser enviado <span className="underline italic">DENTRO</span> de qual outro pedido?
-                    </p>
-                    
-                    <div className="relative group">
-                      <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${parentOrderId ? 'text-primary' : 'text-slate-400 group-focus-within:text-primary'}`} />
-                      <select
-                        className={`input-modern pl-11 h-12 bg-white border-2 text-xs font-black transition-all ${
-                          parentOrderId ? 'border-primary ring-4 ring-primary/5 bg-primary/[0.02]' : 'border-slate-200'
-                        }`}
-                        value={parentOrderId || ''}
-                        onChange={(e) => setParentOrderId(e.target.value || null)}
-                      >
-                        <option value="">Nenhum (Este pedido é o principal ou independente)</option>
-                        <optgroup label="Sugestões (Mesmo Cliente)">
-                          {orders
-                            .filter(o => o.id !== selectedOrderId && (o.clientId === selectedOrder.clientId || o.clientName === selectedOrder.clientName))
-                            .map(o => (
-                              <option key={o.id} value={o.id}>{o.number} - {o.clientName}</option>
-                            ))}
-                        </optgroup>
-                        <optgroup label="Todos os Pedidos Ativos">
-                          {orders
-                            .filter(o => o.id !== selectedOrderId && o.clientId !== selectedOrder.clientId && ['aguardando_financeiro', 'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'].includes(o.status))
-                            .slice(0, 50)
-                            .map(o => (
-                              <option key={o.id} value={o.id}>{o.number} - {o.clientName}</option>
-                            ))}
-                        </optgroup>
-                      </select>
+              {/* CARD PRODUTOS */}
+              <div className="bg-white border border-slate-200 rounded-[2rem] shadow-sm p-6 sm:p-8 space-y-6 relative">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600"><Package className="w-5 h-5" /></div>
+                    <div>
+                      <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">Produtos do Pedido</h3>
+                      <p className="text-xs text-slate-400 font-medium mt-0.5">Gerencie os itens e precos</p>
                     </div>
-                    {parentOrderId && (
-                      <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/10 border border-primary/20 text-[9px] font-bold text-primary animate-in slide-in-from-left-2">
-                        <CheckCircle2 className="w-3 h-3" /> Vinculado ao pedido principal: {orders.find(o => o.id === parentOrderId)?.number}
+                  </div>
+                  <span className="text-xs font-black bg-slate-100 text-slate-600 px-4 py-1.5 rounded-full">{items.length} item(ns)</span>
+                </div>
+                
+                <div className="space-y-4">
+                  {items.map((item, idx) => (
+                    <div key={idx} className="p-5 sm:p-6 rounded-[1.5rem] bg-slate-50 border border-slate-200 flex flex-col gap-4 relative group/item hover:border-slate-300 transition-colors">
+                      <button onClick={() => removeItem(idx)} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center sm:opacity-0 sm:group-hover/item:opacity-100 hover:bg-red-600 hover:text-white transition-all z-10" title="Remover item">
+                        <X className="w-4 h-4" />
+                      </button>
+                      
+                      <div className="pr-10 space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Produto</label>
+                        <select className="w-full h-12 bg-white border-2 border-slate-200 rounded-xl px-4 text-sm font-black text-slate-800 focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none transition-all" value={item.product}
+                          onChange={(e) => { const p = products.find(p => p.name===e.target.value); const n=[...items]; n[idx]={...n[idx],product:e.target.value,unitPrice:p?p.unitPrice:n[idx].unitPrice}; setItems(n); }}>
+                          <option value="">Selecione um produto...</option>
+                          {products.map(p => (<option key={p.id} value={p.name}>{p.name}</option>))}
+                        </select>
                       </div>
-                    )}
-                  </div>
-
-                  <div className="h-px bg-slate-200 my-2" />
-
-                  {/* FILHOS */}
-                  <div className="space-y-3">
-                    <p className="text-[10px] font-bold text-slate-600">
-                      Quais outros pedidos serão enviados <span className="underline italic">DENTRO</span> de <span className="text-primary">{selectedOrder.number}</span>?
-                    </p>
-                    
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-                      <input 
-                        type="text" 
-                        placeholder="Digite o número (ex: PED-5805)..."
-                        className="input-modern pl-9 h-10 text-[10px] bg-white border-slate-200"
-                        value={unifySearch}
-                        onChange={(e) => setUnifySearch(e.target.value)}
-                      />
-                    </div>
-
-                    <div className="max-h-40 overflow-y-auto space-y-1.5 pr-2 custom-scrollbar">
-                        {possibleChildren.length > 0 ? (
-                          possibleChildren.map(o => (
-                            <label key={o.id} className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all cursor-pointer ${
-                              selectedChildIds.includes(o.id) 
-                                ? 'bg-primary/5 border-primary shadow-sm' 
-                                : 'bg-white border-slate-100 hover:border-slate-200'
-                            }`}>
-                              <div className={`w-5 h-5 rounded flex items-center justify-center transition-colors ${
-                                selectedChildIds.includes(o.id) ? 'bg-primary text-white' : 'bg-slate-100'
-                              }`}>
-                                <input 
-                                  type="checkbox"
-                                  className="hidden"
-                                  checked={selectedChildIds.includes(o.id)}
-                                  onChange={(e) => {
-                                    if (e.target.checked) setSelectedChildIds(prev => [...prev, o.id]);
-                                    else setSelectedChildIds(prev => prev.filter(id => id !== o.id));
-                                  }}
-                                />
-                                {selectedChildIds.includes(o.id) && <Check className="w-3.5 h-3.5 stroke-[4]" />}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-[10px] font-black text-slate-800">{o.number}</p>
-                                <p className="text-[9px] text-slate-500 truncate">{o.clientName}</p>
-                              </div>
-                              <StatusBadge status={o.status} />
-                            </label>
-                          ))
-                        ) : (
-                          <div className="py-8 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-tight px-4">
-                              {unifySearch ? 'Nenhum pedido encontrado com este número' : 'Nenhuma sugestão do mesmo cliente encontrada'}
-                            </p>
-                            {unifySearch && (
-                              <p className="text-[9px] text-slate-400 font-medium mt-1 uppercase">Tente digitar o número completo</p>
-                            )}
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Quantidade</label>
+                          <input type="number" className="w-full h-12 bg-white border-2 border-slate-200 rounded-xl px-4 text-lg font-black text-slate-800 text-center focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none transition-all" value={item.quantity} onChange={(e) => handleItemChange(idx,'quantity',parseInt(e.target.value)||0)} />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Preco Unitário (R$)</label>
+                          <input type="number" className="w-full h-12 bg-white border-2 border-slate-200 rounded-xl px-4 text-lg font-bold text-slate-800 focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none transition-all" value={item.unitPrice} onChange={(e) => handleItemChange(idx,'unitPrice',parseFloat(e.target.value)||0)} />
+                        </div>
+                      </div>
+                      
+                      {/* Sensor (KIT) */}
+                      {item.product.toUpperCase().includes('KIT') && (
+                        <div className="flex gap-3 pt-2">
+                          <button type="button" onClick={() => handleItemChange(idx,'sensorType','com_sensor')} className={`flex-1 h-11 rounded-xl text-[10px] font-black uppercase transition-all border-2 flex items-center justify-center gap-2 ${item.sensorType==='com_sensor'?'bg-slate-800 border-slate-800 text-white shadow-md':'bg-white border-slate-200 text-slate-400 hover:bg-slate-100'}`}>
+                            {item.sensorType==='com_sensor'&&<CheckCircle2 className="w-4 h-4"/>} Com Sensor
+                          </button>
+                          <button type="button" onClick={() => handleItemChange(idx,'sensorType','sem_sensor')} className={`flex-1 h-11 rounded-xl text-[10px] font-black uppercase transition-all border-2 flex items-center justify-center gap-2 ${item.sensorType==='sem_sensor'?'bg-slate-500 border-slate-500 text-white shadow-md':'bg-white border-slate-200 text-slate-400 hover:bg-slate-100'}`}>
+                            {item.sensorType==='sem_sensor'&&<CheckCircle2 className="w-4 h-4"/>} Sem Sensor
+                          </button>
+                        </div>
+                      )}
+                      
+                      {/* Agendamento do item */}
+                      <div className="flex items-center justify-between pt-4 border-t border-slate-200/70 mt-2">
+                        {item.installationDate && item.installationTime ? (
+                          <div className="flex flex-col">
+                             <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600 mb-0.5">Agendado para</span>
+                             <span className="text-xs font-black text-emerald-700 bg-emerald-100 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                               <Calendar className="w-3.5 h-3.5" />
+                               {new Date(item.installationDate+'T00:00:00').toLocaleDateString('pt-BR')} as {item.installationTime}
+                             </span>
                           </div>
-                        )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* ITENS DO PEDIDO */}
-                <div className="space-y-3 pt-4 border-t">
-                  <label className="text-[10px] font-bold text-primary uppercase flex items-center gap-1">
-                    <Package className="w-3 h-3" /> Itens e Quantidades
-                  </label>
-                  <div className="space-y-4">
-                    {items.map((item, idx) => (
-                      <div key={idx} className="p-4 rounded-xl bg-muted/30 border border-border/40 space-y-3 relative group/item">
-                        <button 
-                          onClick={() => removeItem(idx)}
-                          className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-destructive text-white flex items-center justify-center shadow-lg opacity-0 group-hover/item:opacity-100 transition-all hover:scale-110 active:scale-95 z-10"
-                          title="Remover Item"
-                        >
-                          <Plus className="w-4 h-4 rotate-45" />
+                        ) : <span className="text-xs text-slate-400 italic font-medium">Sem agendamento individual</span>}
+                        <button type="button" onClick={() => setActiveSchedulingItemIndex(idx)}
+                          className={`px-4 h-10 rounded-xl text-[10px] font-black uppercase transition-all flex items-center justify-center gap-2 border-2 ml-auto ${item.installationDate&&item.installationTime?'bg-white text-slate-600 border-slate-300 hover:bg-slate-100':'bg-white text-primary border-primary/20 hover:border-primary hover:bg-primary/5'}`}>
+                          <Calendar className="w-4 h-4" />
+                          {item.installationDate&&item.installationTime?'Alterar Data':'Agendar Produto'}
                         </button>
-                        
-                        <div className="flex flex-col gap-1">
-                          <label className="text-[9px] font-black uppercase text-muted-foreground">Produto</label>
-                          <select
-                            className="input-modern h-10 bg-white border-2 text-xs font-bold"
-                            value={item.product}
-                            onChange={(e) => {
-                              const selectedProd = products.find(p => p.name === e.target.value);
-                              const newItems = [...items];
-                              newItems[idx] = { 
-                                ...newItems[idx], 
-                                product: e.target.value,
-                                unitPrice: selectedProd ? selectedProd.unitPrice : newItems[idx].unitPrice
-                              };
-                              setItems(newItems);
-                            }}
-                          >
-                            <option value="">Selecione um produto...</option>
-                            {products.map(p => (
-                              <option key={p.id} value={p.name}>{p.name}</option>
-                            ))}
-                          </select>
-                        </div>
-                        
-                        {/* ⚡ OPÇÃO DE SENSOR (Para KITS) */}
-                        {item.product.toUpperCase().includes('KIT') && (
-                          <div className="flex flex-col gap-2 pt-1">
-                            <label className="text-[9px] font-black uppercase text-muted-foreground ml-1">Configuração de Sensor</label>
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                onClick={() => handleItemChange(idx, 'sensorType', 'com_sensor')}
-                                className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase transition-all flex items-center justify-center gap-1.5 ${
-                                  item.sensorType === 'com_sensor'
-                                    ? 'bg-primary text-white shadow-md'
-                                    : 'bg-white border-2 border-slate-100 text-muted-foreground hover:bg-slate-50'
-                                }`}
-                              >
-                                {item.sensorType === 'com_sensor' && <CheckCircle2 className="w-3 h-3" />} COM SENSOR
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleItemChange(idx, 'sensorType', 'sem_sensor')}
-                                className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase transition-all flex items-center justify-center gap-1.5 ${
-                                  item.sensorType === 'sem_sensor'
-                                    ? 'bg-slate-600 text-white shadow-md'
-                                    : 'bg-white border-2 border-slate-100 text-muted-foreground hover:bg-slate-50'
-                                }`}
-                              >
-                                {item.sensorType === 'sem_sensor' && <CheckCircle2 className="w-3 h-3" />} SEM SENSOR
-                              </button>
-                            </div>
-                          </div>
-                        )}
-
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="flex flex-col gap-1">
-                            <label className="text-[9px] font-black uppercase text-muted-foreground">Qtd</label>
-                            <input
-                              type="number"
-                              className="input-modern h-10 bg-white border-2 text-sm font-black"
-                              value={item.quantity}
-                              onChange={(e) => handleItemChange(idx, 'quantity', parseInt(e.target.value) || 0)}
-                            />
-                          </div>
-                          <div className="flex flex-col gap-1">
-                            <label className="text-[9px] font-black uppercase text-muted-foreground">Preço Unit.</label>
-                            <input
-                              type="number"
-                              className="input-modern h-10 bg-white border-2 text-sm font-bold"
-                              value={item.unitPrice}
-                              onChange={(e) => handleItemChange(idx, 'unitPrice', parseFloat(e.target.value) || 0)}
-                            />
-                          </div>
-                        </div>
                       </div>
-                    ))}
-                    
-                    <button 
-                      onClick={addItem}
-                      className="w-full py-3 rounded-xl border-2 border-dashed border-primary/30 text-primary flex items-center justify-center gap-2 hover:bg-primary/5 transition-all text-[10px] font-black uppercase"
-                    >
-                      <Plus className="w-4 h-4" /> Adicionar Produto
-                    </button>
+                    </div>
+                  ))}
+                </div>
+                
+                <button onClick={addItem} className="w-full py-4 rounded-2xl border-2 border-dashed border-primary/30 text-primary flex items-center justify-center gap-2 hover:bg-primary/5 hover:border-primary transition-all text-xs font-black uppercase tracking-widest">
+                  <Plus className="w-5 h-5" /> Adicionar Mais Um Produto
+                </button>
+              </div>
 
-                    <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 flex items-center justify-between">
-                      <span className="text-[10px] font-black uppercase text-primary">Novo Total do Pedido:</span>
-                      <span className="text-xl font-black text-primary">
-                        {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(calculatedTotal)}
-                      </span>
+              {/* UNIFICACAO ACCORDION */}
+              <div className="bg-white border border-slate-200 rounded-[2rem] shadow-sm overflow-hidden">
+                <button onClick={() => setIsUnifyOpen(!isUnifyOpen)} className="w-full p-6 sm:p-8 flex items-center justify-between bg-slate-50/50 hover:bg-slate-50 transition-colors">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${isUnifyOpen?'bg-amber-100 text-amber-600':'bg-slate-100 text-slate-500'}`}><Package className="w-5 h-5" /></div>
+                    <div className="text-left">
+                      <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">Unificacao de Envio</h3>
+                      <p className="text-xs text-slate-500 mt-0.5 font-medium">Vincule pedidos para que sejam enviados juntos</p>
                     </div>
                   </div>
-                </div>
-
-                {/* AGENDAMENTO */}
-                {(orderType === 'instalacao' || orderType === 'manutencao' || orderType === 'retirada') && (
-                  <div className="space-y-4 pt-4 border-t animate-in fade-in duration-500">
-                    <label className="text-[10px] font-bold text-primary uppercase flex items-center gap-1">
-                      <Clock className="w-3 h-3" /> Selecionar Horário na Agenda
-                    </label>
-                    <InstallationCalendar 
-                        selectedDate={installationDate}
-                        selectedTime={installationTime}
-                        currentOrderId={selectedOrderId || undefined}
-                        onSelect={(date, time) => {
-                            setInstallationDate(date);
-                            setInstallationTime(time);
-                        }}
-                    />
+                  <div className={`p-2 rounded-full transition-transform duration-300 ${isUnifyOpen ? 'bg-slate-200 rotate-180' : 'bg-slate-100'}`}>
+                     <ChevronDown className="w-5 h-5 text-slate-600" />
+                  </div>
+                </button>
+                
+                {isUnifyOpen && (
+                  <div className="p-6 sm:p-8 border-t border-slate-100 space-y-8 bg-white animate-in slide-in-from-top-4 duration-300">
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Este pedido será enviado DENTRO de qual outro?</label>
+                      <div className="relative">
+                        <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 ${parentOrderId?'text-primary':'text-slate-400'}`} />
+                        <select className={`w-full pl-12 pr-4 h-14 bg-white border-2 text-sm font-black rounded-xl focus:outline-none transition-all ${parentOrderId?'border-primary ring-4 ring-primary/10':'border-slate-200 focus:border-primary focus:ring-4 focus:ring-primary/10'}`} value={parentOrderId||''} onChange={(e)=>setParentOrderId(e.target.value||null)}>
+                          <option value="">Nenhum (pedido independente)</option>
+                          <optgroup label="Mesmo Cliente">
+                            {orders.filter(o=>o.id!==selectedOrderId&&(o.clientId===selectedOrder.clientId||o.clientName===selectedOrder.clientName)).map(o=>(<option key={o.id} value={o.id}>{o.number} - {o.clientName}</option>))}
+                          </optgroup>
+                          <optgroup label="Todos os Ativos">
+                            {orders.filter(o=>o.id!==selectedOrderId&&o.clientId!==selectedOrder.clientId&&['aguardando_financeiro','aguardando_producao','em_producao','producao_finalizada','produto_liberado'].includes(o.status)).slice(0,50).map(o=>(<option key={o.id} value={o.id}>{o.number} - {o.clientName}</option>))}
+                          </optgroup>
+                        </select>
+                      </div>
+                      {parentOrderId&&(<div className="flex items-center gap-2 p-4 rounded-xl bg-primary/10 border border-primary/20 text-sm font-bold text-primary mt-2 animate-in fade-in"><CheckCircle2 className="w-5 h-5"/> Este pedido sera agrupado dentro do {orders.find(o=>o.id===parentOrderId)?.number}</div>)}
+                    </div>
+                    
+                    <div className="h-px bg-slate-200/60"/>
+                    
+                    <div className="space-y-4">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Quais pedidos irao DENTRO deste?</label>
+                      <div className="relative">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"/>
+                        <input type="text" placeholder="Busque por numero do pedido..." className="w-full pl-12 pr-4 h-14 text-sm font-bold bg-white border-2 border-slate-200 rounded-xl focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none transition-all" value={unifySearch} onChange={(e)=>setUnifySearch(e.target.value)}/>
+                      </div>
+                      <div className="max-h-[320px] overflow-y-auto space-y-2 custom-scrollbar pt-2 pr-2">
+                        {possibleChildren.length>0?possibleChildren.map(o=>(
+                          <label key={o.id} className={`flex items-center gap-4 p-4 rounded-xl border-2 transition-all cursor-pointer ${selectedChildIds.includes(o.id)?'bg-primary/5 border-primary shadow-sm shadow-primary/10':'bg-white border-slate-200 hover:border-primary/40'}`}>
+                            <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 border transition-colors ${selectedChildIds.includes(o.id)?'bg-primary border-primary text-white':'bg-slate-100 border-slate-300 text-transparent'}`}>
+                              <input type="checkbox" className="hidden" checked={selectedChildIds.includes(o.id)} onChange={(e)=>{if(e.target.checked)setSelectedChildIds(prev=>[...prev,o.id]);else setSelectedChildIds(prev=>prev.filter(id=>id!==o.id));}}/>
+                              <Check className="w-4 h-4 stroke-[4]"/>
+                            </div>
+                            <div className="flex-1 min-w-0"><p className="text-sm font-black text-slate-800">{o.number}</p><p className="text-[11px] text-slate-500 truncate">{o.clientName}</p></div>
+                            <StatusBadge status={o.status}/>
+                          </label>
+                        )):(
+                          <div className="py-10 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50">
+                            <p className="text-xs font-black text-slate-400 uppercase tracking-widest">{unifySearch?'Nenhum pedido encontrado':'Sem sugestoes para este cliente'}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
+              </div>
+            </div>
 
-                <div className="space-y-4 pt-6 border-t">
-                  <button
-                    onClick={handleSave}
-                    disabled={loading}
-                    className="btn-primary w-full h-14 justify-center font-bold text-base shadow-lg shadow-primary/30 hover:scale-[1.01] active:scale-[0.99] transition-all"
-                  >
-                    {loading ? 'Sincronizando...' : 'Confirmar Alterações'}
-                  </button>
+            {/* COLUNA DIREITA (RESUMO E ACOES EXTRAS) */}
+            <div className="xl:col-span-4 space-y-8">
+              
+              {/* CARD RESUMO E SALVAR */}
+              <div className="bg-slate-800 rounded-[2rem] p-6 sm:p-8 text-white shadow-xl shadow-slate-900/20 relative overflow-hidden">
+                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-2xl -mr-10 -mt-10" />
+                 
+                 <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Total Calculado</h3>
+                 <div className="text-3xl sm:text-4xl font-black mb-6">{new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(calculatedTotal)}</div>
+                 
+                 <div className="space-y-3 mb-8">
+                    <div className="flex justify-between text-xs font-medium text-slate-300">
+                       <span>Subtotal itens</span>
+                       <span>{new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(calculatedSubtotal)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs font-medium text-slate-300 pb-3 border-b border-slate-700">
+                       <span>Taxas/Outros</span>
+                       <span>{new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(selectedOrder.taxes || 0)}</span>
+                    </div>
+                 </div>
 
-                  <div className="pt-2">
-                    <label className="text-[10px] font-bold text-destructive uppercase flex items-center gap-1 mb-2 ml-1">
-                      <RotateCcw className="w-3 h-3" /> Ações Críticas (Gestor)
-                    </label>
-                    <button
-                      onClick={handleMoveToProduction}
-                      disabled={loading}
-                      className="w-full h-12 rounded-xl bg-destructive/5 text-destructive hover:bg-destructive hover:text-white transition-all font-black text-[10px] uppercase tracking-widest border border-destructive/10 flex items-center justify-center gap-2"
-                    >
-                      <RotateCcw className="w-4 h-4" /> Mover de Volta para Produção
-                    </button>
-                    <p className="text-[9px] text-muted-foreground text-center mt-2 italic px-4">
-                      * Use esta opção para pedidos que precisam ser refeitos ou corrigidos na fábrica, mesmo que já tenham sido retirados.
-                    </p>
+                 <button onClick={handleSave} disabled={loading} className="w-full h-14 rounded-2xl text-sm font-black uppercase text-slate-800 bg-white hover:bg-slate-100 transition-all flex items-center justify-center gap-2 hover:scale-[1.02] shadow-lg">
+                    <Save className="w-5 h-5" /> {loading ? 'Salvando...' : 'Salvar Todas Alteracoes'}
+                 </button>
+              </div>
+
+              {/* AGENDAMENTO GERAL */}
+              {(orderType==='instalacao'||orderType==='manutencao'||orderType==='retirada')&&(
+                <div className="bg-white border border-slate-200 rounded-[2rem] shadow-sm p-6 sm:p-8 space-y-5">
+                  <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600"><Clock className="w-5 h-5"/></div>
+                    <div>
+                      <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">Agenda Geral</h3>
+                      <p className="text-[10px] text-slate-400 font-medium mt-0.5 leading-tight">Use apenas se NAO agendou os produtos separadamente</p>
+                    </div>
+                  </div>
+                  <div className="bg-slate-50 p-2 rounded-2xl border border-slate-200">
+                    <InstallationCalendar selectedDate={installationDate} selectedTime={installationTime} currentOrderId={selectedOrderId||undefined} onSelect={(date,time)=>{setInstallationDate(date);setInstallationTime(time);}}/>
                   </div>
                 </div>
-              </div>
-            </div>
-          ) : (
-            <div className="card-section p-12 text-center border-dashed border-2 flex flex-col items-center justify-center space-y-3 bg-muted/10 h-[400px]">
-              <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center animate-pulse">
-                <Filter className="w-10 h-10 text-muted-foreground/30" />
-              </div>
-              <div>
-                <p className="text-muted-foreground font-bold">Nenhum pedido selecionado</p>
-                <p className="text-[10px] text-muted-foreground uppercase font-black tracking-widest mt-1">Selecione um pedido na lista ao lado</p>
-              </div>
-            </div>
-          )}
-        </div>
+              )}
 
-        {/* LISTAGEM DE PEDIDOS (DIREITA NO DESKTOP) */}
-        <div className="lg:col-span-7 space-y-4">
-          <div className="card-section p-5 bg-primary/5 border-primary/20">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Busque por número, cliente ou vendedor..."
-                className="input-modern pl-12 h-14 bg-white border-none shadow-md text-sm font-bold"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-          </div>
+              {/* EMERGENCIA */}
+              <div className="bg-red-50 border border-red-200 rounded-[2rem] p-6 sm:p-8 space-y-4 text-center">
+                <div className="w-14 h-14 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto"><AlertCircle className="w-6 h-6"/></div>
+                <div>
+                  <h4 className="text-sm font-black text-red-700 uppercase tracking-widest">Retornar para Fabrica</h4>
+                  <p className="text-xs text-red-500 font-medium mt-1">Isso volta o status para Aguardando Producao</p>
+                </div>
+                <button onClick={handleMoveToProduction} disabled={loading} className="w-full h-12 mt-4 rounded-xl bg-white border-2 border-red-300 text-red-600 font-black text-xs uppercase tracking-widest hover:bg-red-600 hover:text-white hover:border-red-600 transition-all flex items-center justify-center gap-2">
+                  <RotateCcw className="w-4 h-4"/> Mover para Producao
+                </button>
+              </div>
 
-          <div className="card-section overflow-hidden shadow-xl border-border/60 bg-white/50 backdrop-blur-sm">
-            <div className="p-4 border-b bg-muted/20 flex items-center justify-between">
-                <h2 className="text-[10px] font-black uppercase text-muted-foreground tracking-widest flex items-center gap-2">
-                    <History className="w-3.5 h-3.5" /> Últimos Pedidos
-                </h2>
-                <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
-                    {filteredOrders.length} mostrados
-                </span>
-            </div>
-            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-              <table className="modern-table border-none">
-                <thead>
-                  <tr className="bg-muted/30">
-                    <th className="py-4 px-4"># Pedido</th>
-                    <th className="py-4 px-4">Cliente</th>
-                    <th className="py-4 px-4">Status</th>
-                    <th className="text-right py-4 px-4">Ação</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/30">
-                  {filteredOrders.map((order, idx) => (
-                    <tr 
-                      key={order.id} 
-                      className={`group transition-all duration-200 ${selectedOrderId === order.id ? 'bg-primary/10' : 'hover:bg-primary/[0.03]'}`}
-                    >
-                      <td className="py-4 px-4">
-                        <span className="font-black text-foreground text-sm tracking-tight">{order.number}</span>
-                      </td>
-                      <td className="py-4 px-4">
-                        <div className="flex flex-col">
-                            <span className="text-xs font-black text-foreground truncate max-w-[180px]">{order.clientName}</span>
-                            <span className="text-[9px] font-bold text-muted-foreground uppercase">{order.sellerName}</span>
-                        </div>
-                      </td>
-                      <td className="py-4 px-4">
-                        <StatusBadge status={order.status} />
-                      </td>
-                      <td className="text-right py-4 px-4">
-                        <button
-                          onClick={() => handleSelectOrder(order)}
-                          className={`flex items-center gap-2 ml-auto px-4 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${
-                            selectedOrderId === order.id 
-                              ? 'bg-primary text-white shadow-lg shadow-primary/30' 
-                              : 'bg-primary/10 text-primary hover:bg-primary hover:text-white'
-                          }`}
-                        >
-                          <Edit3 className="w-3.5 h-3.5" /> {selectedOrderId === order.id ? 'Editando' : 'Editar'}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
             </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* MODAL AGENDAR PRODUTO */}
+      {activeSchedulingItemIndex!==null&&(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-4xl rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200 border border-slate-200">
+            <div className="p-5 sm:p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+              <h3 className="font-black text-primary uppercase flex items-center gap-3 text-sm tracking-widest">
+                <div className="p-2 bg-primary/10 rounded-lg"><Calendar className="w-5 h-5"/></div>
+                Agendar: {items[activeSchedulingItemIndex].product}
+              </h3>
+              <button onClick={()=>setActiveSchedulingItemIndex(null)} className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-slate-400 hover:bg-red-500 hover:text-white transition-all shadow-sm border border-slate-200"><X className="w-5 h-5"/></button>
+            </div>
+            <div className="p-6 md:p-8 overflow-y-auto custom-scrollbar flex-1 bg-white">
+              <InstallationCalendar selectedDate={items[activeSchedulingItemIndex].installationDate||''} selectedTime={items[activeSchedulingItemIndex].installationTime||''} currentOrderId={selectedOrderId||undefined}
+                onSelect={(date,time)=>{handleItemChange(activeSchedulingItemIndex,'installationDate',date);handleItemChange(activeSchedulingItemIndex,'installationTime',time);}}/>
+            </div>
+            <div className="p-5 sm:p-6 border-t border-slate-100 bg-slate-50/80 flex flex-col sm:flex-row justify-end gap-3">
+              <button onClick={()=>{handleItemChange(activeSchedulingItemIndex,'installationDate','');handleItemChange(activeSchedulingItemIndex,'installationTime','');setActiveSchedulingItemIndex(null);}} className="px-6 h-12 rounded-xl text-xs font-black uppercase text-red-500 hover:bg-red-50 transition-all border border-transparent hover:border-red-200">Remover Horario</button>
+              <button onClick={()=>setActiveSchedulingItemIndex(null)} className="px-8 h-12 rounded-xl text-xs font-black uppercase text-white bg-primary hover:bg-primary/90 transition-all shadow-lg shadow-primary/20 hover:scale-[1.02]">Confirmar Horario</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

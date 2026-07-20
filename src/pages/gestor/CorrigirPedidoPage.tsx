@@ -1,11 +1,12 @@
-﻿import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { Search, Save, Package, Truck, ArrowLeft, Edit3, History, Clock, Plus, CheckCircle2, Check, RotateCcw, Calendar, X, ChevronDown, ChevronUp, AlertCircle, FileEdit } from 'lucide-react';
+import { Search, Save, Package, Truck, ArrowLeft, Edit3, History, Clock, Plus, CheckCircle2, Check, RotateCcw, Calendar, X, ChevronDown, ChevronUp, AlertCircle, FileEdit, Camera } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { InstallationCalendar } from '@/components/shared/InstallationCalendar';
+import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
 import { checkInstallationConflict, saveInstallation, deleteInstallationByOrder } from '@/lib/installationServiceSupabase';
 
 const CorrigirPedidoPage: React.FC = () => {
@@ -477,6 +478,25 @@ const CorrigirPedidoPage: React.FC = () => {
                     <Save className="w-5 h-5" /> {loading ? 'Salvando...' : 'Salvar Todas Alteracoes'}
                  </button>
               </div>
+
+              {/* PROVAS DE PRODUCAO (Visualizacao Gestor) */}
+              {selectedOrder?.productionMedia && selectedOrder.productionMedia.length > 0 && (
+                <div className="bg-white border border-slate-200 rounded-[2rem] shadow-sm p-6 sm:p-8 space-y-5">
+                  <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
+                    <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600"><Camera className="w-5 h-5"/></div>
+                    <div>
+                      <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">Provas de Produção</h3>
+                      <p className="text-[10px] text-slate-400 font-medium mt-0.5 leading-tight">Fotos da embalagem</p>
+                    </div>
+                  </div>
+                  <ComprovanteUpload
+                    values={(selectedOrder.productionMedia || []).map(m => typeof m === 'string' ? m : m.url)}
+                    onChange={() => {}}
+                    readOnly={true}
+                    label="Visualizar Fotos"
+                  />
+                </div>
+              )}
 
               {/* AGENDAMENTO GERAL */}
               {(orderType==='instalacao'||orderType==='manutencao'||orderType==='retirada')&&(

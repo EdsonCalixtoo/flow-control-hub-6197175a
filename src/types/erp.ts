@@ -128,6 +128,7 @@ export interface Order {
   parentOrderNumber?: string;  // Número do pedido "pai"
   productionFinishedBy?: string;
   productionStartedBy?: string;
+  productionMedia?: { url: string; type: 'image' | 'video'; timestamp: string }[];
 }
 
 export type RewardStatus = 'pendente' | 'liberado' | 'resgatado';
@@ -205,6 +206,18 @@ export interface DeliveryPickup {
   pickedUpAt: string;
   batchId?: string;      // ID do lote de retirada
   note?: string;
+}
+
+// Fechamento Diário da Produção
+export interface ProductionDailyClosure {
+  id: string;
+  userId: string;
+  userName: string;
+  date: string;
+  photoUrl: string;
+  signatureUrl: string;
+  orderIds: string[];
+  createdAt: string;
 }
 
 export interface ProductionError {

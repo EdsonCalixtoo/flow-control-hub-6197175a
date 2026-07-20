@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { FinancialEntry, DelayReport, OrderReturn, ProductionError, BarcodeScan, DeliveryPickup } from '@/types/erp';
+import type { FinancialEntry, DelayReport, OrderReturn, ProductionError, BarcodeScan, DeliveryPickup, ProductionDailyClosure } from '@/types/erp';
 
 // ── Financial Entries ────────────────────────────────────────────────────────
 const supabaseToFinancial = (data: any): FinancialEntry => ({
@@ -410,3 +410,49 @@ export const createDeliveryPickupSupabase = async (pickup: Omit<DeliveryPickup, 
     }
 };
 
+// ── Production Daily Closures ────────────────────────────────────────────────
+
+const supabaseToProductionDailyClosure = (data: any): ProductionDailyClosure => ({
+    id: data.id,
+    userId: data.user_id,
+    userName: data.user_name,
+    date: data.date,
+    photoUrl: data.photo_url,
+    signatureUrl: data.signature_url,
+    orderIds: data.order_ids || [],
+    createdAt: data.created_at,
+});
+
+export const fetchProductionDailyClosures = async (): Promise<ProductionDailyClosure[]> => {
+    try {
+        const { data, error } = await supabase.from('production_daily_closures')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(1000);
+        if (error) throw error;
+        return (data || []).map(supabaseToProductionDailyClosure);
+    } catch (err: any) {
+        console.error('[ProductionClosures] Erro ao buscar fechamentos:', err.message);
+        return [];
+    }
+};
+
+export const createProductionDailyClosureSupabase = async (closure: Omit<ProductionDailyClosure, 'id' | 'createdAt'>): Promise<ProductionDailyClosure | null> => {
+    try {
+        const payload = {
+            id: crypto.randomUUID(),
+            user_id: closure.userId,
+            user_name: closure.userName,
+            date: closure.date,
+            photo_url: closure.photoUrl,
+            signature_url: closure.signatureUrl,
+            order_ids: closure.orderIds,
+        };
+        const { data, error } = await supabase.from('production_daily_closures').insert([payload]).select().single();
+        if (error) throw error;
+        return supabaseToProductionDailyClosure(data);
+    } catch (err: any) {
+        console.error('[ProductionClosures] Erro ao criar fechamento:', err.message);
+        throw err;
+    }
+};

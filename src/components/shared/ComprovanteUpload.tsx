@@ -14,6 +14,7 @@ interface Props {
     label?: string;
     readOnly?: boolean;
     orderId?: string;
+    capture?: 'user' | 'environment';
 }
 
 const ACCEPTED = 'image/jpeg,image/png,image/webp,application/pdf';
@@ -85,7 +86,7 @@ const PreviewModal: React.FC<{ src: string; onClose: () => void }> = ({ src, onC
 
 /* ─── Componente principal ───────────────────────────────── */
 export const ComprovanteUpload: React.FC<Props> = ({
-    values = [], onChange, label = 'Comprovantes de Pagamento', readOnly = false, orderId,
+    values = [], onChange, label = 'Comprovantes de Pagamento', readOnly = false, orderId, capture
 }) => {
     const inputRef = useRef<HTMLInputElement>(null);
     const [uploading, setUploading] = useState(false);
@@ -209,7 +210,7 @@ export const ComprovanteUpload: React.FC<Props> = ({
                         ${uploading ? 'opacity-50 cursor-not-allowed border-muted bg-muted/20' : 'cursor-pointer border-border/60 bg-slate-50 hover:border-primary/40 hover:bg-primary/[0.02]'}
                     `}
                 >
-                    <input ref={inputRef} type="file" accept={ACCEPTED} multiple className="hidden"
+                    <input ref={inputRef} type="file" accept={ACCEPTED} multiple className="hidden" capture={capture}
                         onChange={e => { if (e.target.files) processFiles(e.target.files); }} disabled={uploading} />
                     
                     <div className={`h-14 w-14 rounded-2xl bg-primary/5 flex items-center justify-center text-primary group-hover:scale-110 group-hover:bg-primary/10 transition-all shadow-sm`}>

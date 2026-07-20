@@ -18,7 +18,7 @@ import {
 
 const RelatoriosPage: React.FC = () => {
   const { user } = useAuth();
-  const { financialEntries, orders: contextOrders, deliveryPickups: contextPickups, updateOrderStatus } = useERP();
+  const { financialEntries, orders: contextOrders, deliveryPickups: contextPickups, productionDailyClosures, updateOrderStatus } = useERP();
   const [deepOrders, setDeepOrders] = React.useState<Order[]>([]);
   const [deepPickups, setDeepPickups] = React.useState<DeliveryPickup[]>([]);
   const [loadingDeep, setLoadingDeep] = React.useState(false);
@@ -768,6 +768,78 @@ const RelatoriosPage: React.FC = () => {
               </button>
             </div>
           </div>
+      </div>
+
+      {/* Relatório de Fechamentos de Produção */}
+      <div className="card-section p-0 border-indigo-500/20 bg-indigo-500/[0.01] overflow-visible mt-8">
+        <div className="bg-gradient-to-r from-indigo-500/5 to-transparent p-6 border-b border-indigo-500/10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 flex items-center justify-center shadow-inner group">
+              <Camera className="w-7 h-7 text-indigo-500 group-hover:scale-110 transition-transform" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black text-foreground uppercase tracking-tighter">Relatórios da Produção</h2>
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                <p className="text-xs text-muted-foreground font-semibold">Fechamentos diários e provas de embalagem</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {!productionDailyClosures || productionDailyClosures.length === 0 ? (
+              <div className="col-span-full py-16 text-center bg-white/40 rounded-[2.5rem] border-2 border-dashed border-border/40 backdrop-blur-sm">
+                <p className="text-sm font-black text-foreground uppercase tracking-widest">Nenhum fechamento registrado</p>
+              </div>
+            ) : (
+              productionDailyClosures.map(closure => (
+                <div key={closure.id} className="group flex flex-col bg-white rounded-[2rem] border border-border/20 shadow-sm hover:shadow-2xl transition-all duration-500 overflow-hidden">
+                  <div className="h-1.5 w-full bg-gradient-to-r from-indigo-500 to-purple-600" />
+                  <div className="p-5 flex flex-col gap-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-black uppercase tracking-widest text-indigo-600 bg-indigo-500/10 px-3 py-1 rounded-full">
+                        {new Date(closure.date).toLocaleDateString('pt-BR')}
+                      </span>
+                      <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-1 rounded-md">
+                        {closure.orderIds?.length || 0} Pedidos
+                      </span>
+                    </div>
+                    
+                    <div>
+                      <p className="text-sm font-black text-foreground uppercase truncate">{closure.userName}</p>
+                      <p className="text-[10px] text-muted-foreground font-bold uppercase">Responsável pelo fechamento</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <div className="aspect-square rounded-2xl overflow-hidden border border-border/20 bg-muted/30 relative">
+                        {closure.photoUrl ? (
+                          <img src={closure.photoUrl} alt="Foto Fechamento" className="w-full h-full object-cover" onClick={() => window.open(closure.photoUrl, '_blank')} title="Ver foto em tela cheia" style={{cursor: 'pointer'}} />
+                        ) : (
+                          <div className="w-full h-full flex justify-center items-center"><Camera className="w-6 h-6 text-muted-foreground/30" /></div>
+                        )}
+                        <div className="absolute bottom-1 left-1 text-[8px] font-black uppercase tracking-widest text-white bg-black/50 px-1.5 py-0.5 rounded">
+                          Foto
+                        </div>
+                      </div>
+                      <div className="aspect-square rounded-2xl overflow-hidden border border-border/20 bg-white relative">
+                        {closure.signatureUrl ? (
+                          <img src={closure.signatureUrl} alt="Assinatura Fechamento" className="w-full h-full object-contain p-2" onClick={() => window.open(closure.signatureUrl, '_blank')} title="Ver assinatura em tela cheia" style={{cursor: 'pointer'}} />
+                        ) : (
+                          <div className="w-full h-full flex justify-center items-center"><PenLine className="w-6 h-6 text-muted-foreground/30" /></div>
+                        )}
+                        <div className="absolute bottom-1 left-1 text-[8px] font-black uppercase tracking-widest text-muted-foreground bg-white/80 backdrop-blur px-1.5 py-0.5 rounded border border-border/50">
+                          Assinatura
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
       </div>
 
       {/* MODAL DE DETALHES DO LOTE */}

@@ -52,6 +52,7 @@ export const supabaseToOrder = (data: any): Order => ({
         const entry = [...history].reverse().find((e: any) => e.note?.startsWith('Rejeitado:'));
         return entry ? entry.note.replace(/^Rejeitado:\s*/, '') : undefined;
     })(),
+    productionMedia: data.production_media || undefined,
 });
 
 export const orderToSupabase = (order: Partial<Order>) => {
@@ -95,12 +96,13 @@ export const orderToSupabase = (order: Partial<Order>) => {
     if (order.attachmentName !== undefined) data.attachment_name = order.attachmentName;
     if (order.items) data.items = order.items;
     if (order.statusHistory) data.status_history = order.statusHistory;
+    if (order.productionMedia !== undefined) data.production_media = order.productionMedia;
     data.updated_at = new Date().toISOString();
     return data;
 };
 
 // ⚡ OTIMIZAÇÃO DE EGRESS: Colunas mínimas para listagem (sem histórico pesado)
-const LIST_ORDER_COLUMNS = 'id, number, client_id, client_name, seller_id, seller_name, subtotal, taxes, total, status, notes, observation, order_type, is_cronograma, financeiro_aprovado, is_warranty, status_pagamento, status_producao, created_at, updated_at, delivery_date, installation_date, installation_time, installation_payment_type, scheduled_date, carrier, parent_order_id, parent_order_number, is_site, is_international, attachment_url, attachment_name, items, volumes, requires_invoice, requires_shipping_note, receipt_url, receipt_urls, comprovantes_vistos';
+const LIST_ORDER_COLUMNS = 'id, number, client_id, client_name, seller_id, seller_name, subtotal, taxes, total, status, notes, observation, order_type, is_cronograma, financeiro_aprovado, is_warranty, status_pagamento, status_producao, created_at, updated_at, delivery_date, installation_date, installation_time, installation_payment_type, scheduled_date, carrier, parent_order_id, parent_order_number, is_site, is_international, attachment_url, attachment_name, items, volumes, requires_invoice, requires_shipping_note, receipt_url, receipt_urls, comprovantes_vistos, production_media';
 
 export const fetchOrders = async (role?: string, userId?: string): Promise<Order[]> => {
     try {

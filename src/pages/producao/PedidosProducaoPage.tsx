@@ -132,7 +132,7 @@ const PRODUCTION_STATUS_OPTS: { value: ProductionStatus; label: string; cls: str
 ];
 
 const PedidosProducaoPage: React.FC = () => {
-    const { orders, clients, barcodeScans, updateOrderStatus, addBarcodeScan, updateOrder, editWarranty, addDelayReport, loadFromSupabase, loading, warranties, updateWarrantyStatus, loadOrderDetails, loadOrderByNumber } = useERP();
+    const { orders, clients, barcodeScans, updateOrderStatus, addBarcodeScan, updateOrder, editWarranty, addDelayReport, loadFromSupabase, loading, warranties, updateWarrantyStatus, loadOrderDetails, loadOrderByNumber, addProductionDailyClosure } = useERP();
     const { user } = useAuth();
     const isCarenagem = user?.role === 'producao_carenagem';
     const mainColor = isCarenagem ? 'indigo-600' : 'producao';
@@ -180,6 +180,7 @@ const PedidosProducaoPage: React.FC = () => {
     const [lastParentNumber, setLastParentNumber] = useState('');
     const [orderForPrint, setOrderForPrint] = useState<any>(null);
     const [printVolumesInput, setPrintVolumesInput] = useState('1');
+    const [showFechamentoModal, setShowFechamentoModal] = useState(false);
 
     const revertStatus = async (orderId: string, currentStatus: string) => {
         const order = orders.find(o => o.id === orderId);
@@ -2193,7 +2194,7 @@ ${etiquetasHtml}
                     </div>
                 </div>
 
-                {/* OBSERVAÇÕES */}
+                {/* OBSERVAÇÕES E NOTAS */}
                 {(viewOrder.observation || viewOrder.notes) && (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {viewOrder.observation && (
@@ -2210,6 +2211,34 @@ ${etiquetasHtml}
                         )}
                     </div>
                 )}
+
+                {/* PROVAS DE PRODUÇÃO */}
+                <div className="glass-card p-6 rounded-[2rem] border-2 border-primary/20 shadow-xl bg-primary/[0.02]">
+                    <div className="flex items-center gap-3 mb-6">
+                        <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/20">
+                            <Camera className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h4 className="text-[12px] font-black uppercase tracking-[0.2em] text-foreground">Provas de Produção</h4>
+                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Fotos / Vídeos da embalagem</p>
+                        </div>
+                    </div>
+                    
+                    <ComprovanteUpload
+                        label="Upload de Provas"
+                        capture="environment"
+                        values={(viewOrder.productionMedia || []).map(m => typeof m === 'string' ? m : m.url)}
+                        onChange={async (newUrls) => {
+                            try {
+                                const newMedia = newUrls.map(url => ({ url, type: 'image' as const, timestamp: new Date().toISOString() }));
+                                await updateOrder(viewOrder.id, { productionMedia: newMedia });
+                            } catch (err) {
+                                toast.error('Erro ao atualizar provas de produção.');
+                            }
+                        }}
+                        orderId={viewOrder.id}
+                    />
+                </div>
 
                 {/* FOOTER AÇÕES */}
                 <div className="sticky bottom-6 left-0 right-0 z-40 px-4">
@@ -2313,7 +2342,13 @@ ${etiquetasHtml}
                             onClick={() => setShowScanner(true)}
                             className={`btn-modern bg-gradient-to-r ${mainGradient} text-white px-6 py-3.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-2xl ${mainShadow} hover:scale-105 active:scale-95 duration-300`}
                         >
-                            <ScanLine className="w-4 h-4 mr-2" /> <span>Ler Código de Barras</span>
+                            <ScanLine className="w-4 h-4 mr-2" /> <span>Ler Código</span>
+                        </button>
+                        <button
+                            onClick={() => setShowFechamentoModal(true)}
+                            className="btn-modern bg-gradient-to-r from-violet-600 to-indigo-600 text-white px-6 py-3.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-2xl shadow-indigo-500/30 hover:scale-105 active:scale-95 duration-300"
+                        >
+                            <CheckCircle className="w-4 h-4 mr-2" /> <span>Finalizar Dia</span>
                         </button>
                     </div>
                 </div>
@@ -2833,9 +2868,7 @@ ${etiquetasHtml}
                                         
                                         // Salva os volumes no banco para que o scanner genérico saiba quantos volumes são
                                         try {
-                                            const { updateOrderSupabase } = await import('@/lib/orderServiceSupabase');
-                                            await updateOrderSupabase(orderForPrint.id, { volumes: vols });
-                                            setOrders(prev => prev.map(o => o.id === orderForPrint.id ? { ...o, volumes: vols } : o));
+                                            await updateOrder(orderForPrint.id, { volumes: vols });
                                         } catch (e) {
                                             console.warn('Erro ao salvar volumes na impressão', e);
                                         }
@@ -2929,7 +2962,86 @@ ${etiquetasHtml}
                     </div>
                 </div>
             )}
+
+            {/* Modal de Fechamento do Dia */}
+            {showFechamentoModal && (
+                <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-background/80 backdrop-blur-3xl animate-in fade-in duration-500" onClick={() => setShowFechamentoModal(false)} />
+                    <div className="glass-card p-8 w-full max-w-xl relative z-10 animate-in zoom-in-95 slide-in-from-bottom-8 duration-500 shadow-2xl border-indigo-500/20 flex flex-col max-h-[90vh]">
+                        <div className="flex flex-col items-center text-center space-y-4 mb-6">
+                            <div className="w-16 h-16 rounded-[1.5rem] bg-indigo-500/10 flex items-center justify-center text-indigo-500 shadow-xl">
+                                <CheckCircle className="w-8 h-8" />
+                            </div>
+                            <div>
+                                <h3 className="text-2xl font-black text-foreground uppercase tracking-tighter italic">Finalizar o Dia</h3>
+                                <p className="text-xs text-muted-foreground font-medium uppercase tracking-widest opacity-60">
+                                    Resumo da Produção ({new Date().toLocaleDateString('pt-BR')})
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto space-y-6 pr-2 custom-scrollbar">
+                            <div className="p-4 bg-muted/20 border border-border/40 rounded-2xl">
+                                <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-3">Pedidos Finalizados Hoje</h4>
+                                <div className="space-y-2">
+                                    {orders.filter(o => 
+                                        ['producao_finalizada', 'produto_liberado', 'retirado_entregador'].includes(o.status) &&
+                                        o.updatedAt && new Date(o.updatedAt).toLocaleDateString() === new Date().toLocaleDateString()
+                                    ).length > 0 ? (
+                                        orders.filter(o => 
+                                            ['producao_finalizada', 'produto_liberado', 'retirado_entregador'].includes(o.status) &&
+                                            o.updatedAt && new Date(o.updatedAt).toLocaleDateString() === new Date().toLocaleDateString()
+                                        ).map(o => (
+                                            <div key={o.id} className="flex justify-between items-center text-xs font-bold text-foreground">
+                                                <span>{o.number}</span>
+                                                <span className="text-muted-foreground">{o.clientName}</span>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <p className="text-xs text-muted-foreground text-center py-2">Nenhum pedido finalizado hoje.</p>
+                                    )}
+                                </div>
+                            </div>
+                            
+                            <ComprovanteUpload
+                                label="Foto e Assinatura do Fechamento"
+                                capture="environment"
+                                values={[]}
+                                onChange={async (newUrls) => {
+                                    if (newUrls.length > 0) {
+                                        try {
+                                            const todayFinishedOrders = orders.filter(o => 
+                                                ['producao_finalizada', 'produto_liberado', 'retirado_entregador'].includes(o.status) &&
+                                                o.updatedAt && new Date(o.updatedAt).toLocaleDateString() === new Date().toLocaleDateString()
+                                            );
+                                            await addProductionDailyClosure({
+                                                userId: user?.id || 'producao',
+                                                userName: user?.name || 'Produção',
+                                                date: getLocalDateString(),
+                                                photoUrl: newUrls[0],
+                                                signatureUrl: newUrls[1] || '',
+                                                orderIds: todayFinishedOrders.map(o => o.id)
+                                            });
+                                            setShowFechamentoModal(false);
+                                        } catch (err) {
+                                            toast.error('Erro ao salvar fechamento.');
+                                        }
+                                    }
+                                }}
+                            />
+                        </div>
+
+                        <button
+                            onClick={() => setShowFechamentoModal(false)}
+                            className="w-full mt-6 py-3 bg-muted text-foreground rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-muted/80 transition-colors"
+                        >
+                            Fechar
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
+
     );
 };
 

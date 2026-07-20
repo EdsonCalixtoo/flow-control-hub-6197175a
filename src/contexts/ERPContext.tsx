@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useCallback, useEffect, useMemo } from 'react';
-import type { Order, Client, FinancialEntry, Product, OrderStatus, StatusHistoryEntry, DelayReport, ChatMessage, OrderReturn, ProductionError, BarcodeScan, DeliveryPickup, Warranty, WarrantyStatus } from '@/types/erp';
+import type { Order, Client, FinancialEntry, Product, OrderStatus, StatusHistoryEntry, DelayReport, ChatMessage, OrderReturn, ProductionError, BarcodeScan, DeliveryPickup, Warranty, WarrantyStatus, ProductionDailyClosure } from '@/types/erp';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
@@ -13,7 +13,8 @@ import {
   fetchOrderReturns, createOrderReturnSupabase,
   fetchProductionErrors, createProductionErrorSupabase, resolveProductionErrorSupabase,
   fetchBarcodeScans, createBarcodeScanSupabase,
-  fetchDeliveryPickups, createDeliveryPickupSupabase
+  fetchDeliveryPickups, createDeliveryPickupSupabase,
+  fetchProductionDailyClosures, createProductionDailyClosureSupabase
 } from '@/lib/gestorServiceSupabase';
 import { fetchWarranties, createWarranty as createWarrantySupabase, updateWarranty as updateWarrantySupabase } from '@/lib/warrantyServiceSupabase';
 import { fetchMonthlyClosings, createMonthlyClosing } from '@/lib/fechamentoServiceSupabase';
@@ -79,6 +80,9 @@ interface ERPContextType {
   // monthly closings
   monthlyClosings: MonthlyClosing[];
   closeMonth: (closing: Omit<MonthlyClosing, 'id' | 'createdAt'>) => Promise<void>;
+  // production daily closures
+  productionDailyClosures: ProductionDailyClosure[];
+  addProductionDailyClosure: (closure: Omit<ProductionDailyClosure, 'id' | 'createdAt'>) => Promise<void>;
 }
 
 const ERPContext = createContext<ERPContextType | null>(null);
@@ -99,6 +103,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [warranties, setWarranties] = React.useState<Warranty[]>([]);
   const [chatMessages, setChatMessages] = React.useState<Record<string, ChatMessage[]>>({});
   const [monthlyClosings, setMonthlyClosings] = React.useState<MonthlyClosing[]>([]);
+  const [productionDailyClosures, setProductionDailyClosures] = React.useState<ProductionDailyClosure[]>([]);
   const loadingRef = React.useRef(false);
   const [loading, setLoading] = React.useState(false);
 
@@ -150,16 +155,18 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await delay(300);
 
       // Batch 3: Dados operacionais secundários
-      const [supabaseReturns, supabaseErrors, supabaseScans, supabasePickups] = await Promise.all([
+      const [supabaseReturns, supabaseErrors, supabaseScans, supabasePickups, supabaseProductionClosures] = await Promise.all([
         fetchOrderReturns(),
         fetchProductionErrors(),
         fetchBarcodeScans(),
         fetchDeliveryPickups(),
+        fetchProductionDailyClosures(),
       ]);
       setOrderReturns(supabaseReturns);
       setProductionErrors(supabaseErrors);
       setBarcodeScans(supabaseScans);
       setDeliveryPickups(supabasePickups);
+      setProductionDailyClosures(supabaseProductionClosures);
       console.log('[ERP] ✅ Batch 3 concluído');
 
       await delay(300);
@@ -1211,6 +1218,21 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [setBarcodeScans]);
 
+  // ── PRODUCTION DAILY CLOSURES ─────────────────────────────────
+  const addProductionDailyClosure = useCallback(async (closure: Omit<ProductionDailyClosure, 'id' | 'createdAt'>) => {
+    try {
+      const newClosure = await createProductionDailyClosureSupabase(closure);
+      if (newClosure) {
+        setProductionDailyClosures(prev => [newClosure, ...prev]);
+        toast.success(`Fechamento diário realizado com sucesso`);
+      }
+    } catch (err: any) {
+      console.error('[ERP] Erro ao criar fechamento diário:', err.message);
+      toast.error('Erro ao salvar fechamento diário.');
+      throw err;
+    }
+  }, []);
+
   return (
     <ERPContext.Provider value={{
       orders, clients, financialEntries, products, delayReports, unreadDelayReports, overduePaymentsCount, loading,
@@ -1224,7 +1246,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       warranties, addWarranty, updateWarrantyStatus, editWarranty,
       addProduct, updateProduct, deleteProduct, deleteClient, addDelayReport, markDelayReportRead, clearAll,
       loadFromSupabase, loadBarcodeScans, loadOrderDetails, loadOrderByNumber,
-      monthlyClosings, closeMonth
+      monthlyClosings, closeMonth,
+      productionDailyClosures, addProductionDailyClosure
     }}>
       {children}
     </ERPContext.Provider>

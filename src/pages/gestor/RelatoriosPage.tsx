@@ -5,6 +5,7 @@ import { Truck, Package, User, Camera, PenLine, ClipboardList, RefreshCw, Trophy
 import { supabase } from '@/lib/supabase';
 import { updateClientRewardsAuto } from '@/lib/rewardServiceSupabase';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 import { uploadToR2 } from '@/lib/storageServiceR2';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Order, DeliveryPickup } from '@/types/erp';
@@ -26,6 +27,7 @@ const RelatoriosPage: React.FC = () => {
   const [editingDelivererId, setEditingDelivererId] = React.useState<string | null>(null);
   const [newDelivererName, setNewDelivererName] = React.useState('');
   const [updating, setUpdating] = React.useState(false);
+  const navigate = useNavigate();
 
   const fetchDeepData = React.useCallback(async () => {
     setLoadingDeep(true);
@@ -910,7 +912,19 @@ const RelatoriosPage: React.FC = () => {
                       </div>
                       <div className="flex items-center gap-2 ml-auto">
                          <span className="px-3 py-1 bg-white/20 rounded-full text-[10px] font-black uppercase tracking-widest">
-                            {selectedBatch.orders.length} Volumes
+                            {selectedBatch.orders.length} Pedido(s)
+                         </span>
+                         <span className="px-3 py-1 bg-primary/40 rounded-full text-[10px] font-black uppercase tracking-widest text-white border border-white/20 shadow-sm">
+                            {selectedBatch.orders.reduce((acc, o) => {
+                                const orderInfo = allOrders.find(ao => ao.id === o.id || ao.number === o.number || (o.number && ao.number === o.number.replace('PED-', '')));
+                                if (!orderInfo) return acc;
+                                let kits = 0;
+                                (orderInfo.items || []).forEach((item: any) => {
+                                    const name = (item.product || item.name || '').toUpperCase();
+                                    if (name.includes('KIT')) kits += Number(item.quantity || 1);
+                                });
+                                return acc + kits;
+                            }, 0)} Volume(s)
                          </span>
                       </div>
                    </div>
@@ -957,7 +971,13 @@ const RelatoriosPage: React.FC = () => {
                                         {updating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                                      </button>
                                      <div className="flex items-start justify-between mb-2">
-                                        <p className="text-sm font-black text-foreground group-hover:text-primary transition-colors">{o.number}</p>
+                                        <button 
+                                            onClick={() => navigate(`/dossie/${o.number}`)}
+                                            className="text-sm font-black text-foreground hover:text-primary transition-colors underline decoration-primary/30 underline-offset-4"
+                                            title="Ver Dossiê Completo do Pedido"
+                                        >
+                                            {o.number}
+                                        </button>
                                         <span className="text-[8px] font-black bg-foreground text-background px-1.5 py-0.5 rounded uppercase">
                                            {orderInfo?.carrier || 'Manual'}
                                         </span>
@@ -970,8 +990,21 @@ const RelatoriosPage: React.FC = () => {
                                            Vendedor: {orderInfo?.sellerName || 'Não Informado'}
                                         </p>
                                      </div>
-                                     <div className="mt-2 text-[9px]">
+                                     <div className="mt-2 text-[9px] flex items-center justify-between">
                                         <StatusBadge status={orderInfo?.status || 'retirado_entregador'} />
+                                        
+                                        {orderInfo?.productionMedia && orderInfo.productionMedia.length > 0 && (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    navigate(`/provas/${orderInfo.number}`);
+                                                }}
+                                                className="flex items-center gap-1.5 px-2 py-1 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded-md text-[9px] font-black uppercase transition-colors"
+                                            >
+                                                <Camera className="w-3 h-3" /> 
+                                                Provas ({orderInfo.productionMedia.length})
+                                            </button>
+                                        )}
                                      </div>
                                   </div>
                                );

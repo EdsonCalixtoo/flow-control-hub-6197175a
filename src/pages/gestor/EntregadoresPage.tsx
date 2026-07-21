@@ -566,7 +566,16 @@ const EntregadoresPage: React.FC = () => {
                 }
             }
         });
-        return [...map.values()].sort((a, b) => {
+        const values = [...map.values()];
+        for (const group of values) {
+            const hasPickup = deliveryPickups.some(p => 
+                p.orderId === group.orderId || 
+                group.unifiedOrders?.some(uo => uo.id === p.orderId)
+            );
+            const statusRetirado = orders.find(o => o.id === group.orderId)?.status === 'retirado_entregador';
+            group.alreadyPickedUp = hasPickup || statusRetirado;
+        }
+        return values.sort((a, b) => {
             if (a.alreadyPickedUp && !b.alreadyPickedUp) return 1;
             if (!a.alreadyPickedUp && b.alreadyPickedUp) return -1;
             return 0;
@@ -733,13 +742,7 @@ const EntregadoresPage: React.FC = () => {
                         note: `Coleta unificada com ${group.orderNumber}`
                     });
 
-                    await updateOrderStatus(
-                        uo.id,
-                        'retirado_entregador',
-                        {},
-                        user?.name || 'Gestor',
-                        `Retirado pelo entregador (Unificado com ${group.orderNumber}): ${delivererName.trim()}`
-                    );
+                    // Nota: O updateOrderStatus do pedido pai já atualiza os filhos em cascata no ERPContext.
                 }
             }
 
@@ -827,14 +830,7 @@ const EntregadoresPage: React.FC = () => {
                                 batchId: batchId,
                                 note: `Coleta unificada (Lote) com ${group.orderNumber}`
                             });
-
-                            await updateOrderStatus(
-                                uo.id,
-                                'retirado_entregador',
-                                {},
-                                user?.name || 'Gestor',
-                                `Retirado pelo entregador (Unificado com ${group.orderNumber}): ${delivererName.trim()}`
-                            );
+                            // Nota: O updateOrderStatus do pedido pai já atualiza os filhos em cascata no ERPContext.
                         }
                     }
 

@@ -4,7 +4,7 @@
  * Inclui compressão de imagem no cliente para salvar mais banda.
  */
 import React, { useRef, useState, useCallback } from 'react';
-import { Upload, X, FileText, Download, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Upload, X, FileText, Download, Loader2, Image as ImageIcon, Video } from 'lucide-react';
 import { uploadToR2, generateR2Path, cleanR2Url } from '@/lib/storageServiceR2';
 import { toast } from 'sonner';
 
@@ -17,11 +17,11 @@ interface Props {
     capture?: 'user' | 'environment';
 }
 
-const ACCEPTED = 'image/jpeg,image/png,image/webp,application/pdf';
+const ACCEPTED = 'image/jpeg,image/png,image/webp,application/pdf,video/mp4,video/quicktime,video/webm';
 
 /* ─── Helper: Compressão de Imagem ─────────────────────── */
 const compressImage = async (file: File): Promise<Blob | File> => {
-    if (file.type === 'application/pdf') return file;
+    if (file.type === 'application/pdf' || file.type.startsWith('video/')) return file;
 
     return new Promise((resolve) => {
         const reader = new FileReader();
@@ -53,33 +53,120 @@ const compressImage = async (file: File): Promise<Blob | File> => {
 };
 
 const isPdf = (src: string) => src?.toLowerCase().includes('.pdf') && !src.startsWith('data:image');
+const isVideo = (src: string) => {
+    if (!src) return false;
+    const lower = src.toLowerCase();
+    return lower.includes('.mp4') || lower.includes('.webm') || lower.includes('.mov') || lower.includes('.ogg') || lower.startsWith('data:video');
+};
 
-/* ─── Modal de visualização ─────────────────────────────── */
-const PreviewModal: React.FC<{ src: string; onClose: () => void }> = ({ src, onClose }) => {
+/* ─── Modal de visualização (Galeria Premium) ──────────────── */
+export const PreviewModal: React.FC<{
+    allMedia: string[];
+    initialIndex: number;
+    onClose: () => void;
+}> = ({ allMedia, initialIndex, onClose }) => {
+    const [currentIndex, setCurrentIndex] = useState(initialIndex);
     const [zoom, setZoom] = useState(1);
-    const pdf = isPdf(src);
+    const currentSrc = allMedia[currentIndex];
+    const pdf = isPdf(currentSrc);
+    const video = isVideo(currentSrc);
+
+    const handleNext = useCallback((e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        setCurrentIndex(prev => (prev < allMedia.length - 1 ? prev + 1 : 0));
+        setZoom(1);
+    }, [allMedia.length]);
+
+    const handlePrev = useCallback((e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        setCurrentIndex(prev => (prev > 0 ? prev - 1 : allMedia.length - 1));
+        setZoom(1);
+    }, [allMedia.length]);
+
+    // Teclado para navegação
+    React.useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+            if (e.key === 'ArrowRight' && allMedia.length > 1) handleNext();
+            if (e.key === 'ArrowLeft' && allMedia.length > 1) handlePrev();
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [handleNext, handlePrev, onClose, allMedia.length]);
 
     return (
-        <div className="fixed inset-0 z-[100] flex flex-col bg-black/95 backdrop-blur-sm" onClick={onClose}>
-            <div className="flex items-center justify-between px-5 py-3 bg-black/60 border-b border-white/10 shrink-0" onClick={e => e.stopPropagation()}>
-                <span className="text-white/70 text-sm font-semibold">Visualizar Comprovante</span>
-                <div className="flex items-center gap-2">
-                    <button onClick={() => window.open(src, '_blank')} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-semibold hover:bg-primary/90 transition-colors">
-                        <Download className="w-3.5 h-3.5" /> Abrir Original
+        <div className="fixed inset-0 z-[9999] flex flex-col bg-black/95 backdrop-blur-xl animate-in fade-in duration-200" onClick={onClose}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-b from-black/80 to-transparent shrink-0" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center gap-4">
+                    <span className="text-white/90 text-sm font-bold tracking-widest uppercase">
+                        Provas de Produção
+                    </span>
+                    {allMedia.length > 1 && (
+                        <span className="text-xs font-black bg-white/10 text-white/80 px-2.5 py-1 rounded-full">
+                            {currentIndex + 1} / {allMedia.length}
+                        </span>
+                    )}
+                </div>
+                <div className="flex items-center gap-3">
+                    <button onClick={() => window.open(currentSrc, '_blank')} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 text-white text-xs font-black uppercase tracking-wider hover:bg-primary hover:text-white transition-all">
+                        <Download className="w-4 h-4" /> Original
                     </button>
-                    <button onClick={onClose} className="w-8 h-8 rounded-lg bg-white/10 text-white flex items-center justify-center hover:bg-destructive/60 transition-colors">
-                        <X className="w-4 h-4" />
+                    <button onClick={onClose} className="w-10 h-10 rounded-xl bg-white/10 text-white flex items-center justify-center hover:bg-destructive transition-all">
+                        <X className="w-5 h-5" />
                     </button>
                 </div>
             </div>
 
-            <div className="flex-1 overflow-auto flex items-start justify-center p-6" onClick={e => e.stopPropagation()}>
-                {pdf ? (
-                    <iframe src={src} title="Comprovante PDF" className="w-full h-full rounded-xl bg-white" />
-                ) : (
-                    <img src={cleanR2Url(src)} alt="Comprovante" style={{ transform: `scale(${zoom})`, transformOrigin: 'top center', maxWidth: '100%', borderRadius: 12 }} />
-                )/*  */}
+            {/* Main Area */}
+            <div className="flex-1 overflow-hidden relative flex items-center justify-center" onClick={e => e.stopPropagation()}>
+                {/* Prev Button */}
+                {allMedia.length > 1 && (
+                    <button onClick={handlePrev} className="absolute left-4 z-10 w-12 h-12 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-white/20 transition-all group backdrop-blur-sm">
+                        <svg className="w-6 h-6 group-hover:-translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                )}
+
+                {/* Content */}
+                <div className="w-full h-full max-w-6xl max-h-[85vh] p-4 sm:p-8 flex items-center justify-center transition-all">
+                    {pdf ? (
+                        <iframe src={currentSrc} title="Comprovante PDF" className="w-full h-full rounded-2xl bg-white shadow-2xl ring-1 ring-white/10" />
+                    ) : video ? (
+                        <video src={cleanR2Url(currentSrc)} controls autoPlay className="w-full h-full object-contain rounded-2xl shadow-2xl drop-shadow-[0_0_30px_rgba(0,0,0,0.5)]" />
+                    ) : (
+                        <img src={cleanR2Url(currentSrc)} alt="Prova" className="w-full h-full object-contain rounded-2xl shadow-2xl drop-shadow-[0_0_30px_rgba(0,0,0,0.5)] transition-transform" style={{ transform: `scale(${zoom})` }} />
+                    )}
+                </div>
+
+                {/* Next Button */}
+                {allMedia.length > 1 && (
+                    <button onClick={handleNext} className="absolute right-4 z-10 w-12 h-12 rounded-full bg-black/40 text-white flex items-center justify-center hover:bg-white/20 transition-all group backdrop-blur-sm">
+                        <svg className="w-6 h-6 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                    </button>
+                )}
             </div>
+
+            {/* Thumbnails Footer */}
+            {allMedia.length > 1 && (
+                <div className="h-28 bg-gradient-to-t from-black/80 to-transparent shrink-0 flex items-center justify-center gap-2 px-6 overflow-x-auto custom-scrollbar" onClick={e => e.stopPropagation()}>
+                    {allMedia.map((src, idx) => {
+                        const isPd = isPdf(src);
+                        const isVid = isVideo(src);
+                        const active = idx === currentIndex;
+                        return (
+                            <button key={idx} onClick={() => { setCurrentIndex(idx); setZoom(1); }} className={`relative w-16 h-16 rounded-xl overflow-hidden shrink-0 transition-all ${active ? 'ring-2 ring-primary scale-110 shadow-lg' : 'opacity-50 hover:opacity-100 hover:scale-105'}`}>
+                                {isPd ? (
+                                    <div className="w-full h-full bg-white flex items-center justify-center"><FileText className="w-6 h-6 text-red-500" /></div>
+                                ) : isVid ? (
+                                    <div className="w-full h-full bg-slate-900 flex items-center justify-center"><Video className="w-6 h-6 text-white" /></div>
+                                ) : (
+                                    <img src={cleanR2Url(src)} className="w-full h-full object-cover" alt="" />
+                                )}
+                            </button>
+                        );
+                    })}
+                </div>
+            )}
         </div>
     );
 };
@@ -90,7 +177,7 @@ export const ComprovanteUpload: React.FC<Props> = ({
 }) => {
     const inputRef = useRef<HTMLInputElement>(null);
     const [uploading, setUploading] = useState(false);
-    const [previewSrc, setPreviewSrc] = useState<string | null>(null);
+    const [previewIndex, setPreviewIndex] = useState<number | null>(null);
 
     const processFiles = useCallback(async (files: FileList | File[]) => {
         setUploading(true);
@@ -98,8 +185,9 @@ export const ComprovanteUpload: React.FC<Props> = ({
 
         try {
             for (const file of Array.from(files)) {
-                if (!ACCEPTED.includes(file.type)) {
-                    toast.error(`Arquivo ${file.name} ignorado. Use JPG, PNG ou PDF.`);
+                // Checa se o tipo do arquivo está na lista de aceitos, ou se é um vídeo genérico que o SO mascarou
+                if (!ACCEPTED.includes(file.type) && !file.type.startsWith('video/')) {
+                    toast.error(`Arquivo ${file.name} ignorado. Formato não suportado.`);
                     continue;
                 }
 
@@ -140,7 +228,7 @@ export const ComprovanteUpload: React.FC<Props> = ({
 
     return (
         <div className="space-y-3">
-            {previewSrc && <PreviewModal src={previewSrc} onClose={() => setPreviewSrc(null)} />}
+            {previewIndex !== null && <PreviewModal allMedia={values} initialIndex={previewIndex} onClose={() => setPreviewIndex(null)} />}
 
             <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center justify-between">
                 <span>{label} ({values.length})</span>
@@ -156,16 +244,18 @@ export const ComprovanteUpload: React.FC<Props> = ({
                             <div key={idx} className="flex items-center gap-3 p-2.5 rounded-2xl bg-white border border-border/50 shadow-sm group transition-all hover:border-primary/30">
                                 <div
                                     className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center shrink-0 overflow-hidden cursor-pointer hover:ring-2 hover:ring-primary transition-all shadow-inner"
-                                    onClick={() => setPreviewSrc(v)}
+                                    onClick={() => setPreviewIndex(idx)}
                                 >
                                     {pdf
                                         ? <FileText className="w-6 h-6 text-primary" />
-                                        : <img src={cleanR2Url(v)} className="w-full h-full object-cover" alt="" />
+                                        : isVideo(v)
+                                            ? <Video className="w-6 h-6 text-primary" />
+                                            : <img src={cleanR2Url(v)} className="w-full h-full object-cover" alt="" />
                                     }
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <p className="text-[10px] font-black text-foreground truncate uppercase tracking-tighter">Comprovante #{idx + 1}</p>
-                                    <button type="button" onClick={() => setPreviewSrc(v)} className="text-[9px] text-primary font-bold uppercase hover:underline">Ver arquivo</button>
+                                    <button type="button" onClick={() => setPreviewIndex(idx)} className="text-[9px] text-primary font-bold uppercase hover:underline">Ver arquivo</button>
                                 </div>
                                 {!readOnly && (
                                     <button
@@ -221,7 +311,7 @@ export const ComprovanteUpload: React.FC<Props> = ({
                         <p className="text-xs font-black text-foreground uppercase tracking-tight">
                             {uploading ? 'Enviando arquivos...' : 'Adicionar Comprovantes'}
                         </p>
-                        <p className="text-[10px] text-muted-foreground mt-1 font-medium italic">Ou arraste e solte o arquivo aqui (Imagens ou PDF)</p>
+                        <p className="text-[10px] text-muted-foreground mt-1 font-medium italic">Ou arraste e solte o arquivo aqui (Imagens, PDF ou Vídeos)</p>
                     </div>
                 </div>
             )}

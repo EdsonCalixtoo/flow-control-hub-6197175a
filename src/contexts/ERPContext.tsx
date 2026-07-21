@@ -346,7 +346,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         
         if (linkedOrder && STATUS_CONCLUIDOS.includes(linkedOrder.status)) {
           console.log(`[ERP] 🤖 Auto-Cleanup: Finalizando garantia ${w.orderNumber} (Pedido concluído/encerrado)`);
-          await updateWarrantyStatus(w.id, 'Garantia finalizada', undefined, 'Sistema', 'Finalizado automaticamente: Pedido já retirado pelo entregador');
+          await updateWarrantyStatus(w.id, 'Garantia finalizada', undefined, 'Sistema', 'Finalizado automaticamente: Pedido já retirado pelo entregador', true);
         }
       });
     }
@@ -1137,7 +1137,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  const updateWarrantyStatus = useCallback(async (id: string, status: Warranty['status'], resolution?: string, userName?: string, note?: string) => {
+  const updateWarrantyStatus = useCallback(async (id: string, status: Warranty['status'], resolution?: string, userName?: string, note?: string, skipOrderSync: boolean = false) => {
     try {
       const current = warranties.find(w => w.id === id);
       if (!current) return;
@@ -1163,7 +1163,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // 🔗 SINCRONIZAÇÃO COM O PEDIDO VINCULADO
         // Quando a garantia é aprovada ou finalizada, o status do pedido correspondente
         // também deve ser atualizado para que apareça corretamente nos módulos de produção.
-        if (updated.orderId) {
+        if (updated.orderId && !skipOrderSync) {
           if (status === 'Garantia aprovada') {
             await updateOrderStatus(updated.orderId, 'aguardando_producao', undefined, userName, 'Garantia aprovada pelo gestor e enviada para produção');
           } else if (status === 'Em produção') {

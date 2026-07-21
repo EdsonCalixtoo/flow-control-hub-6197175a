@@ -489,12 +489,12 @@ const CorrigirPedidoPage: React.FC = () => {
                       <p className="text-[10px] text-slate-400 font-medium mt-0.5 leading-tight">Fotos da embalagem</p>
                     </div>
                   </div>
-                  <ComprovanteUpload
-                    values={(selectedOrder.productionMedia || []).map(m => typeof m === 'string' ? m : m.url)}
-                    onChange={() => {}}
-                    readOnly={true}
-                    label="Visualizar Fotos"
-                  />
+                  <button
+                    onClick={() => window.open(`/provas/${selectedOrder.number}`, '_blank')}
+                    className="w-full h-12 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-xl font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-2"
+                  >
+                    Visualizar {selectedOrder.productionMedia.length} Mídias
+                  </button>
                 </div>
               )}
 

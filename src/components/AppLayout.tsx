@@ -63,6 +63,7 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: 
     { label: 'Relatórios de Erros', icon: CheckSquare, path: '/gestor?tab=erros' },
     { label: 'Produtos', icon: Tag, path: '/gestor/produtos' },
     { label: 'Estoque', icon: Package, path: '/gestor/estoque' },
+    { label: 'Relatórios Produção', icon: FileText, path: '/gestor/relatorios-producao' },
     { label: 'Relatórios', icon: BarChart3, path: '/gestor/relatorios' },
     { label: 'Arrumar Pedido', icon: Wrench, path: '/gestor/corrigir-pedido' },
   ],

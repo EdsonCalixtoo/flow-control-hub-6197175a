@@ -42,6 +42,9 @@ import DataRecoveryPage from "@/pages/admin/DataRecoveryPage";
 import TrackingManagerPage from "@/pages/admin/TrackingManagerPage";
 import UsuariosPage from "@/pages/admin/UsuariosPage";
 import NotFound from "./pages/NotFound";
+import ProvasPage from "@/pages/shared/ProvasPage";
+import OrderDossierPage from "@/pages/shared/OrderDossierPage";
+import RelatoriosProducaoPage from "@/pages/gestor/RelatoriosProducaoPage";
 import { lazy, Suspense } from "react";
 
 const CronogramaProducaoPage = lazy(() => import('@/pages/producao/CronogramaPage'));
@@ -92,6 +95,8 @@ const App = () => (
             <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
               <Routes>
                 <Route path="/" element={<AuthGate />} />
+                <Route path="/provas/:orderNumber" element={<ProvasPage />} />
+                <Route path="/dossie/:orderNumber" element={<OrderDossierPage />} />
 
                 {/* Vendedor */}
                 <Route path="/vendedor" element={<ProtectedRoute role="vendedor"><VendedorDashboard /></ProtectedRoute>} />
@@ -123,6 +128,7 @@ const App = () => (
                 <Route path="/gestor/controle" element={<ProtectedRoute role="gestor"><ControleGalvanizacaoPage /></ProtectedRoute>} />
                 <Route path="/gestor/entregadores" element={<ProtectedRoute role="gestor"><EntregadoresPage /></ProtectedRoute>} />
                 <Route path="/gestor/corrigir-pedido" element={<ProtectedRoute role="gestor"><CorrigirPedidoPage /></ProtectedRoute>} />
+                <Route path="/gestor/relatorios-producao" element={<ProtectedRoute role="gestor"><RelatoriosProducaoPage /></ProtectedRoute>} />
 
                 {/* Produção */}
                 <Route path="/producao" element={<ProtectedRoute role="producao"><ProducaoDashboard /></ProtectedRoute>} />

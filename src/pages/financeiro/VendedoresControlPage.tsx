@@ -127,7 +127,14 @@ const VendedoresControlPage: React.FC = () => {
 
         // Detalhamento de Itens
         order.items.forEach(item => {
-          const isFree = item.isReward || Number(item.unitPrice) === 0 || Number(item.total) === 0;
+          const prodName = (item.product || '').toUpperCase();
+          const desc = (item.description || '').toUpperCase();
+          const isFree = item.isReward || 
+                         prodName.includes('PRÊMIO') || prodName.includes('PREMIO') ||
+                         desc.includes('PRÊMIO') || desc.includes('PREMIO') ||
+                         ((Number(item.unitPrice) === 0 || Number(item.total) === 0) && 
+                          (prodName.includes('KIT') || prodName.includes('CÂMERA') || prodName.includes('CAMERA')) && 
+                          !order.isWarranty);
 
           if (isFree) {
             stats[key].premios += item.quantity;
@@ -343,7 +350,14 @@ const VendedoresControlPage: React.FC = () => {
 
       if (isAfterPrev && isBeforeCurrent) {
         order.items.forEach(item => {
-          const isFree = item.isReward || Number(item.unitPrice) === 0 || Number(item.total) === 0;
+          const prodName = (item.product || '').toUpperCase();
+          const desc = (item.description || '').toUpperCase();
+          const isFree = item.isReward || 
+                         prodName.includes('PRÊMIO') || prodName.includes('PREMIO') ||
+                         desc.includes('PRÊMIO') || desc.includes('PREMIO') ||
+                         ((Number(item.unitPrice) === 0 || Number(item.total) === 0) && 
+                          (prodName.includes('KIT') || prodName.includes('CÂMERA') || prodName.includes('CAMERA')) && 
+                          !order.isWarranty);
           
           itemsToPrint.push({
             product: item.product,
@@ -427,10 +441,18 @@ const VendedoresControlPage: React.FC = () => {
           totalVendas += order.total;
           qtdPedidos += 1;
 
-          order.items.forEach(item => {
-            const isFree = item.isReward || Number(item.unitPrice) === 0 || Number(item.total) === 0;
+        // Detalhamento de Itens
+        order.items.forEach(item => {
+          const prodName = (item.product || '').toUpperCase();
+          const desc = (item.description || '').toUpperCase();
+          const isFree = item.isReward || 
+                         prodName.includes('PRÊMIO') || prodName.includes('PREMIO') ||
+                         desc.includes('PRÊMIO') || desc.includes('PREMIO') ||
+                         ((Number(item.unitPrice) === 0 || Number(item.total) === 0) && 
+                          (prodName.includes('KIT') || prodName.includes('CÂMERA') || prodName.includes('CAMERA')) && 
+                          !order.isWarranty);
 
-            if (isFree) {
+          if (isFree) {
               premios += item.quantity;
             } else {
               const prodName = item.product.toUpperCase();

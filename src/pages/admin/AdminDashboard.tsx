@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { 
   ShieldCheck, ShoppingCart, DollarSign, BarChart3, Factory, 
   Settings, Users, History, AlertTriangle, ArrowRight,
-  Package, Truck, Clock, RefreshCcw, Database, Wrench
+  Package, Truck, Clock, RefreshCcw, Database, Wrench, Gift
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getLogs, rollbackAction } from '@/lib/loggingService';
@@ -143,6 +143,7 @@ const AdminDashboard: React.FC = () => {
               { label: 'Painel Financeiro', icon: DollarSign, path: '/financeiro', color: 'bg-emerald-500', desc: 'Contas a pagar, fluxo de caixa e aprovações' },
               { label: 'Relatórios Gerenciais', icon: BarChart3, path: '/gestor/relatorios', color: 'bg-blue-500', desc: 'Métricas, faturamento e performance' },
               { label: 'Produtos & Estoque', icon: Package, path: '/gestor/produtos', color: 'bg-slate-700', desc: 'Criar e editar os produtos do sistema' },
+              { label: 'Relatório de Premiações', icon: Gift, path: '/admin/relatorio-premiacoes', color: 'bg-amber-500', desc: 'Histórico de prêmios resgatados e exportação em PDF' },
             ].map((item, idx) => (
               <button
                 key={idx}

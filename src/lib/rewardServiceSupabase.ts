@@ -83,9 +83,9 @@ export const calculateClientRanking = async (clientId: string): Promise<ClientRa
         }));
 
         let ranking: 'Bronze' | 'Prata' | 'Ouro' | 'Nenhum' = 'Nenhum';
-        if (totalKits >= 20) ranking = 'Ouro';
-        else if (totalKits >= 10) ranking = 'Prata';
-        else if (totalKits >= 5) ranking = 'Bronze';
+        if (totalKits >= (settings.tier_3?.required_kits || 10)) ranking = 'Ouro';
+        else if (totalKits >= (settings.tier_2?.required_kits || 7)) ranking = 'Prata';
+        else if (totalKits >= (settings.tier_1?.required_kits || 5)) ranking = 'Bronze';
 
         return { totalKits, tier1Count, tier2Count, tier3Count, ranking, breakdown };
     } catch (err: any) {

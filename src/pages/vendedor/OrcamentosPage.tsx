@@ -723,7 +723,7 @@ const OrcamentosPage: React.FC = () => {
           deliveryDate: newDeliveryDate || undefined,
           orderType: newOrderType,
           installationPaymentType: (newOrderType === 'instalacao' || newOrderType === 'manutencao' || newOrderType === 'retirada') ? newInstallationPaymentType : undefined,
-          carrier: newOrderType === 'entrega' ? newCarrier : undefined,
+          carrier: newOrderType === 'retirada' ? 'Retirada' : (newOrderType === 'entrega' ? newCarrier : undefined),
           customDeliveryAddress: useCustomAddress ? JSON.stringify(newCustomAddressObj) : undefined,
           isConsigned: client.consignado,
           isSite: client.isSite || false,
@@ -862,6 +862,8 @@ const OrcamentosPage: React.FC = () => {
           if (newOrderType === 'entrega') {
             order.carrier = newCarrier;
             order.customDeliveryAddress = useCustomAddress ? JSON.stringify(newCustomAddressObj) : undefined;
+          } else if (newOrderType === 'retirada') {
+            order.carrier = 'Retirada';
           }
 
           await addOrder(order);

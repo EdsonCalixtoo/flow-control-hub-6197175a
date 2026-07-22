@@ -193,9 +193,10 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
                     <div className="text-right hidden sm:block">
                         <p className="text-[10px] font-black uppercase opacity-60">Próximo Nível</p>
                         <p className="text-xs font-bold">
-                            {ranking?.ranking === 'Nenhum' ? 'Bronze (5 kits)' :
-                                ranking?.ranking === 'Bronze' ? 'Prata (10 kits)' :
-                                    ranking?.ranking === 'Prata' ? 'Ouro (20 kits)' : 'Nível Máximo Atingido!'}
+                            {ranking?.ranking === 'Nenhum' ? `Bronze (${settings?.tier_1?.required_kits || 5} kits)` :
+                                ranking?.ranking === 'Bronze' ? `Prata (${settings?.tier_2?.required_kits || 7} kits)` :
+                                    ranking?.ranking === 'Prata' ? `Ouro (${settings?.tier_3?.required_kits || 10} kits)` :
+                                        'Ouro (Máximo)'}
                         </p>
                     </div>
                     {isDeveloperOrGestor && (
@@ -380,8 +381,8 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
             <div className="grid grid-cols-3 gap-4">
                 {[
                     { label: 'Bronze', kits: settings?.tier_1?.required_kits || 5, color: 'text-amber-700', bg: 'bg-amber-700/10' },
-                    { label: 'Prata', kits: settings?.tier_3?.required_kits || 10, color: 'text-slate-400', bg: 'bg-slate-400/10' },
-                    { label: 'Ouro', kits: (settings?.tier_3?.required_kits || 10) * 2, color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
+                    { label: 'Prata', kits: settings?.tier_2?.required_kits || 7, color: 'text-slate-400', bg: 'bg-slate-400/10' },
+                    { label: 'Ouro', kits: settings?.tier_3?.required_kits || 10, color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
                 ].map(lvl => (
                     <div key={lvl.label} className={`p-4 rounded-2xl border ${lvl.bg} border-transparent flex flex-col items-center text-center gap-1`}>
                         <p className={`text-[10px] font-black uppercase ${lvl.color}`}>{lvl.label}</p>

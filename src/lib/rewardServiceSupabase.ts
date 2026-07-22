@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import type { ClientReward, ClientRanking, Order, QuoteItem } from '@/types/erp';
 import { supabaseToOrder } from './orderServiceSupabase';
+import { fetchRewardSettings } from './rewardSettingsService';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -37,6 +38,7 @@ export const calculateClientRanking = async (clientId: string): Promise<ClientRa
         if (error) throw error;
 
         const orders = (data || []).map(supabaseToOrder);
+        const settings = await fetchRewardSettings(clientId);
 
         let totalKits = 0;
         let tier1Count = 0;
@@ -55,16 +57,18 @@ export const calculateClientRanking = async (clientId: string): Promise<ClientRa
                 // Totalizador Geral
                 totalKits += qty;
                 
-                // Tier 1: 5 kits (Qualquer Kit conta)
-                tier1Count += qty;
+                // Tier 1
+                if (price >= settings.tier_1.min_price && price <= settings.tier_1.max_price) {
+                    tier1Count += qty;
+                }
 
-                // Tier 2: 7 kits (Preço entre 1450 e 2000)
-                if (price >= 1450 && price <= 2000) {
+                // Tier 2
+                if (price >= settings.tier_2.min_price && price <= settings.tier_2.max_price) {
                     tier2Count += qty;
                 }
 
-                // Tier 3: 10 kits (Preço entre 1100 e 1449)
-                if (price >= 1100 && price < 1450) {
+                // Tier 3
+                if (price >= settings.tier_3.min_price && price <= settings.tier_3.max_price) {
                     tier3Count += qty;
                 }
 
@@ -251,11 +255,12 @@ export const updateClientRewardsAuto = async (clientId: string): Promise<void> =
     try {
         const ranking = await calculateClientRanking(clientId);
         const existingRewards = await fetchClientRewards(clientId);
+        const settings = await fetchRewardSettings(clientId);
 
         const tiers = [
-            { type: 'tier_1', required: 5, current: ranking.tier1Count },
-            { type: 'tier_2', required: 7, current: ranking.tier2Count },
-            { type: 'tier_3', required: 10, current: ranking.tier3Count },
+            { type: 'tier_1', required: settings.tier_1.required_kits, current: ranking.tier1Count },
+            { type: 'tier_2', required: settings.tier_2.required_kits, current: ranking.tier2Count },
+            { type: 'tier_3', required: settings.tier_3.required_kits, current: ranking.tier3Count },
         ];
 
         for (const tier of tiers) {

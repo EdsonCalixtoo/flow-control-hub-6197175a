@@ -379,11 +379,12 @@ const PedidosProducaoPage: React.FC = () => {
         }
 
         // 💡 ESTRATÉGIA DE RECUPERAÇÃO DE ENDEREÇO (Para pedidos tipo 10219)
-        let finalAddress = client?.address || '';
+        let finalAddress = order.customDeliveryAddress || client?.address || '';
         let finalBairro = client?.bairro || '';
         let finalCity = client?.city || '';
         let finalState = client?.state || '';
         let finalCep = client?.cep || '';
+        let customRecebedor = '';
 
         // Se o endereço está vazio ou parece inválido, tenta extrair da observação ou notas do pedido
         // Evitamos usar a observação se ela parecer apenas uma lista de itens (contendo ',' e sem palavras de endereço)
@@ -412,7 +413,36 @@ const PedidosProducaoPage: React.FC = () => {
             }
         }
 
-        if (client) {
+        if (order.customDeliveryAddress) {
+            console.log('[Etiqueta] ✅ Usando ENDEREÇO DE ENTREGA CUSTOMIZADO do pedido');
+            try {
+                // Tenta parsear como objeto JSON
+                const customObj = JSON.parse(order.customDeliveryAddress);
+                const addressParts = [];
+                if (customObj.logradouro) addressParts.push(customObj.logradouro);
+                if (customObj.numero) addressParts.push(`Nº ${customObj.numero}`);
+                if (customObj.bairro) addressParts.push(customObj.bairro);
+                if (customObj.localidade && customObj.uf) addressParts.push(`${customObj.localidade} - ${customObj.uf}`);
+                if (customObj.cep) finalCep = customObj.cep;
+                if (customObj.recebedor) customRecebedor = customObj.recebedor;
+                
+                finalAddress = addressParts.join(', ');
+                if (customObj.referencia) {
+                   finalAddress += `<br/><b>Ref:</b> ${customObj.referencia}`;
+                }
+                
+                finalBairro = '';
+                finalCity = '';
+                finalState = '';
+            } catch (e) {
+                // Fallback se for apenas uma string simples
+                finalAddress = order.customDeliveryAddress;
+                finalBairro = '';
+                finalCity = '';
+                finalState = '';
+                finalCep = '';
+            }
+        } else if (client) {
             console.log('[Etiqueta] ✅ Cliente encontrado:', client.name, 'Endereço:', finalAddress);
         } else {
             console.error('[Etiqueta] ❌ Cliente não localizado (Total na base:', clients.length, ')');
@@ -448,8 +478,9 @@ const PedidosProducaoPage: React.FC = () => {
         const printWindow = window.open('', '_blank', 'width=420,height=600');
         if (!printWindow) { alert('Permita pop-ups para imprimir a etiqueta.'); return; }
 
+        const destinatarioName = customRecebedor ? `${customRecebedor} (A/C)` : order.clientName;
         const addrFontSize = finalAddress.length > 120 ? '7.5pt' : (finalAddress.length > 80 ? '8.5pt' : '10pt');
-        const nameFontSize = order.clientName.length > 35 ? '11pt' : (order.clientName.length > 25 ? '13pt' : '15pt');
+        const nameFontSize = destinatarioName.length > 35 ? '11pt' : (destinatarioName.length > 25 ? '13pt' : '15pt');
 
         const etiquetasHtml = Array.from({ length: volumes }).map((_, i) => {
             const vol = i + 1;
@@ -473,7 +504,7 @@ const PedidosProducaoPage: React.FC = () => {
   <div class="section" style="flex:1;display:flex;flex-direction:column;">
     <div class="section-label">Destinatário</div>
     <div class="destinatario">
-      <div class="name">${order.clientName}</div>
+      <div class="name" style="font-size: ${nameFontSize}">${destinatarioName}</div>
       <div class="address">
         ${finalAddress || '<span style="color:red">ENDEREÇO NÃO LOCALIZADO</span>'}
         ${finalBairro ? `<br>Bairro: ${finalBairro}` : ''}

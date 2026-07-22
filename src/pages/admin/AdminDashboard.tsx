@@ -88,6 +88,7 @@ const AdminDashboard: React.FC = () => {
               { label: 'Base de Clientes', icon: Users, path: '/vendedor/clientes', color: 'bg-blue-600', desc: 'Ver todos os clientes, editar perfis, resgatar prêmios' },
               { label: 'Orçamentos & Vendas', icon: ShoppingCart, path: '/vendedor/orcamentos', color: 'bg-indigo-600', desc: 'Ver todos orçamentos, aprovar descontos' },
               { label: 'Corretor de Pedidos', icon: Wrench, path: '/gestor/corrigir-pedido', color: 'bg-purple-600', desc: 'Editar, corrigir e unificar pedidos errados' },
+              { label: 'Regras de Premiação', icon: DollarSign, path: '/admin/regras-premiacao', color: 'bg-amber-500', desc: 'Configurar kits e valores padrão do sistema' },
             ].map((item, idx) => (
               <button
                 key={idx}

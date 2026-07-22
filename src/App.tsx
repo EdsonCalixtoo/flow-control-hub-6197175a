@@ -45,6 +45,7 @@ import NotFound from "./pages/NotFound";
 import ProvasPage from "@/pages/shared/ProvasPage";
 import OrderDossierPage from "@/pages/shared/OrderDossierPage";
 import RelatoriosProducaoPage from "@/pages/gestor/RelatoriosProducaoPage";
+import AdminRewardRulesPage from "@/pages/admin/AdminRewardRulesPage";
 import { lazy, Suspense } from "react";
 
 const CronogramaProducaoPage = lazy(() => import('@/pages/producao/CronogramaPage'));
@@ -148,6 +149,7 @@ const App = () => (
 
                 {/* Admin */}
                 <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
+                <Route path="/admin/regras-premiacao" element={<ProtectedRoute role="admin"><AdminRewardRulesPage /></ProtectedRoute>} />
                 <Route path="/super_admin" element={<ProtectedRoute role="super_admin"><AdminDashboard /></ProtectedRoute>} />
                 <Route path="/admin/ti" element={<ProtectedRoute role="admin"><TIPage /></ProtectedRoute>} />
                 <Route path="/admin/recovery" element={<ProtectedRoute roles={['admin', 'super_admin']}><DataRecoveryPage /></ProtectedRoute>} />

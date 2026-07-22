@@ -16,6 +16,7 @@ export const supabaseToOrder = (data: any): Order => ({
     notes: data.notes || '',
     observation: data.observation || '',
     deliveryDate: data.delivery_date || undefined,
+    customDeliveryAddress: data.custom_delivery_address || undefined,
     orderType: data.order_type || 'entrega',
     receiptUrl: data.receipt_url || undefined,
     receiptUrls: Array.from(new Set([
@@ -70,6 +71,7 @@ export const orderToSupabase = (order: Partial<Order>) => {
     if (order.notes !== undefined) data.notes = order.notes;
     if (order.observation !== undefined) data.observation = order.observation;
     if (order.deliveryDate !== undefined) data.delivery_date = order.deliveryDate;
+    if (order.customDeliveryAddress !== undefined) data.custom_delivery_address = order.customDeliveryAddress;
     if (order.orderType) data.order_type = order.orderType;
     if (order.receiptUrl !== undefined) data.receipt_url = order.receiptUrl;
     if (order.receiptUrls !== undefined) data.receipt_urls = order.receiptUrls;
@@ -102,7 +104,7 @@ export const orderToSupabase = (order: Partial<Order>) => {
 };
 
 // ⚡ OTIMIZAÇÃO DE EGRESS: Colunas mínimas para listagem (sem histórico pesado)
-const LIST_ORDER_COLUMNS = 'id, number, client_id, client_name, seller_id, seller_name, subtotal, taxes, total, status, notes, observation, order_type, is_cronograma, financeiro_aprovado, is_warranty, status_pagamento, status_producao, created_at, updated_at, delivery_date, installation_date, installation_time, installation_payment_type, scheduled_date, carrier, parent_order_id, parent_order_number, is_site, is_international, attachment_url, attachment_name, items, volumes, requires_invoice, requires_shipping_note, receipt_url, receipt_urls, comprovantes_vistos, production_media';
+const LIST_ORDER_COLUMNS = 'id, number, client_id, client_name, seller_id, seller_name, subtotal, taxes, total, status, notes, observation, order_type, is_cronograma, financeiro_aprovado, is_warranty, status_pagamento, status_producao, created_at, updated_at, delivery_date, custom_delivery_address, installation_date, installation_time, installation_payment_type, scheduled_date, carrier, parent_order_id, parent_order_number, is_site, is_international, attachment_url, attachment_name, items, volumes, requires_invoice, requires_shipping_note, receipt_url, receipt_urls, comprovantes_vistos, production_media';
 
 export const fetchOrders = async (role?: string, userId?: string): Promise<Order[]> => {
     try {

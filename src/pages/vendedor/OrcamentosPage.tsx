@@ -1,5 +1,6 @@
 // Versão Modernizada - 12/03/2026
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { cleanR2Url } from '@/lib/storageServiceR2';
@@ -18,6 +19,7 @@ import { InstallationCalendar } from '@/components/shared/InstallationCalendar';
 import { checkInstallationConflict, saveInstallation, deleteInstallationByOrder, InstallationAppointment } from '@/lib/installationServiceSupabase';
 import { cancelRedeemReward } from '@/lib/rewardServiceSupabase';
 import { fetchMaxOrderNumberGlobal } from '@/lib/orderServiceSupabase';
+import { useViaCep } from '@/hooks/useViaCep';
 
 // Função local para gerar próximo número de ordem
 const getNextOrderNumber = (existingOrders: Order[]): number => {
@@ -342,6 +344,28 @@ const OrcamentosPage: React.FC = () => {
   );
   const [newNotes, setNewNotes] = useState('');
   const [newObservation, setNewObservation] = useState('');
+  const [newCustomAddressObj, setNewCustomAddressObj] = useState({
+    cep: '', logradouro: '', numero: '', bairro: '', localidade: '', uf: '', referencia: '', recebedor: ''
+  });
+  const [useCustomAddress, setUseCustomAddress] = useState(false);
+  const { searchByCep, loading: loadingCep } = useViaCep();
+
+  const handleCepBlur = async (e: React.FocusEvent<HTMLInputElement>) => {
+    const cep = e.target.value;
+    if (cep.length >= 8) {
+      const data = await searchByCep(cep);
+      if (data) {
+        setNewCustomAddressObj(prev => ({
+          ...prev,
+          logradouro: data.logradouro,
+          bairro: data.bairro,
+          localidade: data.localidade,
+          uf: data.uf
+        }));
+      }
+    }
+  };
+
   const [newDeliveryDate, setNewDeliveryDate] = useState('');
   const [newOrderType, setNewOrderType] = useState<'entrega' | 'instalacao' | 'manutencao' | 'retirada'>('entrega');
   const [newInstallationTime, setNewInstallationTime] = useState('');
@@ -538,6 +562,19 @@ const OrcamentosPage: React.FC = () => {
     setNewCarrier(order.carrier || '');
     setNewRequiresInvoice(order.requiresInvoice || false);
     setNewRequiresShippingNote(order.requiresShippingNote || false);
+    if (order.customDeliveryAddress) {
+      setUseCustomAddress(true);
+      try {
+        const parsed = JSON.parse(order.customDeliveryAddress);
+        setNewCustomAddressObj({ ...parsed, recebedor: parsed.recebedor || '' });
+      } catch (e) {
+        setNewCustomAddressObj({ cep: '', logradouro: order.customDeliveryAddress, numero: '', bairro: '', localidade: '', uf: '', referencia: '', recebedor: '' });
+      }
+    } else {
+      setUseCustomAddress(false);
+      setNewCustomAddressObj({ cep: '', logradouro: '', numero: '', bairro: '', localidade: '', uf: '', referencia: '', recebedor: '' });
+    }
+    setNewDeliveryDate(order.deliveryDate || '');
     setFormError('');
   };
 
@@ -548,6 +585,8 @@ const OrcamentosPage: React.FC = () => {
     setNewItems([{ product: '', description: '', quantity: 1, unitPrice: '', installationDate: '', installationTime: '', showCalendar: false }]);
     setNewNotes('');
     setNewObservation('');
+    setUseCustomAddress(false);
+    setNewCustomAddressObj({ cep: '', logradouro: '', numero: '', bairro: '', localidade: '', uf: '', referencia: '', recebedor: '' });
     setNewDeliveryDate('');
     setNewOrderType('entrega');
     setNewInstallationTime('');
@@ -685,6 +724,7 @@ const OrcamentosPage: React.FC = () => {
           orderType: newOrderType,
           installationPaymentType: (newOrderType === 'instalacao' || newOrderType === 'manutencao' || newOrderType === 'retirada') ? newInstallationPaymentType : undefined,
           carrier: newOrderType === 'entrega' ? newCarrier : undefined,
+          customDeliveryAddress: useCustomAddress ? JSON.stringify(newCustomAddressObj) : undefined,
           isConsigned: client.consignado,
           isSite: client.isSite || false,
           isInternational: client.isInternational || false,
@@ -821,6 +861,7 @@ const OrcamentosPage: React.FC = () => {
           }
           if (newOrderType === 'entrega') {
             order.carrier = newCarrier;
+            order.customDeliveryAddress = useCustomAddress ? JSON.stringify(newCustomAddressObj) : undefined;
           }
 
           await addOrder(order);
@@ -1223,6 +1264,106 @@ const OrcamentosPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
+
+                {/* ENDEREÇO DE ENTREGA CUSTOMIZADO (Venda/Entrega) */}
+                {newOrderType === 'entrega' && (
+                  <div className="col-span-1 md:col-span-2 pt-4 border-t border-border/40">
+                    <label className="flex items-center gap-3 cursor-pointer group">
+                      <div className="relative flex items-center">
+                        <input
+                          type="checkbox"
+                          className="peer sr-only"
+                          checked={useCustomAddress}
+                          onChange={(e) => setUseCustomAddress(e.target.checked)}
+                        />
+                        <div className="w-12 h-6 bg-muted border border-border rounded-full peer-checked:bg-primary transition-colors"></div>
+                        <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-6"></div>
+                      </div>
+                      <div>
+                        <span className="text-sm font-bold text-foreground">Endereço de Entrega Alternativo</span>
+                        <span className="text-xs text-muted-foreground block">Entregar em um endereço diferente do cadastro (Apenas neste pedido)</span>
+                      </div>
+                    </label>
+
+                    {useCustomAddress && (
+                      <div className="mt-4 animate-in fade-in slide-in-from-top-2 space-y-3 p-4 bg-muted/20 border border-primary/20 rounded-xl">
+                        <div className="grid grid-cols-3 gap-3">
+                          <div>
+                            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">CEP {loadingCep && '⏳'}</label>
+                            <input
+                              type="text"
+                              maxLength={9}
+                              value={newCustomAddressObj.cep}
+                              onChange={(e) => setNewCustomAddressObj({ ...newCustomAddressObj, cep: e.target.value })}
+                              onBlur={handleCepBlur}
+                              className="w-full h-9 px-3 rounded-lg bg-background border border-border text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Endereço</label>
+                            <input
+                              type="text"
+                              value={newCustomAddressObj.logradouro}
+                              onChange={(e) => setNewCustomAddressObj({ ...newCustomAddressObj, logradouro: e.target.value })}
+                              className="w-full h-9 px-3 rounded-lg bg-background border border-border text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-12 gap-3">
+                          <div className="col-span-3">
+                            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Nº</label>
+                            <input
+                              type="text"
+                              value={newCustomAddressObj.numero}
+                              onChange={(e) => setNewCustomAddressObj({ ...newCustomAddressObj, numero: e.target.value })}
+                              className="w-full h-9 px-3 rounded-lg bg-background border border-border text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                            />
+                          </div>
+                          <div className="col-span-5">
+                            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Bairro</label>
+                            <input
+                              type="text"
+                              value={newCustomAddressObj.bairro}
+                              onChange={(e) => setNewCustomAddressObj({ ...newCustomAddressObj, bairro: e.target.value })}
+                              className="w-full h-9 px-3 rounded-lg bg-background border border-border text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                            />
+                          </div>
+                          <div className="col-span-4">
+                            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Cidade/UF</label>
+                            <input
+                              type="text"
+                              value={newCustomAddressObj.localidade ? `${newCustomAddressObj.localidade}/${newCustomAddressObj.uf}` : ''}
+                              disabled
+                              className="w-full h-9 px-3 rounded-lg bg-muted border border-border text-sm opacity-70"
+                            />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Referência / Complemento</label>
+                            <input
+                              type="text"
+                              value={newCustomAddressObj.referencia}
+                              onChange={(e) => setNewCustomAddressObj({ ...newCustomAddressObj, referencia: e.target.value })}
+                              placeholder="Ex: Próximo ao mercado..."
+                              className="w-full h-9 px-3 rounded-lg bg-background border border-border text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Nome de quem vai receber</label>
+                            <input
+                              type="text"
+                              value={newCustomAddressObj.recebedor}
+                              onChange={(e) => setNewCustomAddressObj({ ...newCustomAddressObj, recebedor: e.target.value })}
+                              placeholder="Ex: João da Silva"
+                              className="w-full h-9 px-3 rounded-lg bg-background border border-border text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -2033,7 +2174,7 @@ const OrcamentosPage: React.FC = () => {
         </div>
 
         {/* Modal de Visualização (Detail View) */}
-        {previewUrl && (
+        {previewUrl && createPortal(
           <div
             className="fixed inset-0 z-[10000] flex flex-col bg-black/90 backdrop-blur-md animate-in fade-in duration-300"
             onClick={() => setPreviewUrl(null)}
@@ -2070,27 +2211,24 @@ const OrcamentosPage: React.FC = () => {
                 <img src={cleanR2Url(previewUrl)} alt="Comprovante" className="max-w-full max-h-full object-contain rounded-xl shadow-2xl" />
               )}
             </div>
-          </div>
+          </div>,
+          document.body
         )}
 
-        {/* Overlay de Sucesso com Animação */}
-        {showSuccessAnim && (
-          <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-white/40 backdrop-blur-xl animate-in fade-in duration-500">
-            <div className="bg-white rounded-[3rem] p-12 shadow-2xl border border-border/40 flex flex-col items-center text-center gap-6 animate-check-popup">
-              <div className="checkmark-circle">
-                <svg className="w-full h-full" viewBox="0 0 52 52">
-                  <path
-                    className="checkmark-check fill-none stroke-success stroke-[4]"
-                    d="M14.1 27.2l7.1 7.2 16.7-16.8"
-                  />
-                </svg>
+        {/* Overlay de Sucesso com Animação (Otimizado) */}
+        {showSuccessAnim && createPortal(
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="relative bg-white dark:bg-slate-900 p-10 rounded-[2.5rem] shadow-xl border border-border/40 flex flex-col items-center gap-6 max-w-sm w-full animate-in zoom-in-95 slide-in-from-bottom-2 duration-300 ease-out will-change-transform">
+              <div className="relative w-24 h-24 flex items-center justify-center rounded-full bg-gradient-to-br from-success to-emerald-400">
+                <Check className="w-12 h-12 text-white animate-in zoom-in duration-300 delay-100 will-change-transform" strokeWidth={4} />
               </div>
-              <div>
-                <h3 className="text-2xl font-black text-foreground uppercase tracking-wider mb-2">Sucesso!</h3>
-                <p className="text-muted-foreground font-medium">{successMessage}</p>
+              <div className="text-center space-y-2">
+                <h3 className="text-3xl font-black bg-gradient-to-r from-success to-emerald-500 bg-clip-text text-transparent uppercase tracking-tight">Sucesso!</h3>
+                <p className="text-sm font-bold text-muted-foreground">{successMessage}</p>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
       </>
     );
@@ -2325,7 +2463,7 @@ const OrcamentosPage: React.FC = () => {
       </div>
 
       {/* Modal de Visualização Global */}
-      {previewUrl && (
+      {previewUrl && createPortal(
         <div
           className="fixed inset-0 z-[9999] flex flex-col bg-black/90 backdrop-blur-sm animate-in fade-in duration-300"
           onClick={() => setPreviewUrl(null)}
@@ -2362,27 +2500,24 @@ const OrcamentosPage: React.FC = () => {
               <img src={previewUrl} alt="Comprovante" className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" />
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* Overlay de Sucesso com Animação */}
-      {showSuccessAnim && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-white/40 backdrop-blur-xl animate-in fade-in duration-500">
-          <div className="bg-white rounded-[3rem] p-12 shadow-2xl border border-border/40 flex flex-col items-center text-center gap-6 animate-check-popup">
-            <div className="checkmark-circle">
-              <svg className="w-full h-full" viewBox="0 0 52 52">
-                <path
-                  className="checkmark-check fill-none stroke-success stroke-[4]"
-                  d="M14.1 27.2l7.1 7.2 16.7-16.8"
-                />
-              </svg>
+      {/* Overlay de Sucesso com Animação (Otimizado) */}
+      {showSuccessAnim && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="relative bg-white dark:bg-slate-900 p-10 rounded-[2.5rem] shadow-xl border border-border/40 flex flex-col items-center gap-6 max-w-sm w-full animate-in zoom-in-95 slide-in-from-bottom-2 duration-300 ease-out will-change-transform">
+            <div className="relative w-24 h-24 flex items-center justify-center rounded-full bg-gradient-to-br from-success to-emerald-400">
+              <Check className="w-12 h-12 text-white animate-in zoom-in duration-300 delay-100 will-change-transform" strokeWidth={4} />
             </div>
-            <div>
-              <h3 className="text-2xl font-black text-foreground uppercase tracking-wider mb-2">Sucesso!</h3>
-              <p className="text-muted-foreground font-medium">{successMessage}</p>
+            <div className="text-center space-y-2">
+              <h3 className="text-3xl font-black bg-gradient-to-r from-success to-emerald-500 bg-clip-text text-transparent uppercase tracking-tight">Sucesso!</h3>
+              <p className="text-sm font-bold text-muted-foreground">{successMessage}</p>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

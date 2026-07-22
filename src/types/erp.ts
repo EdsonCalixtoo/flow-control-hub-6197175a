@@ -99,6 +99,7 @@ export interface Order {
   releasedBy?: string;
   receiptUrl?: string;
   deliveryDate?: string;
+  customDeliveryAddress?: string; // Endereço customizado para este pedido específico
   comprovantesVistos?: number; // Contador de comprovantes já visualizados pelo financeiro
   scheduledDate?: string;        // data de agendamento da produção
   orderType?: 'entrega' | 'instalacao' | 'manutencao' | 'retirada';
@@ -129,6 +130,22 @@ export interface Order {
   productionFinishedBy?: string;
   productionStartedBy?: string;
   productionMedia?: { url: string; type: 'image' | 'video'; timestamp: string }[];
+}
+
+export interface RewardTierConfig {
+  required_kits: number;
+  min_price: number;
+  max_price: number;
+}
+
+export interface RewardSettings {
+  id?: string;
+  client_id?: string | null;
+  settings: {
+    tier_1: RewardTierConfig;
+    tier_2: RewardTierConfig;
+    tier_3: RewardTierConfig;
+  };
 }
 
 export type RewardStatus = 'pendente' | 'liberado' | 'resgatado';

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Gift, Trophy, CheckCircle2, Clock, Star, Medal, ChevronRight, Loader2, Package, RotateCcw } from 'lucide-react';
+import { Gift, Trophy, CheckCircle2, Clock, Star, Medal, ChevronRight, Loader2, Package, RotateCcw, Settings } from 'lucide-react';
 import {
     calculateClientRanking,
     fetchClientRewards,
@@ -9,9 +9,11 @@ import {
     updateClientRewardsAuto,
     adjustReward
 } from '@/lib/rewardServiceSupabase';
-import type { ClientReward, ClientRanking } from '@/types/erp';
+import type { ClientReward, ClientRanking, RewardSettings } from '@/types/erp';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { fetchRewardSettings } from '@/lib/rewardSettingsService';
+import ClientRewardSettingsModal from './ClientRewardSettingsModal';
 
 interface ClientRewardTabProps {
     clientId: string;
@@ -22,11 +24,13 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
     const { user } = useAuth();
     const [ranking, setRanking] = useState<ClientRanking | null>(null);
     const [rewards, setRewards] = useState<ClientReward[]>([]);
+    const [settings, setSettings] = useState<RewardSettings['settings'] | null>(null);
     const [loading, setLoading] = useState(true);
     const [redeemingId, setRedeemingId] = useState<string | null>(null);
     const [redeemQuantities, setRedeemQuantities] = useState<Record<string, number>>({});
     const [resettingId, setResettingId] = useState<string | null>(null);
     const [adjustingId, setAdjustingId] = useState<string | null>(null);
+    const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
     const loadData = async () => {
         setLoading(true);
@@ -34,12 +38,14 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
             // Primeiro atualiza automaticamente para garantir que os dados estão sincronizados
             await updateClientRewardsAuto(clientId);
 
-            const [rankingData, rewardsData] = await Promise.all([
+            const [rankingData, rewardsData, settingsData] = await Promise.all([
                 calculateClientRanking(clientId),
-                fetchClientRewards(clientId)
+                fetchClientRewards(clientId),
+                fetchRewardSettings(clientId)
             ]);
             setRanking(rankingData);
             setRewards(rewardsData);
+            setSettings(settingsData);
         } catch (error) {
             console.error('Erro ao carregar dados de premiação:', error);
             toast.error('Erro ao carregar premiações');
@@ -134,10 +140,11 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
     }
 
     const getRewardTitle = (type: string) => {
+        if (!settings) return 'Premiação';
         switch (type) {
-            case 'tier_1': return '1ª Premiação (5 Kits)';
-            case 'tier_2': return '2ª Premiação (7 Kits - R$ 1450 a 2000)';
-            case 'tier_3': return '3ª Premiação (10 Kits - R$ 1100 a 1400)';
+            case 'tier_1': return `1ª Premiação (${settings.tier_1.required_kits} Kits)`;
+            case 'tier_2': return `2ª Premiação (${settings.tier_2.required_kits} Kits - R$ ${settings.tier_2.min_price} a ${settings.tier_2.max_price})`;
+            case 'tier_3': return `3ª Premiação (${settings.tier_3.required_kits} Kits - R$ ${settings.tier_3.min_price} a ${settings.tier_3.max_price})`;
             default: return 'Premiação';
         }
     };
@@ -191,6 +198,15 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
                                     ranking?.ranking === 'Prata' ? 'Ouro (20 kits)' : 'Nível Máximo Atingido!'}
                         </p>
                     </div>
+                    {isDeveloperOrGestor && (
+                        <button
+                            onClick={() => setIsSettingsModalOpen(true)}
+                            className="w-10 h-10 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors backdrop-blur-sm shadow-sm ml-2"
+                            title="Regras Exclusivas de Premiação"
+                        >
+                            <Settings className="w-5 h-5" />
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -363,9 +379,9 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
             {/* Ranking Tooltip/Info */}
             <div className="grid grid-cols-3 gap-4">
                 {[
-                    { label: 'Bronze', kits: 5, color: 'text-amber-700', bg: 'bg-amber-700/10' },
-                    { label: 'Prata', kits: 10, color: 'text-slate-400', bg: 'bg-slate-400/10' },
-                    { label: 'Ouro', kits: 20, color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
+                    { label: 'Bronze', kits: settings?.tier_1?.required_kits || 5, color: 'text-amber-700', bg: 'bg-amber-700/10' },
+                    { label: 'Prata', kits: settings?.tier_3?.required_kits || 10, color: 'text-slate-400', bg: 'bg-slate-400/10' },
+                    { label: 'Ouro', kits: (settings?.tier_3?.required_kits || 10) * 2, color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
                 ].map(lvl => (
                     <div key={lvl.label} className={`p-4 rounded-2xl border ${lvl.bg} border-transparent flex flex-col items-center text-center gap-1`}>
                         <p className={`text-[10px] font-black uppercase ${lvl.color}`}>{lvl.label}</p>
@@ -373,6 +389,13 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
                     </div>
                 ))}
             </div>
+
+            <ClientRewardSettingsModal 
+                clientId={clientId}
+                isOpen={isSettingsModalOpen}
+                onClose={() => setIsSettingsModalOpen(false)}
+                onSaved={loadData}
+            />
         </div>
     );
 };

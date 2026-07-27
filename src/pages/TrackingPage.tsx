@@ -301,9 +301,7 @@ const TrackingPage: React.FC = () => {
                 <div className="text-center pt-4 pb-12">
                      <p className="text-[11px] text-slate-400 font-medium">Alguma dúvida? Estamos aqui para ajudar.</p>
                      <div className="flex justify-center gap-4 mt-4">
-                        <a href={`https://wa.me/5519989429972?text=Olá, preciso de informações sobre o pedido ${order.number}`} target="_blank" className="text-[11px] font-bold text-primary hover:underline">Falar com Consultor</a>
-                        <span className="text-slate-200">•</span>
-                        <a href="https://automatiza.com.br" target="_blank" className="text-[11px] font-bold text-slate-400 hover:text-slate-600 transition-colors">Automatiza.com.br</a>
+                        <a href="https://grupoautomatiza.com.br" target="_blank" className="text-[11px] font-bold text-slate-400 hover:text-slate-600 transition-colors">grupoautomatiza.com.br</a>
                      </div>
                 </div>
             </main>

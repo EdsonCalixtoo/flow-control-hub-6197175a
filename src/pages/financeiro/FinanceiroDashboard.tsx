@@ -36,7 +36,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
-  const { orders, clients, financialEntries, products, monthlyClosings, updateOrderStatus, updateOrder, updateFinancialEntry, addFinancialEntry, loadFromSupabase, loadOrderDetails } = useERP();
+  const { orders, clients, financialEntries, products, monthlyClosings, updateOrderStatus, updateOrder, updateFinancialEntry, addFinancialEntry, loadFromSupabase, loadOrderDetails, editClient } = useERP();
   const [activeTab, setActiveTab] = useState<'pedidos' | 'vendedores' | 'carenagem'>(defaultTab);
   const [statusFilter, setStatusFilter] = useState<PaymentFilter>('todos');
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>('todos');
@@ -57,7 +57,15 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
 
   const handleAprovarQuitacao = async (entry: FinancialEntry) => {
     try {
+      // First update the financial entry
       await updateFinancialEntry(entry.id, { status: 'pago' });
+      
+      // Update client to remove consignado status
+      const client = clients.find(c => c.id === entry.clientId);
+      if (client && editClient) {
+        await editClient({ ...client, consignado: false });
+      }
+
       toast.success(`Baixa de quitação para o cliente ${entry.clientName} confirmada!`);
     } catch (e: any) {
       toast.error('Erro ao aprovar quitação: ' + e.message);
@@ -65,8 +73,13 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
   };
 
   const quitacoesPendentes = useMemo(() => {
-    return financialEntries.filter(e => e.category === 'Quitação de Dívida' && e.status === 'pendente');
-  }, [financialEntries]);
+    return financialEntries.filter(e => {
+      if (e.category !== 'Quitação de Dívida' || e.status !== 'pendente') return false;
+      // Remove quitações if the client has no orders (e.g. order was deleted)
+      const hasOrder = orders.some(o => o.clientId === e.clientId);
+      return hasOrder;
+    });
+  }, [financialEntries, orders]);
 
   // ⚡ OTIMIZAÇÃO: Carregamento sob demanda para economizar egress
   useEffect(() => {
@@ -2434,7 +2447,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                 </div>
                 
                 <div className="w-full flex items-center justify-center p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-muted-foreground group-hover:bg-rose-500 group-hover:text-white transition-all text-xs font-black uppercase tracking-widest gap-2">
-                  <span>Acessar Perfil para Análise</span>
+                  <span>Acessar Detalhes do Pedido</span>
                   <ArrowLeft className="w-4 h-4 rotate-180" />
                 </div>
               </button>

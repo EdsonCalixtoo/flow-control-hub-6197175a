@@ -5,6 +5,7 @@ import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { cleanR2Url } from '@/lib/storageServiceR2';
 import { StatusBadge, formatCurrency, formatDate } from '@/components/shared/StatusBadge';
+import { getSaldoDevedor } from '@/utils/finance';
 import { OrderPipeline, OrderHistory } from '@/components/shared/OrderTimeline';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
 import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check, Download, Link2, DollarSign, CheckCircle, Users, Package, Truck, CheckCircle2, XCircle, ChevronDown, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Zap, Info } from 'lucide-react';
@@ -641,6 +642,21 @@ const OrcamentosPage: React.FC = () => {
       return;
     }
 
+    if (client.consignado) {
+      const totalKits = newItems.reduce((acc, item) => {
+        const prod = products.find(p => p.id === item.product);
+        if (prod && prod.name.toLowerCase().includes('kit')) {
+          return acc + item.quantity;
+        }
+        return acc;
+      }, 0);
+
+      if (totalKits > 12) {
+        setFormError('⚠️ Clientes consignados podem pedir no máximo 12 kits por pedido.');
+        return;
+      }
+    }
+
     if (user?.role === 'vendedor' && newItems.some(i => {
       const price = parsePrice(i.unitPrice);
       return price === 0 && !i.isReward;
@@ -1155,6 +1171,13 @@ const OrcamentosPage: React.FC = () => {
   // ── Formulário de criação/edição ────────────────────────────
   if (showCreate || editingOrder) {
     const isEdit = !!editingOrder;
+    
+    const selectedClient = clients.find(c => c.id === newClientId);
+    const clientDebt = selectedClient?.consignado ? orders
+      .filter(o => o.clientId === newClientId && o.status !== 'rejeitado_financeiro')
+      .reduce((sum, o) => sum + getSaldoDevedor(o.id, o.total, financialEntries, o.paymentStatus, o.number), 0)
+      : 0;
+    const hasDebtBlock = clientDebt > 0 && selectedClient?.consignado;
     return (
       <div className="space-y-8 animate-scale-in pb-20 max-w-[1400px] mx-auto">
         {/* Header Elegante */}
@@ -1226,7 +1249,20 @@ const OrcamentosPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
+              {hasDebtBlock && (
+                <div className="bg-rose-500/10 border-2 border-rose-500 rounded-[2rem] p-8 text-center shadow-2xl shadow-rose-500/10 backdrop-blur-md animate-in slide-in-from-bottom-4 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/20 rounded-full blur-[40px] -mr-10 -mt-10 pointer-events-none" />
+                  <div className="absolute bottom-0 left-0 w-24 h-24 bg-rose-500/20 rounded-full blur-[30px] -ml-8 -mb-8 pointer-events-none" />
+                  <XCircle className="w-16 h-16 text-rose-500 mx-auto mb-4 animate-pulse" />
+                  <h3 className="text-2xl font-black text-rose-500 mb-2 tracking-tight">Compra Bloqueada por Pendência</h3>
+                  <p className="text-rose-600/90 font-medium text-lg leading-relaxed max-w-2xl mx-auto">
+                    Este cliente está com um débito em aberto no valor de <strong className="font-black text-rose-500">{formatCurrency(clientDebt)}</strong>.
+                    <br />Peça para ele quitar este valor com o financeiro para que o direito de compra no consignado seja liberado novamente.
+                  </p>
+                </div>
+              )}
+
+              <div className={hasDebtBlock ? "hidden" : "grid grid-cols-1 md:grid-cols-2 gap-6 relative"}>
                 <div 
                   onClick={() => setNewRequiresInvoice(!newRequiresInvoice)}
                   className={`p-6 rounded-[2.5rem] border-2 cursor-pointer transition-all duration-500 group/card ${newRequiresInvoice ? 'bg-primary/10 border-primary ring-8 ring-primary/5 shadow-2xl shadow-primary/10' : 'bg-muted/30 border-dashed border-border/60 hover:border-primary/40'}`}
@@ -1267,109 +1303,11 @@ const OrcamentosPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* ENDEREÇO DE ENTREGA CUSTOMIZADO (Venda/Entrega) */}
-                {newOrderType === 'entrega' && (
-                  <div className="col-span-1 md:col-span-2 pt-4 border-t border-border/40">
-                    <label className="flex items-center gap-3 cursor-pointer group">
-                      <div className="relative flex items-center">
-                        <input
-                          type="checkbox"
-                          className="peer sr-only"
-                          checked={useCustomAddress}
-                          onChange={(e) => setUseCustomAddress(e.target.checked)}
-                        />
-                        <div className="w-12 h-6 bg-muted border border-border rounded-full peer-checked:bg-primary transition-colors"></div>
-                        <div className="absolute left-1 top-1 w-4 h-4 bg-white rounded-full transition-transform peer-checked:translate-x-6"></div>
-                      </div>
-                      <div>
-                        <span className="text-sm font-bold text-foreground">Endereço de Entrega Alternativo</span>
-                        <span className="text-xs text-muted-foreground block">Entregar em um endereço diferente do cadastro (Apenas neste pedido)</span>
-                      </div>
-                    </label>
 
-                    {useCustomAddress && (
-                      <div className="mt-4 animate-in fade-in slide-in-from-top-2 space-y-3 p-4 bg-muted/20 border border-primary/20 rounded-xl">
-                        <div className="grid grid-cols-3 gap-3">
-                          <div>
-                            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">CEP {loadingCep && '⏳'}</label>
-                            <input
-                              type="text"
-                              maxLength={9}
-                              value={newCustomAddressObj.cep}
-                              onChange={(e) => setNewCustomAddressObj({ ...newCustomAddressObj, cep: e.target.value })}
-                              onBlur={handleCepBlur}
-                              className="w-full h-9 px-3 rounded-lg bg-background border border-border text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                            />
-                          </div>
-                          <div className="col-span-2">
-                            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Endereço</label>
-                            <input
-                              type="text"
-                              value={newCustomAddressObj.logradouro}
-                              onChange={(e) => setNewCustomAddressObj({ ...newCustomAddressObj, logradouro: e.target.value })}
-                              className="w-full h-9 px-3 rounded-lg bg-background border border-border text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                            />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-12 gap-3">
-                          <div className="col-span-3">
-                            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Nº</label>
-                            <input
-                              type="text"
-                              value={newCustomAddressObj.numero}
-                              onChange={(e) => setNewCustomAddressObj({ ...newCustomAddressObj, numero: e.target.value })}
-                              className="w-full h-9 px-3 rounded-lg bg-background border border-border text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                            />
-                          </div>
-                          <div className="col-span-5">
-                            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Bairro</label>
-                            <input
-                              type="text"
-                              value={newCustomAddressObj.bairro}
-                              onChange={(e) => setNewCustomAddressObj({ ...newCustomAddressObj, bairro: e.target.value })}
-                              className="w-full h-9 px-3 rounded-lg bg-background border border-border text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                            />
-                          </div>
-                          <div className="col-span-4">
-                            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Cidade/UF</label>
-                            <input
-                              type="text"
-                              value={newCustomAddressObj.localidade ? `${newCustomAddressObj.localidade}/${newCustomAddressObj.uf}` : ''}
-                              disabled
-                              className="w-full h-9 px-3 rounded-lg bg-muted border border-border text-sm opacity-70"
-                            />
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Referência / Complemento</label>
-                            <input
-                              type="text"
-                              value={newCustomAddressObj.referencia}
-                              onChange={(e) => setNewCustomAddressObj({ ...newCustomAddressObj, referencia: e.target.value })}
-                              placeholder="Ex: Próximo ao mercado..."
-                              className="w-full h-9 px-3 rounded-lg bg-background border border-border text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                            />
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-1 block">Nome de quem vai receber</label>
-                            <input
-                              type="text"
-                              value={newCustomAddressObj.recebedor}
-                              onChange={(e) => setNewCustomAddressObj({ ...newCustomAddressObj, recebedor: e.target.value })}
-                              placeholder="Ex: João da Silva"
-                              className="w-full h-9 px-3 rounded-lg bg-background border border-border text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
 
-            <div className="space-y-6">
+            <div className={hasDebtBlock ? "hidden" : "space-y-6"}>
               <div className="flex items-center justify-between px-4">
                 <h2 className="text-xl font-black uppercase tracking-[0.3em] text-foreground flex items-center gap-4">
                   <div className="p-3 rounded-xl bg-primary/10 text-primary"><Package className="w-6 h-6" /></div>
@@ -1586,7 +1524,7 @@ const OrcamentosPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="lg:col-span-4 space-y-8 sticky top-24">
+          <div className={hasDebtBlock ? "hidden" : "lg:col-span-4 space-y-8 sticky top-24"}>
             <div className="glass-card p-8 rounded-[3rem] border-white/60 shadow-2xl space-y-10 group overflow-hidden">
                <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-primary/5 rounded-full blur-[80px]" />
 
@@ -1744,7 +1682,7 @@ const OrcamentosPage: React.FC = () => {
                 )}
               </div>
 
-              <div className="pt-10 border-t border-border/10 space-y-8 relative">
+              <div className={hasDebtBlock ? "hidden" : "pt-10 border-t border-border/10 space-y-8 relative"}>
                 <div className="flex justify-between items-center bg-gradient-to-br from-white/40 to-white/10 p-6 rounded-[2rem] border border-white/60 shadow-inner">
                   <div className="space-y-1">
                     <p className="text-[9px] font-black text-muted-foreground uppercase tracking-[0.3em]">Total Acumulado</p>

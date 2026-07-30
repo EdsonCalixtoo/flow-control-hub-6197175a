@@ -43,7 +43,6 @@ export const calculateClientRanking = async (clientId: string): Promise<ClientRa
         let totalKits = 0;
         let tier1Count = 0;
         let tier2Count = 0;
-        let tier3Count = 0;
         const breakdownMap: Record<string, number> = {};
 
         orders.forEach(order => {
@@ -67,11 +66,6 @@ export const calculateClientRanking = async (clientId: string): Promise<ClientRa
                     tier2Count += qty;
                 }
 
-                // Tier 3
-                if (price >= settings.tier_3.min_price && price <= settings.tier_3.max_price) {
-                    tier3Count += qty;
-                }
-
                 // Breakdown
                 breakdownMap[item.product] = (breakdownMap[item.product] || 0) + qty;
             });
@@ -82,15 +76,14 @@ export const calculateClientRanking = async (clientId: string): Promise<ClientRa
             quantity
         }));
 
-        let ranking: 'Bronze' | 'Prata' | 'Ouro' | 'Nenhum' = 'Nenhum';
-        if (totalKits >= (settings.tier_3?.required_kits || 10)) ranking = 'Ouro';
-        else if (totalKits >= (settings.tier_2?.required_kits || 7)) ranking = 'Prata';
+        let ranking: 'Bronze' | 'Prata' | 'Nenhum' = 'Nenhum';
+        if (totalKits >= (settings.tier_2?.required_kits || 7)) ranking = 'Prata';
         else if (totalKits >= (settings.tier_1?.required_kits || 5)) ranking = 'Bronze';
 
-        return { totalKits, tier1Count, tier2Count, tier3Count, ranking, breakdown };
+        return { totalKits, tier1Count, tier2Count, ranking, breakdown };
     } catch (err: any) {
         console.error('[Rewards] Erro ao calcular ranking:', err.message);
-        return { totalKits: 0, tier1Count: 0, tier2Count: 0, tier3Count: 0, ranking: 'Nenhum', breakdown: [] };
+        return { totalKits: 0, tier1Count: 0, tier2Count: 0, ranking: 'Nenhum', breakdown: [] };
     }
 };
 
@@ -260,7 +253,6 @@ export const updateClientRewardsAuto = async (clientId: string): Promise<void> =
         const tiers = [
             { type: 'tier_1', required: settings.tier_1.required_kits, current: ranking.tier1Count },
             { type: 'tier_2', required: settings.tier_2.required_kits, current: ranking.tier2Count },
-            { type: 'tier_3', required: settings.tier_3.required_kits, current: ranking.tier3Count },
         ];
 
         for (const tier of tiers) {
@@ -285,11 +277,12 @@ export const updateClientRewardsAuto = async (clientId: string): Promise<void> =
             const newStatus = currentEffectiveKits >= tier.required ? 'liberado' : 'pendente';
 
             if (existing) {
-                // Atualiza o registro existente com o novo total efetivo e novo status
+                // Atualiza o registro existente com o novo total efetivo, novo status e kits_required atualizados
                 await supabase
                     .from('client_rewards')
                     .update({
                         kits_completed: currentEffectiveKits,
+                        kits_required: tier.required,
                         reward_status: newStatus,
                         updated_at: new Date().toISOString()
                     })

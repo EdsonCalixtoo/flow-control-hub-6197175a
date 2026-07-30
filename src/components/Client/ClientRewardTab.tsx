@@ -144,7 +144,6 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
         switch (type) {
             case 'tier_1': return `1ª Premiação (${settings.tier_1.required_kits} Kits)`;
             case 'tier_2': return `2ª Premiação (${settings.tier_2.required_kits} Kits - R$ ${settings.tier_2.min_price} a ${settings.tier_2.max_price})`;
-            case 'tier_3': return `3ª Premiação (${settings.tier_3.required_kits} Kits - R$ ${settings.tier_3.min_price} a ${settings.tier_3.max_price})`;
             default: return 'Premiação';
         }
     };
@@ -153,7 +152,6 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
         switch (type) {
             case 'tier_1': return 'Prêmio: 1 Resgate (Exceto Kits)';
             case 'tier_2': return 'Prêmio: 1 Kit Completo';
-            case 'tier_3': return 'Prêmio: 1 Kit Completo';
             default: return '';
         }
     };
@@ -195,8 +193,7 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
                         <p className="text-xs font-bold">
                             {ranking?.ranking === 'Nenhum' ? `Bronze (${settings?.tier_1?.required_kits || 5} kits)` :
                                 ranking?.ranking === 'Bronze' ? `Prata (${settings?.tier_2?.required_kits || 7} kits)` :
-                                    ranking?.ranking === 'Prata' ? `Ouro (${settings?.tier_3?.required_kits || 10} kits)` :
-                                        'Ouro (Máximo)'}
+                                    'Prata (Máximo)'}
                         </p>
                     </div>
                     {isDeveloperOrGestor && (
@@ -234,7 +231,7 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
 
             {/* Rewards Grid */}
             <div className="grid grid-cols-1 gap-4">
-                {rewards.map((reward) => {
+                {rewards.filter(r => r.rewardType !== 'tier_3').map((reward) => {
                     const isLiberado = reward.rewardStatus === 'liberado';
                     const isResgatado = reward.rewardStatus === 'resgatado';
                     const progress = Math.min(100, (reward.kitsCompleted / reward.kitsRequired) * 100);
@@ -378,11 +375,10 @@ const ClientRewardTab: React.FC<ClientRewardTabProps> = ({ clientId }) => {
             </div>
 
             {/* Ranking Tooltip/Info */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-2 gap-4">
                 {[
                     { label: 'Bronze', kits: settings?.tier_1?.required_kits || 5, color: 'text-amber-700', bg: 'bg-amber-700/10' },
-                    { label: 'Prata', kits: settings?.tier_2?.required_kits || 7, color: 'text-slate-400', bg: 'bg-slate-400/10' },
-                    { label: 'Ouro', kits: settings?.tier_3?.required_kits || 10, color: 'text-yellow-500', bg: 'bg-yellow-500/10' },
+                    { label: 'Prata', kits: settings?.tier_2?.required_kits || 7, color: 'text-slate-400', bg: 'bg-slate-400/10' }
                 ].map(lvl => (
                     <div key={lvl.label} className={`p-4 rounded-2xl border ${lvl.bg} border-transparent flex flex-col items-center text-center gap-1`}>
                         <p className={`text-[10px] font-black uppercase ${lvl.color}`}>{lvl.label}</p>

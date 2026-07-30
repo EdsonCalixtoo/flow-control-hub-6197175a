@@ -31,6 +31,7 @@ import {
   Factory,
   Settings,
   HelpCircle,
+  Receipt,
 } from 'lucide-react';
 import { useThemeContext } from '@/contexts/ThemeContext';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -50,6 +51,7 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: 
     { label: 'Controle por Vendedor', icon: Users2, path: '/financeiro/vendedores' },
     { label: 'Pedidos', icon: Package, path: '/pedidos' },
     { label: 'Pagamentos', icon: DollarSign, path: '/financeiro/pagamentos' },
+    { label: 'Lançamentos', icon: Receipt, path: '/financeiro/lancamentos' },
     { label: 'Garantias', icon: ShieldAlert, path: '/financeiro/garantias' },
     { label: 'Fluxo de Caixa', icon: TrendingUp, path: '/financeiro/fluxo' },
     { label: 'Carenagem', icon: Package, path: '/financeiro/carenagem' },

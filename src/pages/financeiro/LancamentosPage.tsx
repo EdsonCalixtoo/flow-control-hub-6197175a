@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { formatCurrency, formatDate } from '@/components/shared/StatusBadge';
-import { TrendingUp, TrendingDown, Plus, Search, X, Filter } from 'lucide-react';
+import { TrendingUp, TrendingDown, Plus, Search, X, Filter, FileText } from 'lucide-react';
+import { PreviewModal } from '@/components/shared/ComprovanteUpload';
 import type { FinancialEntry } from '@/types/erp';
 
 const CATEGORIES_RECEITA = ['Vendas', 'Serviços', 'Comissão', 'Outros'];
@@ -15,13 +16,16 @@ const LancamentosPage: React.FC = () => {
   const [typeFilter, setTypeFilter] = useState<'todos' | 'receita' | 'despesa'>('todos');
   const [statusFilter, setStatusFilter] = useState<'todos' | 'pago' | 'pendente'>('todos');
   const [showModal, setShowModal] = useState(false);
+  const [previewUrls, setPreviewUrls] = useState<string[] | null>(null);
   const [form, setForm] = useState(emptyForm);
 
-  const totalReceitas = financialEntries.filter(e => e.type === 'receita').reduce((s, e) => s + e.amount, 0);
-  const totalDespesas = financialEntries.filter(e => e.type === 'despesa').reduce((s, e) => s + e.amount, 0);
-  const totalPendente = financialEntries.filter(e => e.status === 'pendente').reduce((s, e) => s + e.amount, 0);
+  const baseEntries = financialEntries.filter(e => !(e.category === 'Quitação de Dívida' && e.status === 'pendente'));
 
-  const filtered = financialEntries.filter(e => {
+  const totalReceitas = baseEntries.filter(e => e.type === 'receita').reduce((s, e) => s + e.amount, 0);
+  const totalDespesas = baseEntries.filter(e => e.type === 'despesa').reduce((s, e) => s + e.amount, 0);
+  const totalPendente = baseEntries.filter(e => e.status === 'pendente').reduce((s, e) => s + e.amount, 0);
+
+  const filtered = baseEntries.filter(e => {
     const matchSearch = e.description.toLowerCase().includes(search.toLowerCase()) || e.category.toLowerCase().includes(search.toLowerCase());
     const matchType = typeFilter === 'todos' || e.type === typeFilter;
     const matchStatus = statusFilter === 'todos' || e.status === statusFilter;
@@ -127,7 +131,14 @@ const LancamentosPage: React.FC = () => {
                   : <TrendingDown className="w-4 h-4 text-destructive" />}
               </div>
               <div>
-                <p className="text-sm font-semibold text-foreground">{entry.description}</p>
+                <div className="text-sm font-semibold text-foreground flex items-center gap-2">
+                  {entry.description}
+                  {entry.receiptUrls && entry.receiptUrls.length > 0 && (
+                    <button onClick={() => setPreviewUrls(entry.receiptUrls!)} className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-md font-bold uppercase hover:bg-primary/20 flex items-center gap-1">
+                      <FileText className="w-3 h-3" /> {entry.receiptUrls.length} Anexo(s)
+                    </button>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground mt-0.5">{entry.category} • {formatDate(entry.date)}</p>
               </div>
             </div>
@@ -203,6 +214,10 @@ const LancamentosPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {previewUrls && (
+        <PreviewModal allMedia={previewUrls} initialIndex={0} onClose={() => setPreviewUrls(null)} />
       )}
     </div>
   );

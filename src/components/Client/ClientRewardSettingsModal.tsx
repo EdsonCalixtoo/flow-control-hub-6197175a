@@ -64,7 +64,7 @@ const ClientRewardSettingsModal: React.FC<ClientRewardSettingsModalProps> = ({ c
         }
     };
 
-    const handleUpdateTier = (tier: 'tier_1' | 'tier_2' | 'tier_3', field: string, value: number) => {
+    const handleUpdateTier = (tier: 'tier_1' | 'tier_2', field: string, value: number) => {
         setSettings(prev => ({
             ...prev,
             [tier]: {
@@ -129,10 +129,9 @@ const ClientRewardSettingsModal: React.FC<ClientRewardSettingsModalProps> = ({ c
                             <div className={`space-y-6 transition-opacity duration-300 ${isCustom ? 'opacity-100' : 'opacity-50 pointer-events-none'}`}>
                                 {[
                                     { id: 'tier_1', label: 'Tier 1 (Básico)' },
-                                    { id: 'tier_2', label: 'Tier 2 (Intermediário)' },
-                                    { id: 'tier_3', label: 'Tier 3 (Avançado)' }
+                                    { id: 'tier_2', label: 'Tier 2 (Intermediário)' }
                                 ].map((tier) => {
-                                    const tConfig = settings[tier.id as 'tier_1' | 'tier_2' | 'tier_3'];
+                                    const tConfig = settings[tier.id as 'tier_1' | 'tier_2'];
                                     return (
                                         <div key={tier.id} className="bg-background border border-border rounded-2xl p-6 shadow-sm">
                                             <h3 className="text-sm font-black uppercase tracking-tight text-foreground mb-4">

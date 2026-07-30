@@ -45,7 +45,7 @@ const AdminRewardRulesPage: React.FC = () => {
         }
     };
 
-    const handleUpdateTier = (tier: 'tier_1' | 'tier_2' | 'tier_3', field: string, value: number) => {
+    const handleUpdateTier = (tier: 'tier_1' | 'tier_2', field: string, value: number) => {
         setSettings(prev => ({
             ...prev,
             [tier]: {
@@ -93,10 +93,9 @@ const AdminRewardRulesPage: React.FC = () => {
             <div className="grid gap-6">
                 {[
                     { id: 'tier_1', label: 'Tier 1 (Básico)' },
-                    { id: 'tier_2', label: 'Tier 2 (Intermediário)' },
-                    { id: 'tier_3', label: 'Tier 3 (Avançado)' }
+                    { id: 'tier_2', label: 'Tier 2 (Intermediário)' }
                 ].map((tier) => {
-                    const tConfig = settings[tier.id as 'tier_1' | 'tier_2' | 'tier_3'];
+                    const tConfig = settings[tier.id as 'tier_1' | 'tier_2'];
                     return (
                         <div key={tier.id} className="bg-card border border-border rounded-3xl p-6 sm:p-8 shadow-sm">
                             <h2 className="text-lg font-black uppercase tracking-tight text-foreground mb-6 pb-4 border-b border-border/50">

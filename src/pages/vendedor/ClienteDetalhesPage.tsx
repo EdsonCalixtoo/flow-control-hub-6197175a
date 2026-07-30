@@ -5,7 +5,7 @@ import { useThemeContext } from '@/contexts/ThemeContext';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import {
     ArrowLeft, User, Phone, Mail, MapPin, Star, ShoppingCart,
-    History, ExternalLink, MessageCircle, Edit, FileUp, Loader2, CheckCircle2, Trophy, Medal
+    History, ExternalLink, MessageCircle, Edit, FileUp, Loader2, CheckCircle2, Trophy, Medal, CheckSquare, CheckCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
@@ -145,7 +145,7 @@ const ClienteDetalhesPage: React.FC = () => {
                                 </span>
                             )}
                             {ranking && ranking.ranking !== 'Nenhum' && (
-                                <span className={`mt-2 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${ranking.ranking === 'Ouro' ? 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20' :
+                                <span className={`mt-2 px-3 py-1 rounded-full border text-[10px] font-black uppercase tracking-wider flex items-center gap-1 ${
                                     ranking.ranking === 'Prata' ? 'bg-slate-400/10 text-slate-500 border-slate-400/20' :
                                         'bg-amber-700/10 text-amber-700 border-amber-700/20'
                                     }`}>

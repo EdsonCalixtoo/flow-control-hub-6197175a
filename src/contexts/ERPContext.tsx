@@ -916,9 +916,10 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setFinancialEntries(prev => [newEntry, ...prev]);
         console.log('[ERP] Lançamento financeiro criado no Supabase');
       }
+      return newEntry;
     } catch (err: any) {
       console.error('[ERP] Erro ao criar financeiro:', err.message);
-      toast.error('Erro ao salvar lançamento financeiro: ' + err.message);
+      throw err;
     }
   }, []);
 

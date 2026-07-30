@@ -144,7 +144,6 @@ export interface RewardSettings {
   settings: {
     tier_1: RewardTierConfig;
     tier_2: RewardTierConfig;
-    tier_3: RewardTierConfig;
   };
 }
 
@@ -153,7 +152,7 @@ export type RewardStatus = 'pendente' | 'liberado' | 'resgatado';
 export interface ClientReward {
   id: string;
   clientId: string;
-  rewardType: 'tier_1' | 'tier_2' | 'tier_3';
+  rewardType: 'tier_1' | 'tier_2';
   kitsRequired: number;
   kitsCompleted: number;
   kitsConsumed?: number;
@@ -170,11 +169,11 @@ export interface KitBreakdown {
 }
 
 export interface ClientRanking {
+  clientId: string;
   totalKits: number;
   tier1Count: number;
   tier2Count: number;
-  tier3Count: number;
-  ranking: 'Bronze' | 'Prata' | 'Ouro' | 'Nenhum';
+  ranking: 'Bronze' | 'Prata' | 'Nenhum';
   breakdown: KitBreakdown[];
 }
 

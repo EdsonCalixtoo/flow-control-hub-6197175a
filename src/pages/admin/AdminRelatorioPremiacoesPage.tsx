@@ -98,7 +98,6 @@ export function AdminRelatorioPremiacoesPage() {
           if (isReward) {
              let rType = 'tier_2';
              if (prodName.includes('CAMERA') || prodName.includes('CÂMERA')) rType = 'tier_1';
-             if (prodName.includes('VIAGEM') || prodName.includes('MOTO')) rType = 'tier_3';
 
              extractedRewards.push({
                id: `${order.id}-${index}`,

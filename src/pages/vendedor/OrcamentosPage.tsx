@@ -8,8 +8,8 @@ import { StatusBadge, formatCurrency, formatDate } from '@/components/shared/Sta
 import { getSaldoDevedor } from '@/utils/finance';
 import { OrderPipeline, OrderHistory } from '@/components/shared/OrderTimeline';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
-import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check, Download, Link2, DollarSign, CheckCircle, Users, Package, Truck, CheckCircle2, XCircle, ChevronDown, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Zap, Info } from 'lucide-react';
-import type { Order, QuoteItem } from '@/types/erp';
+import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check, Download, Link2, DollarSign, CheckCircle, Users, Package, Truck, CheckCircle2, XCircle, ChevronDown, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Zap, Info, Loader2 } from 'lucide-react';
+import type { Order, QuoteItem, Client } from '@/types/erp';
 import { useLocation, useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -273,7 +273,7 @@ const ModernDatePicker = React.memo(({
 });
 
 const OrcamentosPage: React.FC = () => {
-  const { orders, addOrder, updateOrderStatus, editOrderFull, clients, products, deleteOrder, financialEntries, loadOrderDetails, monthlyClosings } = useERP();
+  const { orders, addOrder, updateOrderStatus, editOrderFull, clients, products, deleteOrder, financialEntries, loadOrderDetails, monthlyClosings, editClient, addFinancialEntry } = useERP();
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -288,6 +288,8 @@ const OrcamentosPage: React.FC = () => {
   const [showCreate, setShowCreate] = useState(() => !!preSelectedClientId);
   const [editingOrder, setEditingOrder] = useState<Order | null>(null);
   const [comprovantesAttached, setComprovantesAttached] = useState<string[]>([]);
+  const [comprovantesDebt, setComprovantesDebt] = useState<string[]>([]);
+  const [sendingDebt, setSendingDebt] = useState(false);
   const [formError, setFormError] = useState('');
   const [savingOrder, setSavingOrder] = useState(false);
   const [sendingToFinance, setSendingToFinance] = useState(false);
@@ -506,6 +508,39 @@ const OrcamentosPage: React.FC = () => {
       alert('❌ Erro ao enviar: ' + (err?.message || 'Tente novamente'));
     } finally {
       setSendingToFinance(false);
+    }
+  };
+
+  const handleEnviarComprovanteDivida = async (client: Client, amount: number) => {
+    if (comprovantesDebt.length === 0) {
+      toast.error('Anexe pelo menos um comprovante.');
+      return;
+    }
+    setSendingDebt(true);
+    try {
+      await addFinancialEntry({
+        id: `fin_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+        type: 'receita',
+        description: `Quitação de Dívida (Bloqueio) - ${client.name}`,
+        amount: amount,
+        category: 'Quitação de Dívida',
+        date: new Date().toISOString(),
+        status: 'pendente',
+        clientId: client.id,
+        clientName: client.name,
+        receiptUrls: comprovantesDebt,
+        createdAt: new Date().toISOString(),
+      });
+
+      const newNote = `\n\n[SISTEMA ${new Date().toLocaleDateString('pt-BR')}]: Comprovante de quitação enviado para o financeiro.`;
+      editClient({ ...client, notes: (client.notes || '') + newNote });
+
+      toast.success('Comprovante enviado ao financeiro com sucesso!');
+      setComprovantesDebt([]);
+    } catch (e: any) {
+      toast.error('Erro ao enviar comprovante: ' + e.message);
+    } finally {
+      setSendingDebt(false);
     }
   };
 
@@ -1255,10 +1290,30 @@ const OrcamentosPage: React.FC = () => {
                   <div className="absolute bottom-0 left-0 w-24 h-24 bg-rose-500/20 rounded-full blur-[30px] -ml-8 -mb-8 pointer-events-none" />
                   <XCircle className="w-16 h-16 text-rose-500 mx-auto mb-4 animate-pulse" />
                   <h3 className="text-2xl font-black text-rose-500 mb-2 tracking-tight">Compra Bloqueada por Pendência</h3>
-                  <p className="text-rose-600/90 font-medium text-lg leading-relaxed max-w-2xl mx-auto">
+                  <p className="text-rose-600/90 font-medium text-lg leading-relaxed max-w-2xl mx-auto mb-6">
                     Este cliente está com um débito em aberto no valor de <strong className="font-black text-rose-500">{formatCurrency(clientDebt)}</strong>.
                     <br />Peça para ele quitar este valor com o financeiro para que o direito de compra no consignado seja liberado novamente.
                   </p>
+                  
+                  <div className="max-w-2xl mx-auto bg-white/60 p-6 rounded-2xl border border-rose-500/30 text-left">
+                    <h4 className="text-sm font-black uppercase text-rose-600 mb-4 flex items-center gap-2">
+                      <FileText className="w-4 h-4" /> Enviar Comprovante de Quitação
+                    </h4>
+                    <ComprovanteUpload
+                      values={comprovantesDebt}
+                      onChange={setComprovantesDebt}
+                      label="Anexar Comprovante (PDF, Imagem, Vídeo)"
+                    />
+                    
+                    <button
+                      onClick={() => handleEnviarComprovanteDivida(selectedClient!, clientDebt)}
+                      disabled={comprovantesDebt.length === 0 || sendingDebt}
+                      className="mt-6 w-full btn-modern bg-rose-500 text-white hover:bg-rose-600 px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {sendingDebt ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                      {sendingDebt ? 'Enviando...' : 'Enviar para o Financeiro'}
+                    </button>
+                  </div>
                 </div>
               )}
 

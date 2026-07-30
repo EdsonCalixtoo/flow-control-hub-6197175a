@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useERP } from '@/contexts/ERPContext';
 import { StatCard, StatusBadge, formatCurrency } from '@/components/shared/StatusBadge';
-import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
+import { ComprovanteUpload, PreviewModal } from '@/components/shared/ComprovanteUpload';
 import { RealtimeNotificationHandler } from '@/components/shared/RealtimeNotificationHandler';
-import { DollarSign, TrendingUp, Clock, AlertTriangle, Search, Filter, ChevronDown, ChevronLeft, ChevronRight, Eye, CheckCircle, XCircle, Send, ArrowLeft, Users2, BarChart3, Radio, Star, Plus, Trash2, Inbox, Bell, FileText, Package, Info, BadgeCheck, MapPin, Box, CreditCard, Image as ImageIcon, Maximize2, Edit3, RotateCcw, Download } from 'lucide-react';
+import { DollarSign, TrendingUp, Clock, AlertTriangle, Search, Filter, ChevronDown, ChevronLeft, ChevronRight, Eye, CheckCircle, CheckSquare, XCircle, Send, ArrowLeft, Users2, BarChart3, Radio, Star, Plus, Trash2, Inbox, Bell, FileText, Package, Info, BadgeCheck, MapPin, Box, CreditCard, Image as ImageIcon, Maximize2, Edit3, RotateCcw, Download } from 'lucide-react';
 import { useRealtimeOrders } from '@/hooks/useRealtimeOrders';
 import { uploadToR2, generateR2Path, cleanR2Url } from '@/lib/storageServiceR2';
 import { generateFinanceiroDashboardPDF } from '@/lib/pdfClosingGenerator';
@@ -30,6 +31,7 @@ interface FinanceiroDashboardProps {
 }
 
 const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 'pedidos' }) => {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -45,6 +47,26 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const selectedOrder = useMemo(() => orders.find(o => o.id === selectedOrderId) || null, [orders, selectedOrderId]);
   const [dynamicClient, setDynamicClient] = useState<Client | null>(null);
+
+  const pendingQuitacoesForSelectedClient = useMemo(() => {
+    if (!selectedOrder) return [];
+    return financialEntries.filter(e => e.clientId === selectedOrder.clientId && e.category === 'Quitação de Dívida' && e.status === 'pendente');
+  }, [financialEntries, selectedOrder]);
+
+  const [previewQuitacao, setPreviewQuitacao] = useState<string[] | null>(null);
+
+  const handleAprovarQuitacao = async (entry: FinancialEntry) => {
+    try {
+      await updateFinancialEntry(entry.id, { status: 'pago' });
+      toast.success(`Baixa de quitação para o cliente ${entry.clientName} confirmada!`);
+    } catch (e: any) {
+      toast.error('Erro ao aprovar quitação: ' + e.message);
+    }
+  };
+
+  const quitacoesPendentes = useMemo(() => {
+    return financialEntries.filter(e => e.category === 'Quitação de Dívida' && e.status === 'pendente');
+  }, [financialEntries]);
 
   // ⚡ OTIMIZAÇÃO: Carregamento sob demanda para economizar egress
   useEffect(() => {
@@ -1229,6 +1251,57 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                     </div>
                   )}
 
+                  {pendingQuitacoesForSelectedClient.length > 0 && (
+                    <div className="flex flex-col md:flex-row items-center gap-6 p-5 rounded-3xl bg-rose-500/10 border-2 border-rose-500/30 group transition-colors animate-in slide-in-from-top-4 relative z-50 pointer-events-auto">
+                      <div className="flex items-center gap-4 flex-1">
+                        <div className="h-12 w-12 rounded-2xl bg-rose-500 flex items-center justify-center text-white shrink-0 shadow-lg shadow-rose-500/20">
+                          <CheckCircle className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-black text-rose-600 uppercase tracking-tight">Comprovante de Baixa (Quitação)</p>
+                          <p className="text-xs text-rose-600/80 mt-1 font-medium leading-relaxed italic">Este cliente possui {pendingQuitacoesForSelectedClient.length} quitação(ões) aguardando análise.</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 w-full md:w-auto">
+                        <button 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const q = pendingQuitacoesForSelectedClient[0];
+                            let urls: any = q.receiptUrls || [];
+                            if (typeof urls === 'string') {
+                              try { urls = JSON.parse(urls); } catch(err) { urls = [urls]; }
+                            }
+                            if (!Array.isArray(urls)) urls = [];
+                            if (urls.length === 0 && q.receiptUrl) urls = [q.receiptUrl];
+                            
+                            const validUrls = urls.filter((u: any) => typeof u === 'string' && u.trim() !== '');
+                            
+                            if (validUrls.length > 0) {
+                              toast.success('Abrindo comprovante...');
+                              setPreviewUrl(validUrls[0]); // fallback to the native dashboard viewer
+                            } else {
+                              toast.error('Erro de leitura! Dados da quitação: ' + JSON.stringify(q).substring(0, 100));
+                            }
+                          }}
+                          className="flex-1 md:flex-none btn-modern bg-white text-rose-600 border border-rose-500/20 hover:bg-rose-50 px-4 py-2.5 text-xs font-black transition-all pointer-events-auto cursor-pointer relative z-[60]"
+                        >
+                          Ver Comprovante
+                        </button>
+                        <button 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleAprovarQuitacao(pendingQuitacoesForSelectedClient[0]);
+                          }}
+                          className="flex-1 md:flex-none btn-modern bg-emerald-500 text-white hover:bg-emerald-600 px-4 py-2.5 shadow-lg shadow-emerald-500/30 flex items-center justify-center gap-2 text-xs font-black transition-all"
+                        >
+                          <CheckSquare className="w-4 h-4" /> Dar Baixa
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {selectedOrder.requiresInvoice && (
                     <div className="flex items-start gap-4 p-5 rounded-3xl bg-primary/5 border-2 border-primary/20 animate-pulse">
                       <div className="h-12 w-12 rounded-2xl bg-primary flex items-center justify-center text-white shrink-0 shadow-lg shadow-primary/20">
@@ -2323,10 +2396,53 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
     );
   }
 
+
+
   return (
     <div className="space-y-8 pb-12">
       <RealtimeNotificationHandler />
       
+      {/* Notificações de Quitação Pendentes */}
+      {quitacoesPendentes.length > 0 && (
+        <div className="flex flex-col gap-4 animate-in slide-in-from-top-4 fade-in duration-500">
+          <div className="flex items-center gap-2 px-2">
+            <Bell className="w-5 h-5 text-rose-500 animate-bounce" />
+            <h2 className="text-lg font-black text-rose-600 tracking-tight uppercase">Quitações Pendentes de Análise ({quitacoesPendentes.length})</h2>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {quitacoesPendentes.map(quitacao => (
+              <button 
+                key={quitacao.id} 
+                onClick={() => {
+                  const clientOrder = orders.find(o => o.clientId === quitacao.clientId);
+                  if (clientOrder) {
+                    setSelectedOrderId(clientOrder.id);
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  } else {
+                    toast.error('Nenhum pedido encontrado para exibir os detalhes deste cliente.');
+                  }
+                }}
+                className="bg-white dark:bg-slate-900 border-2 border-rose-500/20 p-5 rounded-2xl shadow-xl shadow-rose-500/10 flex flex-col justify-between text-left hover:border-rose-500/50 hover:bg-rose-500/5 transition-all group"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="bg-rose-100 text-rose-700 text-[10px] font-black uppercase px-2 py-1 rounded-md">Urgente</span>
+                    <span className="text-xs font-bold text-muted-foreground">{new Date(quitacao.date).toLocaleDateString('pt-BR')}</span>
+                  </div>
+                  <h3 className="text-sm font-black text-foreground mb-1">Cliente: {quitacao.clientName}</h3>
+                  <p className="text-2xl font-black text-rose-600 mb-4">{formatCurrency(quitacao.amount)}</p>
+                </div>
+                
+                <div className="w-full flex items-center justify-center p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-muted-foreground group-hover:bg-rose-500 group-hover:text-white transition-all text-xs font-black uppercase tracking-widest gap-2">
+                  <span>Acessar Perfil para Análise</span>
+                  <ArrowLeft className="w-4 h-4 rotate-180" />
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Premium Header */}
       <div className="relative overflow-hidden rounded-[2rem] bg-slate-900 p-8 text-white shadow-2xl">
         <div className="absolute top-0 right-0 -m-12 h-64 w-64 rounded-full bg-emerald-500/20 blur-[100px]" />
@@ -3598,6 +3714,15 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
             )}
           </div>
         </div>
+      )}
+
+      {/* Modal de Preview para Quitação */}
+      {previewQuitacao && previewQuitacao.length > 0 && (
+        <PreviewModal
+          allMedia={previewQuitacao}
+          initialIndex={0}
+          onClose={() => setPreviewQuitacao(null)}
+        />
       )}
     </div>
   );

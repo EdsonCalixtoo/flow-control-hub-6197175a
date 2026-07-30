@@ -26,9 +26,9 @@ const supabaseToFinancial = (data: any): FinancialEntry => ({
 
 export const fetchFinancialEntries = async (): Promise<FinancialEntry[]> => {
     try {
-        // 🚨 EMERGÊNCIA: Removemos colunas pesadas (receipts) do fetch de listagem do financeiro
-        // Os comprovantes devem ser carregados individualmente quando necessário para economizar egress.
-        const BASIC_FINANCIAL_COLUMNS = 'id, order_id, order_number, client_id, client_name, amount, type, category, description, status, payment_method, due_date, paid_at, transaction_id, card_last_digits, created_at';
+        // 🚨 EMERGÊNCIA: Removemos colunas pesadas (receipt_url legado que as vezes tinha base64) do fetch de listagem do financeiro
+        // Adicionando receipt_urls (array de links) de volta para permitir visualização de comprovantes na listagem
+        const BASIC_FINANCIAL_COLUMNS = 'id, order_id, order_number, client_id, client_name, amount, type, category, description, status, payment_method, due_date, paid_at, transaction_id, card_last_digits, receipt_urls, created_at';
 
         let allData: any[] = [];
         let from = 0;
@@ -80,6 +80,7 @@ export const fetchFinancialEntriesByOrderId = async (orderId: string): Promise<F
 export const createFinancialEntrySupabase = async (entry: FinancialEntry): Promise<FinancialEntry | null> => {
     try {
         const payload = {
+            id: entry.id,
             order_id: entry.orderId,
             order_number: entry.orderNumber,
             client_id: entry.clientId,

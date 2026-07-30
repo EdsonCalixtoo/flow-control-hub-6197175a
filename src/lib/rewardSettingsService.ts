@@ -3,9 +3,8 @@ import type { RewardSettings } from '@/types/erp';
 
 // Default fallback settings if nothing is in the database
 export const DEFAULT_REWARD_SETTINGS = {
-    tier_1: { required_kits: 5, min_price: 0, max_price: 999999 },
-    tier_2: { required_kits: 7, min_price: 1450, max_price: 2000 },
-    tier_3: { required_kits: 10, min_price: 1100, max_price: 1449 }
+    tier_1: { required_kits: 10, min_price: 0, max_price: 999999 },
+    tier_2: { required_kits: 10, min_price: 1450, max_price: 2000 }
 };
 
 export const fetchRewardSettings = async (clientId?: string): Promise<RewardSettings['settings']> => {

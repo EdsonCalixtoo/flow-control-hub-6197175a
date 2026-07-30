@@ -17,7 +17,6 @@ interface ClientRewardSummary {
   totalResgates: number;
   tier1: number;
   tier2: number;
-  tier3: number;
   lastRedeemed: string | null;
 }
 
@@ -93,7 +92,6 @@ const HealthRow = ({ label, status, value, active }: { label: string; status: st
 const getTierLabel = (tier: string) => {
   if (tier === 'tier_1') return '5 Kits';
   if (tier === 'tier_2') return '7 Kits';
-  if (tier === 'tier_3') return '10 Kits';
   return tier;
 };
 
@@ -199,14 +197,12 @@ const TIPage: React.FC = () => {
             totalResgates: 0,
             tier1: 0,
             tier2: 0,
-            tier3: 0,
             lastRedeemed: null,
           };
         }
         grouped[r.client_id].totalResgates += 1;
         if (r.reward_type === 'tier_1') grouped[r.client_id].tier1 += 1;
         if (r.reward_type === 'tier_2') grouped[r.client_id].tier2 += 1;
-        if (r.reward_type === 'tier_3') grouped[r.client_id].tier3 += 1;
         if (r.reward_redeemed_at) {
           const curr = grouped[r.client_id].lastRedeemed;
           if (!curr || r.reward_redeemed_at > curr) {
@@ -492,11 +488,6 @@ const TIPage: React.FC = () => {
                             {client.tier2 > 0 && (
                               <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg">
                                 🥈 {client.tier2}x 7 Kits
-                              </span>
-                            )}
-                            {client.tier3 > 0 && (
-                              <span className="text-[10px] font-bold text-yellow-700 bg-yellow-100 px-2 py-0.5 rounded-lg">
-                                🥇 {client.tier3}x 10 Kits
                               </span>
                             )}
                             {client.lastRedeemed && (

@@ -148,6 +148,50 @@ const PedidosProducaoPage: React.FC = () => {
         [barcodeScans]
     );
 
+    // Mapeamento otimizado de timestamps do escaneamento de código de barras
+    const latestScanMap = useMemo(() => {
+        const map = new Map<string, number>();
+        barcodeScans.forEach(scan => {
+            if (!scan.success) return;
+            const time = new Date(scan.scannedAt).getTime();
+            if (!isNaN(time)) {
+                if (scan.orderId) {
+                    const curId = map.get(scan.orderId) || 0;
+                    if (time > curId) map.set(scan.orderId, time);
+                }
+                if (scan.orderNumber) {
+                    const cleanNum = scan.orderNumber.trim().toUpperCase();
+                    const curNum = map.get(cleanNum) || 0;
+                    if (time > curNum) map.set(cleanNum, time);
+                }
+            }
+        });
+        return map;
+    }, [barcodeScans]);
+
+    // Retorna o timestamp da atividade mais recente (bipagem > statusHistory > releasedAt > productionFinishedAt > updatedAt > createdAt)
+    const getOrderActivityTime = useCallback((o: any) => {
+        if (!o) return 0;
+        const scanTimeById = latestScanMap.get(o.id) || 0;
+        const scanTimeByNum = latestScanMap.get(o.number?.trim().toUpperCase()) || 0;
+        const scanTime = Math.max(scanTimeById, scanTimeByNum);
+
+        let lastHistoryTime = 0;
+        if (o.statusHistory && o.statusHistory.length > 0) {
+            const lastEntry = o.statusHistory[o.statusHistory.length - 1];
+            if (lastEntry?.timestamp) {
+                lastHistoryTime = new Date(lastEntry.timestamp).getTime() || 0;
+            }
+        }
+
+        const releasedTime = o.releasedAt ? new Date(o.releasedAt).getTime() : 0;
+        const finishedTime = o.productionFinishedAt ? new Date(o.productionFinishedAt).getTime() : 0;
+        const updatedTime = o.updatedAt ? new Date(o.updatedAt).getTime() : 0;
+        const createdTime = o.createdAt ? new Date(o.createdAt).getTime() : 0;
+
+        return Math.max(scanTime, lastHistoryTime, releasedTime, finishedTime, updatedTime, createdTime);
+    }, [latestScanMap]);
+
     const [guia, setGuia] = useState<string | null>(null);
     const [showScanner, setShowScanner] = useState(searchParams.get('scan') === 'true');
     const [isRefreshing, setIsRefreshing] = useState(false);
@@ -247,6 +291,10 @@ const PedidosProducaoPage: React.FC = () => {
             setViewOrderId(newViewOrderId);
         }
     }, [tipoFiltro, searchParams]);
+
+    useEffect(() => {
+        setHistPage(1);
+    }, [search, carrierFilter, orderTypeFilter, selectedDate, statusFilter, tipoFiltro]);
     const [volumesInput, setVolumesInput] = useState('1');
     const [showVolumesDialog, setShowVolumesDialog] = useState(false);
     const [showCalendar, setShowCalendar] = useState(searchParams.get('view') === 'calendar');
@@ -657,11 +705,18 @@ ${etiquetasHtml}
         const matchTypeFilter = orderTypeFilter === 'todos' || o.orderType === orderTypeFilter;
 
         // Filtro de Data Universal
-        const matchDate = !selectedDate ||
-            (o.scheduledDate === selectedDate ||
-                o.deliveryDate === selectedDate ||
-                o.installationDate === selectedDate ||
-                o.items.some(item => item.installationDate === selectedDate));
+        const scanTimestamp = Math.max(latestScanMap.get(o.id) || 0, latestScanMap.get(o.number?.trim().toUpperCase()) || 0);
+        const scanDateStr = scanTimestamp ? new Date(scanTimestamp).toISOString().split('T')[0] : '';
+
+        const matchDate = !selectedDate || (
+            o.scheduledDate === selectedDate ||
+            o.deliveryDate === selectedDate ||
+            o.installationDate === selectedDate ||
+            (o.productionFinishedAt && o.productionFinishedAt.startsWith(selectedDate)) ||
+            (o.releasedAt && o.releasedAt.startsWith(selectedDate)) ||
+            (scanDateStr && scanDateStr === selectedDate) ||
+            o.items.some(item => item.installationDate === selectedDate)
+        );
 
         if (statusFilter === 'atrasado') return matchSearch && isLate(o) && matchCarrier && matchTypeFilter && matchDate;
         if (statusFilter === 'historico') return matchSearch && matchCarrier && matchTypeFilter && matchDate;
@@ -672,22 +727,22 @@ ${etiquetasHtml}
         return matchSearch && matchStatus && matchCarrier && matchDate && matchTypeFilter;
     });
 
-    const groupedOrders = useMemo(() => {
-        // Otimização de Performance: Se for histórico, aplica paginação antes de processar/agrupar
-        const isHistorico = statusFilter === 'historico' || tipoFiltro === 'historico';
-        const ordersToProcess = isHistorico 
-            ? filteredOrders.slice(0, histPage * HIST_PAGE_SIZE) 
-            : filteredOrders;
+    const isHistorico = statusFilter === 'historico' || tipoFiltro === 'historico';
 
-        // Ordena os pedidos filtrados para que "em_producao" fique sempre no topo
-        const sortedOrders = [...ordersToProcess].sort((a, b) => {
-            if (isHistorico) {
-                // No histórico, os mais recentemente finalizados/atualizados ficam no topo
-                const aTime = a.productionFinishedAt || a.updatedAt || a.createdAt;
-                const bTime = b.productionFinishedAt || b.updatedAt || b.createdAt;
-                return new Date(bTime).getTime() - new Date(aTime).getTime();
-            }
+    const sortedOrders = useMemo(() => {
+        if (isHistorico) {
+            // No histórico: ordenamos TODOS os pedidos filtrados antes da paginação
+            // O mais recentemente bipado/finalizado/liberado fica no TOPO absoluto (1º lugar)
+            const sorted = [...filteredOrders].sort((a, b) => {
+                const aTime = getOrderActivityTime(a);
+                const bTime = getOrderActivityTime(b);
+                return bTime - aTime;
+            });
+            return sorted.slice(0, histPage * HIST_PAGE_SIZE);
+        }
 
+        // Fila de montagem ativa: "em_producao" primeiro, depois prioridades
+        return [...filteredOrders].sort((a, b) => {
             if (a.status === 'em_producao' && b.status !== 'em_producao') return -1;
             if (b.status === 'em_producao' && a.status !== 'em_producao') return 1;
             // Desempate por prioridade (garantias/atrasados)
@@ -697,15 +752,21 @@ ${etiquetasHtml}
             if (bIsLateOrWarranty && !aIsLateOrWarranty) return 1;
             return 0;
         });
+    }, [filteredOrders, isHistorico, histPage, HIST_PAGE_SIZE, getOrderActivityTime]);
 
-        const groups: Record<string, typeof filteredOrders> = {};
+    const groupedOrders = useMemo(() => {
+        if (isHistorico) {
+            // No histórico não agrupamos por cliente para manter a ordem cronológica estrita da bipagem/produção
+            return {};
+        }
+        const groups: Record<string, typeof sortedOrders> = {};
         sortedOrders.forEach(order => {
             const client = order.clientName || 'Cliente não identificado';
             if (!groups[client]) groups[client] = [];
             groups[client].push(order);
         });
         return groups;
-    }, [filteredOrders]);
+    }, [sortedOrders, isHistorico]);
 
     const kitSummary = useMemo(() => {
         let totalKits = 0;
@@ -2314,10 +2375,265 @@ ${etiquetasHtml}
                         </div>
                     </div>
                 </div>
-            </div>
         );
     }
 
+    const renderOrderCard = (order: typeof orders[0], index?: number) => {
+        const late = isLate(order);
+        const scheduled = isScheduled(order);
+        const isPlanning = order.status === 'planejamento';
+
+        // Cores e Ícones por transportadora
+        const carrierInfo = {
+            jadlog: { color: 'bg-[#002d72] text-white', label: 'JADLOG', icon: Truck },
+            motoboy: { color: 'bg-emerald-500 text-white', label: 'MOTOBOY', icon: ShieldCheck },
+            kleyton: { color: 'bg-orange-500 text-white', label: 'KLEYTON', icon: User },
+            retirada: { color: 'bg-slate-800 text-white', label: 'RETIRADA LOCAL', icon: Package },
+        }[(order.carrier || '').toLowerCase()] || { color: 'bg-muted text-muted-foreground', label: order.carrier || 'TRANSF...', icon: Package };
+
+        const scanTimestamp = Math.max(latestScanMap.get(order.id) || 0, latestScanMap.get(order.number?.trim().toUpperCase()) || 0);
+
+        return (
+            <div key={order.id} className={`bg-card/80 backdrop-blur-md border border-border/40 transition-all duration-500 rounded-[2rem] relative overflow-hidden group/card
+hover:bg-card hover:shadow-[0_20px_50px_-12px_rgba(var(--primary),0.08)] hover:-translate-y-1.5 active:scale-[0.99]
+dark:hover:shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)]
+${late ? 'ring-2 ring-destructive/20 border-destructive/30' : ''} 
+${order.isSite ? 'ring-2 ring-blue-500/20 border-blue-500/30' : ''}`}>
+
+                <div className="absolute inset-x-0 bottom-0 h-1.5 bg-muted/20" />
+                <div className={`absolute inset-x-0 bottom-0 h-1.5 transition-all duration-500 w-0 group-hover/card:w-full ${order.status === 'aguardando_producao' ? 'bg-warning' :
+                    order.status === 'em_producao' ? 'bg-primary' :
+                        'bg-success'
+                    }`} />
+
+                <div className="p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+                    <div className="flex items-center gap-5 sm:gap-6 flex-1 min-w-0">
+                        {/* Avatar/Icon Group */}
+                        <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-[1.25rem] flex items-center justify-center shrink-0 shadow-inner overflow-hidden relative group/icon transition-transform duration-700 group-hover/card:rotate-6 ${late ? 'bg-destructive/10' : 'bg-muted/30'}`}>
+                            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
+                            {order.isWarranty || order.notes?.includes('GARANTIA') ? (
+                                <HistoryIcon className={`w-7 h-7 sm:w-8 sm:h-8 relative z-10 transition-transform group-hover/icon:scale-110 ${late ? 'text-destructive' : 'text-primary'}`} />
+                            ) : (
+                                <Package className={`w-7 h-7 sm:w-8 sm:h-8 relative z-10 transition-transform group-hover/icon:scale-110 ${late ? 'text-destructive' : 'text-muted-foreground'}`} />
+                            )}
+                        </div>
+
+                        {/* Info Group */}
+                        <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-3 flex-wrap mb-2">
+                                <h3 className="font-black text-foreground text-xl sm:text-2xl tracking-tighter uppercase flex items-center gap-3">
+                                    {order.number}
+                                    {(() => {
+                                        const childCount = orders.filter(o => o.parentOrderId === order.id).length;
+                                        if (childCount > 0) return (
+                                            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-primary/10 text-primary text-[10px] font-black border border-primary/20" title={`${childCount} pedidos unificados nesta caixa`}>
+                                                <Package className="w-3.5 h-3.5" /> +{childCount}
+                                            </span>
+                                        );
+                                        if (order.parentOrderId) return (
+                                            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/10 text-amber-600 text-[10px] font-black border border-amber-500/20" title={`Unificado no pedido #${order.parentOrderNumber}`}>
+                                                <Share2 className="w-3.5 h-3.5" /> {order.parentOrderNumber}
+                                            </span>
+                                        );
+                                        return null;
+                                    })()}
+                                    <div className="flex items-center gap-1.5">
+                                        {order.isSite && (
+                                            <span className="px-2.5 py-0.5 rounded-full bg-blue-600 text-white text-[9px] font-black uppercase tracking-wider shadow-lg shadow-blue-500/30 animate-pulse">
+                                                LOJA ONLINE
+                                            </span>
+                                        )}
+                                        {order.isInternational && (
+                                            <span className="px-2.5 py-0.5 rounded-full bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider shadow-lg shadow-emerald-500/30 animate-pulse">
+                                                🌍 INTERNACIONAL
+                                            </span>
+                                        )}
+                                        {(order.isWarranty || order.notes?.toLowerCase().includes('garantia')) && (
+                                            <span className="px-2.5 py-0.5 rounded-full bg-destructive text-white text-[9px] font-black uppercase tracking-widest shadow-lg shadow-destructive/30">
+                                                GARANTIA
+                                            </span>
+                                        )}
+                                    </div>
+                                </h3>
+
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <StatusBadge status={order.status} />
+
+                                    {scanTimestamp > 0 && (
+                                        <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[9px] font-black uppercase tracking-widest shadow-sm" title="Horário do bip no leitor de código de barras">
+                                            <ScanLine className="w-3 h-3 text-emerald-500" />
+                                            Bipado: {new Date(scanTimestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} ({new Date(scanTimestamp).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })})
+                                        </span>
+                                    )}
+
+                                    {order.carrier && (
+                                        <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm ${carrierInfo.color}`}>
+                                            <carrierInfo.icon className="w-3 h-3" />
+                                            {carrierInfo.label}
+                                        </span>
+                                    )}
+
+                                    {/* Badge de Tipo de Pedido */}
+                                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm ${order.orderType === 'instalacao' ? 'bg-amber-500 text-white' :
+                                        order.orderType === 'manutencao' ? 'bg-indigo-500 text-white' :
+                                            order.orderType === 'retirada' ? 'bg-slate-700 text-white' :
+                                                'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
+                                        }`}>
+                                        {order.orderType === 'instalacao' ? '🔧 Inst.' :
+                                            order.orderType === 'manutencao' ? '🛠️ Manut.' :
+                                                order.orderType === 'retirada' ? '🏢 Retirada' :
+                                                    '📦 Entrega'}
+                                    </span>
+
+                                    {late && (
+                                        <span className="px-3 py-1 rounded-full bg-destructive text-white text-[9px] font-black uppercase tracking-widest animate-bounce shadow-lg shadow-destructive/40">
+                                            ATRASADO
+                                        </span>
+                                    )}
+                                    {order.status === 'producao_finalizada' && !scannedOrderIds.has(order.id) && (
+                                        <span className="px-3 py-1 rounded-full bg-amber-500 text-white text-[9px] font-black uppercase tracking-widest animate-pulse shadow-lg shadow-amber-500/40 flex items-center gap-1">
+                                            <AlertTriangle className="w-3 h-3" /> AGUARDANDO BIPAGEM
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5 text-xs mb-4">
+                                <span className="font-extrabold text-foreground/90 flex items-center gap-2 group/client transition-colors hover:text-primary cursor-default">
+                                    <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                                        <User className="w-3.5 h-3.5" />
+                                    </div>
+                                    {order.clientName}
+                                </span>
+                                <div className="flex items-center gap-3">
+                                    <span className="text-muted-foreground font-bold flex items-center gap-2">
+                                        Vendedor: <span className="text-foreground">{order.sellerName}</span>
+                                    </span>
+                                    {(order.orderType === 'instalacao' || order.orderType === 'manutencao' || order.orderType === 'retirada') && (order.installationDate || order.scheduledDate) && (
+                                        <span className="text-primary font-black flex items-center gap-2 bg-primary/5 px-3 py-1 rounded-full border border-primary/10 transition-transform group-hover/card:scale-105">
+                                            <Clock className="w-3.5 h-3.5" />
+                                            {fmtDate(order.installationDate || order.scheduledDate)} {order.installationTime ? `@ ${order.installationTime}` : ''}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Modern Itens List */}
+                            <div className="flex flex-wrap gap-2 sm:gap-2.5">
+                                {order.items.map((i, idx) => (
+                                    <div key={idx} className="group/item relative">
+                                        <div className={`px-4 py-2 rounded-2xl border flex items-center gap-3 transition-all duration-300
+group-hover/card:shadow-sm
+${i.sensorType === 'com_sensor'
+                                                ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-700 dark:text-emerald-400 group-hover/item:bg-emerald-500/10'
+                                                : 'bg-muted/40 border-border/20 text-foreground/80 group-hover/item:bg-muted/60'}
+`}>
+                                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black ${i.sensorType === 'com_sensor' ? 'bg-emerald-500 text-white' : 'bg-muted-foreground/10 text-muted-foreground'
+                                                }`}>
+                                                {i.quantity}x
+                                            </div>
+                                            <span className="font-bold text-[10px] sm:text-[11px] uppercase tracking-tight truncate max-w-[150px]">{i.product}</span>
+
+                                            {i.installationDate && (
+                                                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-primary/10 text-primary border border-primary/20 text-[8px] font-black">
+                                                    <Calendar className="w-2.5 h-2.5" /> {fmtDate(i.installationDate)}
+                                                </div>
+                                            )}
+
+                                            {i.status === 'finalizado' && (
+                                                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-success/10 text-success border border-success/20 text-[8px] font-black animate-in fade-in zoom-in-95">
+                                                    <CheckCircle className="w-2.5 h-2.5" /> OK
+                                                </div>
+                                            )}
+
+                                            {i.status === 'em_producao' && (
+                                                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-producao/10 text-producao border border-producao/20 text-[8px] font-black animate-pulse">
+                                                    <Play className="w-2.5 h-2.5" /> INICIADO
+                                                </div>
+                                            )}
+
+                                            {i.sensorType === 'com_sensor' && (
+                                                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 group-hover/item:animate-pulse">
+                                                    <Zap className="w-2.5 h-2.5 fill-current" />
+                                                    <span className="text-[7px] font-black tracking-widest">SENSOR</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Refined Actions Group */}
+                    <div className="flex flex-row items-center gap-3 w-full md:w-auto shrink-0 self-end md:self-center">
+                        <button
+                            onClick={() => setViewOrderId(order.id)}
+                            className="h-12 flex-1 md:flex-none justify-center btn-modern bg-muted/50 text-foreground text-[10px] sm:px-6 font-black hover:bg-muted border border-border/10 rounded-2xl transition-all"
+                        >
+                            DETALHES
+                        </button>
+
+                        {['aguardando_producao', 'aprovado_financeiro', 'aprovado_gestor'].includes(order.status) && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); iniciarProducao(order.id); }}
+                                className={`h-12 flex-1 md:flex-none justify-center btn-primary bg-gradient-to-br ${mainGradient} px-8 text-xs font-black uppercase rounded-2xl shadow-xl ${mainShadow} transform active:scale-95 transition-all text-white border-none group/btn`}
+                            >
+                                <Play className="w-4 h-4 mr-2 group-hover/btn:translate-x-1 transition-transform" /> INICIAR
+                            </button>
+                        )}
+
+                        {order.status === 'em_producao' && (
+                            <div className="flex gap-2.5 flex-1 md:flex-none">
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); finalizarProducao(order.id); }}
+                                    className="h-12 flex-1 md:flex-none justify-center btn-primary bg-gradient-to-br from-emerald-500 to-emerald-600 px-8 text-xs font-black uppercase rounded-2xl shadow-xl shadow-success/20 transform active:scale-95 transition-all text-white group/btn"
+                                >
+                                    <CheckCircle className="w-4 h-4 mr-2 group-hover/btn:scale-110 transition-transform" /> FINALIZAR
+                                </button>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); revertStatus(order.id, order.status); }}
+                                    className="h-12 w-12 flex items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border border-amber-500/20 transition-all shadow-sm shrink-0"
+                                    title="Reverter para Aguardando Produção"
+                                >
+                                    <RefreshCw className="w-5 h-5" />
+                                </button>
+                            </div>
+                        )}
+
+                        <div className="flex gap-2.5 flex-1 md:flex-none">
+                            {(order.status === 'producao_finalizada' || order.status === 'produto_liberado') && (
+                                <>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); setGuia(order.id); }}
+                                        className="h-12 flex-1 md:flex-none justify-center btn-modern bg-primary/10 text-primary px-6 text-xs font-black hover:bg-primary/20 border border-primary/20 rounded-2xl shadow-lg shadow-primary/5 transition-all"
+                                    >
+                                        GUIA
+                                    </button>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); revertStatus(order.id, order.status); }}
+                                        className="h-12 w-12 flex items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border border-amber-500/20 transition-all shadow-sm"
+                                        title="Reverter status para Em Produção"
+                                    >
+                                        <RefreshCw className="w-5 h-5" />
+                                    </button>
+                                </>
+                            )}
+                            {(order.orderType === 'entrega' || order.orderType === 'retirada') && (
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); printEtiqueta(order); }}
+                                    className="h-12 w-12 flex items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all shadow-sm"
+                                    title="Imprimir Etiqueta"
+                                >
+                                    <Printer className="w-5 h-5" />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
 
     return (
         <div className="space-y-10 pb-20 relative">
@@ -2528,14 +2844,7 @@ ${etiquetasHtml}
                                         </div>
                                         <div className="flex flex-row sm:flex-row gap-2 w-full sm:w-auto">
                                             {w.orderId && (
-                                                <button
-                                                    onClick={() => setViewOrderId(w.orderId)}
-                                                    className="btn-modern flex-1 sm:flex-none justify-center bg-muted/50 text-foreground hover:bg-muted text-[10px] font-bold py-2.5 px-4 border border-border/20"
-                                                >
-                                                    <Eye className="w-4 h-4 mr-2" /> <span className="sm:hidden">Ver</span><span className="hidden sm:inline">Detalhes</span>
-                                                </button>
-                                            )}
-                                            <button
+                                                                             <button
                                                 onClick={async () => {
                                                     if (window.confirm('Marcar esta garantia como FINALIZADA?')) {
                                                         await updateWarrantyStatus(w.id, 'Garantia finalizada', undefined, user?.name || 'Produção', 'Garantia concluída pela produção');
@@ -2562,16 +2871,18 @@ ${etiquetasHtml}
                     </div>
                 ) : (
                     <div className="space-y-12 mt-4">
-                        {Object.entries(groupedOrders).map(([clientName, clientOrders]) => (
-                            <div key={clientName} className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-700">
+                        {isHistorico ? (
+                            <div className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-700">
                                 <div className="flex items-center justify-between group/header cursor-default px-2">
                                     <div className="flex items-center gap-5">
                                         <div className={`w-2 h-10 bg-gradient-to-b ${mainGradient} rounded-full shadow-lg ${mainShadow}`} />
                                         <div>
-                                            <h2 className="text-xl font-black text-foreground uppercase tracking-tight leading-none group-hover/header:text-primary transition-colors">{clientName}</h2>
+                                            <h2 className="text-xl font-black text-foreground uppercase tracking-tight leading-none group-hover/header:text-primary transition-colors">
+                                                Histórico de Produção
+                                            </h2>
                                             <div className="flex items-center gap-3 mt-1.5">
                                                 <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.1em] flex items-center gap-2">
-                                                    Linha de Montagem • <span className="text-primary">{clientOrders.length} {clientOrders.length === 1 ? 'Pedido' : 'Pedidos'} em fila</span>
+                                                    Ordem de Produção / Bipagem • <span className="text-primary">{sortedOrders.length} de {filteredOrders.length} {filteredOrders.length === 1 ? 'Pedido' : 'Pedidos'}</span>
                                                 </p>
                                             </div>
                                         </div>
@@ -2580,262 +2891,49 @@ ${etiquetasHtml}
                                 </div>
 
                                 <div className="grid grid-cols-1 gap-5 ml-2 border-l border-border/20 pl-6 stagger-children">
-                                    {clientOrders.map(order => {
-                                        const late = isLate(order);
-                                        const scheduled = isScheduled(order);
-                                        const isPlanning = order.status === 'planejamento';
-
-                                        // Cores e Ícones por transportadora
-                                        const carrierInfo = {
-                                            jadlog: { color: 'bg-[#002d72] text-white', label: 'JADLOG', icon: Truck },
-                                            motoboy: { color: 'bg-emerald-500 text-white', label: 'MOTOBOY', icon: ShieldCheck },
-                                            kleyton: { color: 'bg-orange-500 text-white', label: 'KLEYTON', icon: User },
-                                            retirada: { color: 'bg-slate-800 text-white', label: 'RETIRADA LOCAL', icon: Package },
-                                        }[(order.carrier || '').toLowerCase()] || { color: 'bg-muted text-muted-foreground', label: order.carrier || 'TRANSF...', icon: Package };
-
-                                        return (
-                                            <div key={order.id} className={`bg-card/80 backdrop-blur-md border border-border/40 transition-all duration-500 rounded-[2rem] relative overflow-hidden group/card
-                        hover:bg-card hover:shadow-[0_20px_50px_-12px_rgba(var(--primary),0.08)] hover:-translate-y-1.5 active:scale-[0.99]
-                        dark:hover:shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)]
-                        ${late ? 'ring-2 ring-destructive/20 border-destructive/30' : ''} 
-                        ${order.isSite ? 'ring-2 ring-blue-500/20 border-blue-500/30' : ''}`}>
-
-                                                <div className="absolute inset-x-0 bottom-0 h-1.5 bg-muted/20" />
-                                                <div className={`absolute inset-x-0 bottom-0 h-1.5 transition-all duration-500 w-0 group-hover/card:w-full ${order.status === 'aguardando_producao' ? 'bg-warning' :
-                                                    order.status === 'em_producao' ? 'bg-primary' :
-                                                        'bg-success'
-                                                    }`} />
-
-                                                <div className="p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-                                                    <div className="flex items-center gap-5 sm:gap-6 flex-1 min-w-0">
-                                                        {/* Avatar/Icon Group */}
-                                                        <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-[1.25rem] flex items-center justify-center shrink-0 shadow-inner overflow-hidden relative group/icon transition-transform duration-700 group-hover/card:rotate-6 ${late ? 'bg-destructive/10' : 'bg-muted/30'}`}>
-                                                            <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent" />
-                                                            {order.isWarranty || order.notes?.includes('GARANTIA') ? (
-                                                                <HistoryIcon className={`w-7 h-7 sm:w-8 sm:h-8 relative z-10 transition-transform group-hover/icon:scale-110 ${late ? 'text-destructive' : 'text-primary'}`} />
-                                                            ) : (
-                                                                <Package className={`w-7 h-7 sm:w-8 sm:h-8 relative z-10 transition-transform group-hover/icon:scale-110 ${late ? 'text-destructive' : 'text-muted-foreground'}`} />
-                                                            )}
-                                                        </div>
-
-                                                        {/* Info Group */}
-                                                        <div className="min-w-0 flex-1">
-                                                            <div className="flex items-center gap-3 flex-wrap mb-2">
-                                                                <h3 className="font-black text-foreground text-xl sm:text-2xl tracking-tighter uppercase flex items-center gap-3">
-                                                                    {order.number}
-                                                                    {(() => {
-                                                                        const childCount = orders.filter(o => o.parentOrderId === order.id).length;
-                                                                        if (childCount > 0) return (
-                                                                            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-primary/10 text-primary text-[10px] font-black border border-primary/20" title={`${childCount} pedidos unificados nesta caixa`}>
-                                                                                <Package className="w-3.5 h-3.5" /> +{childCount}
-                                                                            </span>
-                                                                        );
-                                                                        if (order.parentOrderId) return (
-                                                                            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-500/10 text-amber-600 text-[10px] font-black border border-amber-500/20" title={`Unificado no pedido #${order.parentOrderNumber}`}>
-                                                                                <Share2 className="w-3.5 h-3.5" /> {order.parentOrderNumber}
-                                                                            </span>
-                                                                        );
-                                                                        return null;
-                                                                    })()}
-                                                                    <div className="flex items-center gap-1.5">
-                                                                        {order.isSite && (
-                                                                            <span className="px-2.5 py-0.5 rounded-full bg-blue-600 text-white text-[9px] font-black uppercase tracking-wider shadow-lg shadow-blue-500/30 animate-pulse">
-                                                                                LOJA ONLINE
-                                                                            </span>
-                                                                        )}
-                                                                        {order.isInternational && (
-                                                                            <span className="px-2.5 py-0.5 rounded-full bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider shadow-lg shadow-emerald-500/30 animate-pulse">
-                                                                                🌍 INTERNACIONAL
-                                                                            </span>
-                                                                        )}
-                                                                        {(order.isWarranty || order.notes?.toLowerCase().includes('garantia')) && (
-                                                                            <span className="px-2.5 py-0.5 rounded-full bg-destructive text-white text-[9px] font-black uppercase tracking-widest shadow-lg shadow-destructive/30">
-                                                                                GARANTIA
-                                                                            </span>
-                                                                        )}
-                                                                    </div>
-                                                                </h3>
-
-                                                                <div className="flex items-center gap-2 flex-wrap">
-                                                                    <StatusBadge status={order.status} />
-
-                                                                    {order.carrier && (
-                                                                        <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm ${carrierInfo.color}`}>
-                                                                            <carrierInfo.icon className="w-3 h-3" />
-                                                                            {carrierInfo.label}
-                                                                        </span>
-                                                                    )}
-
-                                                                    {/* Badge de Tipo de Pedido */}
-                                                                    <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm ${order.orderType === 'instalacao' ? 'bg-amber-500 text-white' :
-                                                                        order.orderType === 'manutencao' ? 'bg-indigo-500 text-white' :
-                                                                            order.orderType === 'retirada' ? 'bg-slate-700 text-white' :
-                                                                                'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                                                                        }`}>
-                                                                        {order.orderType === 'instalacao' ? '🔧 Inst.' :
-                                                                            order.orderType === 'manutencao' ? '🛠️ Manut.' :
-                                                                                order.orderType === 'retirada' ? '🏢 Retirada' :
-                                                                                    '📦 Entrega'}
-                                                                    </span>
-
-                                                                    {late && (
-                                                                        <span className="px-3 py-1 rounded-full bg-destructive text-white text-[9px] font-black uppercase tracking-widest animate-bounce shadow-lg shadow-destructive/40">
-                                                                            ATRASADO
-                                                                        </span>
-                                                                    )}
-                                                                    {order.status === 'producao_finalizada' && !scannedOrderIds.has(order.id) && (
-                                                                        <span className="px-3 py-1 rounded-full bg-amber-500 text-white text-[9px] font-black uppercase tracking-widest animate-pulse shadow-lg shadow-amber-500/40 flex items-center gap-1">
-                                                                            <AlertTriangle className="w-3 h-3" /> AGUARDANDO BIPAGEM
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-
-                                                            <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5 text-xs mb-4">
-                                                                <span className="font-extrabold text-foreground/90 flex items-center gap-2 group/client transition-colors hover:text-primary cursor-default">
-                                                                    <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                                                                        <User className="w-3.5 h-3.5" />
-                                                                    </div>
-                                                                    {order.clientName}
-                                                                </span>
-                                                                <div className="flex items-center gap-3">
-                                                                    <span className="text-muted-foreground font-bold flex items-center gap-2">
-                                                                        Vendedor: <span className="text-foreground">{order.sellerName}</span>
-                                                                    </span>
-                                                                    {(order.orderType === 'instalacao' || order.orderType === 'manutencao' || order.orderType === 'retirada') && (order.installationDate || order.scheduledDate) && (
-                                                                        <span className="text-primary font-black flex items-center gap-2 bg-primary/5 px-3 py-1 rounded-full border border-primary/10 transition-transform group-hover/card:scale-105">
-                                                                            <Clock className="w-3.5 h-3.5" />
-                                                                            {fmtDate(order.installationDate || order.scheduledDate)} {order.installationTime ? `@ ${order.installationTime}` : ''}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-
-                                                            {/* Modern Itens List */}
-                                                            <div className="flex flex-wrap gap-2 sm:gap-2.5">
-                                                                {order.items.map((i, idx) => (
-                                                                    <div key={idx} className="group/item relative">
-                                                                        <div className={`px-4 py-2 rounded-2xl border flex items-center gap-3 transition-all duration-300
-                                      group-hover/card:shadow-sm
-                                      ${i.sensorType === 'com_sensor'
-                                                                                ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-700 dark:text-emerald-400 group-hover/item:bg-emerald-500/10'
-                                                                                : 'bg-muted/40 border-border/20 text-foreground/80 group-hover/item:bg-muted/60'}
-                                    `}>
-                                                                            <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black ${i.sensorType === 'com_sensor' ? 'bg-emerald-500 text-white' : 'bg-muted-foreground/10 text-muted-foreground'
-                                                                                }`}>
-                                                                                {i.quantity}x
-                                                                            </div>
-                                                                            <span className="font-bold text-[10px] sm:text-[11px] uppercase tracking-tight truncate max-w-[150px]">{i.product}</span>
-
-                                                                            {i.installationDate && (
-                                                                                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-primary/10 text-primary border border-primary/20 text-[8px] font-black">
-                                                                                    <Calendar className="w-2.5 h-2.5" /> {fmtDate(i.installationDate)}
-                                                                                </div>
-                                                                            )}
-
-                                                                            {i.status === 'finalizado' && (
-                                                                                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-success/10 text-success border border-success/20 text-[8px] font-black animate-in fade-in zoom-in-95">
-                                                                                    <CheckCircle className="w-2.5 h-2.5" /> OK
-                                                                                </div>
-                                                                            )}
-
-                                                                            {i.status === 'em_producao' && (
-                                                                                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-lg bg-producao/10 text-producao border border-producao/20 text-[8px] font-black animate-pulse">
-                                                                                    <Play className="w-2.5 h-2.5" /> INICIADO
-                                                                                </div>
-                                                                            )}
-
-                                                                            {i.sensorType === 'com_sensor' && (
-                                                                                <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-lg bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 group-hover/item:animate-pulse">
-                                                                                    <Zap className="w-2.5 h-2.5 fill-current" />
-                                                                                    <span className="text-[7px] font-black tracking-widest">SENSOR</span>
-                                                                                </div>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Refined Actions Group */}
-                                                    <div className="flex flex-row items-center gap-3 w-full md:w-auto shrink-0 self-end md:self-center">
-                                                        <button
-                                                            onClick={() => setViewOrderId(order.id)}
-                                                            className="h-12 flex-1 md:flex-none justify-center btn-modern bg-muted/50 text-foreground text-[10px] sm:px-6 font-black hover:bg-muted border border-border/10 rounded-2xl transition-all"
-                                                        >
-                                                            DETALHES
-                                                        </button>
-
-                                                        {['aguardando_producao', 'aprovado_financeiro', 'aprovado_gestor'].includes(order.status) && (
-                                                            <button
-                                                                onClick={(e) => { e.stopPropagation(); iniciarProducao(order.id); }}
-                                                                className={`h-12 flex-1 md:flex-none justify-center btn-primary bg-gradient-to-br ${mainGradient} px-8 text-xs font-black uppercase rounded-2xl shadow-xl ${mainShadow} transform active:scale-95 transition-all text-white border-none group/btn`}
-                                                            >
-                                                                <Play className="w-4 h-4 mr-2 group-hover/btn:translate-x-1 transition-transform" /> INICIAR
-                                                            </button>
-                                                        )}
-
-                                                        {order.status === 'em_producao' && (
-                                                            <div className="flex gap-2.5 flex-1 md:flex-none">
-                                                                <button
-                                                                    onClick={(e) => { e.stopPropagation(); finalizarProducao(order.id); }}
-                                                                    className="h-12 flex-1 md:flex-none justify-center btn-primary bg-gradient-to-br from-emerald-500 to-emerald-600 px-8 text-xs font-black uppercase rounded-2xl shadow-xl shadow-success/20 transform active:scale-95 transition-all text-white group/btn"
-                                                                >
-                                                                    <CheckCircle className="w-4 h-4 mr-2 group-hover/btn:scale-110 transition-transform" /> FINALIZAR
-                                                                </button>
-                                                                <button
-                                                                    onClick={(e) => { e.stopPropagation(); revertStatus(order.id, order.status); }}
-                                                                    className="h-12 w-12 flex items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border border-amber-500/20 transition-all shadow-sm shrink-0"
-                                                                    title="Reverter para Aguardando Produção"
-                                                                >
-                                                                    <RefreshCw className="w-5 h-5" />
-                                                                </button>
-                                                            </div>
-                                                        )}
-
-                                                        <div className="flex gap-2.5 flex-1 md:flex-none">
-                                                            {(order.status === 'producao_finalizada' || order.status === 'produto_liberado') && (
-                                                                <>
-                                                                    <button
-                                                                        onClick={(e) => { e.stopPropagation(); setGuia(order.id); }}
-                                                                        className="h-12 flex-1 md:flex-none justify-center btn-modern bg-primary/10 text-primary px-6 text-xs font-black hover:bg-primary/20 border border-primary/20 rounded-2xl shadow-lg shadow-primary/5 transition-all"
-                                                                    >
-                                                                        GUIA
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={(e) => { e.stopPropagation(); revertStatus(order.id, order.status); }}
-                                                                        className="h-12 w-12 flex items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 border border-amber-500/20 transition-all shadow-sm"
-                                                                        title="Reverter status para Em Produção"
-                                                                    >
-                                                                        <RefreshCw className="w-5 h-5" />
-                                                                    </button>
-                                                                </>
-                                                            )}
-                                                            {(order.orderType === 'entrega' || order.orderType === 'retirada') && (
-                                                                <button
-                                                                    onClick={(e) => { e.stopPropagation(); printEtiqueta(order); }}
-                                                                    className="h-12 w-12 flex items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all shadow-sm"
-                                                                    title="Imprimir Etiqueta"
-                                                                >
-                                                                    <Printer className="w-5 h-5" />
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
+                                    {sortedOrders.map((order, idx) => renderOrderCard(order, idx))}
                                 </div>
                             </div>
-                        ))}
+                        ) : (
+                            Object.entries(groupedOrders).map(([clientName, clientOrders]) => (
+                                <div key={clientName} className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-700">
+                                    <div className="flex items-center justify-between group/header cursor-default px-2">
+                                        <div className="flex items-center gap-5">
+                                            <div className={`w-2 h-10 bg-gradient-to-b ${mainGradient} rounded-full shadow-lg ${mainShadow}`} />
+                                            <div>
+                                                <h2 className="text-xl font-black text-foreground uppercase tracking-tight leading-none group-hover/header:text-primary transition-colors">{clientName}</h2>
+                                                <div className="flex items-center gap-3 mt-1.5">
+                                                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-[0.1em] flex items-center gap-2">
+                                                        Linha de Montagem • <span className="text-primary">{clientOrders.length} {clientOrders.length === 1 ? 'Pedido' : 'Pedidos'} em fila</span>
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="hidden lg:block h-px flex-1 bg-gradient-to-r from-border/40 to-transparent ml-12" />
+                                    </div>
 
-                        {(statusFilter === 'historico' || tipoFiltro === 'historico') && (histPage * HIST_PAGE_SIZE) < filteredOrders.length && (
+                                    <div className="grid grid-cols-1 gap-5 ml-2 border-l border-border/20 pl-6 stagger-children">
+                                        {clientOrders.map((order, idx) => renderOrderCard(order, idx))}
+                                    </div>
+                                </div>
+                            ))
+                        )}
+
+                        {isHistorico && (histPage * HIST_PAGE_SIZE) < filteredOrders.length && (
                             <div className="flex justify-center mt-12 pb-8 animate-in fade-in">
                                 <button
                                     onClick={() => setHistPage(p => p + 1)}
                                     className="btn-modern flex flex-col items-center bg-muted/50 text-foreground px-12 py-4 rounded-3xl font-black text-sm hover:bg-muted border border-border/10 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 group"
+                                >
+                                    CARREGAR MAIS PEDIDOS
+                                    <span className="block text-[10px] font-medium text-muted-foreground mt-1.5 tracking-widest uppercase opacity-70 group-hover/opacity-100 transition-opacity">
+                                        (Mostrando {histPage * HIST_PAGE_SIZE} de {filteredOrders.length})
+                                    </span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )})}er-border/10 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 group"
                                 >
                                     CARREGAR MAIS PEDIDOS
                                     <span className="block text-[10px] font-medium text-muted-foreground mt-1.5 tracking-widest uppercase opacity-70 group-hover:opacity-100 transition-opacity">

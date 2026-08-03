@@ -896,14 +896,6 @@ const VendedoresControlPage: React.FC = () => {
                            </span>
                            <div className="flex gap-2">
                               <button
-                                onClick={() => handleFixOldClosings(closing.id)}
-                                disabled={isFixing}
-                                className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center hover:bg-primary hover:text-white transition-all shadow-sm"
-                                title="Recalcular Apenas Este Fechamento"
-                              >
-                                {isFixing ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCcw className="w-4 h-4" />}
-                              </button>
-                              <button
                                 onClick={() => handlePrintHistoricalItems(closing)}
                                 className="w-8 h-8 rounded-lg bg-info/10 text-info flex items-center justify-center hover:bg-info hover:text-white transition-all shadow-sm"
                                 title="Baixar Lista de Itens"

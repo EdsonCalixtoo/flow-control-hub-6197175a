@@ -2375,6 +2375,7 @@ ${etiquetasHtml}
                         </div>
                     </div>
                 </div>
+            </div>
         );
     }
 
@@ -2844,7 +2845,14 @@ ${i.sensorType === 'com_sensor'
                                         </div>
                                         <div className="flex flex-row sm:flex-row gap-2 w-full sm:w-auto">
                                             {w.orderId && (
-                                                                             <button
+                                                <button
+                                                    onClick={() => setViewOrderId(w.orderId)}
+                                                    className="btn-modern flex-1 sm:flex-none justify-center bg-muted/50 text-foreground hover:bg-muted text-[10px] font-bold py-2.5 px-4 border border-border/20"
+                                                >
+                                                    <Eye className="w-4 h-4 mr-2" /> <span className="sm:hidden">Ver</span><span className="hidden sm:inline">Detalhes</span>
+                                                </button>
+                                            )}
+                                            <button
                                                 onClick={async () => {
                                                     if (window.confirm('Marcar esta garantia como FINALIZADA?')) {
                                                         await updateWarrantyStatus(w.id, 'Garantia finalizada', undefined, user?.name || 'Produção', 'Garantia concluída pela produção');
@@ -2924,16 +2932,6 @@ ${i.sensorType === 'com_sensor'
                                 <button
                                     onClick={() => setHistPage(p => p + 1)}
                                     className="btn-modern flex flex-col items-center bg-muted/50 text-foreground px-12 py-4 rounded-3xl font-black text-sm hover:bg-muted border border-border/10 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 group"
-                                >
-                                    CARREGAR MAIS PEDIDOS
-                                    <span className="block text-[10px] font-medium text-muted-foreground mt-1.5 tracking-widest uppercase opacity-70 group-hover/opacity-100 transition-opacity">
-                                        (Mostrando {histPage * HIST_PAGE_SIZE} de {filteredOrders.length})
-                                    </span>
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                )})}er-border/10 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 group"
                                 >
                                     CARREGAR MAIS PEDIDOS
                                     <span className="block text-[10px] font-medium text-muted-foreground mt-1.5 tracking-widest uppercase opacity-70 group-hover:opacity-100 transition-opacity">

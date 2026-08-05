@@ -275,6 +275,7 @@ const ModernDatePicker = React.memo(({
 const OrcamentosPage: React.FC = () => {
   const { orders, addOrder, updateOrderStatus, editOrderFull, clients, products, deleteOrder, financialEntries, loadOrderDetails, monthlyClosings, editClient, addFinancialEntry } = useERP();
   const { user } = useAuth();
+  const isHigor = user?.email === 'higorfeerreira9@gmail.com' || user?.name?.toLowerCase().includes('higor') || user?.id === 'f595ceac-fa37-45d0-a231-54fe303f6c78';
   const location = useLocation();
   const navigate = useNavigate();
   const detailRef = useRef<HTMLDivElement>(null);
@@ -1212,7 +1213,7 @@ const OrcamentosPage: React.FC = () => {
       .filter(o => o.clientId === newClientId && o.status !== 'rejeitado_financeiro')
       .reduce((sum, o) => sum + getSaldoDevedor(o.id, o.total, financialEntries, o.paymentStatus, o.number), 0)
       : 0;
-    const hasDebtBlock = clientDebt > 0 && selectedClient?.consignado;
+    const hasDebtBlock = !isHigor && clientDebt > 0 && selectedClient?.consignado;
     return (
       <div className="space-y-8 animate-scale-in pb-20 max-w-[1400px] mx-auto">
         {/* Header Elegante */}
@@ -1408,7 +1409,7 @@ const OrcamentosPage: React.FC = () => {
                           placeholder="Digite ou selecione o produto..."
                           icon={Package}
                           options={products
-                            .filter(p => p.category !== 'Carenagem' || user?.email === 'higorfeerreira9@gmail.com')
+                            .filter(p => p.category !== 'Carenagem' || isHigor)
                             .filter(p => {
                                if (!item.isReward) return true;
                                const isKit = p.name.toUpperCase().includes('KIT') || p.name.toUpperCase().includes('SPRINTER');

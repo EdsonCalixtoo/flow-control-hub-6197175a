@@ -276,6 +276,8 @@ const OrcamentosPage: React.FC = () => {
   const { orders, addOrder, updateOrderStatus, editOrderFull, clients, products, deleteOrder, financialEntries, loadOrderDetails, monthlyClosings, editClient, addFinancialEntry } = useERP();
   const { user } = useAuth();
   const isHigor = user?.email === 'higorfeerreira9@gmail.com' || user?.name?.toLowerCase().includes('higor') || user?.id === 'f595ceac-fa37-45d0-a231-54fe303f6c78';
+  const isGustavo = user?.email === 'guautomatizaportasautomaticas@gmail.com' || user?.name?.toLowerCase().includes('gustavo') || user?.id === 'd00e0399-b584-46b1-b629-12c7ad7b9286';
+  const bypassDebtBlock = isHigor || isGustavo;
   const location = useLocation();
   const navigate = useNavigate();
   const detailRef = useRef<HTMLDivElement>(null);
@@ -1213,7 +1215,7 @@ const OrcamentosPage: React.FC = () => {
       .filter(o => o.clientId === newClientId && o.status !== 'rejeitado_financeiro')
       .reduce((sum, o) => sum + getSaldoDevedor(o.id, o.total, financialEntries, o.paymentStatus, o.number), 0)
       : 0;
-    const hasDebtBlock = !isHigor && clientDebt > 0 && selectedClient?.consignado;
+    const hasDebtBlock = !bypassDebtBlock && clientDebt > 0 && selectedClient?.consignado;
     return (
       <div className="space-y-8 animate-scale-in pb-20 max-w-[1400px] mx-auto">
         {/* Header Elegante */}

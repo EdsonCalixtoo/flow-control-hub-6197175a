@@ -355,7 +355,7 @@ const CronogramaProducaoPage: React.FC = () => {
                         <Truck className="w-4 h-4" />
                         <span className="text-[10px] font-black uppercase tracking-widest hidden lg:block">Logística:</span>
                     </div>
-                    {['TODOS', 'JADLOG', 'MOTOBOY', 'CLEYTON', 'LALAMOVE'].map(c => (
+                    {['TODOS', 'JADLOG', 'MOTOBOY', 'CLEYTON', 'LALAMOVE', 'MERCADO LIVRE'].map(c => (
                         <button
                             key={c}
                             onClick={() => setCarrierFilter(c.toLowerCase())}

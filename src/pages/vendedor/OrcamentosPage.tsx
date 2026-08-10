@@ -1624,8 +1624,8 @@ const OrcamentosPage: React.FC = () => {
                     <div className="space-y-4">
                       <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-2">Transportador / Responsável</label>
                       <div className="grid grid-cols-2 gap-3">
-                        {['JADLOG', 'LALAMOVE', 'KLEYTON', 'MOTOBOY', 'OUTRO'].map(c => {
-                          const isPredefined = ['JADLOG', 'LALAMOVE', 'KLEYTON', 'MOTOBOY'].includes(newCarrier);
+                        {['JADLOG', 'LALAMOVE', 'KLEYTON', 'MOTOBOY', 'MERCADO LIVRE', 'OUTRO'].map(c => {
+                          const isPredefined = ['JADLOG', 'LALAMOVE', 'KLEYTON', 'MOTOBOY', 'MERCADO LIVRE'].includes(newCarrier);
                           const isActive = c === 'OUTRO' ? !isPredefined && newCarrier !== '' : newCarrier === c;
 
                           return (
@@ -1643,7 +1643,7 @@ const OrcamentosPage: React.FC = () => {
                           );
                         })}
                       </div>
-                      {(!['JADLOG', 'LALAMOVE', 'KLEYTON', 'MOTOBOY'].includes(newCarrier) || newCarrier === '') && (
+                      {(!['JADLOG', 'LALAMOVE', 'KLEYTON', 'MOTOBOY', 'MERCADO LIVRE'].includes(newCarrier) || newCarrier === '') && (
                         <div className="animate-in fade-in slide-in-from-top-4 duration-500">
                           <input
                             type="text"

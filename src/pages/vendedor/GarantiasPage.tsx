@@ -660,7 +660,7 @@ const GarantiasPage: React.FC = () => {
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-3">
-                                    {['JADLOG', 'MOTOBOY', 'LALAMOVE', 'KLEYTON'].map(c => (
+                                    {['JADLOG', 'MOTOBOY', 'LALAMOVE', 'KLEYTON', 'MERCADO LIVRE'].map(c => (
                                         <button 
                                             key={c}
                                             onClick={() => setCarrier(c)}

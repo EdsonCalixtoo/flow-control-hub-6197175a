@@ -2389,6 +2389,7 @@ ${etiquetasHtml}
             jadlog: { color: 'bg-[#002d72] text-white', label: 'JADLOG', icon: Truck },
             motoboy: { color: 'bg-emerald-500 text-white', label: 'MOTOBOY', icon: ShieldCheck },
             kleyton: { color: 'bg-orange-500 text-white', label: 'KLEYTON', icon: User },
+            'mercado livre': { color: 'bg-yellow-400 text-black', label: 'MERCADO LIVRE', icon: Package },
             retirada: { color: 'bg-slate-800 text-white', label: 'RETIRADA LOCAL', icon: Package },
         }[(order.carrier || '').toLowerCase()] || { color: 'bg-muted text-muted-foreground', label: order.carrier || 'TRANSF...', icon: Package };
 
@@ -2766,6 +2767,7 @@ ${i.sensorType === 'com_sensor'
                             { value: 'motoboy', label: 'MOTOBOY', icon: '🛵' },
                             { value: 'kleyton', label: 'KLEYTON', icon: '👤' },
                             { value: 'lalamove', label: 'LALAMOVE', icon: '🚚' },
+                            { value: 'mercado livre', label: 'MERCADO LIVRE', icon: '📦' },
                             { value: 'retirada', label: 'RETIRADA LOCAL', icon: '🏢' },
                             { value: 'sem_definir', label: 'SEM DEFINIR', icon: '❓' },
                         ]}

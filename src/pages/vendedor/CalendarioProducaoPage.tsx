@@ -215,7 +215,7 @@ const CalendarioProducaoVendedorPage: React.FC = () => {
                             <Truck className="w-4 h-4" />
                             <span className="text-[10px] font-black uppercase tracking-widest hidden lg:block">Logística:</span>
                         </div>
-                        {['TODOS', 'JADLOG', 'MOTOBOY', 'KLEYTON', 'LALAMOVE'].map(c => (
+                        {['TODOS', 'JADLOG', 'MOTOBOY', 'KLEYTON', 'LALAMOVE', 'MERCADO LIVRE'].map(c => (
                             <button
                                 key={c}
                                 onClick={() => setCarrierFilter(c.toLowerCase())}
@@ -521,7 +521,7 @@ const CalendarioProducaoVendedorPage: React.FC = () => {
                                             <div className="space-y-3 animate-in fade-in slide-in-from-left-4">
                                                 <label className="text-[11px] font-black uppercase tracking-widest text-muted-foreground px-1">Transportadora</label>
                                                 <div className="grid grid-cols-2 gap-2">
-                                                    {['JADLOG', 'MOTOBOY', 'KLEYTON', 'LALAMOVE'].map(c => (
+                                                    {['JADLOG', 'MOTOBOY', 'KLEYTON', 'LALAMOVE', 'MERCADO LIVRE'].map(c => (
                                                         <button
                                                             key={c}
                                                             onClick={() => setCarrier(c)}

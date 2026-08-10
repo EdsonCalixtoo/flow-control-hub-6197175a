@@ -145,7 +145,7 @@ const CorrigirPedidoPage: React.FC = () => {
 
   const calculatedSubtotal = useMemo(() => items.reduce((s, i) => s + (Number(i.unitPrice || 0) * Number(i.quantity || 0)), 0), [items]);
   const calculatedTotal = useMemo(() => calculatedSubtotal + (selectedOrder?.taxes || 0), [calculatedSubtotal, selectedOrder]);
-  const CARRIERS = ['JADLOG', 'MOTOBOY', 'KLEYTON', 'LALAMOVE', 'RETIRADA NA LOJA'];
+  const CARRIERS = ['JADLOG', 'MOTOBOY', 'KLEYTON', 'LALAMOVE', 'MERCADO LIVRE', 'RETIRADA NA LOJA'];
 
   return (
     <div className="min-h-[calc(100vh-6rem)] flex flex-col space-y-6 pb-20 max-w-[1400px] mx-auto w-full px-4 sm:px-6">

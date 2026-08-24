@@ -18,12 +18,12 @@ import type { Order } from '@/types/erp';
 
 const ClienteDetalhesPage: React.FC = () => {
     const { id } = useParams<{ id: string }>();
-    const { clients, orders } = useERP();
+    const { clients, orders, updateOrderStatus } = useERP();
+    const injectOrdersIntoCache = (useERP as any)().injectOrdersIntoCache;
     const { theme } = useThemeContext();
     const navigate = useNavigate();
     const { user } = useAuth();
     const isDark = theme === 'dark';
-    const { updateOrderStatus } = useERP();
     const [uploadingOrderId, setUploadingOrderId] = React.useState<string | null>(null);
     const [activeTab, setActiveTab] = React.useState<'pedidos' | 'premiação'>('pedidos');
     const [ranking, setRanking] = React.useState<ClientRanking | null>(null);
@@ -41,7 +41,12 @@ const ClienteDetalhesPage: React.FC = () => {
             if (currentClient) {
                 setLoadingHistory(true);
                 fetchOrdersByClientInfo(currentClient.id, currentClient.name, currentClient.cpfCnpj)
-                    .then(setClientOrders)
+                    .then(fetchedOrders => {
+                        setClientOrders(fetchedOrders);
+                        if (fetchedOrders.length > 0 && typeof (useERP as any)().injectOrdersIntoCache === 'function') {
+                            (useERP as any)().injectOrdersIntoCache(fetchedOrders);
+                        }
+                    })
                     .finally(() => setLoadingHistory(false));
             }
         }

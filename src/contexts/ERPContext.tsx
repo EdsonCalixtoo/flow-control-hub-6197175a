@@ -76,6 +76,7 @@ interface ERPContextType {
   loadFromSupabase: () => Promise<void>;
   loadBarcodeScans: () => Promise<void>;
   loadOrderDetails: (orderId: string) => Promise<Order | null>;
+  injectOrdersIntoCache: (newOrders: Order[]) => void;
   loadOrderByNumber: (orderNumber: string) => Promise<Order | null>;
   // monthly closings
   monthlyClosings: MonthlyClosing[];
@@ -645,11 +646,27 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [orders]); // Removido products e updateProduct das deps para evitar loop infinito
 
+  const injectOrdersIntoCache = useCallback((newOrders: Order[]) => {
+    if (!newOrders || newOrders.length === 0) return;
+    setOrders(prev => {
+      const existingIds = new Set(prev.map(o => o.id));
+      const toAdd = newOrders.filter(o => !existingIds.has(o.id));
+      if (toAdd.length === 0) return prev;
+      return [...toAdd, ...prev];
+    });
+  }, []);
+
   const loadOrderDetails = useCallback(async (orderId: string) => {
     try {
       const fullOrder = await fetchOrderById(orderId);
       if (fullOrder) {
-        setOrders(prev => prev.map(o => o.id === orderId ? fullOrder : o));
+        setOrders(prev => {
+          const exists = prev.some(o => o.id === orderId);
+          if (exists) {
+            return prev.map(o => o.id === orderId ? fullOrder : o);
+          }
+          return [fullOrder, ...prev];
+        });
         
         // ⚡ OTIMIZAÇÃO: Carrega lançamentos financeiros completos (com fotos) apenas para o pedido solicitado
         const fullEntries = await fetchFinancialEntriesByOrderId(orderId);
@@ -1246,7 +1263,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addClient, editClient, addFinancialEntry, updateFinancialEntry,
       warranties, addWarranty, updateWarrantyStatus, editWarranty,
       addProduct, updateProduct, deleteProduct, deleteClient, addDelayReport, markDelayReportRead, clearAll,
-      loadFromSupabase, loadBarcodeScans, loadOrderDetails, loadOrderByNumber,
+      loadFromSupabase, loadBarcodeScans, loadOrderDetails, injectOrdersIntoCache, loadOrderByNumber,
       monthlyClosings, closeMonth,
       productionDailyClosures, addProductionDailyClosure
     }}>

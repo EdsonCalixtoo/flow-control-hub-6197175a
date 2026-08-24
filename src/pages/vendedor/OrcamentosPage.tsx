@@ -273,7 +273,7 @@ const ModernDatePicker = React.memo(({
 });
 
 const OrcamentosPage: React.FC = () => {
-  const { orders, addOrder, updateOrderStatus, editOrderFull, clients, products, deleteOrder, financialEntries, loadOrderDetails, monthlyClosings, editClient, addFinancialEntry } = useERP();
+  const { orders, addOrder, updateOrderStatus, editOrderFull, clients, products, deleteOrder, financialEntries, loadOrderDetails, monthlyClosings, editClient, addFinancialEntry, loadOrderByNumber } = useERP();
   const { user } = useAuth();
   const isHigor = user?.email === 'higorfeerreira9@gmail.com' || user?.name?.toLowerCase().includes('higor') || user?.id === 'f595ceac-fa37-45d0-a231-54fe303f6c78';
   const isGustavo = user?.email === 'guautomatizaportasautomaticas@gmail.com' || user?.name?.toLowerCase().includes('gustavo') || user?.id === 'd00e0399-b584-46b1-b629-12c7ad7b9286';
@@ -389,9 +389,21 @@ const OrcamentosPage: React.FC = () => {
       if (order) {
         setSelectedOrder(order);
         setComprovantesAttached(order.receiptUrls || []);
+        params.delete('view');
+        navigate({ search: params.toString() }, { replace: true });
+      } else {
+        // Se o pedido não estiver no cache inicial (pedidos antigos), busca do banco
+        loadOrderDetails(viewId).then(fetchedOrder => {
+          if (fetchedOrder) {
+            setSelectedOrder(fetchedOrder);
+            setComprovantesAttached(fetchedOrder.receiptUrls || []);
+            params.delete('view');
+            navigate({ search: params.toString() }, { replace: true });
+          }
+        });
       }
     }
-  }, [location.search, orders]);
+  }, [location.search, orders, loadOrderDetails, navigate]);
 
   // Se vier um clientId novo pelo estado, atualiza
   useEffect(() => {
@@ -457,10 +469,43 @@ const OrcamentosPage: React.FC = () => {
     }
   }, [preSelectedReward, products, editingOrder, navigate, location.pathname, location.state]);
 
-  const filtered = useMemo(() => myOrders.filter(o =>
-    String(o.number).toLowerCase().includes(search.toLowerCase()) ||
-    o.clientName.toLowerCase().includes(search.toLowerCase())
-  ), [myOrders, search]);
+  const filtered = useMemo(() => {
+    const baseOrders = search ? (orders || []).filter(o =>
+      user?.role !== 'vendedor' || 
+      o.sellerId === user?.id || 
+      (o.sellerName === user?.name && !o.sellerId)
+    ) : myOrders;
+
+    return baseOrders.filter(o =>
+      String(o.number).toLowerCase().includes(search.toLowerCase()) ||
+      o.clientName.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [myOrders, orders, user, search]);
+
+  // Busca remota (God-Mode) de pedidos caso não encontre localmente
+  useEffect(() => {
+    if (search.length >= 3 && filtered.length === 0) {
+      // Se for apenas número ou no formato PED-123
+      const isNumber = /^\d+$/.test(search) || /^ped-\d+$/i.test(search);
+      if (isNumber) {
+        const timeout = setTimeout(() => {
+          const numStr = search.replace(/\D/g, '');
+          if (numStr) {
+            // Usa (useERP as any)() caso as funções não estejam no topo, mas já destruturamos antes. 
+            // Vamos usar o loadOrderByNumber diretamente e se encontrar, injeta no cache
+            loadOrderByNumber(numStr).then(fetched => {
+              if (fetched) {
+                if (typeof (useERP as any)().injectOrdersIntoCache === 'function') {
+                  (useERP as any)().injectOrdersIntoCache([fetched]);
+                }
+              }
+            });
+          }
+        }, 800);
+        return () => clearTimeout(timeout);
+      }
+    }
+  }, [search, filtered.length, loadOrderByNumber]);
 
   const summary = useMemo(() => {
     let vendidos = 0;

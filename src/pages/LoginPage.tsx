@@ -16,6 +16,7 @@ const roles: { role: UserRole; icon: React.ElementType; desc: string; color: str
   { role: 'producao', icon: Factory, desc: 'Produção Geral', color: 'text-orange-500', bg: 'bg-orange-500/10', size: 'small' },
   { role: 'producao_carenagem', icon: Truck, desc: 'Carenagem', color: 'text-indigo-500', bg: 'bg-indigo-500/10', size: 'small' },
   { role: 'admin', icon: ShieldCheck, desc: 'Painel T.I e Auditoria', color: 'text-slate-900', bg: 'bg-slate-900/10', size: 'small' },
+  { role: 'entregador', icon: Truck, desc: 'Retiradas de Pedidos', color: 'text-cyan-500', bg: 'bg-cyan-500/10', size: 'small' },
 ];
 
 const LoginPage: React.FC = () => {
@@ -48,6 +49,25 @@ const LoginPage: React.FC = () => {
     } catch (err: any) {
       setError(err?.message || 'Erro ao entrar');
       if (err?.message?.includes('expirado')) setShowClearSessionOption(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedRole) {
+      setError('Por favor, selecione um perfil primeiro.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      await register(email, password, name, selectedRole);
+      setSuccess('Conta criada com sucesso! Você será redirecionado...');
+    } catch (err: any) {
+      setError(err?.message || 'Erro ao criar conta');
     } finally {
       setLoading(false);
     }
@@ -169,7 +189,7 @@ const LoginPage: React.FC = () => {
                   <p className="text-sm font-medium text-slate-400 mt-1">Insira suas credenciais corporativas</p>
                 </div>
 
-                <form onSubmit={handleLogin} className="space-y-6">
+                <form onSubmit={authMode === 'login' ? handleLogin : handleRegister} className="space-y-6">
                   {error && (
                     <motion.div 
                       initial={{ opacity: 0, x: -10 }}
@@ -179,6 +199,30 @@ const LoginPage: React.FC = () => {
                       <AlertCircle className="w-5 h-5 text-rose-500" />
                       <p className="text-rose-700 text-xs font-bold">{error}</p>
                     </motion.div>
+                  )}
+                  {success && (
+                    <motion.div 
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center gap-3"
+                    >
+                      <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                      <p className="text-emerald-700 text-xs font-bold">{success}</p>
+                    </motion.div>
+                  )}
+
+                  {authMode === 'register' && (
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nome Completo</label>
+                      <input
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 text-sm font-bold text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/40 transition-all placeholder:text-slate-300"
+                        placeholder="Seu Nome"
+                        required={authMode === 'register'}
+                      />
+                    </div>
                   )}
 
                   <div className="space-y-2">
@@ -203,6 +247,7 @@ const LoginPage: React.FC = () => {
                         className="w-full h-14 bg-slate-50 border border-slate-200 rounded-2xl px-6 text-sm font-bold text-slate-900 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500/40 transition-all pr-14 placeholder:text-slate-300"
                         placeholder="••••••••"
                         required
+                        minLength={6}
                       />
                       <button 
                         type="button"
@@ -221,14 +266,34 @@ const LoginPage: React.FC = () => {
                   >
                     {loading ? (
                       <Loader2 className="w-6 h-6 animate-spin" />
-                    ) : (
+                    ) : authMode === 'login' ? (
                       <>
                         <LogIn className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                         ENTRAR NO PORTAL
                       </>
+                    ) : (
+                      <>
+                        <UserPlus className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                        CRIAR CONTA
+                      </>
                     )}
                   </button>
                 </form>
+
+                <div className="mt-6 text-center">
+                  <button
+                    onClick={() => {
+                      setAuthMode(authMode === 'login' ? 'register' : 'login');
+                      setError(null);
+                      setSuccess(null);
+                    }}
+                    className="text-sm font-bold text-slate-500 hover:text-blue-600 transition-colors"
+                  >
+                    {authMode === 'login' 
+                      ? 'Não tem uma conta? Cadastre-se' 
+                      : 'Já tem uma conta? Faça login'}
+                  </button>
+                </div>
 
                 {showClearSessionOption && (
                   <button

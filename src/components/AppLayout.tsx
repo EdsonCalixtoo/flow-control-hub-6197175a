@@ -94,6 +94,9 @@ const NAV_ITEMS: Record<string, { label: string; icon: React.ElementType; path: 
     { label: 'Operações', icon: Factory, path: '/producao/pedidos' },
     { label: 'Administrador TI', icon: Wrench, path: '/admin/ti' },
   ],
+  entregador: [
+    { label: 'Painel Entregador', icon: Truck, path: '/entregador' },
+  ],
 };
 
 const ROLE_COLORS: Record<string, string> = {
@@ -103,6 +106,7 @@ const ROLE_COLORS: Record<string, string> = {
   producao: 'from-orange-600 to-red-600',
   producao_carenagem: 'from-indigo-600 to-blue-600',
   admin: 'from-slate-900 to-slate-700',
+  entregador: 'from-blue-500 to-cyan-500',
 };
 
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {

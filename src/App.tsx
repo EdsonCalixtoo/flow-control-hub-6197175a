@@ -41,6 +41,7 @@ import TIPage from "@/pages/admin/TIPage";
 import DataRecoveryPage from "@/pages/admin/DataRecoveryPage";
 import TrackingManagerPage from "@/pages/admin/TrackingManagerPage";
 import UsuariosPage from "@/pages/admin/UsuariosPage";
+import EntregadorDashboard from "@/pages/entregador/EntregadorDashboard"; // Dashboard do entregador
 import NotFound from "./pages/NotFound";
 import ProvasPage from "@/pages/shared/ProvasPage";
 import OrderDossierPage from "@/pages/shared/OrderDossierPage";
@@ -147,6 +148,9 @@ const App = () => (
                 {/* Garantia */}
                 <Route path="/garantia" element={<ProtectedRoute role="garantia"><GarantiaVendedorPage /></ProtectedRoute>} />
                 <Route path="/garantia/pedidos" element={<ProtectedRoute role="garantia"><GarantiaVendedorPage /></ProtectedRoute>} />
+
+                {/* Entregador */}
+                <Route path="/entregador" element={<ProtectedRoute role="entregador"><EntregadorDashboard /></ProtectedRoute>} />
 
                 {/* Admin */}
                 <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />

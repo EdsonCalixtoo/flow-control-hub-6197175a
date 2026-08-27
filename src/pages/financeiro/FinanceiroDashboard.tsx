@@ -693,31 +693,41 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
         `Retirada: ${actionText}`
       );
     } else {
-      // ✅ Para clientes normais, cria lançamento financeiro total (venda direta) APENAS para o saldo restante
-      const saldo = getSaldoDevedor(order.id, order.total, order.paymentStatus, order.number);
-      if (saldo > 0) {
-        const entry: FinancialEntry = {
-          id: crypto.randomUUID(),
-          type: 'receita',
-          description: `Pagamento total - ${order.number} - ${order.clientName}`,
-          amount: saldo, // Apenas o saldo devedor restante
-          category: 'Venda de Produtos',
-          date: new Date().toISOString().split('T')[0],
-          status: 'pago',
-          orderId: order.id,
-          orderNumber: order.number,
-          clientId: order.clientId,
-          clientName: order.clientName,
-          paymentMethod: order.paymentMethod || 'Pix',
-          receiptUrls: order.receiptUrls || [], // 🔥 COPIA OS COMPROVANTES DO PEDIDO PARA O LANÇAMENTO
-          transactionId: (order as any).transactionId,
-          cardLastDigits: (order as any).cardLastDigits,
-          createdAt: new Date().toISOString(),
-        };
+      if (sendToProduction) {
+        await updateOrderStatus(
+          orderId,
+          nextStatus,
+          { paymentStatus: order.paymentStatus || 'pendente', statusPagamento: order.statusPagamento || 'pendente', financeiroAprovado: true },
+          'Financeiro',
+          `Enviado: ${actionText}`
+        );
+      } else {
+        // ✅ Para clientes normais, cria lançamento financeiro total (venda direta) APENAS para o saldo restante
+        const saldo = getSaldoDevedor(order.id, order.total, order.paymentStatus, order.number);
+        if (saldo > 0) {
+          const entry: FinancialEntry = {
+            id: crypto.randomUUID(),
+            type: 'receita',
+            description: `Pagamento total - ${order.number} - ${order.clientName}`,
+            amount: saldo, // Apenas o saldo devedor restante
+            category: 'Venda de Produtos',
+            date: new Date().toISOString().split('T')[0],
+            status: 'pago',
+            orderId: order.id,
+            orderNumber: order.number,
+            clientId: order.clientId,
+            clientName: order.clientName,
+            paymentMethod: order.paymentMethod || 'Pix',
+            receiptUrls: order.receiptUrls || [], // 🔥 COPIA OS COMPROVANTES DO PEDIDO PARA O LANÇAMENTO
+            transactionId: (order as any).transactionId,
+            cardLastDigits: (order as any).cardLastDigits,
+            createdAt: new Date().toISOString(),
+          };
 
-        await addFinancialEntry(entry);
+          await addFinancialEntry(entry);
+        }
+        await updateOrderStatus(orderId, nextStatus, { paymentStatus: 'pago', statusPagamento: 'pago', financeiroAprovado: true }, 'Financeiro', `Pagamento: ${actionText}`);
       }
-      await updateOrderStatus(orderId, nextStatus, { paymentStatus: 'pago', statusPagamento: 'pago', financeiroAprovado: true }, 'Financeiro', `Pagamento: ${actionText}`);
     }
 
     setSelectedOrderId(null);

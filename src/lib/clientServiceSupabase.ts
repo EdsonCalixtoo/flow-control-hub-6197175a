@@ -117,24 +117,37 @@ export const fetchClients = async (): Promise<Client[]> => {
       userRole === 'producao' ||
       userRole === 'garantia';
     
-    if (!isExempt) {
-      console.log('[Clients] 🔒 Aplicando isolamento rigoroso por proprietário');
-      query = query.eq('user_id', userId);
-    } else {
+    let allData: any[] = [];
+    const ranges = [
+      [0, 999], [1000, 1999], [2000, 2999], [3000, 3999], [4000, 4999],
+      [5000, 5999], [6000, 6999], [7000, 7999], [8000, 8999], [9000, 9999]
+    ];
+
+    const buildQuery = (start: number, end: number) => {
+      let q = supabase.from('clients').select(CLIENT_LIST_COLUMNS);
+      if (!isExempt) {
+        q = q.eq('user_id', userId);
+      }
+      return q.order('name', { ascending: true }).range(start, end);
+    };
+
+    if (isExempt) {
       console.log('[Clients] 🔓 Visibilidade total habilitada para:', userEmail || userRole);
+    } else {
+      console.log('[Clients] 🔒 Aplicando isolamento rigoroso por proprietário');
     }
 
-    const { data, error } = await query
-      .order('name', { ascending: true })
-      .limit(5000);
+    const results = await Promise.all(ranges.map(r => buildQuery(r[0], r[1])));
 
-    if (error) {
-      console.error('[Clients] ❌ Erro ao buscar clientes:', error.message);
-      console.log('[Clients] 🔍 Query que falhou - userId:', userId, 'Role:', userRole);
-      return [];
+    for (const res of results) {
+      if (res.error) {
+        console.error('[Clients] ❌ Erro ao buscar clientes na range:', res.error.message);
+      } else if (res.data) {
+        allData = [...allData, ...res.data];
+      }
     }
 
-    const clients = (data || []).map(supabaseToClient);
+    const clients = allData.map(supabaseToClient);
     console.log(`[Clients] ✅ Clientes carregados para ${userEmail}:`, clients.length);
     return clients;
   } catch (err: any) {
@@ -215,7 +228,8 @@ export const updateClient = async (client: Client): Promise<Client | null> => {
       userEmail === 'edsoncalixto@gmail.com' ||
       userRole === 'admin' || 
       userRole === 'gestor' || 
-      userRole === 'super_admin';
+      userRole === 'super_admin' ||
+      userRole === 'vendedor';
 
     const { data, error } = await supabase.from('clients').update(clientData).eq('id', client.id).select().single();
 
@@ -249,7 +263,8 @@ export const deleteClient = async (clientId: string): Promise<boolean> => {
       userEmail === 'edsoncalixto@gmail.com' ||
       userRole === 'admin' || 
       userRole === 'gestor' || 
-      userRole === 'super_admin';
+      userRole === 'super_admin' ||
+      userRole === 'vendedor';
 
     let query = supabase.from('clients').delete().eq('id', clientId);
 
@@ -295,7 +310,8 @@ export const getClientById = async (clientId: string): Promise<Client | null> =>
       userRole === 'gestor' || 
       userRole === 'super_admin' ||
       userRole === 'financeiro' ||
-      userRole === 'producao';
+      userRole === 'producao' ||
+      userRole === 'vendedor';
 
     if (!isExempt) {
       query = query.eq('user_id', userId);
@@ -339,7 +355,8 @@ export const searchClientsByEmail = async (email: string): Promise<Client[]> => 
       userRole === 'gestor' || 
       userRole === 'super_admin' ||
       userRole === 'financeiro' ||
-      userRole === 'producao';
+      userRole === 'producao' ||
+      userRole === 'vendedor';
 
     if (!isExempt) {
       query = query.eq('user_id', userId);
@@ -386,7 +403,8 @@ export const searchClientsByName = async (name: string): Promise<Client[]> => {
       userRole === 'gestor' || 
       userRole === 'super_admin' ||
       userRole === 'financeiro' ||
-      userRole === 'producao';
+      userRole === 'producao' ||
+      userRole === 'vendedor';
 
     if (!isExempt) {
       query = query.eq('user_id', userId);

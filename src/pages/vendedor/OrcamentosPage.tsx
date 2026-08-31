@@ -1257,7 +1257,7 @@ const OrcamentosPage: React.FC = () => {
     
     const selectedClient = clients.find(c => c.id === newClientId);
     const clientDebt = selectedClient?.consignado ? orders
-      .filter(o => o.clientId === newClientId && o.status !== 'rejeitado_financeiro')
+      .filter(o => o.clientId === newClientId && !['rascunho', 'enviado', 'aprovado_cliente', 'aguardando_financeiro', 'rejeitado_financeiro'].includes(o.status))
       .reduce((sum, o) => sum + getSaldoDevedor(o.id, o.total, financialEntries, o.paymentStatus, o.number), 0)
       : 0;
     const hasDebtBlock = !bypassDebtBlock && clientDebt > 0 && selectedClient?.consignado;

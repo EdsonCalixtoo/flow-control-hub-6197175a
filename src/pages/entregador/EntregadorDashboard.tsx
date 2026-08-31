@@ -178,7 +178,22 @@ export default function EntregadorDashboard() {
                         {pedido.customDeliveryAddress && (
                           <div className="flex items-start gap-1 mt-2 text-[10px] text-slate-500">
                             <MapPin className="w-3 h-3 mt-0.5 shrink-0" />
-                            <span className="line-clamp-1">{pedido.customDeliveryAddress}</span>
+                            <span className="line-clamp-1">
+                              {(() => {
+                                try {
+                                  const customObj = JSON.parse(pedido.customDeliveryAddress);
+                                  const parts = [];
+                                  if (customObj.logradouro) parts.push(customObj.logradouro);
+                                  if (customObj.numero) parts.push(`Nº ${customObj.numero}`);
+                                  if (customObj.complemento) parts.push(customObj.complemento);
+                                  if (customObj.bairro) parts.push(customObj.bairro);
+                                  if (customObj.localidade && customObj.uf) parts.push(`${customObj.localidade} - ${customObj.uf}`);
+                                  return parts.join(', ');
+                                } catch (e) {
+                                  return pedido.customDeliveryAddress;
+                                }
+                              })()}
+                            </span>
                           </div>
                         )}
                       </div>

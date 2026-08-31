@@ -469,6 +469,7 @@ const PedidosProducaoPage: React.FC = () => {
                 const addressParts = [];
                 if (customObj.logradouro) addressParts.push(customObj.logradouro);
                 if (customObj.numero) addressParts.push(`Nº ${customObj.numero}`);
+                if (customObj.complemento) addressParts.push(customObj.complemento);
                 if (customObj.bairro) addressParts.push(customObj.bairro);
                 if (customObj.localidade && customObj.uf) addressParts.push(`${customObj.localidade} - ${customObj.uf}`);
                 if (customObj.cep) finalCep = customObj.cep;

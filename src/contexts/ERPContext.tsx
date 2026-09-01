@@ -17,7 +17,7 @@ import {
   fetchProductionDailyClosures, createProductionDailyClosureSupabase
 } from '@/lib/gestorServiceSupabase';
 import { fetchWarranties, createWarranty as createWarrantySupabase, updateWarranty as updateWarrantySupabase } from '@/lib/warrantyServiceSupabase';
-import { fetchMonthlyClosings, createMonthlyClosing } from '@/lib/fechamentoServiceSupabase';
+import { fetchMonthlyClosings, createMonthlyClosing, deleteMonthlyClosing } from '@/lib/fechamentoServiceSupabase';
 import { logAction } from '@/lib/loggingService';
 
 import type { MonthlyClosing } from '@/types/erp';
@@ -81,6 +81,7 @@ interface ERPContextType {
   // monthly closings
   monthlyClosings: MonthlyClosing[];
   closeMonth: (closing: Omit<MonthlyClosing, 'id' | 'createdAt'>) => Promise<void>;
+  deleteMonthClosing: (id: string) => Promise<void>;
   // production daily closures
   productionDailyClosures: ProductionDailyClosure[];
   addProductionDailyClosure: (closure: Omit<ProductionDailyClosure, 'id' | 'createdAt'>) => Promise<void>;
@@ -1204,9 +1205,22 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setMonthlyClosings(prev => [newClosing, ...prev]);
         toast.success(`Mês ${closing.referenceMonth} fechado para ${closing.sellerName}`);
       }
-    } catch (err: any) {
-      console.error('[ERP] Erro ao fechar mês:', err.message);
-      toast.error('Erro ao fechar mês.');
+    } catch (error) {
+      toast.error('Erro ao fechar o mês');
+    }
+  }, []);
+
+  const deleteMonthClosing = useCallback(async (id: string) => {
+    try {
+      const success = await deleteMonthlyClosing(id);
+      if (success) {
+        setMonthlyClosings(prev => prev.filter(m => m.id !== id));
+        toast.success('Fechamento cancelado com sucesso.');
+      } else {
+        toast.error('Erro ao cancelar o fechamento no banco de dados.');
+      }
+    } catch (error) {
+      toast.error('Erro ao cancelar o fechamento');
     }
   }, []);
 
@@ -1264,7 +1278,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       warranties, addWarranty, updateWarrantyStatus, editWarranty,
       addProduct, updateProduct, deleteProduct, deleteClient, addDelayReport, markDelayReportRead, clearAll,
       loadFromSupabase, loadBarcodeScans, loadOrderDetails, injectOrdersIntoCache, loadOrderByNumber,
-      monthlyClosings, closeMonth,
+      monthlyClosings, closeMonth, deleteMonthClosing,
       productionDailyClosures, addProductionDailyClosure
     }}>
       {children}

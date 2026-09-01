@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { formatCurrency } from '@/components/shared/StatusBadge';
-import { Search, TrendingUp, Eye, ArrowLeft, Lock, History, CheckCircle2, AlertCircle, Calendar, Download, FileText, Loader2, RefreshCcw } from 'lucide-react';
+import { Search, TrendingUp, Eye, ArrowLeft, Lock, History, CheckCircle2, AlertCircle, Calendar, Download, FileText, Loader2, RefreshCcw, Trash2 } from 'lucide-react';
 import type { Order, MonthlyClosing } from '@/types/erp';
 import { toast } from 'sonner';
 import { generateClosingPDF, generateSellerItemsPDF } from '@/lib/pdfClosingGenerator';
@@ -9,7 +9,7 @@ import { uploadToR2 } from '@/lib/storageServiceR2';
 import { updateMonthlyClosing } from '@/lib/fechamentoServiceSupabase';
 
 const VendedoresControlPage: React.FC = () => {
-  const { orders, clients, financialEntries, monthlyClosings, closeMonth } = useERP();
+  const { orders, clients, financialEntries, monthlyClosings, closeMonth, deleteMonthClosing } = useERP();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSeller, setSelectedSeller] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<'totalVendas' | 'qtdPedidos' | 'name' | 'totalProdutos'>('totalVendas');
@@ -61,12 +61,9 @@ const VendedoresControlPage: React.FC = () => {
       pedidosEntregues: number;
       valorMedio: number;
       valoresEmAberto: number;
-      kitsComSensor: number;
-      kitsSemSensor: number;
-      kitsDtp: number;
-      estribos: number;
-      carenagem: number;
+      totalKits: number;
       totalProdutos: number;
+      pecasDescriminadas: Record<string, number>;
       premios: number;
       others: number;
       lastClosingDate: Date | null;
@@ -98,12 +95,9 @@ const VendedoresControlPage: React.FC = () => {
           pedidosEntregues: 0,
           valorMedio: 0,
           valoresEmAberto: 0,
-          kitsComSensor: 0,
-          kitsSemSensor: 0,
-          kitsDtp: 0,
-          estribos: 0,
-          carenagem: 0,
+          totalKits: 0,
           totalProdutos: 0,
+          pecasDescriminadas: {},
           premios: 0,
           others: 0,
           lastClosingDate: getLastClosingDate(sellerId as string, order.sellerName),
@@ -129,44 +123,27 @@ const VendedoresControlPage: React.FC = () => {
         order.items.forEach(item => {
           const prodName = (item.product || '').toUpperCase();
           const desc = (item.description || '').toUpperCase();
-          const isFree = item.isReward || 
-                         prodName.includes('PRÊMIO') || prodName.includes('PREMIO') ||
-                         desc.includes('PRÊMIO') || desc.includes('PREMIO') ||
-                         ((Number(item.unitPrice) === 0 || Number(item.total) === 0) && 
-                          (prodName.includes('KIT') || prodName.includes('CÂMERA') || prodName.includes('CAMERA')) && 
-                          !order.isWarranty);
+          const isFreeOrWarranty = item.isReward || order.isWarranty || Number(item.unitPrice) === 0 || Number(item.total) === 0 || prodName.includes('PRÊMIO') || prodName.includes('PREMIO') || desc.includes('PRÊMIO') || desc.includes('PREMIO');
 
-          if (isFree) {
-            stats[key].premios += item.quantity;
-            // ❌ Premiação não entra na contagem de "Total de Produtos" (Regra Estrita)
-          } else {
-            const prodName = item.product.toUpperCase();
-            const isEstribo = prodName.includes('ESTRIBO');
-            const isKit = prodName.includes('KIT') || prodName.includes('DTP');
-            const isCarenagem = prodName.includes('CARENAGEM');
-            const isHigor = key.toUpperCase().includes('HIGOR');
-            
-            if (isEstribo) {
-              stats[key].estribos += item.quantity;
-              stats[key].totalProdutos += item.quantity; // ✅ Entra na contagem
-            } else if (isCarenagem && isHigor) {
-              stats[key].carenagem += item.quantity;
-              stats[key].totalProdutos += item.quantity; // ✅ Entra na contagem
-            } else if (isKit) {
-              const hasSensorRef = item.sensorType === 'com_sensor' || prodName.includes('.A') || prodName.includes('COM SENSOR');
-              if (prodName.includes('DTP')) {
-                stats[key].kitsDtp += item.quantity;
-              } else if (hasSensorRef) {
-                stats[key].kitsComSensor += item.quantity;
-              } else {
-                stats[key].kitsSemSensor += item.quantity;
-              }
-              stats[key].totalProdutos += item.quantity; // ✅ Entra na contagem
-            } else {
-              // ❌ Qualquer outro produto pago (Others) não entra na contagem de "Total de Produtos"
-              stats[key].others += item.quantity;
-            }
+          if (isFreeOrWarranty) {
+            // Garantia e brinde não devem ser contabilizados e nem aparecer.
+            return;
           }
+
+          const isKit = prodName.includes('KIT') || prodName.includes('DTP');
+          
+          if (isKit) {
+            stats[key].totalKits += item.quantity;
+          }
+          
+          let finalProductName = item.product;
+          if (isKit && item.sensorType) {
+             if (item.sensorType === 'com_sensor') finalProductName += ' COM SENSOR';
+             else if (item.sensorType === 'sem_sensor') finalProductName += ' SEM SENSOR';
+          }
+
+          stats[key].pecasDescriminadas[finalProductName] = (stats[key].pecasDescriminadas[finalProductName] || 0) + item.quantity;
+          stats[key].totalProdutos += item.quantity;
         });
 
         if (order.status === 'aguardando_financeiro') stats[key].pedidosAguardandoFinanceiro += 1;
@@ -218,12 +195,8 @@ const VendedoresControlPage: React.FC = () => {
       `📦 Total Vendido: ${formatCurrency(seller.totalVendas)}\n` +
       `📋 Pedidos: ${seller.qtdPedidos}\n` +
       `📦 Total de Produtos: ${seller.totalProdutos}\n` +
-      `📡 Kits Com Sensor: ${seller.kitsComSensor}\n` +
-      `📦 Kits Sem Sensor: ${seller.kitsSemSensor}\n` +
-      `📦 Kits DTP: ${seller.kitsDtp}\n` +
-      `🪜 Estribos: ${seller.estribos}\n` +
-      (seller.name.toUpperCase().includes('HIGOR') ? `🏍️ Carenagem: ${seller.carenagem}\n` : '') +
-      `📦 Outros Itens: ${seller.others}\n` +
+      `📦 Total de Kits: ${seller.totalKits}\n` +
+      `🧩 Peças Diversas: ${Object.keys(seller.pecasDescriminadas).length}\n` +
       `🎁 Premiações: ${seller.premios}`;
     
     if (!window.confirm(confirmMsg)) return;
@@ -239,14 +212,10 @@ const VendedoresControlPage: React.FC = () => {
       totalSold: seller.totalVendas,
       orderCount: seller.qtdPedidos,
       outstandingValue: seller.valoresEmAberto,
-      kitsComSensor: seller.kitsComSensor,
-      kitsSemSensor: seller.kitsSemSensor,
-      kitsDtp: seller.kitsDtp,
+      totalKits: seller.totalKits,
       premios: seller.premios,
       totalProducts: seller.totalProdutos,
-      estribos: seller.estribos,
-      carenagem: seller.carenagem,
-      others: seller.others
+      pecasDescriminadas: seller.pecasDescriminadas
     }, true); // Já baixa para o usuário ter a cópia dele
 
     // 2. Sobe para o R2 para persistência eterna
@@ -271,14 +240,10 @@ const VendedoresControlPage: React.FC = () => {
       details: {
         lastClosing: seller.lastClosingDate?.toISOString() || 'Início',
         calculatedAt: now.toISOString(),
-        kitsComSensor: seller.kitsComSensor,
-        kitsSemSensor: seller.kitsSemSensor,
-        kitsDtp: seller.kitsDtp,
+        totalKits: seller.totalKits,
         premios: seller.premios,
         totalItems: seller.totalProdutos,
-        estribos: seller.estribos,
-        carenagem: seller.carenagem,
-        others: seller.others,
+        pecasDescriminadas: seller.pecasDescriminadas,
         pdfUrl: pdfUrl
       }
     };
@@ -300,16 +265,20 @@ const VendedoresControlPage: React.FC = () => {
       
       if (isAfterClosing) {
         order.items.forEach(item => {
-          const isFree = item.isReward || Number(item.unitPrice) === 0 || Number(item.total) === 0;
+          const prodName = (item.product || '').toUpperCase();
+          const desc = (item.description || '').toUpperCase();
+          const isFreeOrWarranty = item.isReward || order.isWarranty || Number(item.unitPrice) === 0 || Number(item.total) === 0 || prodName.includes('PRÊMIO') || prodName.includes('PREMIO') || desc.includes('PRÊMIO') || desc.includes('PREMIO');
           
-          itemsToPrint.push({
-            product: item.product,
-            quantity: item.quantity,
-            orderNumber: order.number,
-            clientName: order.clientName,
-            date: new Date(order.createdAt).toLocaleDateString('pt-BR'),
-            isReward: isFree
-          });
+          if (!isFreeOrWarranty) {
+            itemsToPrint.push({
+              product: item.product,
+              quantity: item.quantity,
+              orderNumber: order.number,
+              clientName: order.clientName,
+              date: new Date(order.createdAt).toLocaleDateString('pt-BR'),
+              isReward: false
+            });
+          }
         });
       }
     });
@@ -352,21 +321,18 @@ const VendedoresControlPage: React.FC = () => {
         order.items.forEach(item => {
           const prodName = (item.product || '').toUpperCase();
           const desc = (item.description || '').toUpperCase();
-          const isFree = item.isReward || 
-                         prodName.includes('PRÊMIO') || prodName.includes('PREMIO') ||
-                         desc.includes('PRÊMIO') || desc.includes('PREMIO') ||
-                         ((Number(item.unitPrice) === 0 || Number(item.total) === 0) && 
-                          (prodName.includes('KIT') || prodName.includes('CÂMERA') || prodName.includes('CAMERA')) && 
-                          !order.isWarranty);
+          const isFreeOrWarranty = item.isReward || order.isWarranty || Number(item.unitPrice) === 0 || Number(item.total) === 0 || prodName.includes('PRÊMIO') || prodName.includes('PREMIO') || desc.includes('PRÊMIO') || desc.includes('PREMIO');
           
-          itemsToPrint.push({
-            product: item.product,
-            quantity: item.quantity,
-            orderNumber: order.number,
-            clientName: order.clientName,
-            date: orderDate.toLocaleDateString('pt-BR'),
-            isReward: isFree
-          });
+          if (!isFreeOrWarranty) {
+            itemsToPrint.push({
+              product: item.product,
+              quantity: item.quantity,
+              orderNumber: order.number,
+              clientName: order.clientName,
+              date: orderDate.toLocaleDateString('pt-BR'),
+              isReward: false
+            });
+          }
         });
       }
     });
@@ -412,13 +378,9 @@ const VendedoresControlPage: React.FC = () => {
       let valoresEmAberto = 0;
 
       let totalProdutos = 0;
-      let estribos = 0;
-      let kitsCom = 0;
-      let kitsSem = 0;
-      let kitsDtp = 0;
-      let carenagem = 0;
+      let totalKits = 0;
+      let pecasDescriminadas: Record<string, number> = {};
       let premios = 0;
-      let others = 0;
 
       const isHigor = closing.sellerName.toUpperCase().includes('HIGOR');
 
@@ -445,47 +407,27 @@ const VendedoresControlPage: React.FC = () => {
         order.items.forEach(item => {
           const prodName = (item.product || '').toUpperCase();
           const desc = (item.description || '').toUpperCase();
-          const isFree = item.isReward || 
-                         prodName.includes('PRÊMIO') || prodName.includes('PREMIO') ||
-                         desc.includes('PRÊMIO') || desc.includes('PREMIO') ||
-                         ((Number(item.unitPrice) === 0 || Number(item.total) === 0) && 
-                          (prodName.includes('KIT') || prodName.includes('CÂMERA') || prodName.includes('CAMERA')) && 
-                          !order.isWarranty);
+          const isFreeOrWarranty = item.isReward || order.isWarranty || Number(item.unitPrice) === 0 || Number(item.total) === 0 || prodName.includes('PRÊMIO') || prodName.includes('PREMIO') || desc.includes('PRÊMIO') || desc.includes('PREMIO');
 
-          if (isFree) {
-              premios += item.quantity;
-            } else {
-              const prodName = item.product.toUpperCase();
-              if (prodName.includes('ESTRIBO')) {
-                estribos += item.quantity;
-                totalProdutos += item.quantity;
-              } else if (prodName.includes('CARENAGEM') && isHigor) {
-                carenagem += item.quantity;
-                totalProdutos += item.quantity;
-              } else if (prodName.includes('KIT') || prodName.includes('DTP')) {
-                const hasSensorRef = item.sensorType === 'com_sensor' || prodName.includes('.A') || prodName.includes('COM SENSOR');
-                if (prodName.includes('DTP')) kitsDtp += item.quantity;
-                else if (hasSensorRef) kitsCom += item.quantity;
-                else kitsSem += item.quantity;
-                totalProdutos += item.quantity;
-              } else {
-                others += item.quantity;
-                // 'others' pagos não entram no 'totalProdutos' principal
-              }
-            }
-          });
+          if (isFreeOrWarranty) return;
+
+          const isKit = prodName.includes('KIT') || prodName.includes('DTP');
+          if (isKit) {
+            totalKits += item.quantity;
+            totalProdutos += item.quantity;
+          } else {
+            pecasDescriminadas[item.product] = (pecasDescriminadas[item.product] || 0) + item.quantity;
+            totalProdutos += item.quantity;
+          }
+        });
         }
       });
 
       const updatedDetails = {
         ...closing.details,
         totalItems: totalProdutos,
-        estribos,
-        others,
-        kitsComSensor: kitsCom || closing.details?.kitsComSensor || 0,
-        kitsSemSensor: kitsSem || closing.details?.kitsSemSensor || 0,
-        kitsDtp: kitsDtp || closing.details?.kitsDtp || 0,
-        carenagem: carenagem || closing.details?.carenagem || 0,
+        totalKits,
+        pecasDescriminadas,
         premios: premios || closing.details?.premios || 0
       };
 
@@ -855,27 +797,7 @@ const VendedoresControlPage: React.FC = () => {
       ) : (
         /* HISTÓRICO DE FECHAMENTOS */
         <div className="space-y-6 animate-fade-in">
-           {monthlyClosings.length > 0 && (
-             <div className="p-4 bg-primary/5 border border-primary/20 rounded-2xl flex items-center justify-between flex-wrap gap-4 mb-6">
-                <div className="flex items-center gap-3">
-                   <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                      <AlertCircle className="w-5 h-5" />
-                   </div>
-                   <div>
-                      <p className="text-sm font-black text-foreground uppercase tracking-tight">Atualizar Todos os Relatórios Antigos</p>
-                      <p className="text-xs text-muted-foreground">Clique para recalcular todo o histórico usando as novas regras (Tudo enviado + Valor 0,00).</p>
-                   </div>
-                </div>
-                <button
-                  onClick={() => handleFixOldClosings()}
-                  disabled={isFixing}
-                  className="btn-modern bg-primary text-white text-xs font-black shadow-lg shadow-primary/20"
-                >
-                  {isFixing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCcw className="w-4 h-4 mr-2" />}
-                  RECALCULAR TUDO AGORA
-                </button>
-             </div>
-           )}
+
            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {monthlyClosings.length === 0 ? (
                 <div className="col-span-full py-20 text-center glass-card border-dashed">
@@ -894,7 +816,7 @@ const VendedoresControlPage: React.FC = () => {
                            <span className="text-[10px] font-black bg-muted px-2 py-1 rounded text-muted-foreground uppercase tracking-widest border border-border/40 mb-2">
                              Ref: {closing.referenceMonth}
                            </span>
-                           <div className="flex gap-2">
+                            <div className="flex gap-2">
                               <button
                                 onClick={() => handlePrintHistoricalItems(closing)}
                                 className="w-8 h-8 rounded-lg bg-info/10 text-info flex items-center justify-center hover:bg-info hover:text-white transition-all shadow-sm"
@@ -913,20 +835,34 @@ const VendedoresControlPage: React.FC = () => {
                                     totalSold: closing.totalSold,
                                     orderCount: closing.orderCount,
                                     outstandingValue: closing.outstandingValue,
-                                    kitsComSensor: closing.details?.kitsComSensor || 0,
-                                    kitsSemSensor: closing.details?.kitsSemSensor || 0,
-                                    kitsDtp: closing.details?.kitsDtp || 0,
-                                    carenagem: closing.details?.carenagem || 0,
+                                    totalKits: closing.details?.totalKits || closing.details?.kitsComSensor || 0,
                                     premios: closing.details?.premios || 0,
                                     totalProducts: closing.details?.totalItems || 0,
-                                    estribos: closing.details?.estribos || 0,
-                                    others: closing.details?.others || 0
-                                  });
+                                    pecasDescriminadas: closing.details?.pecasDescriminadas || {
+                                        'Kits Com Sensor': closing.details?.kitsComSensor || 0,
+                                        'Kits Sem Sensor': closing.details?.kitsSemSensor || 0,
+                                        'Kits DTP': closing.details?.kitsDtp || 0,
+                                        'Estribos': closing.details?.estribos || 0,
+                                        'Carenagem': closing.details?.carenagem || 0,
+                                        'Outros': closing.details?.others || 0
+                                    }
+                                  }, true);
                                 }}
                                 className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
                                 title="Gerar PDF Atualizado"
                               >
                                 <Download className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  if (window.confirm(`Tem certeza que deseja cancelar o fechamento de ${closing.referenceMonth} do vendedor ${closing.sellerName}?`)) {
+                                    await deleteMonthClosing(closing.id);
+                                  }
+                                }}
+                                className="w-8 h-8 rounded-lg bg-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive hover:text-white transition-all shadow-sm"
+                                title="Cancelar Fechamento"
+                              >
+                                <Trash2 className="w-4 h-4" />
                               </button>
                            </div>
                          </div>

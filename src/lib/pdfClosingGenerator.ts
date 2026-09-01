@@ -8,14 +8,10 @@ export interface ClosingPdfData {
   totalSold: number;
   orderCount: number;
   outstandingValue: number;
-  kitsComSensor: number;
-  kitsSemSensor: number;
-  kitsDtp: number;
+  totalKits: number;
   premios: number;
   totalProducts: number;
-  estribos: number;
-  carenagem: number;
-  others: number;
+  pecasDescriminadas: Record<string, number>;
 }
 
 export const generateClosingPDF = (data: ClosingPdfData, shouldDownload: boolean = true): Blob => {
@@ -83,14 +79,12 @@ export const generateClosingPDF = (data: ClosingPdfData, shouldDownload: boolean
   doc.text(new Date(data.closingDate).toLocaleString('pt-BR'), 65, 85);
 
   // 3. Performance Grid (Modern Cards)
-  const isHigor = data.sellerName.toUpperCase().includes('HIGOR');
-  
   let extraLines = 0;
-  if (isHigor) extraLines++;
-  if (data.others > 0) extraLines++;
+  const pecasEntries = Object.entries(data.pecasDescriminadas || {});
+  extraLines += pecasEntries.length;
   if (data.premios > 0) extraLines++;
   
-  const boxHeight = 55 + (extraLines * 9);
+  const boxHeight = 45 + (extraLines * 9);
 
   doc.setFillColor(accentColor[0], accentColor[1], accentColor[2]);
   doc.roundedRect(20, 100, 80, boxHeight, 4, 4, 'F');
@@ -134,33 +128,18 @@ export const generateClosingPDF = (data: ClosingPdfData, shouldDownload: boolean
   doc.setFont('helvetica', 'bold');
   doc.text(data.totalProducts.toString(), 185, 117, { align: 'right' });
   
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9); // Font smaller for components
-  doc.text('Kits c/ Sensor', 115, 126);
-  doc.text(data.kitsComSensor.toString(), 185, 126, { align: 'right' });
+  doc.text('Total de Kits', 115, 126);
+  doc.text(data.totalKits.toString(), 185, 126, { align: 'right' });
   
-  doc.text('Kits s/ Sensor', 115, 135);
-  doc.text(data.kitsSemSensor.toString(), 185, 135, { align: 'right' });
-  
-  doc.text('Kits DTP', 115, 144);
-  doc.text(data.kitsDtp.toString(), 185, 144, { align: 'right' });
+  let currentY = 135;
 
-  doc.text('Estribos', 115, 153);
-  doc.text(data.estribos.toString(), 185, 153, { align: 'right' });
-
-  let currentY = 162;
-  if (isHigor) {
-    doc.text('Carenagem', 115, currentY);
-    doc.text(data.carenagem.toString(), 185, currentY, { align: 'right' });
+  pecasEntries.forEach(([pecaNome, qtd]) => {
+    // Truncar o nome da peça para caber no PDF
+    const nomeCurto = pecaNome.length > 20 ? pecaNome.substring(0, 18) + '...' : pecaNome;
+    doc.text(nomeCurto, 115, currentY);
+    doc.text(qtd.toString(), 185, currentY, { align: 'right' });
     currentY += 9;
-  }
-
-  if (data.others > 0) {
-    doc.setTextColor(220, 38, 38); // Vermelho
-    doc.text('Outros Itens', 115, currentY);
-    doc.text(data.others.toString(), 185, currentY, { align: 'right' });
-    currentY += 9;
-  }
+  });
 
   if (data.premios > 0) {
     doc.setTextColor(234, 179, 8); // Amarelo

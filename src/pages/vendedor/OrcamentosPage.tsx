@@ -508,7 +508,8 @@ const OrcamentosPage: React.FC = () => {
   }, [search, filtered.length, loadOrderByNumber]);
 
   const summary = useMemo(() => {
-    let vendidos = 0;
+    let kitsVendidos = 0;
+    let pecasVendidas = 0;
     let rejeitados = 0;
     
     filtered.forEach(order => {
@@ -516,18 +517,26 @@ const OrcamentosPage: React.FC = () => {
       const isQuote = ['rascunho', 'enviado', 'aprovado_cliente'].includes(order.status);
       
       order.items.forEach(item => {
-        const isFree = item.isReward || Number(item.unitPrice) === 0 || Number(item.total) === 0;
-        if (isFree) return; // Skip rewards
+        const prodName = (item.product || '').toUpperCase();
+        const desc = (item.description || '').toUpperCase();
+        const isFreeOrWarranty = item.isReward || order.isWarranty || Number(item.unitPrice) === 0 || Number(item.total) === 0 || prodName.includes('PRÊMIO') || prodName.includes('PREMIO') || desc.includes('PRÊMIO') || desc.includes('PREMIO');
 
-        const prodName = item.product.toUpperCase();
-        if (prodName.includes('KIT') || prodName.includes('ESTRIBO')) {
-           if (isRejected) rejeitados += item.quantity;
-           else if (!isQuote) vendidos += item.quantity;
+        if (isFreeOrWarranty) return;
+
+        if (isRejected) {
+           rejeitados += item.quantity;
+        } else if (!isQuote) {
+           const isKit = prodName.includes('KIT') || prodName.includes('DTP');
+           if (isKit) {
+             kitsVendidos += item.quantity;
+           } else {
+             pecasVendidas += item.quantity;
+           }
         }
       });
     });
     
-    return { vendidos, rejeitados };
+    return { kitsVendidos, pecasVendidas, rejeitados };
   }, [filtered]);
 
   // Envia para o financeiro — apenas via botão explícito
@@ -2298,7 +2307,7 @@ const OrcamentosPage: React.FC = () => {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 px-1">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6 px-1">
         <div className="glass-card p-6 rounded-3xl border-white/40 shadow-xl space-y-1">
           <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Total {viewCycle === 'atual' ? 'em Aberto' : 'do Histórico'}</p>
           <p className="text-2xl font-black text-foreground">{formatCurrency(filtered.reduce((s, o) => s + o.total, 0))}</p>
@@ -2308,8 +2317,12 @@ const OrcamentosPage: React.FC = () => {
           <p className="text-2xl font-black text-foreground">{filtered.length}</p>
         </div>
         <div className="glass-card p-6 rounded-3xl border-white/40 shadow-xl space-y-1 border-l-4 border-l-success">
-          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Itens Vendidos</p>
-          <p className="text-2xl font-black text-foreground">{summary.vendidos}</p>
+          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Kits Vendidos</p>
+          <p className="text-2xl font-black text-foreground">{summary.kitsVendidos}</p>
+        </div>
+        <div className="glass-card p-6 rounded-3xl border-white/40 shadow-xl space-y-1 border-l-4 border-l-success">
+          <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Peças Vendidas</p>
+          <p className="text-2xl font-black text-foreground">{summary.pecasVendidas}</p>
         </div>
         <div className="glass-card p-6 rounded-3xl border-white/40 shadow-xl space-y-1 border-l-4 border-l-destructive">
           <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Itens Rejeitados</p>

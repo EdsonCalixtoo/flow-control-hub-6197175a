@@ -94,3 +94,17 @@ export const updateMonthlyClosing = async (id: string, closing: Partial<MonthlyC
     createdAt: data.created_at
   };
 };
+
+export const deleteMonthlyClosing = async (id: string): Promise<boolean> => {
+  const { error } = await supabase
+    .from('monthly_closings')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting monthly closing:', error);
+    return false;
+  }
+
+  return true;
+};

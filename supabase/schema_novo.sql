@@ -5801,9 +5801,9 @@ ALTER TABLE public.system_logs ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY update_orders_by_role ON public.orders FOR UPDATE TO authenticated USING (((seller_id = (auth.uid())::text) OR (EXISTS ( SELECT 1
    FROM public.users
-  WHERE ((users.id = (auth.uid())::text) AND (users.role = ANY (ARRAY['producao'::text, 'financeiro'::text, 'gestor'::text, 'admin'::text]))))))) WITH CHECK (((seller_id = (auth.uid())::text) OR (EXISTS ( SELECT 1
+  WHERE ((users.id = (auth.uid())::text) AND (users.role = ANY (ARRAY['producao'::text, 'producao_carenagem'::text, 'financeiro'::text, 'gestor'::text, 'admin'::text, 'entregador'::text]))))))) WITH CHECK (((seller_id = (auth.uid())::text) OR (EXISTS ( SELECT 1
    FROM public.users
-  WHERE ((users.id = (auth.uid())::text) AND (users.role = ANY (ARRAY['producao'::text, 'financeiro'::text, 'gestor'::text, 'admin'::text])))))));
+  WHERE ((users.id = (auth.uid())::text) AND (users.role = ANY (ARRAY['producao'::text, 'producao_carenagem'::text, 'financeiro'::text, 'gestor'::text, 'admin'::text, 'entregador'::text])))))));
 
 
 --

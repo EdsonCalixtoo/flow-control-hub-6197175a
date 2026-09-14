@@ -134,7 +134,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       } catch (e: any) { console.warn('[ERP] ⚠️ Erro Produtos:', e.message); }
 
       try {
-        const supabaseOrders = await fetchOrders();
+        const supabaseOrders = await fetchOrders(user?.role, user?.id);
         setOrders(supabaseOrders);
         console.log('[ERP] ✅ Pedidos carregados');
       } catch (e: any) { console.warn('[ERP] ⚠️ Erro Pedidos:', e.message); }

@@ -655,6 +655,8 @@ ${etiquetasHtml}
         const isActuallyScanned = scannedOrderIds.has(o.id);
         const filterToUse = tipoFiltro === 'historico' ? 'historico' : statusFilter;
 
+        // 🔥 OTIMIZAÇÃO PARA GARANTIAS E EXTRAVIOS:
+        // Pedidos de garantia ou extravio devem permanecer no painel de produção até serem de fato retirados.
         const isSpecialOrder = o.isWarranty || (o.notes && /GARANTIA|EXTRAVIO|RETORNO/i.test(o.notes));
 
         // Pedido é considerado "Concluído" para a produção se já foi Finalizado, Liberado para entrega ou Retirado
@@ -667,14 +669,9 @@ ${etiquetasHtml}
         // 1. Estiver em um status finalizado (Finalizado, Liberado ou Retirado)
         // 2. OU tiver sido escaneado (para pedidos normais)
         // DESDE QUE não esteja em um fluxo ativo de produção novamente.
-        let isCompleted = false;
-        if (isSpecialOrder) {
-            isCompleted = !isInActiveFlux && o.status === 'retirado_entregador';
-        } else {
-            isCompleted = !isInActiveFlux && (
-                ['producao_finalizada', 'produto_liberado', 'retirado_entregador'].includes(o.status) || isActuallyScanned
-            );
-        }
+        const isCompleted = !isInActiveFlux && (
+            ['producao_finalizada', 'produto_liberado', 'retirado_entregador'].includes(o.status) || isActuallyScanned
+        );
 
         // No histórico, mostramos tudo que está concluído
         if (filterToUse === 'historico') return isCompleted;
@@ -712,8 +709,7 @@ ${etiquetasHtml}
         const scanTimestamp = Math.max(latestScanMap.get(o.id) || 0, latestScanMap.get(o.number?.trim().toUpperCase()) || 0);
         const scanDateStr = scanTimestamp ? new Date(scanTimestamp).toISOString().split('T')[0] : '';
 
-        const isSpecialOrder = o.isWarranty || (o.notes && /GARANTIA|EXTRAVIO|RETORNO/i.test(o.notes));
-        const matchDate = !selectedDate || isSpecialOrder || (
+        const matchDate = !selectedDate || (
             o.scheduledDate === selectedDate ||
             o.deliveryDate === selectedDate ||
             o.installationDate === selectedDate ||
@@ -2707,7 +2703,6 @@ ${i.sensorType === 'com_sensor'
                     </div>
                 </div>
             </div>
-
 
             {showCalendar && (
                 <div className="card-section p-6 animate-in fade-in slide-in-from-top-4 duration-500">

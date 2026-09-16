@@ -66,7 +66,7 @@ DECLARE
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM public.users 
-    WHERE id = auth.uid() AND (role = 'admin' OR role = 'super_admin')
+    WHERE id = auth.uid()::text AND (role = 'admin' OR role = 'super_admin')
   ) THEN
     RAISE EXCEPTION 'Acesso negado. Apenas administradores podem alterar senhas.';
   END IF;
@@ -75,10 +75,6 @@ BEGIN
 
   UPDATE auth.users
   SET encrypted_password = hashed_password, updated_at = NOW()
-  WHERE id = target_user_id;
-
-  UPDATE public.users
-  SET password = hashed_password
   WHERE id = target_user_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -97,7 +93,7 @@ DECLARE
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM public.users 
-    WHERE id = auth.uid() AND (role = 'admin' OR role = 'super_admin')
+    WHERE id = auth.uid()::text AND (role = 'admin' OR role = 'super_admin')
   ) THEN
     RAISE EXCEPTION 'Acesso negado. Apenas administradores podem criar usuários.';
   END IF;
@@ -118,8 +114,8 @@ BEGIN
   )
   RETURNING id INTO new_user_id;
 
-  INSERT INTO public.users (id, email, name, role, password)
-  VALUES (new_user_id, user_email, user_name, user_role, hashed_password);
+  INSERT INTO public.users (id, email, name, role)
+  VALUES (new_user_id::text, user_email, user_name, user_role);
 
   RETURN new_user_id;
 END;
@@ -133,12 +129,12 @@ RETURNS VOID AS $$
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM public.users 
-    WHERE id = auth.uid() AND (role = 'admin' OR role = 'super_admin')
+    WHERE id = auth.uid()::text AND (role = 'admin' OR role = 'super_admin')
   ) THEN
     RAISE EXCEPTION 'Acesso negado. Apenas administradores podem excluir usuários.';
   END IF;
 
-  DELETE FROM public.users WHERE id = target_user_id;
+  DELETE FROM public.users WHERE id = target_user_id::text;
   DELETE FROM auth.users WHERE id = target_user_id;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;`;

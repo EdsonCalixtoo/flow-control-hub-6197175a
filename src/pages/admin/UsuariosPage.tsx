@@ -71,7 +71,7 @@ BEGIN
     RAISE EXCEPTION 'Acesso negado. Apenas administradores podem alterar senhas.';
   END IF;
 
-  hashed_password := crypt(new_password, gen_salt('bf', 10));
+  hashed_password := extensions.crypt(new_password, extensions.gen_salt('bf', 10));
 
   UPDATE auth.users
   SET encrypted_password = hashed_password, updated_at = NOW()
@@ -102,7 +102,7 @@ BEGIN
     RAISE EXCEPTION 'Acesso negado. Apenas administradores podem criar usuários.';
   END IF;
 
-  hashed_password := crypt(user_password, gen_salt('bf', 10));
+  hashed_password := extensions.crypt(user_password, extensions.gen_salt('bf', 10));
 
   INSERT INTO auth.users (
     instance_id, id, aud, role, email, encrypted_password,

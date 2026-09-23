@@ -1,6 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
 }
 
 datasource db {
@@ -228,6 +227,12 @@ model orders {
   attachment_url            String?
   attachment_name           String?
   is_international          Boolean?  @default(false)
+  delivery_method           String?   @default("proprio")
+  melhor_envio_order_id     String?
+  melhor_envio_tracking     String?
+  melhor_envio_label_url    String?
+  melhor_envio_status       String?
+  invoice_key               String?
   orders                    orders?   @relation("ordersToorders", fields: [parent_order_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
   other_orders              orders[]  @relation("ordersToorders")
 
@@ -329,4 +334,13 @@ model warranties {
   order_type        String?   @default("entrega")
   installation_date String?
   installation_time String?
+}
+
+model melhor_envio_boxes {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  height      Decimal   @db.Decimal
+  width       Decimal   @db.Decimal
+  length      Decimal   @db.Decimal
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
 }

@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import ModernCalendar from '@/components/shared/ModernCalendar';
 import type { ProductionStatus } from '@/types/erp';
 import { cleanR2Url } from '@/lib/storageServiceR2';
+import { supabase } from '@/lib/supabase';
 
 const ModernSelect: React.FC<{
     value: string;
@@ -218,6 +219,13 @@ const PedidosProducaoPage: React.FC = () => {
     const [actionType, setActionType] = useState<'iniciar' | 'finalizar' | null>(null);
     const [showUnifyDialog, setShowUnifyDialog] = useState(false);
     const [unifyChildren, setUnifyChildren] = useState<string[]>([]);
+    
+    // Melhor Envio
+    const [showMelhorEnvioModal, setShowMelhorEnvioModal] = useState(false);
+    const [orderForMelhorEnvio, setOrderForMelhorEnvio] = useState<any>(null);
+    const [isGeneratingLabel, setIsGeneratingLabel] = useState(false);
+    const [melhorEnvioVolumes, setMelhorEnvioVolumes] = useState([{ peso: '1', boxId: '' }]);
+    const [dbBoxes, setDbBoxes] = useState<any[]>([]);
     const [childInput, setChildInput] = useState('');
     const [parentInput, setParentInput] = useState('');
     const [isUnifying, setIsUnifying] = useState(false);
@@ -270,6 +278,22 @@ const PedidosProducaoPage: React.FC = () => {
             loadOrderDetails(viewOrderId);
         }
     }, [viewOrderId, loadOrderDetails]);
+
+    useEffect(() => {
+        const fetchBoxes = async () => {
+            try {
+                const { data } = await supabase.from('melhor_envio_boxes').select('*').order('created_at', { ascending: true });
+                if (data && data.length > 0) {
+                    setDbBoxes(data);
+                    // Update default boxId if empty
+                    setMelhorEnvioVolumes(prev => prev.map(v => ({ ...v, boxId: v.boxId || data[0].id })));
+                }
+            } catch (err) {
+                console.error("Erro ao carregar caixas:", err);
+            }
+        };
+        fetchBoxes();
+    }, []);
 
     useEffect(() => {
         if (guia) {
@@ -368,9 +392,25 @@ const PedidosProducaoPage: React.FC = () => {
 
     const formatDate = (d?: string) => fmtDate(d);
 
-    const printEtiqueta = (order: typeof orders[0]) => {
+    const printEtiquetaInterna = (order: typeof orders[0]) => {
         setOrderForPrint(order);
         setPrintVolumesInput('1');
+    };
+
+    const printEtiquetaMelhorEnvio = (order: typeof orders[0]) => {
+        if (!(order as any).invoiceKey || String((order as any).invoiceKey).trim().length !== 44) {
+            toast.error('O Financeiro ainda não anexou a Chave da NF-e para este pedido!');
+            return;
+        }
+        if (!order.melhor_envio_label_url) {
+            setOrderForMelhorEnvio(order);
+            setMelhorEnvioVolumes([{ peso: '1', boxId: dbBoxes[0]?.id || '' }]);
+            setShowMelhorEnvioModal(true);
+            return;
+        }
+        
+        // Se já tiver gerado, abre a URL diretamente
+        window.open(order.melhor_envio_label_url, '_blank');
     };
 
     const executePrintEtiqueta = async (order: typeof orders[0], volumes: number) => {
@@ -603,10 +643,68 @@ html, body { width: 100mm; font-family: 'Arial', 'Courier New', monospace; color
 .footer { text-align: center; font-size: 6pt; color: #000; margin-top: 1mm; font-weight: 700; border-top: 0.3mm solid #ccc; padding-top: 1mm; }
 </style></head><body>
 ${etiquetasHtml}
+`;
+
+        const finalHtml = html + `
 <script>window.onload = function() { setTimeout(function() { window.print(); setTimeout(window.close, 1000); }, 500); };</script>
 </body></html>`;
-        printWindow.document.write(html);
+
+        printWindow.document.write(finalHtml);
         printWindow.document.close();
+    };
+
+    const handleGerarEtiquetaMelhorEnvio = async () => {
+        if (!orderForMelhorEnvio) return;
+        
+        setIsGeneratingLabel(true);
+        try {
+            // Mapeia os volumes adicionando as medidas cadastradas no banco
+            const parsedVolumes = melhorEnvioVolumes.map(v => {
+                const box = dbBoxes.find(b => b.id === (v as any).boxId) || dbBoxes[0] || { height: 20, width: 20, length: 20 };
+                return {
+                    peso: parseFloat(v.peso) || 1,
+                    altura: parseFloat(box.height) || 20,
+                    largura: parseFloat(box.width) || 20,
+                    comprimento: parseFloat(box.length) || 20
+                };
+            });
+
+            // invoiceKey deve ter sido salva pelo Financeiro
+            const nfKey = orderForMelhorEnvio.invoiceKey;
+            
+            if (!nfKey || nfKey.length !== 44) {
+                toast.error('Chave de NF ausente ou inválida. O Financeiro precisa aprovar com a NF correta.');
+                setIsGeneratingLabel(false);
+                return;
+            }
+
+            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/melhor-envio/process-label/${orderForMelhorEnvio.id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    nfKey,
+                    volumes: parsedVolumes
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Falha ao gerar etiqueta no Melhor Envio');
+            }
+            
+            const data = await response.json();
+            if (data.labelUrl) {
+                await updateOrder(orderForMelhorEnvio.id, { melhor_envio_label_url: data.labelUrl });
+                toast.success('Etiqueta do Melhor Envio gerada com sucesso!');
+                setShowMelhorEnvioModal(false);
+                // Abre a etiqueta direto
+                window.open(data.labelUrl, '_blank');
+            }
+        } catch (error) {
+            console.error(error);
+            toast.error('Erro ao gerar etiqueta do Melhor Envio. Verifique as dimensões e pesos.');
+        } finally {
+            setIsGeneratingLabel(false);
+        }
     };
 
     const allOrders = orders.filter(o => {
@@ -829,7 +927,11 @@ ${etiquetasHtml}
         }, finishedBy, isFieldWork ? 'Produção finalizada e liberada para o campo' : 'Producao finalizada');
 
         if (!isFieldWork) {
-            printEtiqueta(order);
+            if (order.carrier === 'MELHOR ENVIO') {
+                printEtiquetaMelhorEnvio(order);
+            } else {
+                printEtiquetaInterna(order);
+            }
         } else {
             toast.success('Produção finalizada! Liberado para o campo.', {
                 duration: 5000,
@@ -1784,9 +1886,16 @@ ${etiquetasHtml}
                     <h1 className="page-header">Guia de Producao</h1>
                     <div className="flex gap-2">
                         {(guiaOrder.orderType === 'entrega' || guiaOrder.orderType === 'retirada') && (
-                            <button onClick={() => printEtiqueta(guiaOrder)} className="btn-primary">
-                                <Printer className="w-4 h-4" /> Imprimir Etiqueta
-                            </button>
+                            <div className="flex gap-2">
+                                <button onClick={() => printEtiquetaInterna(guiaOrder)} className="btn-modern bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                                    <Printer className="w-4 h-4" /> Etiqueta Interna
+                                </button>
+                                {guiaOrder.carrier === 'MELHOR ENVIO' && (
+                                    <button onClick={() => printEtiquetaMelhorEnvio(guiaOrder)} className="btn-primary">
+                                        <Printer className="w-4 h-4" /> Melhor Envio
+                                    </button>
+                                )}
+                            </div>
                         )}
                         <button onClick={() => setGuia(null)} className="btn-modern bg-muted text-foreground shadow-none">
                             <ArrowLeft className="w-4 h-4" /> Voltar
@@ -2367,9 +2476,16 @@ ${etiquetasHtml}
                                         <Printer className="w-4 h-4 mr-2" /> Guia
                                     </button>
                                     {(viewOrder.orderType === 'entrega' || viewOrder.orderType === 'retirada') && (
-                                        <button onClick={() => printEtiqueta(viewOrder)} className="btn-modern bg-emerald-500/10 text-emerald-600 px-6 py-3 text-xs font-black hover:bg-emerald-500/20 border border-emerald-500/20 rounded-xl">
-                                            <Printer className="w-4 h-4 mr-2" /> Etiqueta
-                                        </button>
+                                        <>
+                                            <button onClick={() => printEtiquetaInterna(viewOrder)} className="btn-modern bg-slate-500/10 text-slate-600 px-6 py-3 text-xs font-black hover:bg-slate-500/20 border border-slate-500/20 rounded-xl">
+                                                <Printer className="w-4 h-4 mr-2" /> Etiqueta Interna
+                                            </button>
+                                            {viewOrder.carrier === 'MELHOR ENVIO' && (
+                                                <button onClick={() => printEtiquetaMelhorEnvio(viewOrder)} className="btn-modern bg-emerald-500/10 text-emerald-600 px-6 py-3 text-xs font-black hover:bg-emerald-500/20 border border-emerald-500/20 rounded-xl">
+                                                    <Printer className="w-4 h-4 mr-2" /> Melhor Envio
+                                                </button>
+                                            )}
+                                        </>
                                     )}
                                 </div>
                             )}
@@ -2623,13 +2739,24 @@ ${i.sensorType === 'com_sensor'
                                 </>
                             )}
                             {(order.orderType === 'entrega' || order.orderType === 'retirada') && (
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); printEtiqueta(order); }}
-                                    className="h-12 w-12 flex items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border border-emerald-500/20 transition-all shadow-sm"
-                                    title="Imprimir Etiqueta"
-                                >
-                                    <Printer className="w-5 h-5" />
-                                </button>
+                                <>
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); printEtiquetaInterna(order); }}
+                                        className="h-12 w-12 flex items-center justify-center rounded-2xl bg-slate-500/10 text-slate-600 hover:bg-slate-500/20 border border-slate-500/20 transition-all shadow-sm"
+                                        title="Imprimir Etiqueta Interna"
+                                    >
+                                        <Printer className="w-5 h-5" />
+                                    </button>
+                                    {order.carrier === 'MELHOR ENVIO' && (
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); printEtiquetaMelhorEnvio(order); }}
+                                            className="h-12 flex-1 px-4 flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 text-white font-black text-xs uppercase tracking-widest hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/30"
+                                            title="Melhor Envio"
+                                        >
+                                            <Printer className="w-4 h-4" /> Melhor Envio
+                                        </button>
+                                    )}
+                                </>
                             )}
                         </div>
                     </div>
@@ -2640,6 +2767,104 @@ ${i.sensorType === 'com_sensor'
 
     return (
         <div className="space-y-10 pb-20 relative">
+            {/* Modal Melhor Envio Produção */}
+            {showMelhorEnvioModal && orderForMelhorEnvio && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 pointer-events-auto">
+                    <div className="bg-white dark:bg-slate-900 rounded-[2rem] max-w-md w-full p-8 shadow-2xl border border-border">
+                        <h3 className="text-xl font-black text-primary mb-2">Gerar Etiqueta Melhor Envio</h3>
+                        <p className="text-xs text-muted-foreground mb-6">
+                            Pedido: <strong>{orderForMelhorEnvio.number}</strong><br/>
+                            Defina o peso de cada caixa que será enviada. Medidas padrão (10x20x30 cm) serão aplicadas automaticamente para facilitar o envio.
+                        </p>
+                        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                            <div className="space-y-4">
+                                {melhorEnvioVolumes.map((vol, index) => (
+                                    <div key={index} className="p-4 bg-muted/30 border border-border/50 rounded-xl relative space-y-3">
+                                        <div className="flex justify-between items-center">
+                                            <h4 className="text-xs font-black text-primary">Caixa {index + 1}</h4>
+                                            {melhorEnvioVolumes.length > 1 && (
+                                                <button 
+                                                    type="button" 
+                                                    onClick={() => setMelhorEnvioVolumes(prev => prev.filter((_, i) => i !== index))}
+                                                    className="text-red-500 hover:text-red-600 text-xs font-bold"
+                                                >
+                                                    Remover
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Tipo de Caixa</label>
+                                                <select
+                                                    value={(vol as any).boxId}
+                                                    onChange={e => {
+                                                        const newVols = [...melhorEnvioVolumes];
+                                                        (newVols[index] as any).boxId = e.target.value;
+                                                        setMelhorEnvioVolumes(newVols);
+                                                    }}
+                                                    className="input-modern bg-white dark:bg-slate-900 border-border/50 w-full px-4 py-2 mt-1 rounded-xl outline-none focus:ring-2 focus:ring-primary/20 transition-all text-sm font-bold appearance-none cursor-pointer"
+                                                >
+                                                    {dbBoxes.map(b => (
+                                                        <option key={b.id} value={b.id}>{b.name}</option>
+                                                    ))}
+                                                    {dbBoxes.length === 0 && <option value="">Nenhuma caixa cadastrada (TI)</option>}
+                                                </select>
+                                                <div className="text-[9px] text-muted-foreground mt-1 ml-1 font-medium">
+                                                    {(() => {
+                                                        const b = dbBoxes.find(b => b.id === (vol as any).boxId);
+                                                        if (b) return `${b.height}x${b.width}x${b.length} cm`;
+                                                        return '';
+                                                    })()}
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black uppercase text-muted-foreground ml-1">Peso (kg)</label>
+                                                <input
+                                                    type="number"
+                                                    min="0.1"
+                                                    step="0.1"
+                                                    value={vol.peso}
+                                                    onChange={e => {
+                                                        const newVols = [...melhorEnvioVolumes];
+                                                        newVols[index].peso = e.target.value;
+                                                        setMelhorEnvioVolumes(newVols);
+                                                    }}
+                                                    className="input-modern bg-white dark:bg-slate-900 border-border/50 w-full px-4 py-2 mt-1 rounded-xl outline-none focus:ring-2 focus:ring-primary/20 transition-all text-sm font-bold"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                                
+                                <button 
+                                    type="button" 
+                                    onClick={() => setMelhorEnvioVolumes(prev => [...prev, { peso: '1', boxId: dbBoxes[0]?.id || '' }])}
+                                    className="w-full py-2 border-2 border-dashed border-primary/30 text-primary font-bold rounded-xl hover:bg-primary/5 transition-colors text-xs uppercase tracking-widest"
+                                >
+                                    + Adicionar Outra Caixa
+                                </button>
+                            </div>
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    onClick={handleGerarEtiquetaMelhorEnvio}
+                                    disabled={isGeneratingLabel}
+                                    className="btn-modern flex-1 bg-primary text-white disabled:opacity-50 font-black text-[10px] uppercase tracking-widest py-3 rounded-xl hover:bg-primary/90 transition-all active:scale-95"
+                                >
+                                    {isGeneratingLabel ? 'Gerando...' : 'Gerar e Imprimir'}
+                                </button>
+                                <button
+                                    onClick={() => setShowMelhorEnvioModal(false)}
+                                    disabled={isGeneratingLabel}
+                                    className="btn-modern px-6 bg-muted text-foreground font-black text-[10px] uppercase tracking-widest py-3 rounded-xl hover:bg-muted/80 transition-all active:scale-95"
+                                >
+                                    Cancelar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Decorative Orbs */}
             <div className="fixed inset-0 overflow-hidden pointer-events-none -z-10">
                 <div className="absolute top-[-10%] right-[-5%] w-[400px] h-[400px] bg-primary/5 rounded-full blur-[120px]" />

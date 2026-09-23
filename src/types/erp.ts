@@ -130,6 +130,10 @@ export interface Order {
   productionFinishedBy?: string;
   productionStartedBy?: string;
   productionMedia?: { url: string; type: 'image' | 'video'; timestamp: string }[];
+  melhor_envio_label_url?: string;
+  melhor_envio_order_id?: string;
+  melhor_envio_status?: string;
+  invoiceKey?: string;
 }
 
 export interface RewardTierConfig {

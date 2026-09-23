@@ -11,6 +11,7 @@ import { OrdersModule } from './orders/orders.module';
 import { ClientsModule } from './clients/clients.module';
 import { ProductsModule } from './products/products.module';
 import { GestorModule } from './gestor/gestor.module';
+import { MelhorEnvioModule } from './melhor-envio/melhor-envio.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { GestorModule } from './gestor/gestor.module';
     ClientsModule,
     ProductsModule,
     GestorModule,
+    MelhorEnvioModule,
   ],
   controllers: [AppController],
   providers: [AppService],

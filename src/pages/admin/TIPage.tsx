@@ -4,7 +4,7 @@ import {
   Trash2, Terminal, Activity, Server, Search, CheckCircle2,
   AlertCircle, ShieldCheck, ArrowRight, UserPlus, Download, Truck,
   Gift, Trophy, Medal, Star, ChevronRight, Loader2, TrendingUp,
-  Package, BarChart3, Settings, LogOut, Eye
+  Package, BarChart3, Settings, LogOut, Eye, Plus, X
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
@@ -123,6 +123,11 @@ const TIPage: React.FC = () => {
   const [promoteEmail, setPromoteEmail] = useState('');
   const [isPromoting, setIsPromoting] = useState(false);
 
+  // Melhor Envio Caixas
+  const [boxes, setBoxes] = useState<any[]>([]);
+  const [newBox, setNewBox] = useState({ name: '', height: '', width: '', length: '' });
+  const [isAddingBox, setIsAddingBox] = useState(false);
+
   // ── Carregar Estatísticas ─────────────────────────────────────────────
   const loadStats = useCallback(async () => {
     setStatsLoading(true);
@@ -152,7 +157,18 @@ const TIPage: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => { loadStats(); }, [loadStats]);
+  const loadBoxes = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.from('melhor_envio_boxes').select('*').order('created_at', { ascending: true });
+      if (error) throw error;
+      setBoxes(data || []);
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao carregar caixas do Melhor Envio.');
+    }
+  }, []);
+
+  useEffect(() => { loadStats(); loadBoxes(); }, [loadStats, loadBoxes]);
 
   // ── Carregar Resgates de Prêmios ────────────────────────────────────
   const loadRewardData = useCallback(async () => {
@@ -251,6 +267,44 @@ const TIPage: React.FC = () => {
       toast.error('Erro ao promover: ' + err.message);
     } finally {
       setIsPromoting(false);
+    }
+  };
+
+  const handleAddBox = async () => {
+    if (!newBox.name || !newBox.height || !newBox.width || !newBox.length) {
+      toast.error('Preencha todos os campos da caixa!');
+      return;
+    }
+    setIsAddingBox(true);
+    try {
+      const { error } = await supabase.from('melhor_envio_boxes').insert([{
+        name: newBox.name,
+        height: parseFloat(newBox.height),
+        width: parseFloat(newBox.width),
+        length: parseFloat(newBox.length)
+      }]);
+      if (error) throw error;
+      toast.success('Caixa adicionada com sucesso!');
+      setNewBox({ name: '', height: '', width: '', length: '' });
+      loadBoxes();
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao adicionar caixa.');
+    } finally {
+      setIsAddingBox(false);
+    }
+  };
+
+  const handleDeleteBox = async (id: string) => {
+    if (!confirm('Deseja realmente remover esta caixa?')) return;
+    try {
+      const { error } = await supabase.from('melhor_envio_boxes').delete().eq('id', id);
+      if (error) throw error;
+      toast.success('Caixa removida.');
+      loadBoxes();
+    } catch (err) {
+      console.error(err);
+      toast.error('Erro ao remover caixa.');
     }
   };
 
@@ -548,6 +602,74 @@ const TIPage: React.FC = () => {
                   ⚠️ O usuário deve fazer logout e login novamente para as alterações surtirem efeito.
                 </p>
               </div>
+            </div>
+          </div>
+
+          {/* Gerenciamento de Caixas (Melhor Envio) */}
+          <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden mt-6">
+            <div className="px-8 py-6 border-b border-slate-100 flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-orange-50 flex items-center justify-center">
+                <Package className="w-5 h-5 text-orange-600" />
+              </div>
+              <div>
+                <h2 className="text-sm font-black text-slate-900 uppercase tracking-tight">Caixas (Melhor Envio)</h2>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Gerencie os tamanhos disponíveis na produção</p>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-5 gap-3">
+                <input
+                  type="text"
+                  placeholder="Nome (ex: Caixa Padrão)"
+                  value={newBox.name}
+                  onChange={e => setNewBox({ ...newBox, name: e.target.value })}
+                  className="col-span-2 px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-orange-300 outline-none"
+                />
+                <input
+                  type="number"
+                  placeholder="Altura (cm)"
+                  value={newBox.height}
+                  onChange={e => setNewBox({ ...newBox, height: e.target.value })}
+                  className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-orange-300 outline-none"
+                />
+                <input
+                  type="number"
+                  placeholder="Largura (cm)"
+                  value={newBox.width}
+                  onChange={e => setNewBox({ ...newBox, width: e.target.value })}
+                  className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-orange-300 outline-none"
+                />
+                <input
+                  type="number"
+                  placeholder="Comprimento"
+                  value={newBox.length}
+                  onChange={e => setNewBox({ ...newBox, length: e.target.value })}
+                  className="px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium focus:ring-2 focus:ring-orange-300 outline-none"
+                />
+              </div>
+              <button
+                onClick={handleAddBox}
+                disabled={isAddingBox}
+                className="w-full py-3 rounded-xl bg-orange-500 text-white font-black text-xs uppercase tracking-widest hover:bg-orange-600 transition-all"
+              >
+                {isAddingBox ? 'Adicionando...' : 'Adicionar Nova Caixa'}
+              </button>
+
+              {boxes.length > 0 && (
+                <div className="mt-4 border border-slate-100 rounded-xl overflow-hidden divide-y divide-slate-100">
+                  {boxes.map(box => (
+                    <div key={box.id} className="p-4 flex items-center justify-between hover:bg-slate-50">
+                      <div>
+                        <p className="text-xs font-bold text-slate-800 uppercase">{box.name}</p>
+                        <p className="text-[10px] text-slate-500 font-medium">Dimensões: {box.height}cm x {box.width}cm x {box.length}cm</p>
+                      </div>
+                      <button onClick={() => handleDeleteBox(box.id)} className="w-8 h-8 rounded-lg bg-red-50 text-red-500 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

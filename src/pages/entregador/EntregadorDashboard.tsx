@@ -41,6 +41,7 @@ export default function EntregadorDashboard() {
 
   // Lista simples de transportadoras. Pode ser substituída por uma tabela no banco se houver muitas.
   const transportadorasDisponiveis = [
+    'MELHOR ENVIO',
     'JADLOG',
     'CORREIOS',
     'MOTOBOY',

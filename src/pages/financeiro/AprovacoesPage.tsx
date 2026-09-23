@@ -20,6 +20,11 @@ const AprovacoesPage: React.FC = () => {
   const [showReject, setShowReject] = useState(false);
   const [notificationCount, setNotificationCount] = useState(0);
 
+  // Melhor Envio NF
+  const [showNfModal, setShowNfModal] = useState(false);
+  const [nfKey, setNfKey] = useState('');
+  const [isProcessingMelhorEnvio, setIsProcessingMelhorEnvio] = useState(false);
+
   // ⚡ OTIMIZAÇÃO: Carregamento sob demanda para anexos (comprovantes)
   useEffect(() => {
     if (selectedOrderId) {
@@ -62,13 +67,23 @@ const AprovacoesPage: React.FC = () => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
 
+    if (order.carrier === 'MELHOR ENVIO') {
+      setShowNfModal(true);
+      return;
+    }
+
+    await prosseguirAprovacao(orderId, order);
+  };
+
+  const prosseguirAprovacao = async (orderId: string, order: Order, extraFields?: Partial<Order>) => {
+
     const client = clients.find(c => c.id === order.clientId);
     const isConsignado = client?.consignado === true;
     const isInstalacao = order.orderType === 'instalacao';
     const isRetirada = order.orderType === 'retirada';
 
     // Se for consignado ou instalação, não marca como 'pago' obrigatoriamente
-    const extra: Partial<Order> = {};
+    const extra: Partial<Order> = { ...extraFields };
     if (!isConsignado && !isInstalacao && !isRetirada) {
       extra.paymentStatus = 'pago';
     }
@@ -93,6 +108,37 @@ const AprovacoesPage: React.FC = () => {
       finalNote
     );
     setSelectedOrderId(null);
+  };
+
+  const handleConfirmarMelhorEnvio = async () => {
+    if (!selectedOrder) return;
+    if (!nfKey.trim()) {
+      toast.error('A chave da nota fiscal é obrigatória para o Melhor Envio.');
+      return;
+    }
+
+    setIsProcessingMelhorEnvio(true);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/melhor-envio/process-label/${selectedOrder.id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nfKey })
+      });
+
+      if (!response.ok) {
+        throw new Error('Falha ao integrar com a API do Melhor Envio');
+      }
+
+      toast.success('Etiqueta do Melhor Envio gerada com sucesso!');
+      await prosseguirAprovacao(selectedOrder.id, selectedOrder);
+      setShowNfModal(false);
+      setNfKey('');
+    } catch (error) {
+      console.error(error);
+      toast.error('Erro ao gerar etiqueta do Melhor Envio.');
+    } finally {
+      setIsProcessingMelhorEnvio(false);
+    }
   };
 
   const rejeitar = async (orderId: string) => {
@@ -259,6 +305,44 @@ const AprovacoesPage: React.FC = () => {
             <div className="flex gap-3">
               <button onClick={() => aprovar(selectedOrder.id)} className="btn-modern bg-gradient-to-r from-success to-success/80 text-success-foreground"><CheckCircle className="w-4 h-4" />Aprovar</button>
               <button onClick={() => setShowReject(true)} className="btn-modern bg-destructive/10 text-destructive shadow-none hover:bg-destructive/20"><XCircle className="w-4 h-4" />Rejeitar</button>
+            </div>
+          )}
+
+          {showNfModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+              <div className="bg-white dark:bg-slate-900 rounded-[2rem] max-w-md w-full p-8 shadow-2xl border border-border">
+                <h3 className="text-xl font-black text-primary mb-2">NF do Melhor Envio</h3>
+                <p className="text-xs text-muted-foreground mb-6">
+                  Este pedido será enviado via <strong>Melhor Envio</strong>. 
+                  Para gerar a etiqueta, insira a Chave de Acesso da Nota Fiscal (44 dígitos).
+                </p>
+                <div className="space-y-4">
+                  <input
+                    type="text"
+                    maxLength={44}
+                    placeholder="Ex: 352109..."
+                    value={nfKey}
+                    onChange={e => setNfKey(e.target.value)}
+                    className="input-modern bg-muted/50 border-border/50 text-base"
+                  />
+                  <div className="flex gap-3 pt-2">
+                    <button
+                      onClick={handleConfirmarMelhorEnvio}
+                      disabled={isProcessingMelhorEnvio || nfKey.length < 44}
+                      className="btn-modern flex-1 bg-primary text-white disabled:opacity-50"
+                    >
+                      {isProcessingMelhorEnvio ? 'Gerando...' : 'Aprovar e Gerar Etiqueta'}
+                    </button>
+                    <button
+                      onClick={() => setShowNfModal(false)}
+                      disabled={isProcessingMelhorEnvio}
+                      className="btn-modern px-6 bg-muted text-foreground"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>

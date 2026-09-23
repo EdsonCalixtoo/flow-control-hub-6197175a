@@ -48,6 +48,10 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
   const selectedOrder = useMemo(() => orders.find(o => o.id === selectedOrderId) || null, [orders, selectedOrderId]);
   const [dynamicClient, setDynamicClient] = useState<Client | null>(null);
 
+  // Melhor Envio NF
+  const [localNfKey, setLocalNfKey] = useState('');
+  const [isSavingNfKey, setIsSavingNfKey] = useState(false);
+
   const pendingQuitacoesForSelectedClient = useMemo(() => {
     if (!selectedOrder) return [];
     return financialEntries.filter(e => e.clientId === selectedOrder.clientId && e.category === 'Quitação de Dívida' && e.status === 'pendente');
@@ -647,6 +651,10 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
 
   // Fluxo: Financeiro aprova e opcionalmente envia para Produção
   const aprovarFinanceiro = async (orderId: string, sendToProduction: boolean = false) => {
+    await prosseguirAprovacaoFinanceiro(orderId, sendToProduction);
+  };
+
+  const prosseguirAprovacaoFinanceiro = async (orderId: string, sendToProduction: boolean = false) => {
     const order = orders.find(o => o.id === orderId);
     if (!order) return;
 
@@ -734,6 +742,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
     setShowReject(false);
     setRejectReason('');
   };
+
 
   const syncData = async () => {
     setIsRefreshing(true);
@@ -1333,6 +1342,52 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                       <div>
                         <p className="text-sm font-black text-primary uppercase tracking-tight">Emissão de Nota Fiscal (FATURAMENTO)</p>
                         <p className="text-xs text-primary/70 mt-1 font-medium leading-relaxed font-semibold">Este pedido deve ser formalizado com NF-e obrigatoriamente.</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedOrder.carrier === 'MELHOR ENVIO' && (
+                    <div className="flex flex-col md:flex-row md:items-center gap-4 p-5 rounded-3xl bg-blue-500/5 border border-blue-500/20 group hover:bg-blue-500/10 transition-colors pointer-events-auto relative z-50">
+                      <div className="h-12 w-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-500 shrink-0 group-hover:scale-110 transition-transform shadow-inner">
+                        <Package className="w-6 h-6" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-black text-blue-600 uppercase tracking-tight select-text">Chave NF-e (Melhor Envio)</p>
+                        <p className="text-xs text-blue-600/70 mt-1 font-medium leading-relaxed italic select-text">Insira a chave da nota (44 dígitos) para a geração da etiqueta na Produção.</p>
+                      </div>
+                      <div className="flex flex-col gap-2 w-full md:w-auto mt-2 md:mt-0">
+                        <input
+                          type="text"
+                          maxLength={44}
+                          placeholder="Chave da NF (44 dígitos)"
+                          value={localNfKey || (selectedOrder as any).invoiceKey || ''}
+                          onChange={(e) => setLocalNfKey(e.target.value)}
+                          className="input-modern bg-white dark:bg-slate-900 border-border/50 w-full px-4 py-2 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-xs font-bold text-center"
+                        />
+                        <button
+                           onClick={async () => {
+                             const currentKey = localNfKey || (selectedOrder as any).invoiceKey || '';
+                             const keyToSave = currentKey.trim();
+                             if (keyToSave.length !== 44) {
+                               toast.error('A chave da nota fiscal deve ter exatos 44 dígitos.');
+                               return;
+                             }
+                             setIsSavingNfKey(true);
+                             try {
+                               await updateOrder(selectedOrder.id, { invoiceKey: keyToSave });
+                               toast.success('Chave da NF salva com sucesso!');
+                             } catch (error) {
+                               console.error(error);
+                               toast.error('Erro ao salvar Chave da NF.');
+                             } finally {
+                               setIsSavingNfKey(false);
+                             }
+                           }}
+                           disabled={isSavingNfKey}
+                           className="btn-modern bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 px-4 py-2 shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 text-[10px] uppercase font-black tracking-widest transition-all"
+                        >
+                          {isSavingNfKey ? 'Salvando...' : 'Salvar Chave NF'}
+                        </button>
                       </div>
                     </div>
                   )}
@@ -2083,6 +2138,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
               </div>
             </div>
           </div>
+
         </div>
 
         {/* Modal de Visualização Global */}

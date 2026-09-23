@@ -7,7 +7,7 @@ async function bootstrap() {
   
   // Enable CORS
   app.enableCors({
-    origin: '*', // Allows connections from any origin. Can be restricted in production.
+    origin: true, // Allows connections and automatically reflects the origin header
     credentials: true,
   });
 

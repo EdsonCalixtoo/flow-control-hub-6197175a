@@ -120,23 +120,38 @@ export class MelhorEnvioService {
       weight: Number(v.peso) || 1
     }));
 
-    // 2. Monta o payload para o carrinho (Aqui estamos mockando os dados do rementente, mas usando os dados reais do destinatario)
-    const cartPayload = {
-      service: 3, // 3 = Jadlog Package (Evita o erro 'Transportadora não atende este trecho' do Correios no Sandbox)
-      // agency: Number(process.env.MELHOR_ENVIO_AGENCY) || 12120, // Removido para testes com Correios
+    // 2.5 Configura opções de envio (Com ou sem Nota Fiscal)
+    const orderTotal = Number(order.total) || 100;
+    const shippingOptions: any = {
+      receipt: false,
+      own_hand: false,
+    };
+
+    if (nfKey && nfKey.trim().length > 0) {
+      // Com Nota Fiscal: Seguro total
+      shippingOptions.invoice = { key: nfKey.trim() };
+      shippingOptions.insurance_value = orderTotal;
+    } else {
+      // Sem Nota Fiscal (Declaração de Conteúdo): Limita seguro a R$ 1.500
+      shippingOptions.non_commercial = true;
+      shippingOptions.insurance_value = Math.min(orderTotal, 1500);
+    }
+
+        // 3. Monta o payload genérico para cálculo (sem a transportadora ainda)
+    const basePayload = {
       from: {
-        name: "Sua Empresa",
-        phone: "11999999999",
-        email: "contato@empresa.com",
-        document: "82223576036", // CPF válido do responsável
-        company_document: "00000000000191", // CNPJ que bate com a Chave da NFe
-        address: "Rua Exemplo",
-        number: "123",
-        district: "Centro",
-        city: "São Paulo",
+        name: "Grupo Automatiza",
+        phone: "19981984593",
+        email: "grupoautomatiza@gmail.com",
+        document: "38584898832",
+        company_document: "13559664000137",
+        address: "Rua Doutor Élton Cesar",
+        number: "910",
+        district: "Campos Dos Amarais",
+        city: "Campinas",
         state_abbr: "SP",
         country_id: "BR",
-        postal_code: "01001000"
+        postal_code: "13082025"
       },
       to: {
         name: order.client_name || client?.name || 'Cliente',
@@ -155,24 +170,21 @@ export class MelhorEnvioService {
         {
           name: "Produtos do Pedido",
           quantity: 1,
-          unitary_value: Number(order.total) || 100
+          unitary_value: orderTotal
         }
       ],
       volumes: cartVolumes,
-      options: {
-        insurance_value: Number(order.total) || 100,
-        receipt: false,
-        own_hand: false,
-        invoice: {
-          key: nfKey // A chave da NF enviada pelo financeiro
-        }
-      }
+      options: shippingOptions
     };
-
     try {
+      // Monta o payload final fixo na Jadlog .Com (ID 4) conforme solicitado
+      const cartPayload = {
+        ...basePayload,
+        service: 4 // 4 = Jadlog .Com
+      };
+
       // Passo 1: Adiciona ao Carrinho
-      const cartResponse = await this.addToCart(cartPayload);
-      const melhorEnvioOrderId = cartResponse.id;
+      const cartResponse = await this.addToCart(cartPayload);const melhorEnvioOrderId = cartResponse.id;
       console.log('[MelhorEnvio] Cart response:', JSON.stringify(cartResponse, null, 2));
 
       // Passo 2: Checkout (Usa o saldo da carteira para pagar)
@@ -214,9 +226,17 @@ export class MelhorEnvioService {
 
       return { success: true, labelUrl, trackingCode };
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao processar Melhor Envio:', error);
-      throw new HttpException('Falha na integração com Melhor Envio', HttpStatus.BAD_REQUEST);
+      // Se o erro já for uma HttpException (que criamos no fetchApi com a mensagem original), repassamos ela
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      // Caso contrário, enviamos uma mensagem genérica com o texto do erro
+      throw new HttpException(
+        error.message || 'Falha na integração com Melhor Envio', 
+        HttpStatus.BAD_REQUEST
+      );
     }
   }
 }

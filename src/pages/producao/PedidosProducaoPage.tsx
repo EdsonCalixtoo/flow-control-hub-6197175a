@@ -687,11 +687,14 @@ ${etiquetasHtml}
                 })
             });
 
+            const data = await response.json();
+            
             if (!response.ok) {
-                throw new Error('Falha ao gerar etiqueta no Melhor Envio');
+                // Lê a mensagem que veio do backend para mostrar na tela
+                const errorMsg = data.message || 'Falha ao gerar etiqueta no Melhor Envio';
+                throw new Error(errorMsg);
             }
             
-            const data = await response.json();
             if (data.labelUrl) {
                 await updateOrder(orderForMelhorEnvio.id, { melhor_envio_label_url: data.labelUrl });
                 toast.success('Etiqueta do Melhor Envio gerada com sucesso!');
@@ -699,9 +702,9 @@ ${etiquetasHtml}
                 // Abre a etiqueta direto
                 window.open(data.labelUrl, '_blank');
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            toast.error('Erro ao gerar etiqueta do Melhor Envio. Verifique as dimensões e pesos.');
+            toast.error(`Erro: ${error.message || 'Verifique as dimensões e pesos.'}`);
         } finally {
             setIsGeneratingLabel(false);
         }

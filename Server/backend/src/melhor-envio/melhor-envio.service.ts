@@ -3,7 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class MelhorEnvioService {
-  private readonly baseUrl = 'https://sandbox.melhorenvio.com.br/api/v2/me'; // Sandbox para testes
+  private readonly baseUrl = 'https://www.melhorenvio.com.br/api/v2/me'; // API Oficial
   private readonly token = process.env.MELHOR_ENVIO_TOKEN; // O token será configurado no .env
 
   constructor(private prisma: PrismaService) {}
@@ -190,7 +190,7 @@ export class MelhorEnvioService {
           melhor_envio_order_id: melhorEnvioOrderId,
           melhor_envio_label_url: labelUrl,
           melhor_envio_status: 'label_generated',
-          // melhor_envio_tracking: cartResponse.tracking // Pegaria daqui dependendo da resposta
+          melhor_envio_tracking: cartResponse.tracking || cartResponse.tracking_code || 'Aguardando Rastreio'
         }
       });
 

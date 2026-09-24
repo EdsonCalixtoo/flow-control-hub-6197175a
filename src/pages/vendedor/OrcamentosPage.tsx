@@ -8,7 +8,7 @@ import { StatusBadge, formatCurrency, formatDate } from '@/components/shared/Sta
 import { getSaldoDevedor } from '@/utils/finance';
 import { OrderPipeline, OrderHistory } from '@/components/shared/OrderTimeline';
 import { ComprovanteUpload } from '@/components/shared/ComprovanteUpload';
-import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check, Download, Link2, DollarSign, CheckCircle, Users, Package, Truck, CheckCircle2, XCircle, ChevronDown, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Zap, Info, Loader2 } from 'lucide-react';
+import { FileText, Plus, Send, Eye, ArrowLeft, Search, X, Trash2, History, MessageCircle, Edit2, Check, Download, Link2, DollarSign, CheckCircle, Users, Package, Truck, CheckCircle2, XCircle, ChevronDown, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Zap, Info, Loader2, Copy } from 'lucide-react';
 import type { Order, QuoteItem, Client } from '@/types/erp';
 import { useLocation, useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
@@ -2058,6 +2058,70 @@ const OrcamentosPage: React.FC = () => {
                   <p className="text-sm text-foreground italic">{selectedOrder.notes}</p>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Código de Rastreio Melhor Envio */}
+          {selectedOrder.melhor_envio_tracking && (
+            <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/30 mb-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 mb-2 flex items-center gap-1.5">
+                <Package className="w-4 h-4" /> Rastreio Melhor Envio
+              </p>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 bg-white dark:bg-slate-900 rounded-lg p-3 font-mono text-sm font-bold border border-blue-500/20 text-foreground">
+                  {selectedOrder.melhor_envio_tracking}
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(selectedOrder.melhor_envio_tracking!);
+                    toast.success('Código copiado!');
+                  }}
+                  className="h-11 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center gap-2 font-bold text-xs uppercase transition-all"
+                >
+                  <Copy className="w-4 h-4" /> Copiar
+                </button>
+                {clients.find(c => c.id === selectedOrder.clientId)?.phone && (
+                  <button
+                    onClick={() => {
+                      const phone = clients.find(c => c.id === selectedOrder.clientId)!.phone;
+                      const msg = `Olá! Segue o código de rastreio da sua encomenda:\n*${selectedOrder.melhor_envio_tracking}*\nVocê pode acompanhar pelo site dos Correios ou Transportadora.`;
+                      window.open(`https://wa.me/55${phone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+                    }}
+                    className="h-11 px-4 bg-success hover:bg-success/90 text-white rounded-lg flex items-center gap-2 font-bold text-xs uppercase transition-all"
+                  >
+                    <MessageCircle className="w-4 h-4" /> Enviar
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Provas de Produção */}
+          {selectedOrder.productionMedia && selectedOrder.productionMedia.length > 0 && (
+            <div className="p-4 rounded-xl bg-orange-500/5 border border-orange-500/20 space-y-3 mb-4">
+              <p className="text-[10px] font-black uppercase tracking-wider text-orange-600 flex items-center gap-1.5">
+                <Package className="w-3.5 h-3.5" /> Provas de Produção ({selectedOrder.productionMedia.length})
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {selectedOrder.productionMedia.map((media, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setPreviewUrl(cleanR2Url((media as any).url || media)); }}
+                    className="flex items-center gap-2 p-2 rounded-lg bg-white dark:bg-slate-900 border border-border/60 hover:border-orange-500/40 transition-all text-left group cursor-pointer"
+                  >
+                    <div className="h-8 w-8 rounded-md bg-orange-500/10 flex items-center justify-center text-orange-600 group-hover:bg-orange-500 group-hover:text-white transition-all">
+                      {((media as any).type === 'video' || (typeof media === 'string' && (media as string).includes('.mp4'))) ? <Zap className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[9px] font-bold text-foreground truncate uppercase">Prova #{idx + 1}</p>
+                      <p className="text-[8px] text-muted-foreground font-medium uppercase truncate">
+                        {((media as any).type === 'video' || (typeof media === 'string' && (media as string).includes('.mp4'))) ? 'Vídeo' : 'Foto'}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 

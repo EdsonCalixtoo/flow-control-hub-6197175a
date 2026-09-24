@@ -133,6 +133,7 @@ export interface Order {
   melhor_envio_label_url?: string;
   melhor_envio_order_id?: string;
   melhor_envio_status?: string;
+  melhor_envio_tracking?: string;
   invoiceKey?: string;
 }
 

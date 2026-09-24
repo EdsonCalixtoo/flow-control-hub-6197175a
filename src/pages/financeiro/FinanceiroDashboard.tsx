@@ -1377,9 +1377,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                             onChange={(e) => setLocalNfValue(e.target.value)}
                             className="input-modern bg-white dark:bg-slate-900 border-border/50 w-1/4 px-4 py-2 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-xs font-bold text-center"
                           />
-                        </div> setLocalNfKey(e.target.value)}
-                          className="input-modern bg-white dark:bg-slate-900 border-border/50 w-full px-4 py-2 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-xs font-bold text-center"
-                        />
+                        </div>
                         <button
                            onClick={async () => {
                              const currentKey = localNfKey || (selectedOrder as any).invoiceKey || '';
@@ -1390,7 +1388,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                              }
                              setIsSavingNfKey(true);
                              try {
-                               await updateOrder(selectedOrder.id, { invoiceKey: keyToSave, invoice_value: Number(localNfValue || (selectedOrder as any).invoice_value || 0) });
+                               await updateOrder(selectedOrder.id, { invoiceKey: keyToSave, invoice_value: Number(localNfValue || (selectedOrder as any).invoice_value || 0) } as any);
                                toast.success('Chave da NF salva com sucesso!');
                              } catch (error) {
                                console.error(error);

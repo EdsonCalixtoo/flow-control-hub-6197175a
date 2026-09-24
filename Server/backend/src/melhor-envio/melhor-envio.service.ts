@@ -173,16 +173,33 @@ export class MelhorEnvioService {
       // Passo 1: Adiciona ao Carrinho
       const cartResponse = await this.addToCart(cartPayload);
       const melhorEnvioOrderId = cartResponse.id;
+      console.log('[MelhorEnvio] Cart response:', JSON.stringify(cartResponse, null, 2));
 
       // Passo 2: Checkout (Usa o saldo da carteira para pagar)
       await this.checkout(melhorEnvioOrderId);
 
       // Passo 3: Gera a Etiqueta
-      await this.generateLabel(melhorEnvioOrderId);
+      const generateResponse = await this.generateLabel(melhorEnvioOrderId);
+      console.log('[MelhorEnvio] Generate response:', JSON.stringify(generateResponse, null, 2));
 
-      // Passo 4: Pega a URL de Impressão e o Rastreio
+      // Passo 4: Pega a URL de Impressão
       const printResponse = await this.printLabel(melhorEnvioOrderId);
       const labelUrl = printResponse.url;
+
+      // Passo 5: Busca detalhes do pedido para pegar o código de rastreio real
+      let trackingCode = cartResponse.tracking || cartResponse.tracking_code || null;
+      try {
+        const orderDetails = await this.fetchApi(`/shipment/order/${melhorEnvioOrderId}`);
+        console.log('[MelhorEnvio] Order details:', JSON.stringify(orderDetails, null, 2));
+        trackingCode = orderDetails?.tracking 
+          || orderDetails?.tracking_code 
+          || orderDetails?.protocol 
+          || cartResponse.tracking 
+          || cartResponse.tracking_code 
+          || null;
+      } catch (detailErr) {
+        console.warn('[MelhorEnvio] Não foi possível buscar detalhes do pedido para tracking:', detailErr);
+      }
 
       // Atualiza o banco de dados
       await this.prisma.orders.update({
@@ -191,11 +208,11 @@ export class MelhorEnvioService {
           melhor_envio_order_id: melhorEnvioOrderId,
           melhor_envio_label_url: labelUrl,
           melhor_envio_status: 'label_generated',
-          melhor_envio_tracking: cartResponse.tracking || cartResponse.tracking_code || 'Aguardando Rastreio'
+          ...(trackingCode ? { melhor_envio_tracking: trackingCode } : {})
         }
       });
 
-      return { success: true, labelUrl };
+      return { success: true, labelUrl, trackingCode };
 
     } catch (error) {
       console.error('Erro ao processar Melhor Envio:', error);

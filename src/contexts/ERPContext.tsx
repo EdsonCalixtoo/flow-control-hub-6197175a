@@ -509,11 +509,17 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         console.log(`[ERP] ðŸ”„ Persistindo status do pedido ${currentOrder.number} no Supabase...`);
         updated = await updateOrderSupabase(orderId, updateFields);
+        // ⚠️ RLS DETECTION: Se Supabase retornou vazio sem erro, é bloqueio de policy silencioso
+        if (!updated) {
+          const rlsErr = new Error('Permissao negada pelo banco (RLS). Contate o administrador.');
+          throw rlsErr;
+        }
       } catch (err: any) {
         updateError = err;
         console.error('[ERP] Falha ao persistir na tabela orders:', err.message);
         toast.error('Falha ao atualizar pedido: ' + err.message);
         setOrders(prev => prev.map(o => o.id === orderId ? currentOrder : o));
+        throw err;
       }
       
       // 3. CASCATA PARA PEDIDOS UNIFICADOS (Busca direta no banco para garantir precisÃ£o total)

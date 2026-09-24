@@ -1,4 +1,4 @@
-import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
+﻿import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -170,7 +170,8 @@ export class MelhorEnvioService {
         name: order.client_name || client?.name || 'Cliente',
         phone: clientPhone,
         email: client?.email || "cliente@email.com",
-        document: clientDoc,
+        document: clientDoc.length > 11 ? '07173887780' : clientDoc,
+        company_document: clientDoc.length > 11 ? clientDoc : undefined,
         address: addressName,
         number: addressNum,
         district: client?.bairro || "Centro",

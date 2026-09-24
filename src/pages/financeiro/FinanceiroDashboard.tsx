@@ -18,8 +18,7 @@ import type { Order, FinancialEntry, Client } from '@/types/erp';
 // Status que devem aparecer no financeiro (apenas quando o vendedor clicou em Enviar)
 // Fluxo simplificado: Financeiro aprova e envia direto para Produção (sem Gestor)
 const STATUS_VISIVEL_FINANCEIRO = [
-  'aguardando_financeiro', 'aprovado_financeiro', 'rejeitado_financeiro',
-  'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado', 'retirado_entregador'
+  'aguardando_financeiro', 'aprovado_financeiro', 'rejeitado_financeiro'
 ];
 
 type PaymentFilter = 'todos' | 'pago' | 'pendente' | 'vencido' | 'cancelado';

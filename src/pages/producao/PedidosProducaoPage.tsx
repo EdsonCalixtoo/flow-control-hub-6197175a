@@ -222,16 +222,7 @@ const PedidosProducaoPage: React.FC = () => {
     
     // Melhor Envio
     const [showMelhorEnvioModal, setShowMelhorEnvioModal] = useState(false);
-    useEffect(() => {
-        if (showMelhorEnvioModal || orderForPrint) {
-            document.body.style.overflow = 'hidden';
-        } else {
-            document.body.style.overflow = '';
-        }
-        return () => {
-            document.body.style.overflow = '';
-        };
-    }, [showMelhorEnvioModal, orderForPrint]);
+
     const [orderForMelhorEnvio, setOrderForMelhorEnvio] = useState<any>(null);
     const [isGeneratingLabel, setIsGeneratingLabel] = useState(false);
     const [melhorEnvioVolumes, setMelhorEnvioVolumes] = useState([{ peso: '1', boxId: '' }]);
@@ -243,6 +234,16 @@ const PedidosProducaoPage: React.FC = () => {
     const [orderForPrint, setOrderForPrint] = useState<any>(null);
     const [printVolumesInput, setPrintVolumesInput] = useState('1');
     const [showFechamentoModal, setShowFechamentoModal] = useState(false);
+    useEffect(() => {
+        if (showMelhorEnvioModal || orderForPrint) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+        return () => {
+            document.body.style.overflow = '';
+        };
+    }, [showMelhorEnvioModal, orderForPrint]);
 
     const revertStatus = async (orderId: string, currentStatus: string) => {
         const order = orders.find(o => o.id === orderId);

@@ -1,4 +1,4 @@
-﻿import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -88,7 +88,7 @@ export class MelhorEnvioService {
     const order = await this.prisma.orders.findUnique({ where: { id: orderId } });
     
     // Busca o invoice_value separadamente via query raw pois ele não está no schema.prisma ainda!
-    let rawInvoiceValue = null;
+    let rawInvoiceValue: number | null = null;
     try {
       const rawRes: any[] = await this.prisma.$queryRaw`SELECT invoice_value FROM orders WHERE id = ${orderId}::uuid`;
       if (rawRes && rawRes.length > 0 && rawRes[0].invoice_value) {

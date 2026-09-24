@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+﻿import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useERP } from '@/contexts/ERPContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { StatusBadge, formatDate as fmtDate, formatCurrency } from '@/components/shared/StatusBadge';

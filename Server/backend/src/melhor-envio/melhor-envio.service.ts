@@ -81,7 +81,8 @@ export class MelhorEnvioService {
   async processLabelForOrder(
     orderId: string, 
     nfKey: string,
-    volumes: any[] = [{ peso: 1, altura: 10, largura: 20, comprimento: 30 }]
+    volumes: any[] = [{ peso: 1, altura: 10, largura: 20, comprimento: 30 }],
+    insuranceValue?: number
   ) {
     // 1. Busca o pedido no banco
     const order = await this.prisma.orders.findUnique({ where: { id: orderId } });
@@ -121,7 +122,8 @@ export class MelhorEnvioService {
     }));
 
     // 2.5 Configura opções de envio (Com ou sem Nota Fiscal)
-    const orderTotal = Number(order.total) || 100;
+    // Se recebeu um valor de seguro específico (digitado no Financeiro), usa ele. Senão, usa o total do pedido.
+    const orderTotal = insuranceValue ? Number(insuranceValue) : (Number(order.total) || 100);
     const shippingOptions: any = {
       receipt: false,
       own_hand: false,

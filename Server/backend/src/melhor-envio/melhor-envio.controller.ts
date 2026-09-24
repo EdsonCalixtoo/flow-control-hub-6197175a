@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Param, UseGuards } from '@nestjs/common';
+﻿import { Controller, Post, Body, Param, UseGuards } from '@nestjs/common';
 import { MelhorEnvioService } from './melhor-envio.service';
 // import { JwtAuthGuard } from '../auth/jwt-auth.guard'; // Adicionar se existir autenticação
 
@@ -16,8 +16,9 @@ export class MelhorEnvioController {
   async processLabel(
     @Param('orderId') orderId: string,
     @Body('nfKey') nfKey: string,
-    @Body('volumes') volumes?: any[]
+    @Body('volumes') volumes?: any[],
+    @Body('insuranceValue') insuranceValue?: number
   ) {
-    return this.melhorEnvioService.processLabelForOrder(orderId, nfKey, volumes);
+    return this.melhorEnvioService.processLabelForOrder(orderId, nfKey, volumes, insuranceValue);
   }
 }

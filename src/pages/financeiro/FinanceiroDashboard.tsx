@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+﻿import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -50,6 +50,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
 
   // Melhor Envio NF
   const [localNfKey, setLocalNfKey] = useState('');
+  const [localNfValue, setLocalNfValue] = useState('');
   const [isSavingNfKey, setIsSavingNfKey] = useState(false);
 
   const pendingQuitacoesForSelectedClient = useMemo(() => {

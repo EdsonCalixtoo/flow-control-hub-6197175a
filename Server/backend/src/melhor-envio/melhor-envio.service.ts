@@ -3,7 +3,8 @@ import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class MelhorEnvioService {
-  private readonly baseUrl = 'https://www.melhorenvio.com.br/api/v2/me'; // API Oficial
+  // URL base controlada pelo .env (sandbox ou oficial). Padrão é a oficial se não definido.
+  private readonly baseUrl = process.env.MELHOR_ENVIO_URL || 'https://www.melhorenvio.com.br/api/v2/me';
   private readonly token = process.env.MELHOR_ENVIO_TOKEN; // O token será configurado no .env
 
   constructor(private prisma: PrismaService) {}

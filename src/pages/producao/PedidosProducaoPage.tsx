@@ -2990,6 +2990,7 @@ ${i.sensorType === 'com_sensor'
                         options={[
                             { value: 'todos', label: 'TODOS OS MEIOS' },
                             { value: 'jadlog', label: 'JADLOG', icon: '🚛' },
+                            { value: 'melhor envio', label: 'MELHOR ENVIO', icon: '📦' },
                             { value: 'motoboy', label: 'MOTOBOY', icon: '🛵' },
                             { value: 'kleyton', label: 'KLEYTON', icon: '👤' },
                             { value: 'lalamove', label: 'LALAMOVE', icon: '🚚' },

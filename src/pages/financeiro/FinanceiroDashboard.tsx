@@ -1361,12 +1361,23 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                         <p className="text-xs text-blue-600/70 mt-1 font-medium leading-relaxed italic select-text">Insira a chave da nota (44 dígitos) para a geração da etiqueta na Produção.</p>
                       </div>
                       <div className="flex flex-col gap-2 w-full md:w-auto mt-2 md:mt-0">
-                        <input
-                          type="text"
-                          maxLength={44}
-                          placeholder="Chave da NF (44 dígitos)"
-                          value={localNfKey || (selectedOrder as any).invoiceKey || ''}
-                          onChange={(e) => setLocalNfKey(e.target.value)}
+                        <div className="flex gap-2 w-full">
+                          <input
+                            type="text"
+                            maxLength={44}
+                            placeholder="Chave da NF (44 dígitos)"
+                            value={localNfKey || (selectedOrder as any).invoiceKey || ''}
+                            onChange={(e) => setLocalNfKey(e.target.value)}
+                            className="input-modern bg-white dark:bg-slate-900 border-border/50 w-3/4 px-4 py-2 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-xs font-bold text-center"
+                          />
+                          <input
+                            type="number"
+                            placeholder="Valor NF (R$)"
+                            value={localNfValue || (selectedOrder as any).invoice_value || ''}
+                            onChange={(e) => setLocalNfValue(e.target.value)}
+                            className="input-modern bg-white dark:bg-slate-900 border-border/50 w-1/4 px-4 py-2 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-xs font-bold text-center"
+                          />
+                        </div> setLocalNfKey(e.target.value)}
                           className="input-modern bg-white dark:bg-slate-900 border-border/50 w-full px-4 py-2 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-xs font-bold text-center"
                         />
                         <button

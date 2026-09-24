@@ -3190,7 +3190,7 @@ ${i.sensorType === 'com_sensor'
                 )}
 
             {/* Modal de Impressão Modernizado */}
-            {orderForPrint && (
+            {orderForPrint && createPortal(
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-background/40 backdrop-blur-3xl animate-in fade-in duration-500" />
                     <div className="glass-card p-10 w-full max-w-md relative z-10 animate-in zoom-in-95 slide-in-from-bottom-8 duration-500 shadow-[0_50px_100px_-20px_rgba(0,0,0,0.3)]">

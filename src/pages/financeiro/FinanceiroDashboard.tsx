@@ -1379,7 +1379,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                              }
                              setIsSavingNfKey(true);
                              try {
-                               await updateOrder(selectedOrder.id, { invoiceKey: keyToSave });
+                               await updateOrder(selectedOrder.id, { invoiceKey: keyToSave, invoice_value: Number(localNfValue || (selectedOrder as any).invoice_value || 0) });
                                toast.success('Chave da NF salva com sucesso!');
                              } catch (error) {
                                console.error(error);

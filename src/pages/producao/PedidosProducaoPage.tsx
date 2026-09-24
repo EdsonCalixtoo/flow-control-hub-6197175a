@@ -691,7 +691,10 @@ ${etiquetasHtml}
             
             if (!response.ok) {
                 // Lê a mensagem que veio do backend para mostrar na tela
-                const errorMsg = data.message || 'Falha ao gerar etiqueta no Melhor Envio';
+                let errorMsg = data.message || 'Falha ao gerar etiqueta no Melhor Envio';
+                if (errorMsg.toLowerCase().includes('saldo') || errorMsg.toLowerCase().includes('insuficiente')) {
+                    errorMsg = 'Você não tem saldo suficiente no Melhor Envio para gerar esta etiqueta. Recarregue sua carteira lá primeiro!';
+                }
                 throw new Error(errorMsg);
             }
             

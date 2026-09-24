@@ -1,4 +1,4 @@
-import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
+﻿import { Injectable, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -87,6 +87,17 @@ export class MelhorEnvioService {
     // 1. Busca o pedido no banco
     const order = await this.prisma.orders.findUnique({ where: { id: orderId } });
     
+    // Busca o invoice_value separadamente via query raw pois ele não está no schema.prisma ainda!
+    let rawInvoiceValue = null;
+    try {
+      const rawRes: any[] = await this.prisma.$queryRaw`SELECT invoice_value FROM orders WHERE id = ${orderId}::uuid`;
+      if (rawRes && rawRes.length > 0 && rawRes[0].invoice_value) {
+        rawInvoiceValue = Number(rawRes[0].invoice_value);
+      }
+    } catch (e) {
+      console.log('Erro ao buscar invoice_value raw:', e);
+    }
+    
     if (!order) {
       throw new HttpException('Order not found', HttpStatus.NOT_FOUND);
     }
@@ -123,7 +134,7 @@ export class MelhorEnvioService {
 
     // 2.5 Configura opções de envio (Com ou sem Nota Fiscal)
     // Se recebeu um valor de seguro específico ou tem salvo no banco (digitado no Financeiro), usa ele. Senão, usa o total do pedido.
-    const orderTotal = insuranceValue ? Number(insuranceValue) : ((order as any).invoice_value ? Number((order as any).invoice_value) : (Number(order.total) || 100));
+    const orderTotal = insuranceValue ? Number(insuranceValue) : (rawInvoiceValue ? rawInvoiceValue : (Number(order.total) || 100));
     const shippingOptions: any = {
       receipt: false,
       own_hand: false,

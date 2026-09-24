@@ -2776,7 +2776,7 @@ ${i.sensorType === 'com_sensor'
             {/* Modal Melhor Envio Produção */}
             {showMelhorEnvioModal && orderForMelhorEnvio && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 pointer-events-auto">
-                    <div className="bg-white dark:bg-slate-900 rounded-[2rem] max-w-md w-full p-8 shadow-2xl border border-border">
+                    <div className="bg-white dark:bg-slate-900 rounded-[2rem] max-w-md w-full p-8 shadow-2xl border border-border max-h-[90vh] overflow-y-auto custom-scrollbar flex flex-col">
                         <h3 className="text-xl font-black text-primary mb-2">Gerar Etiqueta Melhor Envio</h3>
                         <p className="text-xs text-muted-foreground mb-6">
                             Pedido: <strong>{orderForMelhorEnvio.number}</strong><br/>

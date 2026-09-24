@@ -3335,7 +3335,7 @@ ${i.sensorType === 'com_sensor'
                         </div>
                     </div>
                 </div>
-            ), document.body)}
+            , document.body)}
 
             {/* Modal de Fechamento do Dia */}
             {showFechamentoModal && (

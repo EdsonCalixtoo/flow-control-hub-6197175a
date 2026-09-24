@@ -9,6 +9,7 @@ import OrderChat from '@/components/shared/OrderChat';
 import { Play, CheckCircle, Printer, Package, ArrowLeft, Search, ScanLine, X, Eye, Truck, Wrench, Calendar, Clock, AlertTriangle, CalendarClock, Send, Camera, StopCircle, History as HistoryIcon, RefreshCw, Filter, ShieldAlert, DollarSign, Activity, Zap, ChevronDown, Share2, ShieldCheck, User, BadgeCheck, Users2, Info, FileText, Barcode } from 'lucide-react';
 import BarcodeComponent from 'react-barcode';
 import { useSearchParams } from 'react-router-dom';
+import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import ModernCalendar from '@/components/shared/ModernCalendar';
 import type { ProductionStatus } from '@/types/erp';

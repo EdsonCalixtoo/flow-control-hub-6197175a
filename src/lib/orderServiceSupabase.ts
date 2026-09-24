@@ -102,6 +102,9 @@ export const orderToSupabase = (order: Partial<Order>) => {
     if (order.attachmentName !== undefined) data.attachment_name = order.attachmentName;
     if (order.invoiceKey !== undefined) data.invoice_key = order.invoiceKey;
     if (order.melhor_envio_label_url !== undefined) data.melhor_envio_label_url = order.melhor_envio_label_url;
+    if (order.melhor_envio_order_id !== undefined) data.melhor_envio_order_id = order.melhor_envio_order_id;
+    if (order.melhor_envio_status !== undefined) data.melhor_envio_status = order.melhor_envio_status;
+    if (order.melhor_envio_tracking !== undefined) data.melhor_envio_tracking = order.melhor_envio_tracking;
     if (order.items) data.items = order.items;
     if (order.statusHistory) data.status_history = order.statusHistory;
     if (order.productionMedia !== undefined) data.production_media = order.productionMedia;
@@ -110,7 +113,7 @@ export const orderToSupabase = (order: Partial<Order>) => {
 };
 
 // ⚡ OTIMIZAÇÃO DE EGRESS: Colunas mínimas para listagem (sem histórico pesado)
-const LIST_ORDER_COLUMNS = 'id, number, client_id, client_name, seller_id, seller_name, subtotal, taxes, total, status, notes, observation, order_type, is_cronograma, financeiro_aprovado, is_warranty, status_pagamento, status_producao, created_at, updated_at, delivery_date, custom_delivery_address, installation_date, installation_time, installation_payment_type, scheduled_date, carrier, parent_order_id, parent_order_number, is_site, is_international, attachment_url, attachment_name, items, volumes, requires_invoice, requires_shipping_note, receipt_url, receipt_urls, comprovantes_vistos, production_media, melhor_envio_label_url, melhor_envio_order_id, melhor_envio_status, invoice_key';
+const LIST_ORDER_COLUMNS = 'id, number, client_id, client_name, seller_id, seller_name, subtotal, taxes, total, status, notes, observation, order_type, is_cronograma, financeiro_aprovado, is_warranty, status_pagamento, status_producao, created_at, updated_at, delivery_date, custom_delivery_address, installation_date, installation_time, installation_payment_type, scheduled_date, carrier, parent_order_id, parent_order_number, is_site, is_international, attachment_url, attachment_name, items, volumes, requires_invoice, requires_shipping_note, receipt_url, receipt_urls, comprovantes_vistos, production_media, melhor_envio_label_url, melhor_envio_order_id, melhor_envio_status, melhor_envio_tracking, invoice_key, status_history';
 
 export const fetchOrders = async (role?: string, userId?: string): Promise<Order[]> => {
     try {

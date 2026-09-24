@@ -18,7 +18,8 @@ import type { Order, FinancialEntry, Client } from '@/types/erp';
 // Status que devem aparecer no financeiro (apenas quando o vendedor clicou em Enviar)
 // Fluxo simplificado: Financeiro aprova e envia direto para Produção (sem Gestor)
 const STATUS_VISIVEL_FINANCEIRO = [
-  'aguardando_financeiro', 'aprovado_financeiro', 'rejeitado_financeiro'
+  'aguardando_financeiro', 'aprovado_financeiro', 'rejeitado_financeiro',
+  'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado', 'retirado_entregador'
 ];
 
 type PaymentFilter = 'todos' | 'pago' | 'pendente' | 'vencido' | 'cancelado';
@@ -650,7 +651,12 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
 
   // Fluxo: Financeiro aprova e opcionalmente envia para Produção
   const aprovarFinanceiro = async (orderId: string, sendToProduction: boolean = false) => {
-    await prosseguirAprovacaoFinanceiro(orderId, sendToProduction);
+    try {
+      await prosseguirAprovacaoFinanceiro(orderId, sendToProduction);
+    } catch (err: any) {
+      console.error('[Financeiro] Erro ao aprovar pedido:', err);
+      toast.error('Erro ao aprovar pedido: ' + (err?.message || JSON.stringify(err)));
+    }
   };
 
   const prosseguirAprovacaoFinanceiro = async (orderId: string, sendToProduction: boolean = false) => {
@@ -669,11 +675,11 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
       // ✅ Pedidos de GARANTIA: Financeiro aprova e envia para o GESTOR (conforme fluxograma)
       await updateOrderStatus(orderId, 'aguardando_gestor', { financeiroAprovado: true }, 'Financeiro', 'Garantia: Enviado para validação do Gestor');
       setSelectedOrderId(null);
+      toast.success('Garantia enviada para o Gestor!');
       return;
     }
 
     if (isConsignado) {
-      // ✅ Para clientes CONSIGNADOS, permite aprovar/enviar para produção SEM obrigatoriedade de pagamento total
       await updateOrderStatus(
         orderId,
         nextStatus,
@@ -682,7 +688,6 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
         `Consignado: ${actionText}`
       );
     } else if (order.orderType === 'instalacao') {
-      // ✅ Para INSTALAÇÕES, também permite aprovar/enviar para produção mesmo sem pagamento total (ex: pagar na hora)
       await updateOrderStatus(
         orderId,
         nextStatus,
@@ -691,7 +696,6 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
         `Instalação: ${actionText}`
       );
     } else if (order.orderType === 'retirada') {
-      // ✅ Para RETIRADAS, também permite aprovar/enviar para produção mesmo sem pagamento total (ex: cobrar no local)
       await updateOrderStatus(
         orderId,
         nextStatus,
@@ -716,7 +720,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
             id: crypto.randomUUID(),
             type: 'receita',
             description: `Pagamento total - ${order.number} - ${order.clientName}`,
-            amount: saldo, // Apenas o saldo devedor restante
+            amount: saldo,
             category: 'Venda de Produtos',
             date: new Date().toISOString().split('T')[0],
             status: 'pago',
@@ -725,18 +729,19 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
             clientId: order.clientId,
             clientName: order.clientName,
             paymentMethod: order.paymentMethod || 'Pix',
-            receiptUrls: order.receiptUrls || [], // 🔥 COPIA OS COMPROVANTES DO PEDIDO PARA O LANÇAMENTO
+            receiptUrls: order.receiptUrls || [],
             transactionId: (order as any).transactionId,
             cardLastDigits: (order as any).cardLastDigits,
             createdAt: new Date().toISOString(),
           };
-
           await addFinancialEntry(entry);
         }
         await updateOrderStatus(orderId, nextStatus, { paymentStatus: 'pago', statusPagamento: 'pago', financeiroAprovado: true }, 'Financeiro', `Pagamento: ${actionText}`);
       }
     }
 
+    // Só fecha o painel e mostra sucesso se chegou até aqui sem erro
+    toast.success(`Pedido ${order.number} — ${actionText}!`);
     setSelectedOrderId(null);
     setShowReject(false);
     setRejectReason('');

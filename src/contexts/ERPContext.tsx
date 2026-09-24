@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useCallback, useEffect, useMemo } from 'react';
+﻿import React, { createContext, useContext, useCallback, useEffect, useMemo } from 'react';
 import type { Order, Client, FinancialEntry, Product, OrderStatus, StatusHistoryEntry, DelayReport, ChatMessage, OrderReturn, ProductionError, BarcodeScan, DeliveryPickup, Warranty, WarrantyStatus, ProductionDailyClosure } from '@/types/erp';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -92,7 +92,7 @@ const ERPContext = createContext<ERPContextType | null>(null);
 export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, user } = useAuth();
 
-  // ── Persistência local (Somente para itens não críticos ou ainda não migrados) ──────
+  // â”€â”€ PersistÃªncia local (Somente para itens nÃ£o crÃ­ticos ou ainda nÃ£o migrados) â”€â”€â”€â”€â”€â”€
   const [orders, setOrders] = React.useState<Order[]>([]);
   const [clients, setClients] = React.useState<Client[]>([]);
   const [financialEntries, setFinancialEntries] = React.useState<FinancialEntry[]>([]);
@@ -109,7 +109,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const loadingRef = React.useRef(false);
   const [loading, setLoading] = React.useState(false);
 
-  // ── Carregar DADOS do Supabase quando autenticado ──────────
+  // â”€â”€ Carregar DADOS do Supabase quando autenticado â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const loadFromSupabase = useCallback(async () => {
     if (!isAuthenticated || loadingRef.current) return;
 
@@ -118,28 +118,28 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       loadingRef.current = true;
       setLoading(true);
-      console.log('[ERP] 📥 Sincronizando com Supabase (em batches)...');
+      console.log('[ERP] ðŸ“¥ Sincronizando com Supabase (em batches)...');
 
-      // Batch 1: Dados essenciais — executados individualmente para garantir resiliência
+      // Batch 1: Dados essenciais â€” executados individualmente para garantir resiliÃªncia
       try {
         const supabaseClients = await fetchClients();
         setClients(supabaseClients);
-        console.log('[ERP] ✅ Clientes carregados');
-      } catch (e: any) { console.warn('[ERP] ⚠️ Erro Clientes:', e.message); }
+        console.log('[ERP] âœ… Clientes carregados');
+      } catch (e: any) { console.warn('[ERP] âš ï¸ Erro Clientes:', e.message); }
 
       try {
         const supabaseProducts = await fetchProducts();
         setProducts(supabaseProducts);
-        console.log('[ERP] ✅ Produtos carregados');
-      } catch (e: any) { console.warn('[ERP] ⚠️ Erro Produtos:', e.message); }
+        console.log('[ERP] âœ… Produtos carregados');
+      } catch (e: any) { console.warn('[ERP] âš ï¸ Erro Produtos:', e.message); }
 
       try {
         const supabaseOrders = await fetchOrders(user?.role, user?.id);
         setOrders(supabaseOrders);
-        console.log('[ERP] ✅ Pedidos carregados');
-      } catch (e: any) { console.warn('[ERP] ⚠️ Erro Pedidos:', e.message); }
+        console.log('[ERP] âœ… Pedidos carregados');
+      } catch (e: any) { console.warn('[ERP] âš ï¸ Erro Pedidos:', e.message); }
 
-      console.log('[ERP] ✅ Batch 1 concluído');
+      console.log('[ERP] âœ… Batch 1 concluÃ­do');
 
       await delay(300);
 
@@ -152,11 +152,11 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setFinancialEntries(supabaseFinancial);
       setDelayReports(supabaseDelays);
       setWarranties(supabaseWarranties);
-      console.log('[ERP] ✅ Batch 2 concluído');
+      console.log('[ERP] âœ… Batch 2 concluÃ­do');
 
       await delay(300);
 
-      // Batch 3: Dados operacionais secundários
+      // Batch 3: Dados operacionais secundÃ¡rios
       const [supabaseReturns, supabaseErrors, supabaseScans, supabasePickups, supabaseProductionClosures] = await Promise.all([
         fetchOrderReturns(),
         fetchProductionErrors(),
@@ -169,42 +169,42 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setBarcodeScans(supabaseScans);
       setDeliveryPickups(supabasePickups);
       setProductionDailyClosures(supabaseProductionClosures);
-      console.log('[ERP] ✅ Batch 3 concluído');
+      console.log('[ERP] âœ… Batch 3 concluÃ­do');
 
       await delay(300);
 
       // Batch 4: Fechamentos mensais
       const supabaseClosings = await fetchMonthlyClosings();
       setMonthlyClosings(supabaseClosings);
-      console.log('[ERP] ✅ Batch 4 concluído');
+      console.log('[ERP] âœ… Batch 4 concluÃ­do');
 
-      console.log('[ERP] ✅ Sincronização completa');
+      console.log('[ERP] âœ… SincronizaÃ§Ã£o completa');
     } catch (err: any) {
-      console.error('[ERP] ❌ Erro na sincronização:', err.message);
-      toast.error('Erro ao sincronizar dados. Verifique sua conexão.');
+      console.error('[ERP] âŒ Erro na sincronizaÃ§Ã£o:', err.message);
+      toast.error('Erro ao sincronizar dados. Verifique sua conexÃ£o.');
     } finally {
       loadingRef.current = false;
       setLoading(false);
     }
   }, [isAuthenticated]);
 
-  // ── Polling de Fallback (30 segundos) ──────────────────────
-  // Garante sincronização se o Realtime falhar.
+  // â”€â”€ Polling de Fallback (30 segundos) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Garante sincronizaÃ§Ã£o se o Realtime falhar.
   useEffect(() => {
     if (!isAuthenticated) return;
     
-    // Sincronização inicial
+    // SincronizaÃ§Ã£o inicial
     loadFromSupabase();
 
-    // ── CONFIGURAÇÃO REALTIME (SUPABASE) ──────────────────
-    // Ouve mudanças na tabela de pedidos e atualiza o estado instantaneamente
+    // â”€â”€ CONFIGURAÃ‡ÃƒO REALTIME (SUPABASE) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Ouve mudanÃ§as na tabela de pedidos e atualiza o estado instantaneamente
     const channel = supabase
       .channel('erp_orders_realtime')
       .on(
         'postgres_changes',
         { event: '*', table: 'orders', schema: 'public' },
         (payload) => {
-          console.log('[ERP] 🔔 Mudança detectada (Realtime):', payload.eventType);
+          console.log('[ERP] ðŸ”” MudanÃ§a detectada (Realtime):', payload.eventType);
           
           if (payload.eventType === 'INSERT') {
             const newOrder = supabaseToOrder(payload.new);
@@ -221,17 +221,17 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       )
       .subscribe((status) => {
-        console.log('[ERP] 📡 Status do canal Realtime (Orders):', status);
+        console.log('[ERP] ðŸ“¡ Status do canal Realtime (Orders):', status);
       });
 
-      // ── CONFIGURAÇÃO REALTIME (CLIENTS) ──────────────────
+      // â”€â”€ CONFIGURAÃ‡ÃƒO REALTIME (CLIENTS) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       const clientChannel = supabase
         .channel('erp_clients_realtime')
         .on(
           'postgres_changes',
           { event: '*', table: 'clients', schema: 'public' },
           (payload) => {
-            console.log('[ERP] 🔔 Mudança detectada em Clientes (Realtime):', payload.eventType);
+            console.log('[ERP] ðŸ”” MudanÃ§a detectada em Clientes (Realtime):', payload.eventType);
             
             if (payload.eventType === 'INSERT') {
               const newClient = supabaseToClientClient(payload.new);
@@ -248,17 +248,17 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         )
         .subscribe((status) => {
-          console.log('[ERP] 📡 Status do canal Realtime (Clients):', status);
+          console.log('[ERP] ðŸ“¡ Status do canal Realtime (Clients):', status);
         });
 
-      // ── CONFIGURAÇÃO REALTIME (BARCODE SCANS) ──────────────────
+      // â”€â”€ CONFIGURAÃ‡ÃƒO REALTIME (BARCODE SCANS) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       const barcodeScansChannel = supabase
         .channel('erp_barcode_scans_realtime')
         .on(
           'postgres_changes',
           { event: '*', table: 'barcode_scans', schema: 'public' },
           (payload) => {
-            console.log('[ERP] 🔔 Mudança detectada em Barcode Scans (Realtime):', payload.eventType);
+            console.log('[ERP] ðŸ”” MudanÃ§a detectada em Barcode Scans (Realtime):', payload.eventType);
             
             if (payload.eventType === 'INSERT') {
               const newScan = {
@@ -280,17 +280,17 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         )
         .subscribe((status) => {
-          console.log('[ERP] 📡 Status do canal Realtime (Barcode Scans):', status);
+          console.log('[ERP] ðŸ“¡ Status do canal Realtime (Barcode Scans):', status);
         });
 
-      // ── CONFIGURAÇÃO REALTIME (DELIVERY PICKUPS) ──────────────────
+      // â”€â”€ CONFIGURAÃ‡ÃƒO REALTIME (DELIVERY PICKUPS) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
       const deliveryPickupsChannel = supabase
         .channel('erp_delivery_pickups_realtime')
         .on(
           'postgres_changes',
           { event: '*', table: 'delivery_pickups', schema: 'public' },
           (payload) => {
-            console.log('[ERP] 🔔 Mudança detectada em Delivery Pickups (Realtime):', payload.eventType);
+            console.log('[ERP] ðŸ”” MudanÃ§a detectada em Delivery Pickups (Realtime):', payload.eventType);
             
             if (payload.eventType === 'INSERT') {
               const newPickup = {
@@ -314,14 +314,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         )
         .subscribe((status) => {
-          console.log('[ERP] 📡 Status do canal Realtime (Delivery Pickups):', status);
+          console.log('[ERP] ðŸ“¡ Status do canal Realtime (Delivery Pickups):', status);
         });
 
-      // ⚡ OTIMIZAÇÃO OBRIGATÓRIA: Removido o polling de 5 minutos.
-    // O Realtime já escuta mudanças na nuvem e o polling massivo estava 
+      // âš¡ OTIMIZAÃ‡ÃƒO OBRIGATÃ“RIA: Removido o polling de 5 minutos.
+    // O Realtime jÃ¡ escuta mudanÃ§as na nuvem e o polling massivo estava 
     // estourando os limites de Egress da conta do Supabase!
     // const interval = setInterval(() => {
-    //   console.log('[ERP] 🔄 Polling de segurança desativado para economizar Egress.');
+    //   console.log('[ERP] ðŸ”„ Polling de seguranÃ§a desativado para economizar Egress.');
     //   // loadFromSupabase();
     // }, 300000);
 
@@ -332,7 +332,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [loadFromSupabase, isAuthenticated]);
   
-  // ── AUTO-CLEANUP: Garantias que já foram entregues ──────────
+  // â”€â”€ AUTO-CLEANUP: Garantias que jÃ¡ foram entregues â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   useEffect(() => {
     if (orders.length > 0 && warranties.length > 0) {
       const pendingWarranties = warranties.filter(w => w.status !== 'Garantia finalizada');
@@ -347,29 +347,29 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const STATUS_CONCLUIDOS = ['retirado_entregador', 'produto_liberado', 'producao_finalizada', 'extraviado', 'rejeitado_gestor'];
         
         if (linkedOrder && STATUS_CONCLUIDOS.includes(linkedOrder.status)) {
-          console.log(`[ERP] 🤖 Auto-Cleanup: Finalizando garantia ${w.orderNumber} (Pedido concluído/encerrado)`);
-          await updateWarrantyStatus(w.id, 'Garantia finalizada', undefined, 'Sistema', 'Finalizado automaticamente: Pedido já retirado pelo entregador', true);
+          console.log(`[ERP] ðŸ¤– Auto-Cleanup: Finalizando garantia ${w.orderNumber} (Pedido concluÃ­do/encerrado)`);
+          await updateWarrantyStatus(w.id, 'Garantia finalizada', undefined, 'Sistema', 'Finalizado automaticamente: Pedido jÃ¡ retirado pelo entregador', true);
         }
       });
     }
-  }, [orders, warranties.length]); // Monitora mudanças nos pedidos ou quantidade de garantias
+  }, [orders, warranties.length]); // Monitora mudanÃ§as nos pedidos ou quantidade de garantias
 
 
-  // ── PRODUCTS ─────────────────────────────────────────────────
+  // â”€â”€ PRODUCTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const addProduct = useCallback(async (product: Product) => {
     try {
-      console.log('[ERP] 📦 Criando produto:', product.name);
+      console.log('[ERP] ðŸ“¦ Criando produto:', product.name);
       const { id, createdAt, updatedAt, ...productData } = product;
       const newProduct = await createProductSupabase(productData);
       if (newProduct) {
         setProducts(prev => [newProduct, ...prev]);
-        console.log('[ERP] ✅ Produto criado no Supabase:', newProduct.id);
+        console.log('[ERP] âœ… Produto criado no Supabase:', newProduct.id);
         
         await logAction({
           user_id: user?.id || 'system',
           user_name: user?.name || 'Sistema',
           user_role: user?.role || 'vendedor',
-          action: `Criação de Produto: ${newProduct.name}`,
+          action: `CriaÃ§Ã£o de Produto: ${newProduct.name}`,
           entity_type: 'product',
           entity_id: newProduct.id,
           new_data: newProduct
@@ -378,7 +378,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         throw new Error('Falha ao criar produto no Supabase');
       }
     } catch (err: any) {
-      console.error('[ERP] ❌ Erro ao criar produto:', err.message);
+      console.error('[ERP] âŒ Erro ao criar produto:', err.message);
       // fallback local
       setProducts(prev => [product, ...prev]);
       throw err;
@@ -387,18 +387,18 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateProduct = useCallback(async (product: Product) => {
     try {
-      console.log('[ERP] 📦 Atualizando produto:', product.name);
+      console.log('[ERP] ðŸ“¦ Atualizando produto:', product.name);
       const updated = await updateProductSupabase(product);
       if (updated) {
         const productBefore = products.find(p => p.id === product.id);
         setProducts(prev => prev.map(p => p.id === product.id ? updated : p));
-        console.log('[ERP] ✅ Produto atualizado no Supabase:', updated.id);
+        console.log('[ERP] âœ… Produto atualizado no Supabase:', updated.id);
         
         await logAction({
           user_id: user?.id || 'system',
           user_name: user?.name || 'Sistema',
           user_role: user?.role || 'vendedor',
-          action: `Atualização de Produto: ${updated.name}`,
+          action: `AtualizaÃ§Ã£o de Produto: ${updated.name}`,
           entity_type: 'product',
           entity_id: updated.id,
           old_data: productBefore,
@@ -408,12 +408,12 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         throw new Error('Falha ao atualizar produto no Supabase');
       }
     } catch (err: any) {
-      console.error('[ERP] ❌ Erro ao atualizar produto:', err.message);
+      console.error('[ERP] âŒ Erro ao atualizar produto:', err.message);
       // fallback local
       setProducts(prev => prev.map(p => p.id === product.id ? product : p));
       throw err;
     }
-  }, []); // estável — setProducts vem do useState
+  }, []); // estÃ¡vel â€” setProducts vem do useState
 
   // Refs para evitar loop infinito em updateOrderStatus
   const productsRef = React.useRef(products);
@@ -423,42 +423,42 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteProduct = useCallback(async (productId: string) => {
     try {
-      console.log('[ERP] 🗑️ Deletando produto:', productId);
+      console.log('[ERP] ðŸ—‘ï¸ Deletando produto:', productId);
       const productBefore = products.find(p => p.id === productId);
       await deleteProductSupabase(productId);
       setProducts(prev => prev.filter(p => p.id !== productId));
-      console.log('[ERP] ✅ Produto deletado do Supabase:', productId);
+      console.log('[ERP] âœ… Produto deletado do Supabase:', productId);
       
       await logAction({
         user_id: user?.id || 'system',
         user_name: user?.name || 'Sistema',
         user_role: user?.role || 'vendedor',
-        action: `Exclusão de Produto: ${productBefore?.name || productId}`,
+        action: `ExclusÃ£o de Produto: ${productBefore?.name || productId}`,
         entity_type: 'product',
         entity_id: productId,
         old_data: productBefore
       });
     } catch (err: any) {
-      console.error('[ERP] ❌ Erro ao deletar produto:', err.message);
+      console.error('[ERP] âŒ Erro ao deletar produto:', err.message);
       // fallback local
       setProducts(prev => prev.filter(p => p.id !== productId));
       throw err;
     }
   }, [setProducts]);
 
-  // ── ORDERS ───────────────────────────────────────────────────
+  // â”€â”€ ORDERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const addOrder = useCallback(async (order: Order) => {
     try {
       const newOrder = await createOrderSupabase(order);
       if (newOrder) {
         setOrders(prev => [newOrder, ...prev]);
-        console.log('[ERP] ✨ Pedido criado no Supabase:', newOrder.number);
+        console.log('[ERP] âœ¨ Pedido criado no Supabase:', newOrder.number);
         
         await logAction({
           user_id: user?.id || 'system',
           user_name: user?.name || 'Sistema',
           user_role: user?.role || 'vendedor',
-          action: `Criação de Pedido: ${newOrder.number}`,
+          action: `CriaÃ§Ã£o de Pedido: ${newOrder.number}`,
           entity_type: 'order',
           entity_id: newOrder.id,
           new_data: newOrder
@@ -492,7 +492,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ...extra
     };
 
-    // ⚡ SINCRONIZAÇÃO: Garante que o link da foto vá para as duas colunas possíveis (vitrine e lista)
+    // âš¡ SINCRONIZAÃ‡ÃƒO: Garante que o link da foto vÃ¡ para as duas colunas possÃ­veis (vitrine e lista)
     if (extra?.receiptUrls && extra.receiptUrls.length > 0) {
       updateFields.receiptUrl = extra.receiptUrls[0];
       updateFields.receipt_url = extra.receiptUrls[0];
@@ -502,25 +502,27 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       let updated: Order|null = null;
       let updateError: any = null;
 
-      // 1. ATUALIZAÇÃO OTIMISTA (Melhora UX instantaneamente)
+      // 1. ATUALIZAÃ‡ÃƒO OTIMISTA (Melhora UX instantaneamente)
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...updateFields } : o));
 
       // 2. TENTA ATUALIZAR TABELA DE PEDIDOS NO BANCO
       try {
-        console.log(`[ERP] 🔄 Persistindo status do pedido ${currentOrder.number} no Supabase...`);
+        console.log(`[ERP] ðŸ”„ Persistindo status do pedido ${currentOrder.number} no Supabase...`);
         updated = await updateOrderSupabase(orderId, updateFields);
       } catch (err: any) {
         updateError = err;
-        console.warn('[ERP] Falha ao persistir na tabela orders (pode ser RLS ou erro de rede):', err.message);
+        console.error('[ERP] Falha ao persistir na tabela orders:', err.message);
+        toast.error('Falha ao atualizar pedido: ' + err.message);
+        setOrders(prev => prev.map(o => o.id === orderId ? currentOrder : o));
       }
       
-      // 3. CASCATA PARA PEDIDOS UNIFICADOS (Busca direta no banco para garantir precisão total)
+      // 3. CASCATA PARA PEDIDOS UNIFICADOS (Busca direta no banco para garantir precisÃ£o total)
       try {
         const { fetchOrdersByParentId } = await import('@/lib/orderServiceSupabase');
         const childOrders = await fetchOrdersByParentId(orderId);
         
         if (childOrders && childOrders.length > 0) {
-          console.log(`[ERP] 🔗 ${childOrders.length} pedidos unificados detectados. Replicando status...`);
+          console.log(`[ERP] ðŸ”— ${childOrders.length} pedidos unificados detectados. Replicando status...`);
           for (const child of childOrders) {
             // Chamada recursiva para os filhos
             await updateOrderStatus(
@@ -528,20 +530,20 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               status,
               extra,
               userName,
-              `BAIXA AUTOMÁTICA (UNIFICADO COM ${currentOrder.number}): ${note || ''}`
+              `BAIXA AUTOMÃTICA (UNIFICADO COM ${currentOrder.number}): ${note || ''}`
             ).catch(e => console.warn(`[ERP] Falha ao atualizar filho ${child.number}:`, e.message));
           }
         }
       } catch (cascadeErr: any) {
-        console.warn('[ERP] ⚠️ Erro ao processar cascata de unificados:', cascadeErr.message);
+        console.warn('[ERP] âš ï¸ Erro ao processar cascata de unificados:', cascadeErr.message);
       }
 
-      // 4. SE FOR GARANTIA, ATUALIZA TAMBÉM A TABELA DE GARANTIAS
+      // 4. SE FOR GARANTIA, ATUALIZA TAMBÃ‰M A TABELA DE GARANTIAS
       if (currentOrder.isWarranty) {
         try {
           const { updateWarranty } = await import('@/lib/warrantyServiceSupabase');
           let wStatus: any = currentOrder.status;
-          if (status === 'em_producao') wStatus = 'Em produção';
+          if (status === 'em_producao') wStatus = 'Em produÃ§Ã£o';
           else if (status === 'producao_finalizada' || status === 'produto_liberado' || status === 'retirado_entregador') wStatus = 'Garantia finalizada';
 
           await updateWarranty(orderId, {
@@ -549,7 +551,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             history: updateFields.statusHistory,
             updatedAt: now
           });
-          console.log('[ERP] ✅ Tabela de garantias sincronizada');
+          console.log('[ERP] âœ… Tabela de garantias sincronizada');
         } catch (wErr: any) {
           console.error('[ERP] Erro ao sincronizar tabela de garantias:', wErr.message);
         }
@@ -558,28 +560,28 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // 4. SINCRONIZA ESTADO FINAL SE O SUPABASE RETORNOU ALGO DIFERENTE (OU CONFIRMA O OTIMISTA)
       if (updated) {
         setOrders(prev => prev.map(o => o.id === orderId ? updated! : o));
-        console.log('[ERP] ✅ Persistência concluída com sucesso:', status);
+        console.log('[ERP] âœ… PersistÃªncia concluÃ­da com sucesso:', status);
       } else if (!updateError) {
-         // Se não deu erro mas não voltou nada (ex: select vazio), mantemos o otimista
-         console.warn('[ERP] ⚠️ Supabase não retornou o objeto atualizado. Mantendo estado otimista.');
+         // Se nÃ£o deu erro mas nÃ£o voltou nada (ex: select vazio), mantemos o otimista
+         console.warn('[ERP] âš ï¸ Supabase nÃ£o retornou o objeto atualizado. Mantendo estado otimista.');
       }
 
       await logAction({
         user_id: user?.id || 'system',
         user_name: user?.name || 'Sistema',
         user_role: user?.role || 'producao',
-        action: `Alteração de Status (#${currentOrder.number}): ${status}`,
+        action: `AlteraÃ§Ã£o de Status (#${currentOrder.number}): ${status}`,
         entity_type: 'order',
         entity_id: orderId,
         old_data: { status: currentOrder.status },
         new_data: { status }
       }).catch(e => console.warn('[ERP] Falha ao registrar log:', e.message));
 
-      // 🧹 GESTÃO DE LOGÍSTICA: Se o pedido está voltando para a produção (Refação/Devolução/Extravio),
-      // precisamos limpar os rastros de saídas anteriores para que o novo ciclo seja "limpo" para os entregadores.
+      // ðŸ§¹ GESTÃƒO DE LOGÃSTICA: Se o pedido estÃ¡ voltando para a produÃ§Ã£o (RefaÃ§Ã£o/DevoluÃ§Ã£o/Extravio),
+      // precisamos limpar os rastros de saÃ­das anteriores para que o novo ciclo seja "limpo" para os entregadores.
       if (status === 'aguardando_producao') {
         try {
-          console.log(`[ERP] 🧹 Limpando histórico de logística do pedido ${currentOrder.number} para novo ciclo de produção.`);
+          console.log(`[ERP] ðŸ§¹ Limpando histÃ³rico de logÃ­stica do pedido ${currentOrder.number} para novo ciclo de produÃ§Ã£o.`);
           
           // 1. Remove do Supabase
           await supabase.from('delivery_pickups').delete().eq('order_id', orderId);
@@ -589,18 +591,18 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setDeliveryPickups(prev => prev.filter(p => p.orderId !== orderId));
           setBarcodeScans(prev => prev.filter(s => s.orderId !== orderId));
         } catch (cleanErr: any) {
-          console.warn('[ERP] ⚠️ Falha ao limpar logística (não crítico):', cleanErr.message);
+          console.warn('[ERP] âš ï¸ Falha ao limpar logÃ­stica (nÃ£o crÃ­tico):', cleanErr.message);
         }
       }
 
-      // 📦 GESTÃO AUTOMÁTICA DE ESTOQUE
+      // ðŸ“¦ GESTÃƒO AUTOMÃTICA DE ESTOQUE
 
-      // 1. DEDUÇÃO (RESERVA): Quando o pedido é enviado para o financeiro ou pula para produção
+      // 1. DEDUÃ‡ÃƒO (RESERVA): Quando o pedido Ã© enviado para o financeiro ou pula para produÃ§Ã£o
       const isReserving = (status === 'aguardando_financeiro' || status === 'aguardando_producao') &&
         !['aguardando_financeiro', 'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'].includes(currentOrder.status);
 
       if (isReserving) {
-        console.log('[ERP] 📦 Deduzindo estoque (Reserva):', currentOrder.number);
+        console.log('[ERP] ðŸ“¦ Deduzindo estoque (Reserva):', currentOrder.number);
         // Busca produtos mais recentes para evitar desync de estoque
         const latestProducts = await fetchProducts();
 
@@ -613,17 +615,17 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               stockQuantity: newQuantity,
               status: newQuantity === 0 ? 'esgotado' : product.status
             });
-            // Atualiza o objeto local para o próximo item no loop (caso o mesmo produto apareça 2x)
+            // Atualiza o objeto local para o prÃ³ximo item no loop (caso o mesmo produto apareÃ§a 2x)
             product.stockQuantity = newQuantity;
           }
         }
         toast.success('Estoque reservado/deduzido com sucesso!');
       }
 
-      // 2. ESTORNO: Quando o pedido é rejeitado pelo financeiro e estava anteriormente reservado
+      // 2. ESTORNO: Quando o pedido Ã© rejeitado pelo financeiro e estava anteriormente reservado
       if (status === 'rejeitado_financeiro' && currentOrder.status === 'aguardando_financeiro') {
         try {
-          console.log('[ERP] 📦 Estornando estoque (Pedido Rejeitado):', currentOrder.number);
+          console.log('[ERP] ðŸ“¦ Estornando estoque (Pedido Rejeitado):', currentOrder.number);
           for (const item of currentOrder.items) {
             const product = productsRef.current.find(p => p.name === item.product);
             if (product) {
@@ -637,8 +639,8 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
           toast.info('Estoque retornado ao sistema.');
         } catch (stockErr: any) {
-          console.warn('[ERP] ⚠️ Erro ao estornar estoque (não crítico):', stockErr.message);
-          // Não bloqueia a rejeição do pedido
+          console.warn('[ERP] âš ï¸ Erro ao estornar estoque (nÃ£o crÃ­tico):', stockErr.message);
+          // NÃ£o bloqueia a rejeiÃ§Ã£o do pedido
         }
       }
     } catch (err: any) {
@@ -669,7 +671,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           return [fullOrder, ...prev];
         });
         
-        // ⚡ OTIMIZAÇÃO: Carrega lançamentos financeiros completos (com fotos) apenas para o pedido solicitado
+        // âš¡ OTIMIZAÃ‡ÃƒO: Carrega lanÃ§amentos financeiros completos (com fotos) apenas para o pedido solicitado
         const fullEntries = await fetchFinancialEntriesByOrderId(orderId);
         if (fullEntries.length > 0) {
           setFinancialEntries(prev => {
@@ -690,33 +692,33 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const loadOrderByNumber = useCallback(async (orderNumber: string): Promise<Order | null> => {
     try {
       const { fetchOrderByNumberSupabase } = await import('@/lib/orderServiceSupabase');
-      console.log(`[ERP] 🔍 Iniciando Busca Remota God-Mode para: ${orderNumber}`);
+      console.log(`[ERP] ðŸ” Iniciando Busca Remota God-Mode para: ${orderNumber}`);
       
       // 1. TENTA NA TABELA DE PEDIDOS
       let order = await fetchOrderByNumberSupabase(orderNumber);
       
-      // 2. SE NÃO ENCONTRAR, TENTA NA TABELA DE GARANTIAS (Fallback Crítico)
+      // 2. SE NÃƒO ENCONTRAR, TENTA NA TABELA DE GARANTIAS (Fallback CrÃ­tico)
       if (!order) {
-        console.log(`[ERP] 🛠️ Pedido não encontrado. Tentando localizar via tabela de GARANTIAS...`);
+        console.log(`[ERP] ðŸ› ï¸ Pedido nÃ£o encontrado. Tentando localizar via tabela de GARANTIAS...`);
         const { fetchWarrantyByNumberSupabase } = await import('@/lib/warrantyServiceSupabase');
         const warranty = await fetchWarrantyByNumberSupabase(orderNumber);
         
         if (warranty) {
-          console.log(`[ERP] ✅ GARANTIA localizada! OrderNumber: ${warranty.orderNumber} | OrderID: ${warranty.orderId}`);
+          console.log(`[ERP] âœ… GARANTIA localizada! OrderNumber: ${warranty.orderNumber} | OrderID: ${warranty.orderId}`);
           
           if (warranty.orderId) {
-            // Se a garantia tem um ID de pedido vinculado, tenta carregar esse pedido específico
+            // Se a garantia tem um ID de pedido vinculado, tenta carregar esse pedido especÃ­fico
             const { fetchOrderById } = await import('@/lib/orderServiceSupabase');
             order = await fetchOrderById(warranty.orderId);
             if (order) {
-               console.log(`[ERP] 🦾 Pedido original vinculado à garantia carregado: ${order.number}`);
+               console.log(`[ERP] ðŸ¦¾ Pedido original vinculado Ã  garantia carregado: ${order.number}`);
             }
           }
           
-          // Se ainda não tem pedido (ex: garantia manual sem registro de pedido), sintetiza um "Pedido Virtual"
-          // Isso permite que o scanner de produção processe a garantia como se fosse um pedido
+          // Se ainda nÃ£o tem pedido (ex: garantia manual sem registro de pedido), sintetiza um "Pedido Virtual"
+          // Isso permite que o scanner de produÃ§Ã£o processe a garantia como se fosse um pedido
           if (!order) {
-            console.log(`[ERP] 📦 Sintetizando Pedido Virtual para Garantia Manual: ${warranty.orderNumber}`);
+            console.log(`[ERP] ðŸ“¦ Sintetizando Pedido Virtual para Garantia Manual: ${warranty.orderNumber}`);
             order = {
               id: warranty.id, // Usa o ID da garantia como ID do pedido virtual
               number: warranty.orderNumber || orderNumber,
@@ -724,7 +726,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               clientName: warranty.clientName,
               sellerId: warranty.sellerId,
               sellerName: warranty.sellerName,
-              status: 'aguardando_producao', // Assume status de produção para permitir o scanner
+              status: 'aguardando_producao', // Assume status de produÃ§Ã£o para permitir o scanner
               total: 0,
               subtotal: 0,
               taxes: 0,
@@ -754,43 +756,43 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       return order;
     } catch (err: any) {
-      console.error('[ERP] Erro crítico no God-Mode Search:', err.message);
+      console.error('[ERP] Erro crÃ­tico no God-Mode Search:', err.message);
       return null;
     }
   }, []);
 
   const updateOrder = useCallback(async (orderId: string, fields: Partial<Order>) => {
     try {
-      console.log(`[ERP] 📝 Atualizando pedido ${orderId}...`, fields);
+      console.log(`[ERP] ðŸ“ Atualizando pedido ${orderId}...`, fields);
       const orderBefore = orders.find(o => o.id === orderId);
       
-      // 1. ATUALIZAÇÃO OTIMISTA (Instantânea na UI)
+      // 1. ATUALIZAÃ‡ÃƒO OTIMISTA (InstantÃ¢nea na UI)
       setOrders(prev => prev.map(o => o.id === orderId ? { ...o, ...fields } : o));
 
-      // 2. PERSISTÊNCIA NO BANCO
+      // 2. PERSISTÃŠNCIA NO BANCO
       const updated = await updateOrderSupabase(orderId, fields);
       
       if (updated) {
         setOrders(prev => prev.map(o => o.id === orderId ? updated : o));
-        console.log('[ERP] ✅ Pedido persistido com sucesso');
+        console.log('[ERP] âœ… Pedido persistido com sucesso');
         
         await logAction({
           user_id: user?.id || 'system',
           user_name: user?.name || 'Sistema',
           user_role: user?.role || 'vendedor',
-          action: `Atualização de Pedido (#${updated.number})`,
+          action: `AtualizaÃ§Ã£o de Pedido (#${updated.number})`,
           entity_type: 'order',
           entity_id: orderId,
           old_data: orderBefore,
           new_data: updated
         });
       } else {
-        console.warn('[ERP] ⚠️ Supabase não retornou o objeto atualizado em updateOrder.');
+        console.warn('[ERP] âš ï¸ Supabase nÃ£o retornou o objeto atualizado em updateOrder.');
       }
     } catch (err: any) {
-      console.error('[ERP] ❌ Erro ao atualizar pedido:', err.message);
-      toast.error('Falha ao salvar alteração no servidor.');
-      // Reverte o otimista em caso de erro crítico (opcional, mas seguro)
+      console.error('[ERP] âŒ Erro ao atualizar pedido:', err.message);
+      toast.error('Falha ao salvar alteraÃ§Ã£o no servidor.');
+      // Reverte o otimista em caso de erro crÃ­tico (opcional, mas seguro)
       loadFromSupabase();
     }
   }, [orders, user, loadFromSupabase]);
@@ -817,20 +819,20 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       await deleteOrderSupabase(orderId);
       setOrders(prev => prev.filter(o => o.id !== orderId));
-      console.log('[ERP] ✅ Pedido deletado do Supabase');
+      console.log('[ERP] âœ… Pedido deletado do Supabase');
 
-      // Registra a ação
+      // Registra a aÃ§Ã£o
       await logAction({
         user_id: user?.id || 'system',
         user_name: user?.name || 'Sistema',
         user_role: user?.role || 'vendedor',
-        action: `Exclusão de Pedido: ${orderToDelete?.number || orderId}`,
+        action: `ExclusÃ£o de Pedido: ${orderToDelete?.number || orderId}`,
         entity_type: 'order',
         entity_id: orderId,
         old_data: orderToDelete
       });
       if (orderToDelete && ['aguardando_financeiro', 'aguardando_producao', 'em_producao', 'producao_finalizada', 'produto_liberado'].includes(orderToDelete.status)) {
-        console.log('[ERP] 📦 Estornando estoque (Pedido Excluído):', orderToDelete.number);
+        console.log('[ERP] ðŸ“¦ Estornando estoque (Pedido ExcluÃ­do):', orderToDelete.number);
         for (const item of orderToDelete.items) {
           const product = productsRef.current.find(p => p.name === item.product);
           if (product) {
@@ -846,12 +848,12 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (err: any) {
       console.error('[ERP] Erro ao deletar pedido:', err.message);
     }
-  }, [orders]); // Usando refs para products/updateProduct — evita loop
+  }, [orders]); // Usando refs para products/updateProduct â€” evita loop
 
-  // ── CLIENTS ──────────────────────────────────────────────────
+  // â”€â”€ CLIENTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const addClient = useCallback(async (client: Client): Promise<void> => {
     try {
-      console.log('[ERP] 📝 Criando cliente:', client.name);
+      console.log('[ERP] ðŸ“ Criando cliente:', client.name);
 
       // Extrair apenas os campos que o Supabase precisa (sem id, createdAt, createdBy)
       const clientData: Omit<Client, 'id' | 'createdAt' | 'createdBy'> = {
@@ -869,36 +871,36 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isSite: client.isSite || false,
       };
 
-      // Salva no Supabase — o banco gera o ID automaticamente
+      // Salva no Supabase â€” o banco gera o ID automaticamente
       const newClient = await createClientSupabase(clientData);
 
       if (newClient) {
         setClients(prev => [newClient, ...prev]);
-        console.log('[ERP] ✅ Cliente criado com sucesso:', newClient.id);
+        console.log('[ERP] âœ… Cliente criado com sucesso:', newClient.id);
       } else {
         throw new Error('Falha ao criar cliente no Supabase');
       }
     } catch (err: any) {
-      console.error('[ERP] ❌ Erro ao criar cliente:', err.message);
+      console.error('[ERP] âŒ Erro ao criar cliente:', err.message);
       throw err;
     }
   }, [setClients]);
 
   const editClient = useCallback(async (client: Client) => {
     try {
-      console.log('[ERP] 📝 Atualizando cliente:', client.name);
+      console.log('[ERP] ðŸ“ Atualizando cliente:', client.name);
 
       // Atualiza no Supabase
       const updated = await updateClientSupabase(client);
 
       if (updated) {
         setClients(prev => prev.map(c => c.id === client.id ? updated : c));
-        console.log('[ERP] ✅ Cliente atualizado com sucesso');
+        console.log('[ERP] âœ… Cliente atualizado com sucesso');
       } else {
         throw new Error('Falha ao atualizar cliente no Supabase');
       }
     } catch (err: any) {
-      console.error('[ERP] ❌ Erro ao atualizar cliente:', err.message);
+      console.error('[ERP] âŒ Erro ao atualizar cliente:', err.message);
       // Fallback: atualiza localmente se Supabase falhar
       setClients(prev => prev.map(c => c.id === client.id ? client : c));
       throw err;
@@ -907,32 +909,32 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const deleteClient = useCallback(async (clientId: string) => {
     try {
-      console.log('[ERP] 🗑️ Deletando cliente:', clientId);
+      console.log('[ERP] ðŸ—‘ï¸ Deletando cliente:', clientId);
 
       // Deleta do Supabase
       const success = await deleteClientSupabase(clientId);
 
       if (success) {
         setClients(prev => prev.filter(c => c.id !== clientId));
-        console.log('[ERP] ✅ Cliente deletado com sucesso');
+        console.log('[ERP] âœ… Cliente deletado com sucesso');
       } else {
         throw new Error('Falha ao deletar cliente no Supabase');
       }
     } catch (err: any) {
-      console.error('[ERP] ❌ Erro ao deletar cliente:', err.message);
+      console.error('[ERP] âŒ Erro ao deletar cliente:', err.message);
       // Fallback: deleta localmente se Supabase falhar
       setClients(prev => prev.filter(c => c.id !== clientId));
       throw err;
     }
   }, [setClients]);
 
-  // ── FINANCIAL ENTRIES ────────────────────────────────────────
+  // â”€â”€ FINANCIAL ENTRIES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const addFinancialEntry = useCallback(async (entry: FinancialEntry) => {
     try {
       const newEntry = await createFinancialEntrySupabase(entry);
       if (newEntry) {
         setFinancialEntries(prev => [newEntry, ...prev]);
-        console.log('[ERP] Lançamento financeiro criado no Supabase');
+        console.log('[ERP] LanÃ§amento financeiro criado no Supabase');
       }
       return newEntry;
     } catch (err: any) {
@@ -946,14 +948,14 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const updated = await updateFinancialEntrySupabase(id, fields);
       if (updated) {
         setFinancialEntries(prev => prev.map(e => e.id === id ? updated : e));
-        console.log('[ERP] Lançamento financeiro atualizado no Supabase');
+        console.log('[ERP] LanÃ§amento financeiro atualizado no Supabase');
       }
     } catch (err: any) {
       console.error('[ERP] Erro ao atualizar financeiro:', err.message);
     }
   }, []);
 
-  // ── DELAY REPORTS ────────────────────────────────────────────
+  // â”€â”€ DELAY REPORTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const addDelayReport = useCallback(async (report: Omit<DelayReport, 'id' | 'sentAt' | 'readAt'>) => {
     try {
       const newReport = await createDelayReportSupabase(report);
@@ -1006,7 +1008,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }).length;
   }, [orders, financialEntries]);
 
-  // ── CHAT ─────────────────────────────────────────────────────
+  // â”€â”€ CHAT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const loadChat = useCallback(async (orderId: string) => {
     // Placeholder - sem backend
     setChatMessages(prev => ({ ...prev, [orderId]: [] }));
@@ -1038,16 +1040,16 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return (chatMessages[orderId] ?? []).filter(m => !m.readBy.includes(role)).length;
   }, [chatMessages]);
 
-  // ── ORDER RETURNS ─────────────────────────────────────────────
+  // â”€â”€ ORDER RETURNS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const addOrderReturn = useCallback(async (ret: Omit<OrderReturn, 'id' | 'createdAt' | 'resolvedAt'>) => {
     try {
       const newRet = await createOrderReturnSupabase(ret);
       if (newRet) {
         setOrderReturns(prev => [newRet, ...prev]);
-        console.log('[ERP] Devolução criada no Supabase');
+        console.log('[ERP] DevoluÃ§Ã£o criada no Supabase');
       }
     } catch (err: any) {
-      console.error('[ERP] Erro ao criar devolução:', err.message);
+      console.error('[ERP] Erro ao criar devoluÃ§Ã£o:', err.message);
     }
   }, []);
 
@@ -1063,16 +1065,16 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  // ── PRODUCTION ERRORS ─────────────────────────────────────────
+  // â”€â”€ PRODUCTION ERRORS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const addProductionError = useCallback(async (err: Omit<ProductionError, 'id' | 'createdAt'>) => {
     try {
       const newErr = await createProductionErrorSupabase({ ...err, resolved: false });
       if (newErr) {
         setProductionErrors(prev => [newErr, ...prev]);
-        console.log('[ERP] Erro de produção criado no Supabase');
+        console.log('[ERP] Erro de produÃ§Ã£o criado no Supabase');
       }
     } catch (err: any) {
-      console.error('[ERP] Erro ao criar erro de produção:', err.message);
+      console.error('[ERP] Erro ao criar erro de produÃ§Ã£o:', err.message);
     }
   }, []);
 
@@ -1087,13 +1089,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  // ── barcode scans ───────────────────────────────────────────
+  // â”€â”€ barcode scans â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const addBarcodeScan = useCallback(async (scan: Omit<BarcodeScan, 'id' | 'scannedAt'>) => {
     try {
       const newScan = await createBarcodeScanSupabase(scan);
       if (newScan) {
         setBarcodeScans(prev => [newScan, ...prev]);
-        console.log('[ERP] 📡 Leitura sincronizada com Supabase:', scan.orderNumber);
+        console.log('[ERP] ðŸ“¡ Leitura sincronizada com Supabase:', scan.orderNumber);
       }
     } catch (err: any) {
       console.error('[ERP] Erro ao sincronizar leitura:', err.message);
@@ -1101,13 +1103,13 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  // ── delivery pickups ─────────────────────────────────────────
+  // â”€â”€ delivery pickups â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const addDeliveryPickup = useCallback(async (pickup: Omit<DeliveryPickup, 'id' | 'pickedUpAt'>) => {
     try {
       const newPickup = await createDeliveryPickupSupabase(pickup);
       if (newPickup) {
         setDeliveryPickups(prev => [newPickup, ...prev]);
-        console.log('[ERP] 🚚 Retirada sincronizada com Supabase:', pickup.orderNumber);
+        console.log('[ERP] ðŸšš Retirada sincronizada com Supabase:', pickup.orderNumber);
       }
     } catch (err: any) {
       console.error('[ERP] Erro ao sincronizar retirada:', err.message);
@@ -1115,7 +1117,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  // ── warranties ─────────────────────────────────────────────
+  // â”€â”€ warranties â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const addWarranty = useCallback(async (warranty: Omit<Warranty, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {
       const newW = await createWarrantySupabase(warranty);
@@ -1148,7 +1150,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
           return o;
         }));
-        console.log('[ERP] ✅ Garantia e Pedido Virtual sincronizados');
+        console.log('[ERP] âœ… Garantia e Pedido Virtual sincronizados');
       }
     } catch (error) {
       console.error('[ERP] Erro ao editar garantia:', error);
@@ -1179,16 +1181,16 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (updated) {
         setWarranties(prev => prev.map(w => w.id === id ? updated : w));
 
-        // 🔗 SINCRONIZAÇÃO COM O PEDIDO VINCULADO
-        // Quando a garantia é aprovada ou finalizada, o status do pedido correspondente
-        // também deve ser atualizado para que apareça corretamente nos módulos de produção.
+        // ðŸ”— SINCRONIZAÃ‡ÃƒO COM O PEDIDO VINCULADO
+        // Quando a garantia Ã© aprovada ou finalizada, o status do pedido correspondente
+        // tambÃ©m deve ser atualizado para que apareÃ§a corretamente nos mÃ³dulos de produÃ§Ã£o.
         if (updated.orderId && !skipOrderSync) {
           if (status === 'Garantia aprovada') {
-            await updateOrderStatus(updated.orderId, 'aguardando_producao', undefined, userName, 'Garantia aprovada pelo gestor e enviada para produção');
-          } else if (status === 'Em produção') {
-            await updateOrderStatus(updated.orderId, 'em_producao', undefined, userName, 'Garantia em produção');
+            await updateOrderStatus(updated.orderId, 'aguardando_producao', undefined, userName, 'Garantia aprovada pelo gestor e enviada para produÃ§Ã£o');
+          } else if (status === 'Em produÃ§Ã£o') {
+            await updateOrderStatus(updated.orderId, 'em_producao', undefined, userName, 'Garantia em produÃ§Ã£o');
           } else if (status === 'Garantia finalizada') {
-            await updateOrderStatus(updated.orderId, 'producao_finalizada', undefined, userName, 'Garantia concluída na produção');
+            await updateOrderStatus(updated.orderId, 'producao_finalizada', undefined, userName, 'Garantia concluÃ­da na produÃ§Ã£o');
           }
         }
       }
@@ -1197,16 +1199,16 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [warranties]);
 
-  // ── MONTHLY CLOSINGS ──────────────────────────────────────────
+  // â”€â”€ MONTHLY CLOSINGS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const closeMonth = useCallback(async (closing: Omit<MonthlyClosing, 'id' | 'createdAt'>) => {
     try {
       const newClosing = await createMonthlyClosing(closing);
       if (newClosing) {
         setMonthlyClosings(prev => [newClosing, ...prev]);
-        toast.success(`Mês ${closing.referenceMonth} fechado para ${closing.sellerName}`);
+        toast.success(`MÃªs ${closing.referenceMonth} fechado para ${closing.sellerName}`);
       }
     } catch (error) {
-      toast.error('Erro ao fechar o mês');
+      toast.error('Erro ao fechar o mÃªs');
     }
   }, []);
 
@@ -1224,7 +1226,7 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, []);
 
-  // ── CLEAR ALL ────────────────────────────────────────────────
+  // â”€â”€ CLEAR ALL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const clearAll = useCallback(async () => {
     const keys = ['erp_orders', 'erp_clients', 'erp_financial', 'erp_products', 'erp_delay_reports', 'erp_order_returns', 'erp_production_errors', 'erp_barcode_scans', 'erp_delivery_pickups'];
     keys.forEach(k => localStorage.removeItem(k));
@@ -1250,17 +1252,17 @@ export const ERPProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [setBarcodeScans]);
 
-  // ── PRODUCTION DAILY CLOSURES ─────────────────────────────────
+  // â”€â”€ PRODUCTION DAILY CLOSURES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const addProductionDailyClosure = useCallback(async (closure: Omit<ProductionDailyClosure, 'id' | 'createdAt'>) => {
     try {
       const newClosure = await createProductionDailyClosureSupabase(closure);
       if (newClosure) {
         setProductionDailyClosures(prev => [newClosure, ...prev]);
-        toast.success(`Fechamento diário realizado com sucesso`);
+        toast.success(`Fechamento diÃ¡rio realizado com sucesso`);
       }
     } catch (err: any) {
-      console.error('[ERP] Erro ao criar fechamento diário:', err.message);
-      toast.error('Erro ao salvar fechamento diário.');
+      console.error('[ERP] Erro ao criar fechamento diÃ¡rio:', err.message);
+      toast.error('Erro ao salvar fechamento diÃ¡rio.');
       throw err;
     }
   }, []);
@@ -1291,3 +1293,4 @@ export const useERP = () => {
   if (!ctx) throw new Error('useERP must be used within ERPProvider');
   return ctx;
 };
+

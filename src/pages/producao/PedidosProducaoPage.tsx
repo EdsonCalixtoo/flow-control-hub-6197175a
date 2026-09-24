@@ -222,6 +222,16 @@ const PedidosProducaoPage: React.FC = () => {
     
     // Melhor Envio
     const [showMelhorEnvioModal, setShowMelhorEnvioModal] = useState(false);
+    useEffect(() => {
+        if (showMelhorEnvioModal || showPrintModal) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+        return () => {
+            document.body.style.overflow = '';
+        };
+    }, [showMelhorEnvioModal, showPrintModal]);
     const [orderForMelhorEnvio, setOrderForMelhorEnvio] = useState<any>(null);
     const [isGeneratingLabel, setIsGeneratingLabel] = useState(false);
     const [melhorEnvioVolumes, setMelhorEnvioVolumes] = useState([{ peso: '1', boxId: '' }]);

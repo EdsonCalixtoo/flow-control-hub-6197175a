@@ -1371,16 +1371,24 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                             className="input-modern bg-white dark:bg-slate-900 border-border/50 w-3/4 px-4 py-2 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-xs font-bold text-center"
                           />
                           <input
-                            type="number"
+                            type="text"
                             placeholder="Valor NF (R$)"
-                            value={localNfValue || (selectedOrder as any).invoice_value || ''}
-                            onChange={(e) => setLocalNfValue(e.target.value)}
+                            value={localNfValue ? `R$ ${Number(localNfValue).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ((selectedOrder as any).invoice_value ? `R$ ${Number((selectedOrder as any).invoice_value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '')}
+                            onChange={(e) => {
+                              let val = e.target.value.replace(/\D/g, '');
+                              if (!val) {
+                                setLocalNfValue('');
+                                return;
+                              }
+                              setLocalNfValue((Number(val) / 100).toString());
+                            }}
                             className="input-modern bg-white dark:bg-slate-900 border-border/50 w-1/4 px-4 py-2 rounded-xl outline-none focus:ring-2 focus:ring-blue-500/20 transition-all text-xs font-bold text-center"
                           />
                         </div>
                         <button
                            onClick={async () => {
                              const currentKey = localNfKey || (selectedOrder as any).invoiceKey || '';
+                             const currentValue = localNfValue || (selectedOrder as any).invoice_value || 0;
                              const keyToSave = currentKey.trim();
                              if (keyToSave.length !== 44) {
                                toast.error('A chave da nota fiscal deve ter exatos 44 dígitos.');
@@ -1388,11 +1396,11 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                              }
                              setIsSavingNfKey(true);
                              try {
-                               await updateOrder(selectedOrder.id, { invoiceKey: keyToSave, invoice_value: Number(localNfValue || (selectedOrder as any).invoice_value || 0) } as any);
-                               toast.success('Chave da NF salva com sucesso!');
+                               await updateOrder(selectedOrder.id, { invoiceKey: keyToSave, invoice_value: Number(currentValue) } as any);
+                               toast.success('Chave e Valor salvos com sucesso!');
                              } catch (error) {
                                console.error(error);
-                               toast.error('Erro ao salvar Chave da NF.');
+                               toast.error('Erro ao salvar os dados.');
                              } finally {
                                setIsSavingNfKey(false);
                              }
@@ -1400,7 +1408,7 @@ const FinanceiroDashboard: React.FC<FinanceiroDashboardProps> = ({ defaultTab = 
                            disabled={isSavingNfKey}
                            className="btn-modern bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 px-4 py-2 shadow-lg shadow-blue-500/30 flex items-center justify-center gap-2 text-[10px] uppercase font-black tracking-widest transition-all"
                         >
-                          {isSavingNfKey ? 'Salvando...' : 'Salvar Chave NF'}
+                          {isSavingNfKey ? 'Salvando...' : 'Salvar Chave e Valor'}
                         </button>
                       </div>
                     </div>

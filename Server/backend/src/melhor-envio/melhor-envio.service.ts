@@ -122,8 +122,8 @@ export class MelhorEnvioService {
     }));
 
     // 2.5 Configura opções de envio (Com ou sem Nota Fiscal)
-    // Se recebeu um valor de seguro específico (digitado no Financeiro), usa ele. Senão, usa o total do pedido.
-    const orderTotal = insuranceValue ? Number(insuranceValue) : (Number(order.total) || 100);
+    // Se recebeu um valor de seguro específico ou tem salvo no banco (digitado no Financeiro), usa ele. Senão, usa o total do pedido.
+    const orderTotal = insuranceValue ? Number(insuranceValue) : ((order as any).invoice_value ? Number((order as any).invoice_value) : (Number(order.total) || 100));
     const shippingOptions: any = {
       receipt: false,
       own_hand: false,

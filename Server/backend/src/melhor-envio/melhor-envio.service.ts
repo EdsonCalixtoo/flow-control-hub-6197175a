@@ -90,7 +90,7 @@ export class MelhorEnvioService {
     // Busca o invoice_value separadamente via query raw pois ele não está no schema.prisma ainda!
     let rawInvoiceValue: number | null = null;
     try {
-      const rawRes: any[] = await this.prisma.$queryRaw`SELECT invoice_value FROM orders WHERE id = ${orderId}::uuid`;
+      const rawRes: any[] = await this.prisma.$queryRaw`SELECT invoice_value FROM orders WHERE id = ${orderId}`;
       if (rawRes && rawRes.length > 0 && rawRes[0].invoice_value) {
         rawInvoiceValue = Number(rawRes[0].invoice_value);
       }
